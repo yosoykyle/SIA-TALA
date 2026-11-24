@@ -25,7 +25,6 @@ use App\Filament\Resources\Rooms\Pages\ViewRoom;
 use App\Filament\Resources\Rooms\RoomResource;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ListScheduleGenerationRuns;
 use App\Filament\Resources\SchedulingDemands\Pages\ListSchedulingDemands;
-use App\Filament\Resources\SectionMeetings\Pages\ListSectionMeetings;
 use App\Filament\Resources\Sections\Pages\CreateSection;
 use App\Filament\Resources\Sections\Pages\ListSections;
 use App\Filament\Resources\Sections\Pages\ViewSection;
@@ -41,10 +40,11 @@ use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
-use App\Models\SectionMeeting;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
+use App\Models\TermCohort;
 use App\Models\TermOffering;
+use App\Models\TermTeachingGridRow;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -80,7 +80,7 @@ class Issue58TermPlanningResourceContextTest extends TestCase
         $this->assertArrayHasKey($returnUrl, $page->getBreadcrumbs());
         $this->assertStringContainsString('termId='.$term->id, $page->getResourceUrl('index'));
         $navigation = collect($page->getWorkspaceNavigation());
-        $this->assertCount(5, $navigation);
+        $this->assertCount(4, $navigation);
         $this->assertSame($label, $navigation->first(fn ($item): bool => $item->isActive())->getLabel());
         foreach ($navigation as $item) {
             $this->assertStringContainsString('termId='.$term->id, $item->getUrl());
@@ -207,15 +207,16 @@ class Issue58TermPlanningResourceContextTest extends TestCase
 
         Livewire::withQueryParams(['termId' => $term->id])->test(ViewRoom::class, ['record' => $room->id])
             ->assertSuccessful()
-            ->assertSee('Room details')
+            ->assertSee('Room summary')
+            ->assertSee('Equipment')
+            ->assertSee('Notes')
             ->assertSee('General classroom')
             ->assertSee('Projector')
             ->assertSee('Computers')
             ->assertSee('Inactive')
-            ->assertSee('Created (Asia/Manila)')
-            ->assertSee('Last updated (Asia/Manila)')
-            ->assertSee('Oct 1, 2026')
-            ->assertSee('Oct 2, 2026')
+            ->assertSee('Created Oct 1, 2026')
+            ->assertSee('Last updated Oct 2, 2026')
+            ->assertSee('(Asia/Manila)')
             ->assertDontSee('Back to rooms')
             ->assertSee(RoomResource::getUrl('index', ['termId' => $term->id]));
     }
@@ -309,18 +310,6 @@ class Issue58TermPlanningResourceContextTest extends TestCase
         $otherBlock = CalendarEvent::factory()->for($other)->create($this->recurringBlock());
         $demand = SchedulingDemand::factory()->for($offering, 'termOffering')->create();
         $otherDemand = SchedulingDemand::factory()->for($otherOffering, 'termOffering')->create();
-        $faculty = User::factory()->create();
-        $meetingRoom = Room::factory()->create();
-        $meetings = [];
-        foreach ([[$run, $demand], [$otherRun, $otherDemand]] as [$meetingRun, $meetingDemand]) {
-            $meetings[] = SectionMeeting::query()->create([
-                'schedule_run_id' => $meetingRun->id, 'scheduling_demand_id' => $meetingDemand->id,
-                'meeting_sequence' => 1, 'faculty_user_id' => $faculty->id, 'room_id' => $meetingRoom->id,
-                'day_of_week' => 1, 'starts_at' => '08:00', 'ends_at' => '11:00',
-                'modality' => TermOffering::ModalityFaceToFace,
-                'state' => SectionMeeting::StateActive, 'published_at' => now(),
-            ]);
-        }
 
         foreach ([
             [ListTermOfferings::class, $offering, $otherOffering],
@@ -329,7 +318,6 @@ class Issue58TermPlanningResourceContextTest extends TestCase
             [ListScheduleGenerationRuns::class, $run, $otherRun],
             [ListCalendarEvents::class, $block, $otherBlock],
             [ListSchedulingDemands::class, $demand, $otherDemand],
-            [ListSectionMeetings::class, $meetings[0], $meetings[1]],
         ] as [$pageClass, $visible, $excluded]) {
             Livewire::withQueryParams(['termId' => $selected->id])->test($pageClass)
                 ->resetTableFilters()->assertCanSeeTableRecords([$visible])->assertCanNotSeeTableRecords([$excluded]);
@@ -434,7 +422,7 @@ class Issue58TermPlanningResourceContextTest extends TestCase
             ->assertSee('Class · DETAIL-CLASS-1')
             ->assertSee('Course code')
             ->assertSee('Class reference')
-            ->assertSee('Capacity')
+            ->assertSee('Approved capacity')
             ->assertSee('Student sections served')
             ->assertSee('Meeting requirements')
             ->assertSee('Delivery groups')
@@ -475,9 +463,11 @@ class Issue58TermPlanningResourceContextTest extends TestCase
     public function test_contextual_forms_prefill_exact_term_and_only_offer_that_terms_sections_sources(): void
     {
         $this->registrar();
-        $term = Term::factory()->create();
-        $offering = TermOffering::factory()->for($term)->create();
-        $otherOffering = TermOffering::factory()->create();
+        $term = Term::factory()->create(['state' => Term::StateActive]);
+        $package = TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive, 'activated_at' => now()]);
+        TermTeachingGridRow::factory()->for($package, 'package')->create(['day_of_week' => 1]);
+        $cohort = TermCohort::factory()->for($term)->create(['confirmed_count' => 25, 'confirmed_at' => now(), 'confirmed_by' => auth()->id()]);
+        $otherCohort = TermCohort::factory()->create(['confirmed_count' => 25, 'confirmed_at' => now()]);
 
         foreach ([CreateCalendarEvent::class, CreateFacultyTermLoadOverride::class] as $pageClass) {
             Livewire::withQueryParams(['termId' => $term->id])->test($pageClass)
@@ -486,9 +476,11 @@ class Issue58TermPlanningResourceContextTest extends TestCase
 
         Livewire::withQueryParams(['termId' => $term->id])->test(CreateSection::class)->assertRedirect(TermClasses::getUrl(['termId' => $term->id, 'action' => 'addClass']));
         $section = Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)->mountAction('addClass')->instance();
-        $options = $section->getSchema($section->getMountedActionSchemaName())->getFlatFields()['term_offering_id']->getOptions();
-        $this->assertArrayHasKey($offering->id, $options);
-        $this->assertArrayNotHasKey($otherOffering->id, $options);
+        $cohortField = collect($section->getSchema($section->getMountedActionSchemaName())->getFlatComponents(withHidden: true))
+            ->first(fn ($component): bool => method_exists($component, 'getName') && $component->getName() === 'id');
+        $options = $cohortField->getOptions();
+        $this->assertArrayHasKey($cohort->id, $options);
+        $this->assertArrayNotHasKey($otherCohort->id, $options);
     }
 
     public function test_invalid_or_mismatched_term_context_does_not_open_another_terms_record(): void
@@ -572,7 +564,8 @@ class Issue58TermPlanningResourceContextTest extends TestCase
             'ends_at' => '11:00:00',
         ]);
         Livewire::withQueryParams(['termId' => $term->id])->test(MyAvailability::class)
-            ->assertSeeHtml(CalendarEventResource::getUrl('index', ['termId' => $term->id]));
+            ->assertSee('Earlier unavailable time')
+            ->assertSee('9:00 AM–11:00 AM');
         $history = Livewire::withQueryParams(['termId' => $term->id])->test(ListCalendarEvents::class)
             ->assertSee('Back to My Availability')
             ->assertSee('Read-only earlier unavailable-time records belonging to you.')
@@ -591,15 +584,14 @@ class Issue58TermPlanningResourceContextTest extends TestCase
     public static function planningLists(): array
     {
         return [
-            'Offerings' => [ListTermOfferings::class, 'classes', 'Sections & classes'],
-            'Sections' => [ListSections::class, 'classes', 'Sections & classes'],
-            'Requirements' => [ListSchedulingDemands::class, 'classes', 'Sections & classes'],
+            'Offerings' => [ListTermOfferings::class, 'classes', 'Classes & sections'],
+            'Sections' => [ListSections::class, 'classes', 'Classes & sections'],
+            'Requirements' => [ListSchedulingDemands::class, 'classes', 'Classes & sections'],
             'Rooms' => [ListRooms::class, 'resources', 'Faculty & rooms'],
             'Qualifications' => [ListFacultyQualifications::class, 'resources', 'Faculty & rooms'],
             'Loads' => [ListFacultyTermLoadOverrides::class, 'resources', 'Faculty & rooms'],
             'Availability' => [ListCalendarEvents::class, 'resources', 'Faculty & rooms'],
             'Runs' => [ListScheduleGenerationRuns::class, 'generate', 'Timetable'],
-            'Meetings' => [ListSectionMeetings::class, 'published', 'Timetable'],
         ];
     }
 

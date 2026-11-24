@@ -20,8 +20,16 @@ class ProgramFactory extends Factory
         return [
             'code' => strtoupper(fake()->unique()->lexify('????')),
             'name' => fake()->words(3, true),
+            'description' => null,
             'duration_years' => fake()->numberBetween(2, 4),
             'is_active' => true,
         ];
+    }
+
+    public function withDescription(?string $description = null): static
+    {
+        return $this->state(fn (): array => [
+            'description' => $description ?? fake()->sentence(14),
+        ]);
     }
 }

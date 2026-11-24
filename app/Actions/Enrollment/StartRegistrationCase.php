@@ -130,6 +130,12 @@ class StartRegistrationCase
             throw new AuthorizationException('Assisted and late registration methods require authorized Registrar staff.');
         }
 
+        if ($term->state === Term::StateClosed) {
+            throw ValidationException::withMessages([
+                'term' => 'This term is closed and no longer accepts new enrollments.',
+            ]);
+        }
+
         if ($startMethod !== 'LateAuthority') {
             $this->calendarPhaseGate->assertEnrollmentWindowOpen($term->id);
         }
@@ -137,6 +143,11 @@ class StartRegistrationCase
         return DB::transaction(function () use ($credentialUser, $term, $actor, $selectionBasis, $startMethod, $application, $studentProfile, $authorityReference, $expectedAdmissionSource): Enrollment {
             User::query()->whereKey($credentialUser->id)->lockForUpdate()->firstOrFail();
             $term = Term::query()->whereKey($term->id)->lockForUpdate()->firstOrFail();
+            if ($term->state === Term::StateClosed) {
+                throw ValidationException::withMessages([
+                    'term' => 'This term is closed and no longer accepts new enrollments.',
+                ]);
+            }
             $actor = $actor->fresh();
             if (! $actor instanceof User || ! $actor->canAuthenticate()) {
                 throw new AuthorizationException('An active authorized user must start this Registration Case.');

@@ -6,19 +6,11 @@ use App\Actions\Scheduling\SchedulePublishService;
 use App\Actions\Scheduling\ScheduleReleaseNotificationService;
 use App\Mail\ScheduleReleasedMail;
 use App\Mail\ScheduleRevisionMail;
-use App\Models\Assessment;
 use App\Models\CandidateScheduleRow;
 use App\Models\CourseComponent;
-use App\Models\CourseEnrollment;
 use App\Models\CourseSpecification;
-use App\Models\CurriculumEntry;
-use App\Models\Enrollment;
-use App\Models\EnrollmentSeatReservation;
 use App\Models\FacultyQualification;
-use App\Models\LedgerEntry;
 use App\Models\OperationalEvent;
-use App\Models\Payment;
-use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
@@ -26,7 +18,6 @@ use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
-use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
@@ -76,8 +67,13 @@ final class TAL94E2bScheduleReleasedNotificationTest extends TestCase
             function (ScheduleReleasedMail $mail) use ($assignedFaculty, $context): bool {
                 $this->assertTrue($mail->hasTo($assignedFaculty->email));
                 $this->assertSame($context['term']->label, $mail->termLabel);
-                $this->assertSame(route('filament.admin.pages.faculty-schedule'), $mail->scheduleUrl);
-                $mail->assertSeeInHtml('View Schedule')
+                $this->assertSame(
+                    route('filament.admin.pages.faculty-schedule', ['termId' => $context['term']->id]),
+                    $mail->scheduleUrl,
+                );
+                $mail->assertSeeInHtml('Open My Schedule')
+                    ->assertSeeInHtml('Staff Workspace')
+                    ->assertDontSeeInHtml('Student Hub')
                     ->assertDontSeeInHtml('publication note')
                     ->assertDontSeeInHtml('08:00');
 
@@ -111,43 +107,22 @@ final class TAL94E2bScheduleReleasedNotificationTest extends TestCase
         $this->assertSame(1, OperationalEvent::query()->where('event_type', 'schedule_released_email')->count());
     }
 
-    public function test_official_enrollment_queues_one_release_email_for_its_student_and_repeat_finalization_is_idempotent(): void
+    public function test_schedule_release_notification_service_is_strictly_faculty_only(): void
     {
-        Mail::fake();
+        $this->assertFalse(method_exists(ScheduleReleaseNotificationService::class, 'recordOfficialEnrollment'));
 
-        $fixture = $this->officialEnrollmentContext();
-
-        app(ScheduleReleaseNotificationService::class)->recordOfficialEnrollment($fixture['enrollment']);
-
-        Mail::assertQueuedCount(1);
-        Mail::assertQueued(
-            ScheduleReleasedMail::class,
-            function (ScheduleReleasedMail $mail) use ($fixture): bool {
-                $this->assertTrue($mail->hasTo($fixture['student']->email));
-                $this->assertSame($fixture['term']->label, $mail->termLabel);
-                $this->assertSame(route('filament.student.pages.schedule-view'), $mail->scheduleUrl);
-
-                return true;
-            },
+        $mail = new ScheduleReleasedMail(
+            operationalEventId: 1,
+            recipientName: 'Prof. Elena',
+            termLabel: '1st Semester AY 2026-2027',
+            scheduleUrl: route('filament.admin.pages.faculty-schedule', ['termId' => 42]),
         );
 
-        $deliveryEvent = OperationalEvent::query()
-            ->where('event_type', 'schedule_released_email')
-            ->sole();
-
-        $this->assertSame('PENDING', $deliveryEvent->status);
-        $this->assertSame($fixture['student']->id, $deliveryEvent->user_id);
-        $this->assertSame(Enrollment::class, $deliveryEvent->related_record_type);
-        $this->assertSame($fixture['enrollment']->id, $deliveryEvent->related_record_id);
-        $this->assertSame(
-            "schedule-release:official-enrollment:{$fixture['enrollment']->id}:user:{$fixture['student']->id}",
-            $deliveryEvent->external_id,
-        );
-
-        app(ScheduleReleaseNotificationService::class)->recordOfficialEnrollment($fixture['enrollment']->fresh());
-
-        Mail::assertQueuedCount(1);
-        $this->assertSame(1, OperationalEvent::query()->where('event_type', 'schedule_released_email')->count());
+        $mail->assertSeeInHtml('Open My Schedule')
+            ->assertSeeInHtml('Staff Workspace')
+            ->assertSeeInHtml('/admin/faculty-schedule?termId=42')
+            ->assertDontSeeInHtml('Student Hub')
+            ->assertDontSeeInHtml('faculty before attending');
     }
 
     public function test_missing_and_invalid_faculty_emails_record_failed_evidence_without_queueing_mail_or_reversing_publication(): void
@@ -270,7 +245,7 @@ final class TAL94E2bScheduleReleasedNotificationTest extends TestCase
             operationalEventId: (int) $releaseProcessed->id,
             recipientName: (string) $recipient->name,
             termLabel: 'Tracked Mail Term',
-            scheduleUrl: route('filament.student.pages.schedule-view'),
+            scheduleUrl: route('filament.admin.pages.faculty-schedule'),
         ));
         Mail::mailer('array')->to($recipient->email)->sendNow(new ScheduleRevisionMail(
             operationalEventId: (int) $revisionProcessed->id,
@@ -297,7 +272,7 @@ final class TAL94E2bScheduleReleasedNotificationTest extends TestCase
             operationalEventId: (int) $releaseFailed->id,
             recipientName: (string) $recipient->name,
             termLabel: 'Tracked Mail Term',
-            scheduleUrl: route('filament.student.pages.schedule-view'),
+            scheduleUrl: route('filament.admin.pages.faculty-schedule'),
         );
         $mailable->failed(new RuntimeException('smtp_password=must-not-be-persisted'));
 
@@ -339,19 +314,6 @@ final class TAL94E2bScheduleReleasedNotificationTest extends TestCase
 
         $this->assertSame(ScheduleGenerationRun::StatusUnderReview, $context['run']->fresh()->status);
         $this->assertSame(0, $context['run']->sectionMeetings()->count());
-        $this->assertSame(0, OperationalEvent::query()->where('event_type', 'schedule_released_email')->count());
-        Mail::assertNothingQueued();
-    }
-
-    public function test_non_official_registration_creates_no_release_mail_or_delivery_evidence(): void
-    {
-        Mail::fake();
-
-        $fixture = $this->officialEnrollmentContext(withPostedPayment: false);
-
-        app(ScheduleReleaseNotificationService::class)->recordOfficialEnrollment($fixture['enrollment']);
-
-        $this->assertNotSame('officially_enrolled', $fixture['enrollment']->fresh()->status);
         $this->assertSame(0, OperationalEvent::query()->where('event_type', 'schedule_released_email')->count());
         Mail::assertNothingQueued();
     }
@@ -443,189 +405,6 @@ final class TAL94E2bScheduleReleasedNotificationTest extends TestCase
         }
 
         return compact('term', 'run');
-    }
-
-    /**
-     * @return array{student:User,term:Term,enrollment:Enrollment}
-     */
-    private function officialEnrollmentContext(bool $withPostedPayment = true): array
-    {
-        $faculty = $this->staff(User::StaffRoleFaculty);
-        $profile = StudentProfile::factory()->create();
-        $profile->user->forceFill(['status' => User::StatusActive])->save();
-        $profile->user->assignRole('student');
-        $student = $profile->user->fresh();
-        $term = Term::factory()->create([
-            'label' => 'TAL-94E2b Enrollment Term',
-            'starts_on' => '2026-06-01',
-            'ends_on' => '2026-10-31',
-        ]);
-        $enrollment = Enrollment::factory()
-            ->for($profile)
-            ->for($term)
-            ->create([
-                'credential_user_id' => $student->id,
-                'canonical_outcome' => $withPostedPayment ? Enrollment::OutcomeOfficiallyEnrolled : Enrollment::OutcomeInProgress,
-                'status' => $withPostedPayment ? 'officially_enrolled' : 'pending_review',
-            ]);
-        $assessment = Assessment::query()->create([
-            'enrollment_id' => $enrollment->id,
-            'version' => 1,
-            'state' => Assessment::StateActive,
-            'currency' => 'PHP',
-            'subtotal' => '5800.00',
-            'discount_total' => '0.00',
-            'total' => '5800.00',
-            'required_downpayment' => '1500.00',
-            'activated_at' => now()->subDay(),
-        ]);
-
-        LedgerEntry::query()->create([
-            'student_profile_id' => $profile->id,
-            'term_id' => $term->id,
-            'enrollment_id' => $enrollment->id,
-            'direction' => LedgerEntry::DirectionCharge,
-            'category' => 'assessment',
-            'amount' => '5800.00',
-            'source_type' => Assessment::class,
-            'source_id' => $assessment->id,
-            'description' => 'Active assessment charge',
-            'posted_at' => now()->subHours(2),
-            'state' => 'posted',
-        ]);
-        if ($withPostedPayment) {
-            $payment = Payment::factory()
-                ->for($profile)
-                ->for($term)
-                ->create([
-                    'amount' => '1500.00',
-                    'evidence_status' => 'verified',
-                    'verified_at' => now()->subHour(),
-                    'or_number' => null,
-                    'provider_reference' => 'tal94e2b-payment-'.Str::uuid(),
-                ]);
-            LedgerEntry::query()->create([
-                'student_profile_id' => $profile->id,
-                'term_id' => $term->id,
-                'enrollment_id' => $enrollment->id,
-                'direction' => LedgerEntry::DirectionPayment,
-                'category' => 'payment',
-                'amount' => $payment->amount,
-                'source_type' => Payment::class,
-                'source_id' => $payment->id,
-                'payment_id' => $payment->id,
-                'description' => 'Verified posted payment',
-                'posted_at' => now()->subMinutes(45),
-                'state' => 'posted',
-            ]);
-        }
-
-        $specification = CourseSpecification::factory()->create([
-            'credit_units' => '3.00',
-            'state' => CourseSpecification::StateActive,
-        ]);
-        $entry = CurriculumEntry::factory()->create([
-            'curriculum_version_id' => $profile->curriculum_version_id,
-            'course_specification_id' => $specification->id,
-            'term_type' => Term::TypeFirstSemester,
-        ]);
-        $offering = TermOffering::factory()
-            ->for($term)
-            ->for($entry, 'curriculumEntry')
-            ->create([
-                'modality' => TermOffering::ModalityOnline,
-                'state' => TermOffering::StateScheduled,
-            ]);
-        $section = Section::factory()
-            ->for($offering, 'termOffering')
-            ->create([
-                'capacity' => 30,
-                'state' => Section::StateOpen,
-            ]);
-        $group = SectionDeliveryGroup::factory()
-            ->for($section)
-            ->create([
-                'modality' => TermOffering::ModalityOnline,
-                'state' => SectionDeliveryGroup::StateReady,
-            ]);
-        $component = CourseComponent::factory()
-            ->for($specification, 'courseSpecification')
-            ->create();
-        $demand = SchedulingDemand::factory()
-            ->for($offering)
-            ->for($component)
-            ->for($group)
-            ->create([
-                'modality' => TermOffering::ModalityOnline,
-                'meeting_count' => 1,
-            ]);
-        $run = ScheduleGenerationRun::query()->create([
-            'term_id' => $term->id,
-            'status' => ScheduleGenerationRun::StatusPublished,
-            'input_snapshot' => [],
-            'input_hash' => hash('sha256', (string) Str::uuid()),
-            'solver_version' => 'tal94e2b-enrollment-test',
-            'published_by' => $faculty->id,
-            'published_at' => now(),
-            'publication_version' => 1,
-        ]);
-        $meeting = SectionMeeting::query()->create([
-            'schedule_run_id' => $run->id,
-            'scheduling_demand_id' => $demand->id,
-            'meeting_sequence' => 1,
-            'faculty_user_id' => $faculty->id,
-            'room_id' => null,
-            'day_of_week' => 1,
-            'starts_at' => '08:00:00',
-            'ends_at' => '10:00:00',
-            'modality' => TermOffering::ModalityOnline,
-            'state' => SectionMeeting::StateActive,
-            'published_at' => now(),
-        ]);
-        $courseEnrollment = CourseEnrollment::query()->create([
-            'enrollment_id' => $enrollment->id,
-            'term_offering_id' => $offering->id,
-            'section_id' => $section->id,
-            'is_current' => true,
-            'status' => CourseEnrollment::StatusActive,
-            'units_snapshot' => '3.00',
-            'added_at' => now(),
-        ]);
-        $timetableVersion = PublishedTimetableVersion::query()->create([
-            'term_id' => $term->id,
-            'schedule_run_id' => $run->id,
-            'version' => 1,
-            'state' => PublishedTimetableVersion::StatePublished,
-            'authority_reference' => 'TAL94E2B-AUTHORITY',
-            'publication_reason' => 'Canonical notification fixture.',
-            'source_versions' => [],
-            'impact_summary' => [],
-            'content_hash' => hash('sha256', 'tal94e2b-'.$enrollment->id),
-            'published_by' => $faculty->id,
-            'published_at' => now(),
-        ]);
-        PublishedTimetableMeeting::query()->create([
-            'published_timetable_version_id' => $timetableVersion->id,
-            'section_id' => $section->id,
-            'scheduling_demand_id' => $demand->id,
-            'faculty_user_id' => $faculty->id,
-            'meeting_sequence' => 1,
-            'day_of_week' => 1,
-            'starts_at' => '08:00:00',
-            'ends_at' => '10:00:00',
-            'modality' => TermOffering::ModalityOnline,
-            'location_label' => 'Online',
-        ]);
-        EnrollmentSeatReservation::query()->create([
-            'enrollment_id' => $enrollment->id,
-            'course_enrollment_id' => $courseEnrollment->id,
-            'section_id' => $section->id,
-            'status' => EnrollmentSeatReservation::StatusPending,
-            'reserved_at' => now(),
-            'registrar_user_id' => $faculty->id,
-        ]);
-
-        return compact('student', 'term', 'enrollment');
     }
 
     /**

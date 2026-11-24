@@ -83,7 +83,7 @@ class Issue58TimetableExplorationSeederTest extends TestCase
         Livewire::withQueryParams(['termId' => $populated->id, 'timetableState' => 'official'])
             ->test(TermTimetable::class)
             ->assertSuccessful()
-            ->assertSee('Print whole Term')
+            ->assertSee('Print whole term')
             ->assertSee($prefix.'-SYNTHETIC-SIGNOFF');
     }
 

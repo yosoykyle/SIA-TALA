@@ -4,12 +4,14 @@ namespace App\Filament\Student\Pages;
 
 use App\Actions\Academics\CurriculumEvaluation;
 use App\Actions\Academics\OfficialCourseResultProjection;
+use App\Actions\Enrollment\CurrentOfficialEnrollmentResolver;
 use App\Actions\Enrollment\RegistrationEntryContext;
 use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
 use App\Actions\Finance\TermAccountProjection;
 use App\Actions\StudentHub\StudentHubPriorityResolver;
 use App\Actions\StudentHub\StudentStudyContext;
 use App\Models\CourseEnrollment;
+use App\Models\CourseSpecification;
 use App\Models\Enrollment as EnrollmentRecord;
 use App\Models\Hold;
 use App\Models\StudentProfile;
@@ -32,9 +34,36 @@ class Dashboard extends BaseDashboard
                 $user = auth()->user();
                 abort_unless($user instanceof User && $user->hasRole('student'), 403);
                 $context = app(RegistrationEntryContext::class)->forUser($user);
-                $case = $context['enrollment'];
+                $activeOfficialEnrollments = app(CurrentOfficialEnrollmentResolver::class)->allActiveForStudent($user);
+                $currentOfficialEnrollment = $activeOfficialEnrollments->first();
+                $case = $context['enrollment'] ?? $currentOfficialEnrollment;
                 $case?->loadMissing(['termAccount', 'currentProposalVersion.confirmation', 'term']);
                 $notice = $user->studentProfile !== null ? app(StudentHubPriorityResolver::class)->resolve($user->studentProfile) : null;
+                $scheduleCase = $case?->canonical_outcome === EnrollmentRecord::OutcomeOfficiallyEnrolled
+                    ? $case
+                    : $currentOfficialEnrollment;
+                $externallyArrangedClasses = $scheduleCase instanceof EnrollmentRecord
+                    ? CourseEnrollment::query()
+                        ->with(['termOffering.curriculumEntry.courseSpecification.course', 'section'])
+                        ->where('enrollment_id', $scheduleCase->id)
+                        ->where('status', CourseEnrollment::StatusActive)
+                        ->where('is_current', true)
+                        ->whereHas('termOffering.curriculumEntry.courseSpecification', fn ($query) => $query
+                            ->where('scheduling_treatment', CourseSpecification::SchedulingExternallyArranged))
+                        ->get()
+                        ->map(function (CourseEnrollment $registration): array {
+                            $spec = $registration->termOffering?->curriculumEntry?->courseSpecification;
+
+                            return [
+                                'course_code' => (string) ($spec?->course?->code ?? 'Subject'),
+                                'course_title' => (string) ($spec?->title ?? 'Externally arranged subject'),
+                                'section_code' => (string) ($registration->section?->code ?: 'Not sectioned'),
+                            ];
+                        })
+                        ->sortBy('course_code')
+                        ->values()
+                        ->all()
+                    : [];
 
                 return [
                     'academicSnapshot' => $this->academicSnapshot($user->studentProfile, $case),
@@ -44,7 +73,10 @@ class Dashboard extends BaseDashboard
                     'requirement' => $case !== null ? app(EnrollmentPaymentRequirementProjection::class)->forEnrollment($case) : null,
                     'position' => $case?->termAccount !== null ? app(TermAccountProjection::class)->forAccount($case->termAccount) : null,
                     'schedulePresentation' => $case?->canonical_outcome === EnrollmentRecord::OutcomeOfficiallyEnrolled
-                        ? app(RegistrationSchedulePresentation::class)->currentFor($user) : null,
+                        ? app(RegistrationSchedulePresentation::class)->currentForEnrollment($case) : null,
+                    'recentScheduleRevisions' => ScheduleView::recentScheduleRevisionsForEnrollment($scheduleCase),
+                    'externallyArrangedClasses' => $externallyArrangedClasses,
+                    'activeOfficialTermCount' => $activeOfficialEnrollments->count(),
                     'notice' => in_array($notice['tier'] ?? null, ['Schedule Available', 'COR Available'], true) ? null : $notice,
                     'latestEvidence' => $case?->termAccount?->paymentEvidenceVersions()->latest('version')->first(),
                     'activeHolds' => $user->studentProfile?->holds()

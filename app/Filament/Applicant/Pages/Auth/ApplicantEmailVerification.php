@@ -2,7 +2,6 @@
 
 namespace App\Filament\Applicant\Pages\Auth;
 
-use App\Actions\Applicants\ApplicantEntryReadinessService;
 use App\Actions\Applicants\DispatchApplicantEmailVerification;
 use App\Models\User;
 use Caresome\FilamentAuthDesigner\Pages\Auth\EmailVerification;
@@ -16,6 +15,9 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\HtmlString;
 
+/**
+ * @property-read Action $backToSignInAction
+ */
 class ApplicantEmailVerification extends EmailVerification
 {
     public function resendNotificationAction(): Action
@@ -61,6 +63,23 @@ class ApplicantEmailVerification extends EmailVerification
             });
     }
 
+    public function backToSignInAction(): Action
+    {
+        return Action::make('backToSignIn')
+            ->link()
+            ->color('primary')
+            ->icon(Heroicon::OutlinedArrowLeft)
+            ->label('Back to sign in')
+            ->extraAttributes(['class' => 'min-h-[2.75rem]'])
+            ->action(function (): void {
+                filament()->auth()->logout();
+                session()->invalidate();
+                session()->regenerateToken();
+
+                $this->redirect(route('filament.applicant.auth.login'), navigate: false);
+            });
+    }
+
     public function getTitle(): string|Htmlable
     {
         return 'Verify your account';
@@ -84,25 +103,27 @@ class ApplicantEmailVerification extends EmailVerification
 
     public function content(Schema $schema): Schema
     {
-        $supportUrl = app(ApplicantEntryReadinessService::class)->officialReferences()['support'];
-        $supportLink = filled($supportUrl)
-            ? new HtmlString('<p class="tala-auth-recovery tala-verification-support"><span>Need help?</span> <a href="'.e((string) $supportUrl).'">Contact School Support &rarr;</a></p>')
-            : new HtmlString('<p class="tala-auth-recovery tala-verification-support">Need help? Contact School Support</p>');
-
         return $schema->components([
             Placeholder::make('verification_countdown')
                 ->hiddenLabel()
                 ->content(function (): View {
                     $expiresAt = DispatchApplicantEmailVerification::expiresAt();
-                    $remainingSeconds = $expiresAt === null ? 0 : max(0, $expiresAt->getTimestamp() - now()->getTimestamp());
+                    $remainingSeconds = $expiresAt === null
+                        ? null
+                        : max(0, $expiresAt->getTimestamp() - now()->getTimestamp());
 
                     return view('filament.applicant.components.verification-countdown', [
-                        'expiresAtMilliseconds' => $expiresAt?->getTimestampMs(),
-                        'initialClock' => sprintf('%02d:%02d', intdiv($remainingSeconds, 60), $remainingSeconds % 60),
+                        'remainingSeconds' => $remainingSeconds,
+                        'sentAtKey' => session(DispatchApplicantEmailVerification::SentAtSessionKey),
+                        'initialClock' => $remainingSeconds === null
+                            ? null
+                            : sprintf('%02d:%02d', intdiv($remainingSeconds, 60), $remainingSeconds % 60),
                         'resendActionHtml' => new HtmlString($this->resendNotificationAction->toHtml()),
                     ]);
                 }),
-            $supportLink,
+            new HtmlString(view('filament.applicant.components.verification-recovery-links', [
+                'backToSignInActionHtml' => new HtmlString($this->backToSignInAction->toHtml()),
+            ])->render()),
         ]);
     }
 

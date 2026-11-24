@@ -3,6 +3,8 @@
 namespace App\Actions\Scheduling;
 
 use App\Models\CandidateScheduleRow;
+use App\Models\ClassOfferingTeachingAssignment;
+use App\Models\PublishedTimetableVersion;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
 use App\Models\SectionMeeting;
@@ -46,10 +48,17 @@ class SchedulePublishService
         $authorityReference = $this->normalizedNote($authorityReference);
 
         $outcome = DB::transaction(function () use ($run, $publisher, $note, $authorityReference): array {
-            Term::query()
+            $lockedTerm = Term::query()
                 ->whereKey($run->term_id)
                 ->lockForUpdate()
                 ->firstOrFail();
+
+            if ($lockedTerm->state === Term::StateClosed) {
+                throw ValidationException::withMessages([
+                    'term_id' => 'This term is closed and cannot publish a timetable.',
+                    'state' => 'This term is closed and cannot publish a timetable.',
+                ]);
+            }
 
             $termRuns = ScheduleGenerationRun::query()
                 ->where('term_id', $run->term_id)
@@ -161,6 +170,7 @@ class SchedulePublishService
             }
 
             $this->activatePublishedSources($candidateRows);
+            $this->designateMissingTeachingAssignments($candidateRows, $timetableVersion, $publisher, $timestamp);
 
             $lockedRun->forceFill([
                 'status' => ScheduleGenerationRun::StatusPublished,
@@ -202,6 +212,67 @@ class SchedulePublishService
         $this->releaseNotifications->recordPublishedRun($publishedRun);
 
         return $publishedRun;
+    }
+
+    /**
+     * Designates the primary published Faculty member as the Section's teaching authority
+     * when the Section has no active designated assignment yet.
+     *
+     * @param  Collection<int, CandidateScheduleRow>  $candidateRows
+     */
+    private function designateMissingTeachingAssignments(
+        Collection $candidateRows,
+        PublishedTimetableVersion $timetableVersion,
+        User $publisher,
+        CarbonImmutable $timestamp,
+    ): void {
+        $facultyBySection = [];
+
+        foreach ($candidateRows->sortBy(['scheduling_demand_id', 'meeting_sequence']) as $row) {
+            $sectionId = (int) ($row->schedulingDemand?->sectionDeliveryGroup?->section_id ?? 0);
+            $facultyId = (int) $row->faculty_user_id;
+
+            if ($sectionId === 0 || $facultyId === 0) {
+                continue;
+            }
+
+            $facultyBySection[$sectionId][$facultyId] = ($facultyBySection[$sectionId][$facultyId] ?? 0) + 1;
+        }
+
+        if ($facultyBySection === []) {
+            return;
+        }
+
+        $designatedSectionIds = ClassOfferingTeachingAssignment::query()
+            ->whereIn('section_id', array_keys($facultyBySection))
+            ->where('role', ClassOfferingTeachingAssignment::RoleDesignated)
+            ->where('state', ClassOfferingTeachingAssignment::StateActive)
+            ->pluck('section_id')
+            ->map(fn (mixed $sectionId): int => (int) $sectionId)
+            ->all();
+        $authorityReference = filled($timetableVersion->authority_reference)
+            ? (string) $timetableVersion->authority_reference
+            : 'TIMETABLE-V'.$timetableVersion->version;
+
+        foreach (Section::query()->whereIn('id', array_keys($facultyBySection))->orderBy('id')->get() as $section) {
+            if (in_array((int) $section->id, $designatedSectionIds, true)) {
+                continue;
+            }
+
+            $facultyCounts = $facultyBySection[(int) $section->id];
+            arsort($facultyCounts);
+
+            ClassOfferingTeachingAssignment::query()->create([
+                'term_offering_id' => $section->term_offering_id,
+                'section_id' => $section->id,
+                'faculty_user_id' => array_key_first($facultyCounts),
+                'role' => ClassOfferingTeachingAssignment::RoleDesignated,
+                'state' => ClassOfferingTeachingAssignment::StateActive,
+                'authority_reference' => $authorityReference,
+                'assigned_by' => $publisher->id,
+                'effective_at' => $timestamp,
+            ]);
+        }
     }
 
     /**

@@ -3,9 +3,8 @@
 namespace Tests\Feature;
 
 use App\Actions\Scheduling\SchedulePublishService;
+use App\Filament\Pages\TermTimetable;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ViewScheduleGenerationRun;
-use App\Filament\Resources\SectionMeetings\Pages\ListSectionMeetings;
-use App\Filament\Resources\SectionMeetings\SectionMeetingResource;
 use App\Models\CandidateScheduleRow;
 use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
@@ -21,6 +20,7 @@ use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
 use App\Models\User;
 use Filament\Actions\Action;
+use Filament\Facades\Filament;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -54,6 +54,7 @@ final class TAL66SchedulePublicationTest extends TestCase
         $this->assertSame('mysql', DB::connection()->getDriverName());
         $this->assertSame(config('database.test_database'), DB::connection()->getDatabaseName());
         $this->assertNotSame('tala_db', DB::connection()->getDatabaseName());
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         foreach ([
             User::StaffRoleRegistrar,
@@ -220,27 +221,38 @@ final class TAL66SchedulePublicationTest extends TestCase
             warnings: [['key' => 'late_slot', 'message' => 'Late class slot.']],
         );
 
-        $component = Livewire::actingAs($registrar)
+        Livewire::actingAs($registrar)
             ->test(ViewScheduleGenerationRun::class, ['record' => $run->getRouteKey()])
-            ->assertActionVisible('publishSchedule')
-            ->assertActionHasLabel('publishSchedule', 'Publish official timetable');
+            ->assertOk()
+            ->assertActionDoesNotExist('publishSchedule');
+
+        $component = Livewire::actingAs($registrar)
+            ->withQueryParams([
+                'termId' => $term->id,
+                'selectedRunId' => $run->id,
+                'timetableState' => 'draft',
+            ])
+            ->test(TermTimetable::class)
+            ->assertActionVisible('publishOfficialTimetable')
+            ->assertActionHasLabel('publishOfficialTimetable', 'Publish official timetable');
 
         $page = $component->instance();
-        $this->assertInstanceOf(ViewScheduleGenerationRun::class, $page);
+        $this->assertInstanceOf(TermTimetable::class, $page);
 
-        $action = $page->getAction('publishSchedule');
+        $action = $page->getAction('publishOfficialTimetable');
 
         $this->assertInstanceOf(Action::class, $action);
         $this->assertTrue($action->isConfirmationRequired());
-        $this->assertStringContainsString('1 candidate assignment', (string) $action->getModalDescription());
-        $this->assertStringContainsString('1 warning row', (string) $action->getModalDescription());
-        $this->assertStringContainsString('0 conflict or violation rows', (string) $action->getModalDescription());
+        $this->assertStringContainsString('1 candidate assignments', (string) $action->getModalDescription());
+        $this->assertStringContainsString('1 warnings', (string) $action->getModalDescription());
+        $this->assertStringContainsString('0 conflicts', (string) $action->getModalDescription());
 
-        $action
-            ->data(['publication_note' => 'Accepted advisory scheduling warning.'])
-            ->call();
-
-        $component->assertNotified('Timetable published');
+        $component
+            ->callAction('publishOfficialTimetable', data: [
+                'publication_note' => 'Accepted advisory scheduling warning.',
+            ])
+            ->assertHasNoActionErrors()
+            ->assertNotified('Official timetable published');
 
         $run->refresh();
 
@@ -370,31 +382,66 @@ final class TAL66SchedulePublicationTest extends TestCase
 
         Livewire::actingAs($registrar)
             ->test(ViewScheduleGenerationRun::class, ['record' => $publishableRun->getRouteKey()])
-            ->assertActionVisible('publishSchedule');
-
-        Livewire::actingAs($academicHead)
-            ->test(ViewScheduleGenerationRun::class, ['record' => $publishableRun->getRouteKey()])
-            ->assertActionHidden('publishSchedule');
+            ->assertOk()
+            ->assertActionDoesNotExist('publishSchedule');
 
         Livewire::actingAs($registrar)
-            ->test(ViewScheduleGenerationRun::class, ['record' => $blockedRun->getRouteKey()])
-            ->assertActionHidden('publishSchedule');
+            ->withQueryParams([
+                'termId' => $term->id,
+                'selectedRunId' => $publishableRun->id,
+                'timetableState' => 'draft',
+            ])
+            ->test(TermTimetable::class)
+            ->assertActionVisible('publishOfficialTimetable');
+
+        Livewire::actingAs($academicHead)
+            ->withQueryParams([
+                'termId' => $term->id,
+                'selectedRunId' => $publishableRun->id,
+                'timetableState' => 'draft',
+            ])
+            ->test(TermTimetable::class)
+            ->assertActionHidden('publishOfficialTimetable');
+
+        Livewire::actingAs($registrar)
+            ->withQueryParams([
+                'termId' => $term->id,
+                'selectedRunId' => $blockedRun->id,
+                'timetableState' => 'draft',
+            ])
+            ->test(TermTimetable::class)
+            ->assertActionHidden('publishOfficialTimetable');
 
         $published = $this->publisher->publish($publishableRun, $registrar);
-        $meeting = $published->sectionMeetings()->firstOrFail();
+        $published->sectionMeetings()->firstOrFail();
 
-        $this->assertTrue(Route::has('filament.admin.term-planning.resources.section-meetings.index'));
+        $this->assertTrue(Route::has('filament.admin.term-planning.pages.timetable'));
+        $this->assertFalse(Route::has('filament.admin.term-planning.resources.section-meetings.index'));
         $this->assertFalse(Route::has('filament.admin.term-planning.resources.section-meetings.create'));
         $this->assertTrue(Gate::forUser($registrar)->allows('viewAny', SectionMeeting::class));
         $this->assertTrue(Gate::forUser($academicHead)->allows('viewAny', SectionMeeting::class));
 
-        Livewire::actingAs($registrar)
-            ->test(ListSectionMeetings::class)
-            ->assertCanSeeTableRecords([$meeting])
-            ->assertActionDoesNotExist('create');
+        $officialList = Livewire::actingAs($registrar)
+            ->withQueryParams([
+                'termId' => $term->id,
+                'timetableState' => 'official',
+                'timetableFormat' => 'list',
+            ])
+            ->test(TermTimetable::class)
+            ->assertOk()
+            ->assertSee('Official · Locked')
+            ->assertSee('8:00 AM–10:00 AM')
+            ->assertActionDoesNotExist('create')
+            ->assertActionDoesNotExist('edit')
+            ->assertActionDoesNotExist('delete');
+
+        $this->assertSame(1, $officialList->instance()->getTableRecords()->total());
 
         $this->actingAs($registrar)
-            ->get(SectionMeetingResource::getUrl())
+            ->get(TermTimetable::getUrl([
+                'termId' => $term->id,
+                'timetableState' => 'official',
+            ]))
             ->assertOk();
     }
 

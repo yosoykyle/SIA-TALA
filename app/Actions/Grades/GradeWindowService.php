@@ -5,6 +5,7 @@ namespace App\Actions\Grades;
 use App\Actions\Calendar\CalendarPhaseGateService;
 use App\Models\GradeRoster;
 use App\Models\LateGradeAuthorization;
+use App\Models\Term;
 use App\Models\TermCalendarWindow;
 use App\Models\User;
 use Carbon\CarbonInterface;
@@ -21,6 +22,10 @@ class GradeWindowService
             return false;
         }
 
+        if ($this->isTermClosed($roster)) {
+            return false;
+        }
+
         $at = ($at ?? now())->copy()->utc();
 
         return $this->calendarWindowIsOpen($roster, $at)
@@ -30,6 +35,16 @@ class GradeWindowService
     /** @return array{is_open: bool, basis: string, opens_at: ?CarbonInterface, closes_at: ?CarbonInterface, reference: ?string} */
     public function entryContext(GradeRoster $roster, ?Carbon $at = null): array
     {
+        if ($this->isTermClosed($roster)) {
+            return [
+                'is_open' => false,
+                'basis' => 'Term is closed',
+                'opens_at' => null,
+                'closes_at' => null,
+                'reference' => null,
+            ];
+        }
+
         $at = ($at ?? now())->copy()->utc();
         $window = $roster->termOffering?->term_id
             ? $this->calendar->configuredWindow($roster->termOffering->term_id, TermCalendarWindow::TypeGradeEntry)
@@ -50,6 +65,10 @@ class GradeWindowService
 
     public function finalizationClosed(GradeRoster $roster, ?Carbon $at = null): bool
     {
+        if ($this->isTermClosed($roster)) {
+            return true;
+        }
+
         $at ??= now();
         $termId = $roster->termOffering?->term_id;
 
@@ -104,5 +123,25 @@ class GradeWindowService
             ->where('opens_at', '<=', $at)
             ->where('closes_at', '>=', $at)
             ->latest('id')->first();
+    }
+
+    private function isTermClosed(GradeRoster $roster): bool
+    {
+        $term = $roster->termOffering?->term;
+
+        if ($term instanceof Term) {
+            return $term->state === Term::StateClosed;
+        }
+
+        $termId = $roster->termOffering?->term_id;
+
+        if ($termId === null) {
+            return false;
+        }
+
+        return Term::query()
+            ->whereKey($termId)
+            ->where('state', Term::StateClosed)
+            ->exists();
     }
 }

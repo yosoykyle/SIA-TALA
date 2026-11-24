@@ -6,19 +6,25 @@ use App\Actions\Applicants\ApplicantEntryReadinessService;
 use App\Actions\Applicants\DispatchApplicantEmailVerification;
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\PasswordValidationRules;
+use App\Filament\Pages\Auth\Concerns\HasAuthRateLimitCountdown;
 use App\Models\User;
 use Caresome\FilamentAuthDesigner\Pages\Auth\Register;
+use DanHarrin\LivewireRateLimiting\Exceptions\TooManyRequestsException;
 use Filament\Actions\Action;
 use Filament\Auth\Http\Responses\Contracts\RegistrationResponse;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Component;
+use Filament\Schemas\Components\RenderHook;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
+use Filament\View\PanelsRenderHook;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -26,6 +32,7 @@ use SensitiveParameter;
 
 class RegisterApplicant extends Register
 {
+    use HasAuthRateLimitCountdown;
     use PasswordValidationRules;
 
     /**
@@ -47,6 +54,13 @@ class RegisterApplicant extends Register
         }
 
         parent::mount();
+
+        $this->checkInitialRateLimitOnMount(
+            rateLimitingKey: $this->getRateLimitKey('register'),
+            maxAttempts: 2,
+            context: 'register',
+            totalSeconds: 60,
+        );
     }
 
     /**
@@ -73,6 +87,12 @@ class RegisterApplicant extends Register
      */
     public function register(): ?RegistrationResponse
     {
+        if (RateLimiter::tooManyAttempts($this->getRateLimitKey('register'), 2)) {
+            return parent::register();
+        }
+
+        $this->clearAuthRateLimit();
+
         try {
             $this->form->getState();
 
@@ -88,6 +108,22 @@ class RegisterApplicant extends Register
 
             throw $exception;
         }
+    }
+
+    protected function getRateLimitedNotification(TooManyRequestsException $exception): ?Notification
+    {
+        $this->data = [
+            'email' => null,
+            'password' => null,
+            'password_confirmation' => null,
+            'privacy_acknowledged' => false,
+        ];
+        $this->form->fill($this->data);
+        $this->resetErrorBag();
+        $this->resetValidation();
+        $this->startAuthRateLimitCountdown($exception->secondsUntilAvailable, 'register', 60);
+
+        return parent::getRateLimitedNotification($exception);
     }
 
     /**
@@ -177,14 +213,18 @@ class RegisterApplicant extends Register
                 ->revealable(filament()->arePasswordsRevealable())
                 ->required()
                 ->rules($this->passwordRules())
-                ->live(debounce: 300)
                 ->showAllValidationMessages()
                 ->autocomplete('new-password')
-                ->extraInputAttributes($this->focusOnInvalidFieldAttributes('password')),
+                ->extraInputAttributes([
+                    ...$this->focusOnInvalidFieldAttributes('password'),
+                    'data-tala-password-input' => 'password',
+                ]),
             Placeholder::make('password_requirements')
                 ->hiddenLabel()
                 ->content(fn (Get $get): View => view('filament.applicant.components.password-requirements', [
                     'check' => $this->passwordLengthCheck((string) $get('password')),
+                    'password' => (string) $get('password'),
+                    'passwordConfirmation' => (string) $get('password_confirmation'),
                 ])),
             TextInput::make('password_confirmation')
                 ->label('Confirm password')
@@ -192,7 +232,10 @@ class RegisterApplicant extends Register
                 ->revealable(filament()->arePasswordsRevealable())
                 ->required()
                 ->autocomplete('new-password')
-                ->extraInputAttributes($this->focusOnInvalidFieldAttributes('password_confirmation')),
+                ->extraInputAttributes([
+                    ...$this->focusOnInvalidFieldAttributes('password_confirmation'),
+                    'data-tala-password-input' => 'password_confirmation',
+                ]),
             Checkbox::make('privacy_acknowledged')
                 ->label(new HtmlString(
                     'I acknowledge the <a class="underline" href="'.e($privacyUrl).'" target="_blank" rel="noopener noreferrer">Privacy Notice</a>.',
@@ -218,10 +261,22 @@ class RegisterApplicant extends Register
         return 'Use an active email address to start your admission application and track your progress.';
     }
 
+    public function content(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+                RenderHook::make(PanelsRenderHook::AUTH_REGISTER_FORM_BEFORE),
+                $this->getRateLimitCountdownContentComponent(),
+                $this->getFormContentComponent(),
+                RenderHook::make(PanelsRenderHook::AUTH_REGISTER_FORM_AFTER),
+            ]);
+    }
+
     public function getFormContentComponent(): Component
     {
         return parent::getFormContentComponent()
-            ->extraAttributes(['novalidate' => true]);
+            ->extraAttributes(['novalidate' => true])
+            ->visible(fn (): bool => ! $this->isAuthRateLimited());
     }
 
     public function getRegisterFormAction(): Action

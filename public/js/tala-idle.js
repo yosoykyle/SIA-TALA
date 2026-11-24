@@ -97,6 +97,24 @@
             { duration: 620, delay: (lags[index] ?? 0) * 380, easing: 'ease-in-out' }));
     }
 
+    function setRingOffset(element, offset, immediate = false) {
+        const arcs = [
+            element.querySelector('.tala-idle-ring-left'),
+            element.querySelector('.tala-idle-ring-mask-arc'),
+        ].filter(Boolean);
+        if (immediate) {
+            arcs.forEach(arc => {
+                arc.style.transition = 'none';
+                arc.style.strokeDashoffset = offset;
+            });
+            return arcs;
+        }
+        arcs.forEach(arc => {
+            arc.style.strokeDashoffset = offset;
+        });
+        return arcs;
+    }
+
     function paint(element, left) {
         if (left === shownSecond) return;
         shownSecond = left;
@@ -105,7 +123,7 @@
         digits[0].textContent = text.length > 1 ? text[0] : text;
         digits[1].textContent = text.length > 1 ? text[1] : '';
         const warning = Number(element.dataset.warningSeconds);
-        element.querySelector('.tala-idle-ring-left').style.strokeDashoffset = 100 - Math.max(0, left - 1) / warning * 100;
+        setRingOffset(element, 100 - Math.max(0, left - 1) / warning * 100);
         const phase = left <= 10 ? 'hot' : left <= 20 ? 'warm' : 'calm';
         element.dataset.phase = phase;
         element.querySelector('.tala-idle-mood').textContent = phase === 'hot' ? 'Almost time.' : phase === 'warm' ? 'Not long now.' : 'Still there?';
@@ -126,13 +144,11 @@
         returnFocus = document.activeElement;
         shownAt = Date.now();
         shownSecond = null;
-        const ring = element.querySelector('.tala-idle-ring-left');
-        ring.style.transition = 'none';
-        ring.style.strokeDashoffset = 0;
+        const arcs = setRingOffset(element, 0, true);
         element.hidden = false;
         element.dispatchEvent(new CustomEvent('tala-idle-open'));
-        void ring.getBoundingClientRect();
-        ring.style.transition = '';
+        if (arcs[0]) void arcs[0].getBoundingClientRect();
+        arcs.forEach(arc => { arc.style.transition = ''; });
         startMotion(element);
         paint(element, left);
         element.querySelector('[data-idle-stay]')?.focus({ preventScroll: true });

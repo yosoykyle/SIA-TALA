@@ -31,8 +31,11 @@
         </section>
         @if ($proposal && $schedule && $schedule['meetings'] !== [])
             <section class="head-enrollment-panel head-enrollment-schedule tala-task-surface" aria-labelledby="head-proposed-meetings">
-                <h2 id="head-proposed-meetings">{{ $proposal->state === \App\Models\RegistrationProposalVersion::StateDraft ? 'Draft class schedule' : 'Proposed class schedule' }}</h2><p class="head-enrollment-note">{{ $schedule['source'] }} · {{ $placementCurrent ? 'Current placement source' : 'Placement needs Registrar review' }} · Asia/Manila</p>
-                <ul class="head-enrollment-meetings">@foreach ($schedule['meetings'] as $meeting)<li><div class="head-enrollment-meeting-time"><strong>{{ $meeting['dayLabel'] ?: 'Day unavailable' }}</strong><span>{{ $meeting['time'] ?: 'Time unavailable' }}</span></div><div><h3>{{ $meeting['courseTitle'] ?: $meeting['courseCode'] }}</h3><p>{{ $meeting['class'] }} · {{ $meeting['room'] }} · {{ $meeting['faculty'] }}</p>@if (! $meeting['plottable'] || $meeting['offGrid'])<p>Meeting time needs Registrar review.</p>@endif</div></li>@endforeach</ul>
+                <h2 id="head-proposed-meetings">{{ $proposal->state === \App\Models\RegistrationProposalVersion::StateDraft ? 'Draft class schedule' : 'Proposed class schedule' }}</h2>
+                <p class="head-enrollment-note">{{ $schedule['source'] }} · {{ $placementCurrent ? 'Current placement source' : 'Placement needs Registrar review' }}</p>
+                <div class="mt-3">
+                    <x-enrollment-schedule :presentation="$schedule" :source-key="'head-progress-'.$case->id" />
+                </div>
             </section>
         @endif
     </div>

@@ -142,12 +142,15 @@ class ViewStudentProfile extends ViewRecord
 
     public function getBreadcrumbs(): array
     {
-        if ($this->isAcademicHeadReader() && ! $this->openedFromGradesWorkspace) {
+        if ($this->isAcademicHeadReader()) {
             return [
                 $this->oversightReturnUrl() => 'Academic Oversight',
-                StudentProfileResource::getUrl('index', array_filter([
-                    'oversightTermId' => $this->oversightTermId,
-                ], fn (mixed $value): bool => $value !== null)) => 'Student Profiles',
+                StudentProfileResource::getUrl('index', [
+                    ...$this->oversightQueryParameters(),
+                    ...($this->openedFromGradesWorkspace
+                        ? ['viewTab' => 'academic-progress', ...StudentProfileResource::academicQueueParameters($this->queue)]
+                        : []),
+                ]) => $this->openedFromGradesWorkspace ? 'Student records' : 'Student Profiles',
                 $this->getTitle(),
             ];
         }
@@ -185,7 +188,9 @@ class ViewStudentProfile extends ViewRecord
 
     protected function getHeaderActions(): array
     {
-        return [];
+        return $this->isAcademicHeadReader()
+            ? [$this->returnToOversightAction()]
+            : [];
     }
 
     public function recordCorrectionAction(): Action
@@ -195,8 +200,8 @@ class ViewStudentProfile extends ViewRecord
             ->icon('heroicon-o-pencil-square')
             ->color('gray')
             ->size('sm')
-            ->visible(fn (): bool => auth()->user()?->status === User::StatusActive
-                && auth()->user()->hasRole(User::StaffRoleRegistrar))
+            ->visible(fn (): bool => $this->isRegistrarActor())
+            ->authorize(fn (): bool => $this->isRegistrarActor())
             ->modalHeading('Record factual correction')
             ->modalDescription('Record an institutional factual correction to this Student Profile. Prior issued outputs remain unchanged.')
             ->modalWidth(Width::FourExtraLarge)
@@ -299,15 +304,16 @@ class ViewStudentProfile extends ViewRecord
 
     public function recordAcademicDecisionAction(): Action
     {
-        return StudentAcademicActions::recordAcademicDecision($this->record);
+        return StudentAcademicActions::recordAcademicDecision($this->record)
+            ->visible(fn (): bool => $this->isRegistrarActor())
+            ->authorize(fn (): bool => $this->isRegistrarActor());
     }
 
     public function recordExternalCompetencyAction(): Action
     {
         return StudentAcademicActions::make($this->record)[0]
-            ->visible(fn (): bool => auth()->user()?->status === User::StatusActive
-                && auth()->user()->hasRole(User::StaffRoleRegistrar)
-                && $this->hasExternalRequirement());
+            ->visible(fn (): bool => $this->isRegistrarActor() && $this->hasExternalRequirement())
+            ->authorize(fn (): bool => $this->isRegistrarActor());
     }
 
     private function hasExternalRequirement(): bool
@@ -365,7 +371,7 @@ class ViewStudentProfile extends ViewRecord
                 ? app(TermWeightedAverageProjection::class)->forResults($results, $selectedTerm) : null,
             'termLabel' => collect([$enrollment?->term?->label, $enrollment?->term?->academicYear?->label])->filter()->implode(' · '),
             'enrollmentUrl' => $enrollment && EnrollmentResource::canView($enrollment)
-                ? EnrollmentResource::getUrl('view', ['record' => $enrollment]) : null,
+                ? EnrollmentResource::getUrl('view', ['record' => $enrollment, ...$this->oversightQueryParameters()]) : null,
             'cumulative' => $this->activeRecordTab() === 'academic' ? app(CumulativeGwaProjection::class)->forStudent($student) : null,
             'effect' => $effect,
             'guidance' => $effect['label'],
@@ -433,12 +439,12 @@ class ViewStudentProfile extends ViewRecord
     {
         $roster = $result['course_enrollment']->gradeRosterRow?->roster;
         $canView = $roster && GradeRosterResource::canView($roster);
-        $parameters = ['record' => $roster, 'result' => $result['course_enrollment']->gradeRosterRow?->id];
+        $parameters = ['record' => $roster, 'result' => $result['course_enrollment']->gradeRosterRow?->id, ...$this->oversightQueryParameters()];
         $enrollment = $result['course_enrollment']->enrollment;
         $sourceUrl = $canView
             ? GradeRosterResource::getUrl('view', [...$parameters, 'viewTab' => 'grade-review', 'history' => true]).'#course-result-'.$result['course_enrollment']->id
             : ($enrollment && EnrollmentResource::canView($enrollment)
-                ? EnrollmentResource::getUrl('view', ['record' => $enrollment]) : null);
+                ? EnrollmentResource::getUrl('view', ['record' => $enrollment, ...$this->oversightQueryParameters()]) : null);
 
         return [...$result,
             'sourceUrl' => $sourceUrl,
@@ -466,7 +472,7 @@ class ViewStudentProfile extends ViewRecord
             'termOptions' => $enrollments->mapWithKeys(fn (Enrollment $enrollment): array => [$enrollment->id => $this->termLabel($enrollment->term)])->all(),
             'context' => $selected ? $resolver->forEnrollment($selected) : null,
             'sourceUrl' => $selected && EnrollmentResource::canView($selected)
-                ? EnrollmentResource::getUrl('view', ['record' => $selected]) : null,
+                ? EnrollmentResource::getUrl('view', ['record' => $selected, ...$this->oversightQueryParameters()]) : null,
         ];
     }
 
@@ -525,7 +531,7 @@ class ViewStudentProfile extends ViewRecord
                 'termLabel' => $this->termLabel($terms->get($row->term_id)),
                 'title' => $assessment ? ($record->state === Assessment::StateActive ? 'Current assessment' : 'Earlier assessment') : (StudentLifecycleChange::typeOptions()[$record->type] ?? Str::headline($record->type)),
                 'status' => Str::headline($record->state),
-                'sourceUrl' => $source && $resource::canView($source) ? $resource::getUrl('view', ['record' => $source]) : null];
+                'sourceUrl' => $source && $resource::canView($source) ? $resource::getUrl('view', ['record' => $source, ...$this->oversightQueryParameters()]) : null];
         });
 
         return ['entries' => new LengthAwarePaginator($entries, $total, 10, $page, ['pageName' => 'historyPage']),
@@ -550,11 +556,11 @@ class ViewStudentProfile extends ViewRecord
             ->stickyModalFooter()
             ->modalDescription('Record the student’s group for one term. Their enrolled subjects, grades and timetable stay separate.')
             ->modalSubmitActionLabel('Save section')
-            ->visible(fn (): bool => auth()->user()?->status === User::StatusActive
-                && auth()->user()->hasRole(User::StaffRoleRegistrar)
+            ->visible(fn (): bool => $this->isRegistrarActor()
                 && ($this->viewTab === 'academic-progress'
                     ? $this->enrollmentProfile['selected']?->canonical_outcome === Enrollment::OutcomeOfficiallyEnrolled
                     : $this->record->enrollments()->where('canonical_outcome', Enrollment::OutcomeOfficiallyEnrolled)->exists()))
+            ->authorize(fn (): bool => $this->isRegistrarActor())
             ->fillForm(function (): array {
                 $enrollment = $this->viewTab === 'academic-progress' ? $this->enrollmentProfile['selected'] : null;
 

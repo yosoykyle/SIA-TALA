@@ -63,10 +63,12 @@ use App\Policies\TermPolicy;
 use App\Support\TalaPanelTheme;
 use Filament\Actions\Action;
 use Filament\Auth\Http\Responses\Contracts\LoginResponse as FilamentLoginResponse;
+use Filament\Support\Facades\FilamentIcon;
 use Filament\Support\Facades\FilamentTimezone;
 use Filament\Support\Facades\FilamentView;
 use Filament\Tables\Table;
 use Filament\Tables\View\TablesRenderHook;
+use Filament\View\PanelsIconAlias;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
@@ -148,6 +150,12 @@ class AppServiceProvider extends ServiceProvider
             TablesRenderHook::CONTENT_BEFORE,
             fn () => view('filament.components.table-loading'),
         );
+        FilamentIcon::register([
+            PanelsIconAlias::SIDEBAR_COLLAPSE_BUTTON => view('filament.components.icons.sidebar-collapse'),
+            PanelsIconAlias::SIDEBAR_COLLAPSE_BUTTON_RTL => view('filament.components.icons.sidebar-collapse'),
+            PanelsIconAlias::SIDEBAR_EXPAND_BUTTON => view('filament.components.icons.sidebar-expand'),
+            PanelsIconAlias::SIDEBAR_EXPAND_BUTTON_RTL => view('filament.components.icons.sidebar-expand'),
+        ]);
 
         Gate::policy(Role::class, RolePolicy::class);
         Gate::policy(Activity::class, ActivityPolicy::class);

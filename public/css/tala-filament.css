@@ -98,7 +98,8 @@
 .tala-profile-context-facts { display:grid; gap:1rem; font-size:.875rem; }
 .tala-profile-context-facts dt { color:var(--tala-muted); margin-block-end:.25rem; }
 .tala-profile-context-facts dd { overflow-wrap:anywhere; }
-.tala-profile-results .tala-profile-row-selected { background:var(--tala-brand-tint); color:var(--tala-on-brand-tint); }
+.tala-profile-results .tala-profile-row-selected { background:transparent; color:var(--tala-on-brand-tint); }
+.tala-profile-results .tala-profile-row-selected > :is(th,td) { background-color:var(--tala-brand-tint); }
 .tala-profile-results .tala-profile-row-selected .tala-profile-muted { color:inherit; }
 .tala-profile-row-action { display:flex; flex-direction:column; text-align:start; gap:.25rem; inline-size:100%; cursor:pointer; padding-block:.25rem; border-radius:.25rem; }
 .tala-profile-row-action:focus-visible { outline:2px solid var(--tala-brand); outline-offset:.25rem; }
@@ -1231,7 +1232,7 @@
 /* Student ledger recipe, shared by semantic tables and native Filament tables. */
 .tala-data-table-scroll,
 .registrar-subject-table-wrap { min-inline-size:0; max-inline-size:100%; max-block-size:min(22rem, 48dvh); overflow:auto; overscroll-behavior:contain; scrollbar-gutter:auto; border:1px solid var(--tala-edge-strong); border-radius:var(--tala-card-radius); background:var(--tala-surface); }
-:is(table.tala-data-table,.tala-data-table .fi-ta-table,.tala-data-table-scroll > table) { inline-size:100%; border-collapse:collapse; text-align:start; font-size:.875rem; }
+:is(table.tala-data-table,.tala-data-table .fi-ta-table,.tala-data-table-scroll > table) { inline-size:100%; border-collapse:separate; border-spacing:0; text-align:start; font-size:.875rem; }
 :is(table.tala-data-table,.tala-data-table .fi-ta-table,.tala-data-table-scroll > table) :is(th,td) { padding:.75rem 1rem; border-block-end:1px solid var(--tala-edge); vertical-align:middle; line-height:1.45; text-align:start; }
 :is(table.tala-data-table,.tala-data-table .fi-ta-table,.tala-data-table-scroll > table) thead th { position:sticky; inset-block-start:0; z-index:1; background:var(--tala-surface-sunken); color:var(--tala-muted); font-size:.75rem; font-weight:600; }
 .fi-body .tala-data-table-scroll > table { margin-block-start:0; }
@@ -1244,22 +1245,120 @@
 .tala-data-table .fi-ta-header-cell-label { color:var(--tala-muted); }
 table.tala-data-table th { text-transform:none; letter-spacing:normal; }
 table.tala-data-table tbody th { font-size:inherit; color:var(--tala-text); background:transparent; font-weight:var(--tala-weight-emphasis); }
-:is(table.tala-data-table,.tala-data-table .fi-ta-table) tbody tr:last-child>* { border-block-end:0; }
+:is(table.tala-data-table,.tala-data-table .fi-ta-table,.tala-data-table-scroll > table) tbody tr:last-child>* { border-block-end:0; }
+:is(table.tala-data-table,.tala-data-table-scroll > table,.tala-data-table .fi-ta-content-ctn:last-child > .fi-ta-table) > :is(tbody,tfoot):last-child > tr:last-child > :is(th,td):first-child { border-end-start-radius:calc(var(--tala-card-radius, 0.75rem) - 1px); }
+:is(table.tala-data-table,.tala-data-table-scroll > table,.tala-data-table .fi-ta-content-ctn:last-child > .fi-ta-table) > :is(tbody,tfoot):last-child > tr:last-child > :is(th,td):last-child { border-end-end-radius:calc(var(--tala-card-radius, 0.75rem) - 1px); }
 table.tala-data-table .tala-data-table-number { text-align:end; font-variant-numeric:tabular-nums; white-space:nowrap; }
-table.tala-data-table tbody tr:nth-child(even) { background:var(--tala-surface-sunken); }
-.tala-data-table .fi-ta-row:not(.fi-ta-group-header-row) { background:var(--tala-surface); }
-.tala-data-table .fi-ta-row.fi-striped:not(.fi-ta-group-header-row) { background:var(--tala-surface-sunken); }
-.tala-data-table .fi-ta-row:not(.fi-ta-group-header-row):hover { background:var(--tala-surface-sunken); }
+table.tala-data-table tbody tr:not(.tala-profile-row-selected) { background:transparent; }
+table.tala-data-table tbody tr:not(.tala-profile-row-selected) > :is(th,td) { background-color:var(--tala-surface); }
+table.tala-data-table tbody tr:not(.tala-profile-row-selected):nth-child(even) > :is(th,td) { background-color:var(--tala-surface-sunken); }
+table.tala-data-table tbody tr:not(.tala-profile-row-selected):hover > :is(th,td) { background-color:var(--tala-surface-sunken); }
+.tala-data-table .fi-ta-row:not(.fi-ta-group-header-row):not(.tala-record-table-selected):not(.is-selected),
+.tala-data-table .fi-ta-row:not(.fi-ta-group-header-row):not(.tala-record-table-selected):not(.is-selected):hover { background:transparent; }
+.tala-data-table .fi-ta-row:not(.fi-ta-group-header-row):not(.tala-record-table-selected):not(.is-selected) > .fi-ta-cell { background-color:var(--tala-surface); }
+.tala-data-table .fi-ta-row:is(.fi-striped,.fi-selected):not(.fi-ta-group-header-row):not(.tala-record-table-selected):not(.is-selected) > .fi-ta-cell { background-color:var(--tala-surface-sunken); }
+.tala-data-table .fi-ta-row:not(.fi-ta-group-header-row):not(.tala-record-table-selected):not(.is-selected):hover > .fi-ta-cell { background-color:var(--tala-surface-sunken); }
 .tala-data-table-secondary { display:block; color:var(--tala-muted); font-size:.8125rem; line-height:1.45; font-weight:400; margin-block-start:.1875rem; }
 table.tala-data-table .tala-supporting-details { margin-block-start:calc(var(--tala-card-gap)/2); }
 table.tala-data-table .tala-supporting-details__content { min-inline-size:12rem; overflow-wrap:anywhere; }
 .tala-data-table .fi-ta-actions .fi-btn { white-space:nowrap; }
+.fi-body .fi-ta-ctn > .fi-ta-main { border-radius:inherit; }
+.fi-body .fi-ta-ctn .fi-ta-header-ctn,
+.fi-body .fi-ta-ctn .fi-ta-header-ctn > :first-child { border-start-start-radius:inherit; border-start-end-radius:inherit; }
+.fi-body .fi-ta-ctn > .fi-ta-main > :last-child { border-end-start-radius:inherit; border-end-end-radius:inherit; }
+.fi-body .tala-data-table .fi-ta-filters-above-content-ctn { padding:var(--tala-card-pad-compact) var(--tala-card-pad); background-color:var(--tala-surface-sunken); border-block-end:1px solid var(--tala-edge); }
+.fi-body .tala-data-table .fi-ta-filters-above-content-ctn .fi-ta-filters { gap:.5rem; }
+.fi-body .tala-data-table .fi-ta-filters-above-content-ctn .fi-ta-filters-header { min-block-size:1.25rem; }
+.fi-body .tala-data-table .fi-ta-filters-above-content-ctn .fi-ta-filters-heading { font-size:.75rem; font-weight:var(--tala-weight-emphasis); color:var(--tala-muted); }
+.fi-body .tala-data-table .fi-ta-filters-above-content-ctn .fi-fo-field-label-col { padding-block-end:.25rem; }
+.fi-body .tala-data-table .fi-ta-filters-above-content-ctn .fi-fo-field-label-content { font-size:.75rem; font-weight:var(--tala-weight-emphasis); color:var(--tala-muted); }
+.fi-body .tala-data-table .fi-ta-filters-above-content-ctn .fi-input-wrp { background-color:var(--tala-surface); }
+.fi-body .tala-data-table .fi-ta-header-toolbar { padding:var(--tala-card-pad-compact) var(--tala-card-pad); border-block-end-color:var(--tala-edge); }
+/* Inline filters + search: one sunken toolbar row (filters left, search and bulk actions right). */
+.fi-body .tala-inline-filters-table .fi-ta-header-ctn { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.5rem .625rem; padding:.625rem var(--tala-card-pad); background-color:var(--tala-surface-sunken); border-block-end:1px solid var(--tala-edge); border-start-start-radius:inherit; border-start-end-radius:inherit; }
+.fi-body .tala-inline-filters-table .fi-ta-header-ctn > .fi-ta-header { flex:1 0 100%; padding:0; border:0; }
+.fi-body .tala-inline-filters-table .fi-ta-header-ctn > .fi-ta-filters-above-content-ctn { display:block; flex:1 1 auto; min-inline-size:0; margin:0; padding:0; border:0; background:transparent; }
+.fi-body .tala-inline-filters-table .fi-ta-filters-above-content-ctn .fi-ta-filters { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem .625rem; margin:0; padding:0; }
+.fi-body .tala-inline-filters-table .fi-ta-filters-above-content-ctn .fi-ta-filters-header { display:contents; min-block-size:0; }
+.fi-body .tala-inline-filters-table .fi-ta-filters-above-content-ctn .fi-ta-filters-heading { position:absolute; inline-size:1px; block-size:1px; margin:-1px; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0; }
+.fi-body .tala-inline-filters-table .fi-ta-filters-above-content-ctn .fi-ta-filters-header > div { order:2; flex:0 0 auto; align-self:center; display:flex; align-items:center; min-block-size:2.375rem; margin:0; padding:0; }
+.fi-body .tala-inline-filters-table .fi-ta-filters-above-content-ctn .fi-ta-filters > .fi-sc { order:1; flex:1 1 auto; inline-size:auto; width:auto; min-inline-size:0; display:flex; flex-wrap:wrap; align-items:center; gap:.5rem .625rem; }
+.fi-body .tala-inline-filters-table .fi-ta-filters-above-content-ctn .fi-ta-filters > .fi-sc:has(> :only-child) { flex:0 1 18rem; }
+.fi-body .tala-inline-filters-table .fi-ta-filters-above-content-ctn .fi-ta-filters > .fi-sc > * { flex:1 1 7.25rem; inline-size:auto; min-inline-size:6.75rem; max-inline-size:16rem; grid-column:auto; }
+.fi-body .tala-inline-filters-table .fi-ta-filters-above-content-ctn .fi-ta-filters > .fi-sc > :is(:has([id*="term" i]),[wire\:key*="term" i]) { flex:1.75 1 16rem; min-inline-size:15.5rem; max-inline-size:24rem; }
+.fi-body .tala-inline-filters-table .fi-ta-filters-above-content-ctn .fi-ta-filters > .fi-sc > * :is(.fi-sc,.fi-grid) { display:block; }
+.fi-body .tala-inline-filters-table .fi-ta-filters-above-content-ctn .fi-fo-field { row-gap:0; }
+.fi-body .tala-inline-filters-table .fi-ta-filters-above-content-ctn .fi-fo-field-label-col { padding-block-end:0; margin-block-end:.1875rem; }
+.fi-body .tala-inline-filters-table .fi-ta-filters-above-content-ctn .fi-fo-field-label-content { font-size:.75rem; font-weight:var(--tala-weight-emphasis); line-height:1.25; color:var(--tala-muted); }
+.fi-body .tala-inline-filters-table .fi-ta-filters-above-content-ctn .fi-input-wrp { block-size:2.375rem; min-block-size:2.375rem; min-inline-size:0; align-items:center; }
+.fi-body .tala-inline-filters-table .fi-ta-filters-above-content-ctn :is(.fi-select-input,select) { min-inline-size:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.fi-body .tala-inline-filters-table .fi-ta-filters-above-content-ctn :is(.fi-select-input-value-ctn,.fi-select-input-value-label) { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; word-break:normal; }
+.fi-body .tala-inline-filters-table .fi-ta-header-ctn > .fi-ta-header-toolbar { display:flex; flex:0 1 auto; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:.5rem; margin:0; margin-inline-start:auto; padding:0; min-block-size:0; border:0; background:transparent; }
+.fi-body .tala-inline-filters-table .fi-ta-header-ctn > .fi-ta-header-toolbar:is([x-cloak],[style*="display: none"],[style*="display:none"]),
+.fi-body .tala-inline-filters-table .fi-ta-header-toolbar :is([x-cloak],[style*="display: none"],[style*="display:none"]) { display:none !important; }
+.fi-body .tala-inline-filters-table .fi-ta-header-toolbar > div { display:flex; align-items:center; gap:.5rem; margin:0; padding:0; min-block-size:0; }
+.fi-body .tala-inline-filters-table .fi-ta-header-toolbar > :nth-child(2) { margin-inline-start:0; }
+.fi-body .tala-inline-filters-table .fi-ta-header-toolbar > .fi-ta-actions:not(:has(> :not([x-cloak]):not([style*="display: none"]):not([style*="display:none"]))) { display:none; }
+.fi-body .tala-inline-filters-table .fi-ta-header-toolbar > div:has(> .fi-ta-search-field) { flex:0 1 14rem; min-inline-size:11rem; max-inline-size:16rem; }
+.fi-body .tala-inline-filters-table .fi-ta-header-toolbar .fi-ta-search-field { flex:0 1 14rem; min-inline-size:11rem; max-inline-size:16rem; inline-size:100%; margin:0; padding:0; min-block-size:0; }
+.fi-body .tala-inline-filters-table .fi-ta-header-toolbar .fi-ta-search-field .fi-input-wrp { block-size:2.375rem; min-block-size:2.375rem; align-items:center; margin:0; padding:0; }
+.fi-body .tala-inline-filters-table .fi-ta-header-toolbar .fi-ta-actions .fi-btn { block-size:2.375rem; min-block-size:2.375rem; white-space:nowrap; }
+.fi-body .tala-inline-filters-table .fi-ta-selection-indicator { border-block-start:0; }
+@media (min-width:48rem) {
+    .fi-body .tala-inline-filters-table .fi-ta-filters-above-content-ctn .fi-fo-field { display:flex; flex-direction:row; align-items:center; gap:.4375rem; }
+    .fi-body .tala-inline-filters-table .fi-ta-filters-above-content-ctn .fi-fo-field-label-col { flex:0 0 auto; white-space:nowrap; margin:0; padding:0; }
+    .fi-body .tala-inline-filters-table .fi-ta-filters-above-content-ctn .fi-fo-field-label-ctn,
+    .fi-body .tala-inline-filters-table .fi-ta-filters-above-content-ctn .fi-fo-field-label { display:inline-flex; align-items:center; margin:0; padding:0; }
+    .fi-body .tala-inline-filters-table .fi-ta-filters-above-content-ctn .fi-fo-field-content-col { flex:1 1 auto; min-inline-size:0; }
+}
+@media (min-width:48rem) and (max-width:68rem) {
+    .fi-body .tala-inline-filters-table .fi-ta-header-ctn > .fi-ta-header-toolbar { flex:1 1 14rem; }
+    .fi-body .tala-inline-filters-table .fi-ta-header-toolbar > div:has(.fi-ta-search-field) { flex:1 1 12rem; min-inline-size:10rem; max-inline-size:20rem; }
+    .fi-body .tala-inline-filters-table .fi-ta-header-toolbar .fi-ta-search-field { inline-size:100%; min-inline-size:0; max-inline-size:none; }
+}
+@media (max-width:47.999rem) {
+    .fi-body .tala-inline-filters-table .fi-ta-header-ctn { padding:var(--tala-card-pad-compact); }
+    .fi-body .tala-inline-filters-table .fi-ta-header-ctn > :is(.fi-ta-filters-above-content-ctn,.fi-ta-header-toolbar) { flex:1 1 100%; margin-inline-start:0; }
+    .fi-body .tala-inline-filters-table .fi-ta-filters-above-content-ctn .fi-ta-filters > .fi-sc,
+    .fi-body .tala-inline-filters-table .fi-ta-filters-above-content-ctn .fi-ta-filters > .fi-sc:has(> :only-child),
+    .fi-body .tala-inline-filters-table .fi-ta-filters-above-content-ctn .fi-ta-filters > .fi-sc > *,
+    .fi-body .tala-inline-filters-table .fi-ta-filters-above-content-ctn .fi-ta-filters > .fi-sc > :is(:has([id*="term" i]),[wire\:key*="term" i]) { flex:1 1 100%; min-inline-size:0; max-inline-size:none; }
+    .fi-body .tala-inline-filters-table .fi-ta-header-toolbar { justify-content:space-between; }
+    .fi-body .tala-inline-filters-table .fi-ta-header-toolbar > div:has(.fi-ta-search-field) { flex:1 1 100%; min-inline-size:0; max-inline-size:none; order:-1; }
+    .fi-body .tala-inline-filters-table .fi-ta-header-toolbar .fi-ta-search-field { flex:1 1 auto; inline-size:100%; min-inline-size:0; max-inline-size:none; }
+}
+@media (pointer:coarse) {
+    .fi-body .tala-inline-filters-table :is(.fi-ta-filters-above-content-ctn .fi-input-wrp,.fi-ta-header-toolbar .fi-input-wrp,.fi-ta-header-toolbar .fi-btn) { block-size:auto; min-block-size:2.75rem; }
+    .fi-body .tala-inline-filters-table .fi-ta-filters-header > div,
+    .fi-body .tala-inline-filters-table .fi-ta-filters-header .fi-link { min-block-size:2.75rem; }
+}
+.fi-body .fi-ta-actions .fi-ac-btn-group[aria-label] { padding-inline:.4375rem; }
+.fi-body .fi-ta-actions .fi-ac-btn-group[aria-label] > .fi-icon { color:var(--tala-control-icon); }
+.fi-body .fi-ta-actions :is(.fi-icon-btn, .fi-ac-icon-btn-group) {
+    margin: 0;
+    min-inline-size: 2.25rem;
+    min-block-size: 2.25rem;
+    inline-size: 2.25rem;
+    block-size: 2.25rem;
+    border: 1px solid var(--tala-control-border);
+    border-radius: 0.5rem;
+    background-color: var(--tala-surface);
+    color: var(--tala-control-icon);
+}
+@media (hover: hover) {
+    .fi-body .fi-ta-actions :is(.fi-icon-btn, .fi-ac-icon-btn-group):hover {
+        background-color: var(--tala-surface-sunken);
+        border-color: var(--tala-edge-strong);
+        color: var(--tala-text);
+    }
+}
 .tala-data-table :is(.fi-ta-text-description,.fi-ta-text-item-description) { font-size:.8125rem; line-height:1.45; color:var(--tala-muted); margin-block-start:.1875rem; }
 @media(max-width:39.999rem) {
     :is(table.tala-data-table,.tala-data-table .fi-ta-table) { font-size:.8125rem; }
     :is(table.tala-data-table,.tala-data-table .fi-ta-table:not(.fi-ta-table-stacked-on-mobile)) :is(th,td) { padding:.625rem .75rem; }
-    .tala-data-table .fi-ta-table.fi-ta-table-stacked-on-mobile > tbody > tr.fi-ta-row:not(.fi-ta-group-header-row) { padding:.75rem 1rem; border-block-end:1px solid var(--tala-edge); }
-    .tala-data-table .fi-ta-table.fi-ta-table-stacked-on-mobile > tbody > tr.fi-ta-row:not(.fi-ta-group-header-row) > td.fi-ta-cell { padding:.25rem 0; border-block-end:0; }
+    .tala-data-table .fi-ta-table.fi-ta-table-stacked-on-mobile > tbody > tr.fi-ta-row:not(.fi-ta-group-header-row) { padding:.75rem 1rem; border-block-end:1px solid var(--tala-edge); background:var(--tala-surface); }
+    .tala-data-table .fi-ta-table.fi-ta-table-stacked-on-mobile > tbody > tr.fi-ta-row:is(.fi-striped,.fi-selected,:hover):not(.fi-ta-group-header-row):not(.tala-record-table-selected):not(.is-selected) { background:var(--tala-surface-sunken); }
+    .tala-data-table .fi-ta-table.fi-ta-table-stacked-on-mobile > tbody > tr.fi-ta-row:not(.fi-ta-group-header-row) > td.fi-ta-cell { padding:.25rem 0; border-block-end:0; background:transparent; border-radius:0; }
     .tala-data-table .fi-ta-table.fi-ta-table-stacked-on-mobile > tbody > tr.fi-ta-row:not(.fi-ta-group-header-row) > td.fi-ta-cell:first-child { padding-block-start:0; }
     .tala-data-table .fi-ta-table.fi-ta-table-stacked-on-mobile > tbody > tr.fi-ta-row:not(.fi-ta-group-header-row) > td.fi-ta-cell > .fi-ta-cell-label { padding:0; margin-block-end:.125rem; font-size:.75rem; color:var(--tala-muted); }
     .tala-data-table .fi-ta-table.fi-ta-table-stacked-on-mobile > tbody > tr.fi-ta-row:not(.fi-ta-group-header-row) > td.fi-ta-cell .fi-ta-text:is(.fi-align-end,.fi-align-center) { align-items:flex-start; text-align:start; }
@@ -1478,7 +1577,7 @@ table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
     .fi-ta-filters-dropdown .fi-dropdown-trigger,
     .fi-ta-filters-modal .fi-modal-trigger
 ) :is(.fi-btn-badge-ctn, .fi-icon-btn-badge-ctn),
-.fi-ta-ctn:not(:has(.fi-ta-filter-indicators [wire\:click*="removeTableFilter"], .fi-ta-filter-indicators [wire\:click*="removeTableFilters"])) .fi-ta-filters-header > div { display:none; }
+.fi-ta-ctn:not(:has(.fi-ta-filter-indicators [wire\:click*="removeTableFilter"], .fi-ta-filter-indicators [wire\:click*="removeTableFilters"])) :is(.fi-ta-filters-dropdown, .fi-ta-filters-modal) .fi-ta-filters-header > div { display:none; }
 .tala-profile-directory-table .fi-ta-content-ctn { overflow-x:auto; max-inline-size:100%; }
 .tala-profile-directory-table .fi-ta-table :is(th, td),
 .tala-profile-directory-table .fi-ta-table :is(.fi-ta-cell, .fi-ta-header-cell) { padding:.5rem .5rem; white-space:normal; }
@@ -1515,7 +1614,6 @@ table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
 .tala-subject-editor-heading__meta { margin:0; color:var(--tala-text); font-size:.9375rem; }
 .tala-subject-editor-heading__hint { margin:0; color:var(--tala-muted); font-size:var(--tala-type-caption); line-height:1.45; }
 .tala-add-subjects-modal-body { display:grid; gap:var(--tala-card-gap); }
-.tala-add-subjects-modal-body > .fi-tabs { justify-self:stretch; inline-size:100%; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); margin-inline:0; } .tala-add-subjects-modal-body > .fi-tabs .fi-tabs-item { inline-size:100%; justify-content:center; }
 .tala-add-subjects-modal-footer { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:.75rem; inline-size:100%; }
 
 @container tala-main (min-width:38rem) {
@@ -1548,13 +1646,25 @@ table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
 .tala-catalog-workspace { display:grid; grid-template-columns:minmax(0,1.55fr) minmax(19rem,1fr); align-items:start; gap:var(--tala-card-gap); }
 .tala-catalog-rail { display:grid; gap:var(--tala-card-gap); min-inline-size:0; }
 .tala-catalog-panel { display:grid; gap:var(--tala-card-gap); min-inline-size:0; padding:var(--tala-card-pad); }
+.tala-catalog-panel:has(> .tala-catalog-panel__footer) { padding-block-end:0; overflow:hidden; }
 .tala-catalog-panel h2 { margin:0; font-size:var(--tala-type-section); font-weight:var(--tala-weight-heading); line-height:1.35; overflow-wrap:break-word; }
-.tala-catalog-panel__header { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:calc(var(--tala-card-gap)/2) var(--tala-card-gap); }
+.tala-catalog-panel__header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:calc(var(--tala-card-gap)/2) var(--tala-card-gap); }
+.tala-catalog-panel__footer { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.75rem; margin-inline:calc(var(--tala-card-pad) * -1); padding:var(--tala-card-pad-compact) var(--tala-card-pad); background:var(--tala-surface-sunken); border-block-start:1px solid var(--tala-edge); border-end-start-radius:inherit; border-end-end-radius:inherit; }
+.tala-catalog-panel__footer-start,
+.tala-catalog-panel__footer-end { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; min-inline-size:0; }
+.tala-catalog-panel__footer-end { margin-inline-start:auto; }
+.tala-catalog-panel__footer-note { margin:0; font-size:var(--tala-type-caption); color:var(--tala-muted); line-height:1.45; }
+.tala-draft-diff-notice { display:flex; align-items:flex-start; gap:.5rem; margin:0; padding:.625rem .75rem; border:1px solid var(--tala-edge); border-radius:.375rem; background:var(--tala-surface-sunken); font-size:var(--tala-type-caption); line-height:1.5; color:var(--tala-text); }
+.tala-draft-diff-notice > .fi-icon { inline-size:1rem; block-size:1rem; margin-block-start:.125rem; flex:none; color:var(--tala-muted); }
+.tala-draft-diff-notice.has-changes > .fi-icon { color:var(--tala-brand-foreground); }
+.tala-draft-diff-notice p { margin:0; min-inline-size:0; overflow-wrap:anywhere; }
+.tala-draft-diff-notice strong { font-weight:var(--tala-weight-emphasis); color:var(--tala-text); }
 .tala-catalog-meta { margin:0; font-size:var(--tala-type-caption); color:var(--tala-muted); line-height:1.5; }
 .tala-catalog-tile-list { display:grid; gap:calc(var(--tala-card-gap)*0.75); margin:0; padding:0; list-style:none; }
 .tala-catalog-tile { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--tala-card-gap); padding:var(--tala-card-pad-compact); border:1px solid var(--tala-edge); border-radius:var(--tala-card-radius); background:var(--tala-surface-sunken); min-inline-size:0; }
 .tala-catalog-tile.is-current { border-color:var(--tala-selected-edge); background:var(--tala-surface); color:var(--tala-text); }
 .tala-catalog-tile__body { display:grid; gap:.1875rem; min-inline-size:0; }
+.tala-catalog-tile__title { display:flex; flex-wrap:wrap; align-items:center; gap:.375rem; }
 .tala-catalog-tile__body strong { font-size:.9375rem; font-weight:var(--tala-weight-heading); line-height:1.35; overflow-wrap:break-word; }
 .tala-catalog-tile__body span { font-size:var(--tala-type-caption); color:var(--tala-muted); line-height:1.45; }
 .tala-catalog-tile.is-current .tala-catalog-tile__body span { color:inherit; }
@@ -1564,24 +1674,89 @@ table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
 .tala-catalog-kv-list > div:last-child { padding-block-end:0; border-block-end:0; }
 .tala-catalog-kv-list dt { font-size:var(--tala-type-caption); line-height:1.4; color:var(--tala-muted); }
 .tala-catalog-kv-list dd { margin:0; font-size:var(--tala-type-body); font-weight:var(--tala-weight-emphasis); line-height:1.5; color:var(--tala-text); font-variant-numeric:tabular-nums; text-align:end; overflow-wrap:break-word; }
+.tala-subject-lead { margin:0; max-inline-size:68ch; font-size:var(--tala-type-body); line-height:1.55; color:var(--tala-text); }
+.tala-subject-specs-wrap { container-type:inline-size; border-block-start:1px solid var(--tala-edge); padding-block-start:var(--tala-card-pad); min-inline-size:0; }
+.tala-subject-specs { display:grid; grid-template-columns:minmax(0,1fr); gap:.875rem 0; margin:0; }
+.tala-subject-spec { display:grid; align-content:start; gap:.375rem; min-inline-size:0; }
+.tala-subject-spec__term { display:inline-flex; align-items:center; gap:.375rem; margin:0; font-size:.75rem; font-weight:500; line-height:1.35; color:var(--tala-muted); }
+.tala-subject-spec__icon { inline-size:.9375rem; block-size:.9375rem; flex:none; color:var(--tala-control-icon); }
+.tala-subject-spec__value { display:grid; align-content:start; gap:.25rem; margin:0; min-inline-size:0; }
+.tala-subject-spec__units { display:flex; flex-wrap:wrap; align-items:baseline; gap:.3125rem; }
+.tala-subject-spec__figure { font-size:1.5rem; font-weight:var(--tala-weight-heading); line-height:1.15; letter-spacing:-.02em; font-variant-numeric:tabular-nums; color:var(--tala-text); }
+.tala-subject-spec__unit-label { font-size:.875rem; font-weight:400; color:var(--tala-muted); }
+.tala-subject-spec__primary { font-size:.875rem; font-weight:var(--tala-weight-emphasis); line-height:1.4; color:var(--tala-text); overflow-wrap:break-word; }
+.tala-subject-spec__note { margin:0; font-size:.75rem; font-weight:400; line-height:1.45; color:var(--tala-muted); overflow-wrap:break-word; }
+.tala-subject-spec__list { display:grid; gap:.25rem; margin:0; padding:0; list-style:none; }
+.tala-subject-spec__list li { display:flex; flex-wrap:wrap; align-items:baseline; gap:.25rem; font-size:.875rem; line-height:1.4; color:var(--tala-text); }
+.tala-subject-spec__sep { color:var(--tala-muted); }
+.tala-subject-spec__hours { font-variant-numeric:tabular-nums; color:var(--tala-muted); }
+.tala-spec-chips { display:flex; flex-wrap:wrap; gap:.375rem; margin:.125rem 0 0; padding:0; list-style:none; }
+.tala-spec-chip { display:inline-flex; align-items:center; padding:.1875rem .5625rem; border:1px solid var(--tala-edge-strong); border-radius:.375rem; background:var(--tala-surface-sunken); color:var(--tala-text); font-size:.75rem; font-weight:500; line-height:1.35; white-space:nowrap; }
+.tala-spec-chip--subtle { border-color:var(--tala-edge); border-radius:.375rem; color:var(--tala-muted); }
+@container (max-width:25.999rem) {
+    .tala-subject-spec + .tala-subject-spec { border-block-start:1px solid var(--tala-edge); padding-block-start:.875rem; }
+}
+@container (min-width:26rem) and (max-width:45.999rem) {
+    .tala-subject-specs { grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem 0; }
+    .tala-subject-spec:nth-child(odd) { padding-inline-end:1rem; }
+    .tala-subject-spec:nth-child(even) { border-inline-start:1px solid var(--tala-edge); padding-inline-start:1rem; }
+    .tala-subject-spec:nth-child(n+3) { border-block-start:1px solid var(--tala-edge); padding-block-start:1rem; }
+}
+@container (min-width:46rem) {
+    .tala-subject-specs { grid-template-columns:minmax(0,.85fr) minmax(0,1.25fr) minmax(0,1.15fr) minmax(0,1fr); gap:0; }
+    .tala-subject-spec:not(:last-child) { padding-inline-end:1rem; }
+    .tala-subject-spec + .tala-subject-spec { border-inline-start:1px solid var(--tala-edge); padding-inline-start:1rem; }
+}
+.tala-catalog-req-group { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; }
+.tala-catalog-req-label { min-inline-size:8.5rem; font-size:.75rem; font-weight:var(--tala-weight-emphasis); text-transform:uppercase; letter-spacing:.025em; color:var(--tala-muted); }
+.tala-catalog-req-pill { display:inline-flex; align-items:center; gap:.375rem; padding:.25rem .625rem; border:1px solid var(--tala-edge); border-radius:.375rem; background:var(--tala-surface-sunken); color:var(--tala-text); font-size:.875rem; text-decoration:none; }
+.tala-catalog-req-pill:hover { text-decoration:underline; border-color:var(--tala-edge-strong); }
+.tala-catalog-req-pill strong { color:var(--tala-brand-foreground); font-weight:600; }
+.tala-catalog-req-sep { color:var(--tala-muted); }
+.tala-usage-toolbar { display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:.625rem .875rem; padding:var(--tala-card-pad-compact); border:1px solid var(--tala-edge); border-radius:var(--tala-card-radius); background:var(--tala-surface-sunken); }
+.tala-usage-toolbar__filters { display:flex; flex-wrap:wrap; align-items:flex-end; gap:.625rem .75rem; flex:1 1 auto; min-inline-size:0; }
+.tala-usage-field { display:grid; gap:.1875rem; flex:0 1 auto; min-inline-size:9.5rem; }
+.tala-usage-field--search { min-inline-size:13rem; inline-size:clamp(13rem, 20vw, 17rem); margin-inline-start:auto; }
+.tala-usage-field__label { font-size:.75rem; font-weight:var(--tala-weight-emphasis); line-height:1.25; color:var(--tala-muted); }
+.tala-usage-field .fi-input-wrp { min-block-size:2.375rem; background-color:var(--tala-surface); }
+.tala-usage-toolbar__reset { display:inline-flex; align-items:center; min-block-size:2.375rem; }
+.tala-usage-table__primary { font-weight:var(--tala-weight-emphasis); color:var(--tala-text); }
+.tala-usage-table__muted { color:var(--tala-muted); }
+.tala-usage-pagination { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.5rem .75rem; padding-block-start:.25rem; }
+.tala-usage-pagination__status { margin:0; font-size:var(--tala-type-caption); color:var(--tala-muted); font-variant-numeric:tabular-nums; }
+.tala-usage-pagination__actions { display:inline-flex; align-items:center; gap:.5rem; }
+@media (max-width:47.999rem) {
+    .tala-usage-field--search { flex:1 1 100%; inline-size:100%; margin-inline-start:0; }
+}
+@media (max-width:39.999rem) {
+    .tala-usage-field { flex:1 1 100%; min-inline-size:0; }
+}
+@media (pointer:coarse) {
+    .tala-usage-field .fi-input-wrp,
+    .tala-usage-toolbar__reset .fi-btn { min-block-size:2.75rem; }
+}
 @container (max-width:56rem) {
     .tala-catalog-workspace { grid-template-columns:minmax(0,1fr); }
 }
 @container (max-width:34rem) {
     .tala-catalog-panel { padding:var(--tala-card-pad-compact); }
+    .tala-catalog-panel:has(> .tala-catalog-panel__footer) { padding-block-end:0; }
+    .tala-catalog-panel__footer { margin-inline:calc(var(--tala-card-pad-compact) * -1); padding:var(--tala-card-pad-compact); }
+    .tala-catalog-panel__footer-end { margin-inline-start:0; }
     .tala-catalog-kv-list > div { flex-direction:column; gap:.25rem; }
     .tala-catalog-kv-list dd { text-align:start; }
 }
 @media (forced-colors:active) {
     .tala-catalog-tile { background:Canvas; color:CanvasText; border-color:CanvasText; }
     .tala-catalog-tile.is-current { border:2px solid Highlight; }
+    .tala-spec-chip { background:Canvas; color:CanvasText; border-color:CanvasText; }
+    .tala-draft-diff-notice,
+    .tala-catalog-panel__footer { background:Canvas; color:CanvasText; border-color:CanvasText; }
 }
 
 /* Catalog & Curricula overview: shared .tala-workspace-feature coverage bar + segmented native Filament curricula table. */
 .tala-catalog-overview { container: catalog-overview / inline-size; display: grid; gap: var(--tala-section-gap, 1.25rem); }
 .tala-catalog-overview > .tala-workspace-launcher__main { gap: var(--tala-card-gap, 1rem); }
-.tala-catalog-curricula-section { display: grid; gap: var(--tala-card-gap, 1rem); min-inline-size: 0; }
-.tala-catalog-curricula-section > .fi-tabs.tala-segmented-tabs { justify-self: start; }
 
 .tala-visually-hidden { position:absolute; inline-size:1px; block-size:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0; }
 .tala-plan-warning { color:var(--tala-status-warning-fg); font-weight:var(--tala-weight-emphasis); }
@@ -1626,17 +1801,17 @@ table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
    to CSS grid auto-placement. Below 48rem there isn't room for both rows side by side, so this is left to
    Filament's default stacked layout there. */
 @media (min-width:48rem) {
-    .tala-admissions-table .fi-ta-main { display:grid; grid-template-columns:auto 1fr; align-items:center; column-gap:1rem; }
-    .tala-admissions-table .fi-ta-header-ctn { grid-column:2; grid-row:1; }
-    .tala-admissions-table .fi-ta-content-ctn { display:contents; }
-    .tala-admissions-table .fi-ta-content-header { grid-column:1; grid-row:1; padding-inline-start:24px; }
-    .tala-admissions-table .fi-ta-main > .fi-ta-filter-indicators { grid-column:1 / -1; grid-row:2; }
-    .tala-admissions-table .fi-ta-content { grid-column:1 / -1; grid-row:3; }
-    .tala-admissions-table .fi-ta-content-ctn > .fi-sr-only,
-    .tala-admissions-table .fi-ta-content-ctn > .fi-ta-table { grid-column:1 / -1; grid-row:3; }
-    .tala-admissions-table .fi-ta-main > .tala-content-progress { grid-column:1 / -1; grid-row:1; }
-    .tala-admissions-table .fi-ta-main > .fi-ta-empty-state { grid-column:1 / -1; grid-row:4; }
-    .tala-admissions-table .fi-ta-main > .fi-pagination { grid-column:1 / -1; grid-row:5; }
+    .tala-admissions-table .fi-ta-main:has(.fi-ta-content-header) { display:grid; grid-template-columns:auto 1fr; align-items:center; column-gap:1rem; }
+    .tala-admissions-table .fi-ta-main:has(.fi-ta-content-header) .fi-ta-header-ctn { grid-column:2; grid-row:1; }
+    .tala-admissions-table .fi-ta-main:has(.fi-ta-content-header) .fi-ta-content-ctn { display:contents; }
+    .tala-admissions-table .fi-ta-main:has(.fi-ta-content-header) .fi-ta-content-header { grid-column:1; grid-row:1; padding-inline-start:24px; }
+    .tala-admissions-table .fi-ta-main:has(.fi-ta-content-header) > .fi-ta-filter-indicators { grid-column:1 / -1; grid-row:2; }
+    .tala-admissions-table .fi-ta-main:has(.fi-ta-content-header) .fi-ta-content { grid-column:1 / -1; grid-row:3; }
+    .tala-admissions-table .fi-ta-main:has(.fi-ta-content-header) .fi-ta-content-ctn > .fi-sr-only,
+    .tala-admissions-table .fi-ta-main:has(.fi-ta-content-header) .fi-ta-content-ctn > .fi-ta-table { grid-column:1 / -1; grid-row:3; }
+    .tala-admissions-table .fi-ta-main:has(.fi-ta-content-header) > .tala-content-progress { grid-column:1 / -1; grid-row:1; }
+    .tala-admissions-table .fi-ta-main:has(.fi-ta-content-header) > .fi-ta-empty-state { grid-column:1 / -1; grid-row:4; }
+    .tala-admissions-table .fi-ta-main:has(.fi-ta-content-header) > .fi-pagination { grid-column:1 / -1; grid-row:5; }
 }
 /* Preliminary evidence sits in the half-width case column of the two-column review page, so Filament's own
    36rem switch kept it as stacked label boxes at most laptop widths. Keep it a table from 28rem and stack only on phones. */
@@ -2140,4 +2315,91 @@ table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
 
 .fi-body .tala-account-profile .tala-profile-credentials-section .fi-sc-form .fi-sc-actions:not(:has(.fi-btn)) {
     display: none;
+}
+
+/* Composite input wrappers own focus-within outlines so inner inputs do not clip beside prefix icons. */
+.fi-body .fi-input-wrp :is(input, select, textarea):focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.fi-body .fi-input-wrp:not(.fi-disabled):focus-within {
+    outline: 2px solid var(--tala-focus);
+    outline-offset: 2px;
+}
+
+/* Shared searchable 2-column selectable card picker (CheckboxList) */
+.fi-body :is(.tala-card-picker.fi-fo-checkbox-list-options, .tala-catalog-subject-picker.fi-fo-checkbox-list-options, .tala-card-picker .fi-fo-checkbox-list-options, .tala-catalog-subject-picker .fi-fo-checkbox-list-options) {
+    max-block-size: min(22rem, 46dvh);
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    gap: 0.625rem;
+    padding: 0.75rem;
+    border: 1px solid var(--tala-edge);
+    border-radius: var(--tala-card-radius);
+    background: var(--tala-surface-sunken);
+    box-shadow: var(--tala-inset-well);
+}
+
+.fi-body :is(.tala-card-picker, .tala-catalog-subject-picker) .fi-fo-checkbox-list-option-ctn {
+    min-inline-size: 0;
+}
+
+.fi-body :is(.tala-card-picker, .tala-catalog-subject-picker) .fi-fo-checkbox-list-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    block-size: 100%;
+    padding: 0.75rem 0.875rem;
+    border: 1px solid var(--tala-edge);
+    border-radius: calc(var(--tala-card-radius) - 0.125rem);
+    background: var(--tala-surface);
+    cursor: pointer;
+    transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+}
+
+@media (hover: hover) {
+    .fi-body :is(.tala-card-picker, .tala-catalog-subject-picker) .fi-fo-checkbox-list-option:hover {
+        border-color: var(--tala-edge-strong);
+        background: var(--tala-surface-raised);
+    }
+}
+
+.fi-body :is(.tala-card-picker, .tala-catalog-subject-picker) .fi-fo-checkbox-list-option:has(.fi-checkbox-input:checked) {
+    border-color: var(--tala-selected-edge);
+    background: var(--tala-brand-tint);
+}
+
+.fi-body :is(.tala-card-picker, .tala-catalog-subject-picker) .fi-fo-checkbox-list-option:has(.fi-checkbox-input:focus-visible) {
+    outline: 2px solid var(--tala-focus);
+    outline-offset: 2px;
+}
+
+.fi-body :is(.tala-card-picker, .tala-catalog-subject-picker) .fi-fo-checkbox-list-option:has(.fi-checkbox-input:focus-visible) .fi-checkbox-input:focus-visible {
+    outline: none;
+}
+
+.fi-body :is(.tala-card-picker, .tala-catalog-subject-picker) .fi-fo-checkbox-list-option-label {
+    font-size: 0.875rem;
+    font-weight: var(--tala-weight-emphasis);
+    color: var(--tala-text);
+    line-height: 1.35;
+}
+
+.fi-body :is(.tala-card-picker, .tala-catalog-subject-picker) .fi-fo-checkbox-list-option-description {
+    margin-block-start: 0.1875rem;
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--tala-muted);
+    line-height: 1.4;
+}
+
+.fi-body :is(.tala-card-picker, .tala-catalog-subject-picker) .fi-fo-checkbox-list-option:has(.fi-checkbox-input:checked) :is(.fi-fo-checkbox-list-option-label, .fi-fo-checkbox-list-option-description) {
+    color: var(--tala-on-brand-tint);
+}
+
+@media (forced-colors: active) {
+    .fi-body :is(.tala-card-picker, .tala-catalog-subject-picker) .fi-fo-checkbox-list-option:has(.fi-checkbox-input:checked) {
+        border-color: Highlight;
+    }
 }

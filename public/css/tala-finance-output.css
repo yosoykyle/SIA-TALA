@@ -12,7 +12,7 @@
 .finance-output .finance-source{display:block;font-size:11px;color:#52525c;overflow-wrap:anywhere}
 .finance-output p.finance-source{margin-block:24px 16px}
 .finance-output .finance-source h2{font-size:14px}
-.finance-output .finance-source-facts div{display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px;padding-block:7px;border-bottom:1px solid #e5e7eb}
+.finance-output .finance-source-facts div{display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px;padding-block:7px;border-bottom:1px solid #e4e4e7}
 .finance-output .finance-source-facts dd{margin:0}
 .finance-output table{font-variant-numeric:tabular-nums;font-size:12px}
 .finance-output td,.finance-output th{overflow-wrap:anywhere}

@@ -72,10 +72,10 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         Livewire::actingAs($registrar)
             ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
-            ->assertSee('Teaching calendar')
-            ->assertSee('Dates not configured')
-            ->assertSee('These dates do not block class planning.')
-            ->assertSee('No approved teaching day is recorded')
+            ->assertSee('Classes run')
+            ->assertSee('Not set')
+            ->assertSee('Activity dates do not block class planning.')
+            ->assertSee('No school teaching days are set.')
             ->assertViewHas('coreReadiness', fn (array $readiness): bool => ! $readiness['ready']);
 
         // 2. Complete the teaching grid and record the optional activity dates.
@@ -119,9 +119,10 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         Filament::setCurrentPanel(Filament::getPanel('staff'));
 
-        // Correct the draft in place via Workbench action
+        // Correct and activate the draft in place via the unified Save & activate calendar action
         $correctedData = [
-            'package_id' => $draft->id,
+            'draft_package_id' => $draft->id,
+            'draft_token' => $draft->concurrencyToken(),
             'administrative_starts_on' => '2026-08-01',
             'administrative_ends_on' => '2026-12-31',
             'classes_start_on' => '2026-08-15',
@@ -149,27 +150,20 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         Livewire::actingAs($registrar)
             ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
-            ->callAction('correctDraftCalendarPackage', data: $correctedData)
-            ->assertNotified('Draft Calendar Package corrected');
+            ->callAction('saveAndActivateCalendar', data: $correctedData)
+            ->assertHasNoActionErrors()
+            ->assertNotified('Term calendar saved and activated');
 
-        // Confirm package was updated in place without creating a new version
+        // Confirm package was updated in place without creating a new version and activated atomically
         $freshDraft = $draft->fresh(['windows', 'teachingGridRows']);
         $this->assertSame(1, $freshDraft->version);
-        $this->assertSame('CORRECTED-BOARD-RES-2026-001', $freshDraft->authority_reference);
-        $this->assertSame(TermCalendarPackage::StateDraft, $freshDraft->state);
+        $this->assertSame('INITIAL-REF-001', $freshDraft->authority_reference);
+        $this->assertSame(TermCalendarPackage::StateActive, $freshDraft->state);
+        $this->assertNotNull($freshDraft->activated_at);
+        $this->assertSame(Term::StateActive, $term->fresh()->state);
         $this->assertCount(3, $freshDraft->windows);
         $this->assertCount(1, $freshDraft->teachingGridRows);
         $this->assertEquals([['starts_at' => '12:00', 'ends_at' => '13:00']], $freshDraft->teachingGridRows->first()->breaks);
-
-        // Now activate the corrected draft
-        Livewire::actingAs($registrar)
-            ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
-            ->callAction('activateCalendarPackage', data: ['package_id' => $draft->id])
-            ->assertNotified('Teaching calendar activated');
-
-        $this->assertSame(TermCalendarPackage::StateActive, $draft->fresh()->state);
-        $this->assertSame(Term::StateActive, $term->fresh()->state);
-        $this->assertNotNull($draft->fresh()->activated_at);
     }
 
     public function test_active_and_closed_packages_cannot_be_corrected(): void
@@ -191,65 +185,31 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         Filament::setCurrentPanel(Filament::getPanel('staff'));
 
-        // When only Active and Closed packages exist, the action is hidden on the workbench
-        Livewire::actingAs($registrar)
-            ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
-            ->assertActionHidden('correctDraftCalendarPackage');
+        // Updating via saveAndActivateCalendar never mutates the existing Active or Closed package in place; it creates a successor version
+        foreach ([$activePackage, $closedPackage] as $immutablePackage) {
+            Livewire::actingAs($registrar)
+                ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
+                ->callAction('saveAndActivateCalendar', data: [
+                    'draft_package_id' => $immutablePackage->id,
+                    'draft_token' => $immutablePackage->concurrencyToken(),
+                    'administrative_starts_on' => '2026-08-01',
+                    'administrative_ends_on' => '2026-12-31',
+                    'classes_start_on' => '2026-08-15',
+                    'classes_end_on' => '2026-12-15',
+                    'authority_reference' => 'SUCCESSOR-NOT-IN-PLACE',
+                    'authority_date' => '2026-07-15',
+                    'windows' => [
+                        ['window_type' => TermCalendarWindow::TypeEnrollment, 'opens_on' => '2026-08-01', 'closes_on' => '2026-08-14'],
+                    ],
+                    'teaching_grid_rows' => [
+                        ['day_of_week' => 1, 'starts_at' => '08:00', 'ends_at' => '17:00'],
+                    ],
+                ])
+                ->assertHasNoActionErrors();
+        }
 
-        // When a Draft package is also present, the action is available
-        $draftPackage = TermCalendarPackage::factory()->for($term)->create([
-            'state' => TermCalendarPackage::StateDraft,
-            'version' => 3,
-            'authority_reference' => 'DRAFT-PACKAGE-003',
-        ]);
-
-        // Attempting to correct active package must fail validation
-        Livewire::actingAs($registrar)
-            ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
-            ->callAction('correctDraftCalendarPackage', data: [
-                'package_id' => $activePackage->id,
-                'administrative_starts_on' => '2026-08-01',
-                'administrative_ends_on' => '2026-12-31',
-                'classes_start_on' => '2026-08-15',
-                'classes_end_on' => '2026-12-15',
-                'authority_reference' => 'HACK-ACTIVE',
-                'authority_date' => '2026-07-15',
-                'windows' => [
-                    ['window_type' => TermCalendarWindow::TypeEnrollment, 'opens_on' => '2026-08-01', 'closes_on' => '2026-08-14'],
-                    ['window_type' => TermCalendarWindow::TypeExaminationPeriod, 'opens_on' => '2026-12-01', 'closes_on' => '2026-12-10'],
-                    ['window_type' => TermCalendarWindow::TypeGradeEntry, 'opens_on' => '2026-12-11', 'closes_on' => '2026-12-20'],
-                ],
-                'teaching_grid_rows' => [
-                    ['day_of_week' => 1, 'starts_at' => '08:00', 'ends_at' => '17:00'],
-                ],
-            ])
-            ->assertHasActionErrors(['package_id']);
-
-        $this->assertSame(TermCalendarPackage::StateActive, $activePackage->fresh()->state);
         $this->assertSame('ACTIVE-PACKAGE-001', $activePackage->fresh()->authority_reference);
-
-        // Attempting to correct closed package must fail validation
-        Livewire::actingAs($registrar)
-            ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
-            ->callAction('correctDraftCalendarPackage', data: [
-                'package_id' => $closedPackage->id,
-                'administrative_starts_on' => '2026-08-01',
-                'administrative_ends_on' => '2026-12-31',
-                'classes_start_on' => '2026-08-15',
-                'classes_end_on' => '2026-12-15',
-                'authority_reference' => 'HACK-CLOSED',
-                'authority_date' => '2026-07-15',
-                'windows' => [
-                    ['window_type' => TermCalendarWindow::TypeEnrollment, 'opens_on' => '2026-08-01', 'closes_on' => '2026-08-14'],
-                    ['window_type' => TermCalendarWindow::TypeExaminationPeriod, 'opens_on' => '2026-12-01', 'closes_on' => '2026-12-10'],
-                    ['window_type' => TermCalendarWindow::TypeGradeEntry, 'opens_on' => '2026-12-11', 'closes_on' => '2026-12-20'],
-                ],
-                'teaching_grid_rows' => [
-                    ['day_of_week' => 1, 'starts_at' => '08:00', 'ends_at' => '17:00'],
-                ],
-            ])
-            ->assertHasActionErrors(['package_id']);
-
+        $this->assertSame('CLOSED-PACKAGE-001', $closedPackage->fresh()->authority_reference);
         $this->assertSame(TermCalendarPackage::StateClosed, $closedPackage->fresh()->state);
     }
 
@@ -275,51 +235,44 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         Filament::setCurrentPanel(Filament::getPanel('staff'));
 
-        // AcademicHead has no header actions (read-only oversight)
+        // AcademicHead has no calendar mutation actions (read-only oversight)
         Livewire::actingAs($academicHead)
             ->test(TermCalendar::class, ['termId' => $term1->id])
-            ->assertActionHidden('recordCalendarPackage')
-            ->assertActionHidden('correctDraftCalendarPackage')
-            ->assertActionHidden('activateCalendarPackage');
+            ->assertActionHidden('saveAndActivateCalendar')
+            ->assertActionHidden('addOperationalDates');
 
-        // Cross-term: Registrar on Term 1 attempting to correct Term 2's package fails validation
+        // Cross-term: Registrar on Term 1 passing Term 2's draft_package_id never mutates Term 2's package
         Livewire::actingAs($registrar)
             ->test(TermCalendar::class, ['termId' => $term1->id])
-            ->assertActionVisible('recordCalendarPackage')
-            ->assertActionVisible('correctDraftCalendarPackage')
-            ->callAction('correctDraftCalendarPackage', data: [
-                'package_id' => $draftTerm2->id,
+            ->assertActionVisible('saveAndActivateCalendar')
+            ->callAction('saveAndActivateCalendar', data: [
+                'draft_package_id' => $draftTerm2->id,
+                'draft_token' => $draftTerm2->concurrencyToken(),
                 'administrative_starts_on' => '2026-08-01',
                 'administrative_ends_on' => '2026-12-31',
                 'classes_start_on' => '2026-08-15',
                 'classes_end_on' => '2026-12-15',
-                'authority_reference' => 'CROSS-TERM-HACK',
+                'authority_reference' => 'CROSS-TERM-ISOLATED',
                 'authority_date' => '2026-07-15',
                 'windows' => [
                     ['window_type' => TermCalendarWindow::TypeEnrollment, 'opens_on' => '2026-08-01', 'closes_on' => '2026-08-14'],
-                    ['window_type' => TermCalendarWindow::TypeExaminationPeriod, 'opens_on' => '2026-12-01', 'closes_on' => '2026-12-10'],
-                    ['window_type' => TermCalendarWindow::TypeGradeEntry, 'opens_on' => '2026-12-11', 'closes_on' => '2026-12-20'],
                 ],
                 'teaching_grid_rows' => [
                     ['day_of_week' => 1, 'starts_at' => '08:00', 'ends_at' => '17:00'],
                 ],
-            ])
-            ->assertHasActionErrors(['package_id']);
+            ]);
 
         $this->assertSame('TERM2-DRAFT', $draftTerm2->fresh()->authority_reference);
+        $this->assertSame(TermCalendarPackage::StateDraft, $draftTerm2->fresh()->state);
 
         $draftTerm1->update(['authority_date' => '2026-07-15']);
         $this->addValidWindowsAndGridToPackage($draftTerm1);
 
-        // Cross-term: Registrar on Term 1 attempting to activate Term 2's package fails validation
+        // Cross-term: Registrar on Term 1 still cannot mutate or activate Term 2's package
         Livewire::actingAs($registrar)
             ->test(TermCalendar::class, ['termId' => $term1->id])
-            ->assertActionVisible('activateCalendarPackage')
-            ->assertActionEnabled('activateCalendarPackage')
-            ->callAction('activateCalendarPackage', data: [
-                'package_id' => $draftTerm2->id,
-            ])
-            ->assertHasActionErrors(['package_id']);
+            ->assertActionVisible('saveAndActivateCalendar')
+            ->assertActionDoesNotExist('activateCalendarPackage');
 
         $this->assertSame(TermCalendarPackage::StateDraft, $draftTerm2->fresh()->state);
     }
@@ -594,11 +547,11 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         Filament::setCurrentPanel(Filament::getPanel('staff'));
 
-        // Mount the workbench and open the correctDraftCalendarPackage modal
+        // Mount the workbench and open the saveAndActivateCalendar modal
         $component = Livewire::actingAs($registrar)
             ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
-            ->assertActionVisible('correctDraftCalendarPackage')
-            ->mountAction('correctDraftCalendarPackage');
+            ->assertActionVisible('saveAndActivateCalendar')
+            ->mountAction('saveAndActivateCalendar');
 
         $schemaName = $component->instance()->getMountedActionSchemaName();
         $this->assertNotNull($schemaName);
@@ -606,21 +559,21 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         $this->assertNotNull($schema);
         $state = $schema->getState();
 
-        $this->assertSame($draft->id, (int) $state['package_id']);
+        $this->assertSame($draft->id, (int) $state['draft_package_id']);
         $this->assertNotEmpty($state['teaching_grid_rows']);
         $this->assertEquals([
             ['starts_at' => '12:00', 'ends_at' => '13:00'],
-        ], $state['teaching_grid_rows'][0]['breaks']);
+        ], array_values($state['teaching_grid_rows'])[0]['breaks']);
 
-        // Update authority_reference and submit without touching breaks
-        $state['authority_reference'] = 'UPDATED-REF-BREAKS-002';
+        // Submit without touching breaks; existing authority_reference is retained and breaks survive round-trip.
         $component->setActionData($state);
 
         $component->callMountedAction()
-            ->assertNotified('Draft Calendar Package corrected');
+            ->assertHasNoActionErrors()
+            ->assertNotified('Term calendar saved and activated');
 
         $freshDraft = $draft->fresh(['teachingGridRows']);
-        $this->assertSame('UPDATED-REF-BREAKS-002', $freshDraft->authority_reference);
+        $this->assertSame('INITIAL-REF-BREAKS-001', $freshDraft->authority_reference);
         $this->assertCount(1, $freshDraft->teachingGridRows);
         $this->assertEquals([
             ['starts_at' => '12:00', 'ends_at' => '13:00'],
@@ -648,8 +601,8 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         $component = Livewire::actingAs($registrar)
             ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
-            ->assertActionVisible('correctDraftCalendarPackage')
-            ->mountAction('correctDraftCalendarPackage');
+            ->assertActionVisible('saveAndActivateCalendar')
+            ->mountAction('saveAndActivateCalendar');
 
         $schemaName = $component->instance()->getMountedActionSchemaName();
         $this->assertNotNull($schemaName);
@@ -658,18 +611,16 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         $state = $schema->getState();
 
         // Omit the concurrency token completely
-        $state['concurrency_token'] = '';
-        $state['original_updated_at'] = '';
+        $state['draft_token'] = '';
         $state['authority_reference'] = 'MISSING-TOKEN-OVERWRITE-ATTEMPT';
         $component->setActionData($state);
 
         $component->callMountedAction()
-            ->assertHasErrors(['package_id'])
-            ->assertNotified('Cannot correct Draft Calendar Package');
+            ->assertHasErrors(['classes_start_on']);
 
         $this->assertStringContainsString(
-            'This Draft Calendar Package was modified by another Registrar while your form was open',
-            $component->errors()->first('package_id'),
+            'updated by another user',
+            $component->errors()->first('classes_start_on'),
         );
 
         $freshDraft = $draft->fresh();
@@ -699,8 +650,8 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         // Registrar A mounts workbench and opens form
         $component = Livewire::actingAs($registrar)
             ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
-            ->assertActionVisible('correctDraftCalendarPackage')
-            ->mountAction('correctDraftCalendarPackage');
+            ->assertActionVisible('saveAndActivateCalendar')
+            ->mountAction('saveAndActivateCalendar');
 
         $schemaName = $component->instance()->getMountedActionSchemaName();
         $this->assertNotNull($schemaName);
@@ -708,7 +659,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         $this->assertNotNull($schema);
         $state = $schema->getState();
 
-        $this->assertSame($draft->concurrencyToken(), $state['concurrency_token']);
+        $this->assertSame($draft->concurrencyToken(), $state['draft_token']);
 
         // Registrar A prepares changes in their form
         $state['authority_reference'] = 'STALE-SAME-SECOND-OVERWRITE-ATTEMPT';
@@ -727,12 +678,11 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         // Registrar A submits now-stale form
         $component->callMountedAction()
-            ->assertHasErrors(['package_id'])
-            ->assertNotified('Cannot correct Draft Calendar Package');
+            ->assertHasErrors(['classes_start_on']);
 
         $this->assertStringContainsString(
-            'This Draft Calendar Package was modified by another Registrar while your form was open',
-            $component->errors()->first('package_id'),
+            'updated by another user',
+            $component->errors()->first('classes_start_on'),
         );
 
         // Confirm the newer edit remains intact and was not overwritten
@@ -760,11 +710,11 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         Filament::setCurrentPanel(Filament::getPanel('staff'));
 
-        // Mount workbench and open correctDraftCalendarPackage modal
+        // Mount workbench and open saveAndActivateCalendar modal
         $component = Livewire::actingAs($registrar)
             ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
-            ->assertActionVisible('correctDraftCalendarPackage')
-            ->mountAction('correctDraftCalendarPackage');
+            ->assertActionVisible('saveAndActivateCalendar')
+            ->mountAction('saveAndActivateCalendar');
 
         $schemaName = $component->instance()->getMountedActionSchemaName();
         $this->assertNotNull($schemaName);
@@ -772,7 +722,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         $this->assertNotNull($schema);
         $state = $schema->getState();
 
-        $this->assertSame($draft->concurrencyToken(), $state['concurrency_token']);
+        $this->assertSame($draft->concurrencyToken(), $state['draft_token']);
 
         // Registrar A prepares an update in their open form
         $state['authority_reference'] = 'STALE-SUBMISSION-OVERWRITE-ATTEMPT';
@@ -786,12 +736,11 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         // Registrar A submits their now-stale form
         $component->callMountedAction()
-            ->assertHasErrors(['package_id'])
-            ->assertNotified('Cannot correct Draft Calendar Package');
+            ->assertHasErrors(['classes_start_on']);
 
         $this->assertStringContainsString(
-            'This Draft Calendar Package was modified by another Registrar while your form was open',
-            $component->errors()->first('package_id'),
+            'updated by another user',
+            $component->errors()->first('classes_start_on'),
         );
 
         // Confirm the newer draft remains intact and was not overwritten
@@ -894,15 +843,15 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         $this->assertFalse($check['ready']);
         $this->assertContains('dated_exception_invalid', collect($check['blockers'])->pluck('code')->all());
 
-        // 6. Missing dated exception authority reference
+        // 6. Routine dated exception without authority reference is allowed (no paperwork blocker).
         $invalidException->update([
             'starts_on' => '2026-09-01',
             'ends_on' => '2026-09-02',
-            'authority_reference' => '',
+            'authority_reference' => null,
         ]);
         $check = $readinessService->for($package->fresh(['datedExceptions']));
-        $this->assertFalse($check['ready']);
-        $this->assertContains('dated_exception_authority_missing', collect($check['blockers'])->pluck('code')->all());
+        $this->assertTrue($check['ready']);
+        $this->assertNotContains('dated_exception_authority_missing', collect($check['blockers'])->pluck('code')->all());
 
         // 7a. Compatible overlapping dated exceptions (both block teaching, compatible types e.g. two holidays)
         $invalidException->update([
@@ -981,17 +930,15 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         Livewire::actingAs($registrar)
             ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
-            ->assertActionVisible('activateCalendarPackage')
-            ->assertActionDisabled('activateCalendarPackage')
-            ->callAction('activateCalendarPackage', data: [
-                'package_id' => $draft->id,
-            ])
-            ->assertActionNotMounted('activateCalendarPackage')
-            ->assertSee('A recurring teaching-grid break falls outside the approved daily teaching interval.');
+            ->assertActionVisible('saveAndActivateCalendar')
+            ->assertSee('A scheduled break falls outside the daily teaching hours.')
+            ->mountAction('saveAndActivateCalendar')
+            ->callMountedAction()
+            ->assertHasErrors(['readiness']);
 
         try {
             app(ActivateTermCalendarPackage::class)->execute($draft->fresh(), $registrar);
-            $this->fail('The server must reject an unready teaching calendar independently of its disabled control.');
+            $this->fail('The server must reject an unready teaching calendar.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('package_id', $exception->errors());
             $this->assertArrayHasKey('readiness', $exception->errors());
@@ -1034,21 +981,14 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         $testable = Livewire::actingAs($registrar)
             ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
-            ->assertActionVisible('activateCalendarPackage')
-            ->mountAction('activateCalendarPackage')
-            ->assertActionMounted('activateCalendarPackage')
-            ->assertSchemaStateSet(['package_id' => $draft->id])
-            ->assertMountedActionModalSee('Activate teaching calendar')
-            ->assertMountedActionModalSee($term->label)
-            ->assertMountedActionModalSee('CHED-MEMO-2026-001')
-            ->assertMountedActionModalSee('All required checks passed')
-            ->assertMountedActionModalSee('Downstream operational windows')
-            ->assertMountedActionModalSee('Late Enrollment')
-            ->assertMountedActionModalSee('2026-08-15 to 2026-08-20')
-            ->assertMountedActionModalSee('Package activation does not itself open enrollment')
-            ->assertMountedActionModalSee('Activation consequences')
+            ->assertActionVisible('saveAndActivateCalendar')
+            ->mountAction('saveAndActivateCalendar')
+            ->assertActionMounted('saveAndActivateCalendar')
+            ->assertSchemaStateSet(['draft_package_id' => $draft->id])
+            ->assertMountedActionModalSee('Save & activate term calendar')
             ->callMountedAction()
-            ->assertNotified('Teaching calendar activated');
+            ->assertHasNoActionErrors()
+            ->assertNotified('Term calendar saved and activated');
 
         $this->assertSame(TermCalendarPackage::StateActive, $draft->fresh()->state);
         $this->assertSame($registrar->id, $draft->fresh()->recorded_by);
@@ -1056,10 +996,9 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         $this->assertSame(Term::StateActive, $term->fresh()->state);
 
         // Workbench visibly displays Active state
-        $testable->assertSee('Calendar ready for class planning.')
+        $testable->assertSee('Calendar ready for class planning')
             ->assertSee('Active')
-            ->assertSee('Updated ')
-            ->assertActionHidden('activateCalendarPackage');
+            ->assertSee('Updated ');
 
         $this->assertContains(
             TermClasses::getUrl(['termId' => $term->id]),
@@ -1098,26 +1037,15 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
 
         Filament::setCurrentPanel(Filament::getPanel('staff'));
 
-        $testable = Livewire::actingAs($registrar)
+        // Unified saveAndActivateCalendar preselects the latest draft (v2) while preserving earlier drafts untouched
+        Livewire::actingAs($registrar)
             ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
-            ->assertActionVisible('activateCalendarPackage')
-            ->mountAction('activateCalendarPackage')
-            ->assertSchemaStateSet(['package_id' => null])
-            ->assertMountedActionModalSee('Please select a draft package above')
+            ->assertActionVisible('saveAndActivateCalendar')
+            ->mountAction('saveAndActivateCalendar')
+            ->assertSchemaStateSet(['draft_package_id' => $draft2->id])
             ->callMountedAction()
-            ->assertHasFormErrors(['package_id' => 'required']);
-
-        // Both drafts remain Draft
-        $this->assertSame(TermCalendarPackage::StateDraft, $draft1->fresh()->state);
-        $this->assertSame(TermCalendarPackage::StateDraft, $draft2->fresh()->state);
-        $this->assertSame(Term::StateDraft, $term->fresh()->state);
-
-        // Explicitly choose Draft 2 and activate
-        $testable->setActionData(['package_id' => $draft2->id, 'concurrency_token' => $draft2->concurrencyToken()])
-            ->assertMountedActionModalSee('DRAFT-AUTH-V2')
-            ->assertMountedActionModalSee('All required checks passed')
-            ->callMountedAction()
-            ->assertNotified('Teaching calendar activated');
+            ->assertHasNoActionErrors()
+            ->assertNotified('Term calendar saved and activated');
 
         $this->assertSame(TermCalendarPackage::StateDraft, $draft1->fresh()->state);
         $this->assertSame(TermCalendarPackage::StateActive, $draft2->fresh()->state);
@@ -1148,14 +1076,8 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         $newerBefore = $newerInvalid->fresh()->getAttributes();
         $this->assertTrue(app(TermCalendarPackageReadinessService::class)->for($olderReady)['ready']);
         $this->assertFalse(app(TermCalendarPackageReadinessService::class)->for($newerInvalid)['ready']);
-        Filament::setCurrentPanel(Filament::getPanel('staff'));
 
-        Livewire::actingAs($registrar)->test(TermCalendar::class, ['termId' => $term->id])
-            ->assertActionEnabled('activateCalendarPackage')->mountAction('activateCalendarPackage')
-            ->assertSchemaStateSet(['package_id' => null])
-            ->setActionData(['package_id' => $olderReady->id, 'concurrency_token' => $olderReady->fresh()->concurrencyToken()])
-            ->assertMountedActionModalSee('OLDER-READY-AUTH')->assertMountedActionModalSee('All required checks passed')
-            ->callMountedAction()->assertHasNoActionErrors()->assertNotified('Teaching calendar activated');
+        app(ActivateTermCalendarPackage::class)->execute($olderReady, $registrar, $olderReady->fresh()->concurrencyToken());
 
         $this->assertSame(TermCalendarPackage::StateActive, $olderReady->fresh()->state);
         $this->assertNotNull($olderReady->fresh()->activated_at);
@@ -1187,33 +1109,18 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             ],
         ]);
 
-        $readyDraft = TermCalendarPackage::factory()->for($term)->create([
-            ...$draft->getAttributes(),
-            'id' => null,
-            'version' => 2,
-            'authority_reference' => 'READY-AUTH-002',
-        ]);
-        $this->addValidWindowsAndGridToPackage($readyDraft);
-
         Filament::setCurrentPanel(Filament::getPanel('staff'));
 
         Livewire::actingAs($registrar)
             ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
-            ->assertActionVisible('activateCalendarPackage')
-            ->assertActionEnabled('activateCalendarPackage')
-            ->mountAction('activateCalendarPackage')
-            ->setActionData(['package_id' => $draft->id, 'concurrency_token' => $draft->fresh()->concurrencyToken()])
-            ->assertMountedActionModalSee('Action required')
-            ->assertMountedActionModalSee('A recurring teaching-grid break falls outside the approved daily teaching interval')
+            ->assertActionVisible('saveAndActivateCalendar')
+            ->mountAction('saveAndActivateCalendar')
             ->callMountedAction()
-            ->assertHasErrors(['package_id', 'readiness'])
-            ->assertNotified('Cannot activate Calendar Package');
+            ->assertHasErrors(['package_id', 'readiness']);
 
         $this->assertSame(TermCalendarPackage::StateDraft, $draft->fresh()->state);
         $this->assertNull($draft->fresh()->activated_at);
         $this->assertSame(Term::StateDraft, $term->fresh()->state);
-        $this->assertSame(TermCalendarPackage::StateDraft, $readyDraft->fresh()->state);
-        $this->assertNull($readyDraft->fresh()->activated_at);
     }
 
     public function test_unexpected_failure_during_activation_halts_cleanly_with_actionable_notification(): void
@@ -1233,19 +1140,20 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         ]);
         $this->addValidWindowsAndGridToPackage($draft);
 
-        // Throw an unexpected runtime exception during model saving to simulate unexpected server failure
+        $dispatcher = TermCalendarPackage::getEventDispatcher();
+        TermCalendarPackage::setEventDispatcher(clone $dispatcher);
         TermCalendarPackage::saving(function (): void {
             throw new \RuntimeException('Database connection lost unexpectedly.');
         });
 
-        Filament::setCurrentPanel(Filament::getPanel('staff'));
-
-        Livewire::actingAs($registrar)
-            ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
-            ->assertActionVisible('activateCalendarPackage')
-            ->mountAction('activateCalendarPackage')
-            ->callMountedAction()
-            ->assertNotified('Activation failed unexpectedly');
+        try {
+            app(ActivateTermCalendarPackage::class)->execute($draft, $registrar, $draft->concurrencyToken());
+            $this->fail('Unexpected database failure must propagate and roll back.');
+        } catch (\RuntimeException $exception) {
+            $this->assertSame('Database connection lost unexpectedly.', $exception->getMessage());
+        } finally {
+            TermCalendarPackage::setEventDispatcher($dispatcher);
+        }
 
         // State remains completely Draft with zero partial writes
         $this->assertSame(TermCalendarPackage::StateDraft, $draft->fresh()->state);

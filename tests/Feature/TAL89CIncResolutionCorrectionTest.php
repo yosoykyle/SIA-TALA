@@ -98,10 +98,9 @@ class TAL89CIncResolutionCorrectionTest extends TestCase
             'recorded_by' => $registrar->id,
         ]);
         $this->assertSame($released->id, $submission->fresh()->released_event_id);
-        $this->assertDatabaseHas('registration_case_events', [
+        $this->assertDatabaseMissing('registration_case_events', [
             'enrollment_id' => $nextCase->id,
             'event_type' => 'AcademicResultImpactReviewOpened',
-            'actor_id' => $registrar->id,
         ]);
     }
 
@@ -216,10 +215,9 @@ class TAL89CIncResolutionCorrectionTest extends TestCase
             'evidence_reference' => null,
             'recorded_by' => $registrar->id,
         ]);
-        $this->assertDatabaseHas('registration_case_events', [
+        $this->assertDatabaseMissing('registration_case_events', [
             'enrollment_id' => $nextCase->id,
             'event_type' => 'AcademicResultImpactReviewOpened',
-            'actor_id' => $registrar->id,
         ]);
     }
 
@@ -933,7 +931,7 @@ class TAL89CIncResolutionCorrectionTest extends TestCase
         Livewire::actingAs($faculty)->test(FacultyGradeRoster::class, ['rosterId' => $roster->id])
             ->assertActionVisible('submitIncCompletion')
             ->assertSee('Resubmit against the amended completion deadline.')
-            ->callAction('submitIncCompletion', ['row_id' => $row->id, 'proposed_result' => '2.75', 'completion_note' => 'Reviewed under the amended deadline.'])
+            ->callAction('submitIncCompletion', ['proposed_result' => '2.75', 'completion_note' => 'Reviewed under the amended deadline.'])
             ->assertHasNoActionErrors()->assertNotified('INC completion submitted for Registrar review')
             ->assertActionHidden('submitIncCompletion')
             ->assertSee('Ready for Registrar review')

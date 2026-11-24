@@ -2,6 +2,7 @@
 
 namespace App\Actions\Academics;
 
+use App\Models\CourseSpecification;
 use Illuminate\Support\Collection;
 
 class AcademicAverageReadiness
@@ -79,6 +80,6 @@ class AcademicAverageReadiness
     /** @param array<string, mixed> $result */
     private function excludedClassification(array $result): bool
     {
-        return in_array($result['course_specification']?->academic_classification, ['PE', 'NSTP'], true);
+        return CourseSpecification::isExcludedFromGwa($result['course_specification']?->academic_classification);
     }
 }

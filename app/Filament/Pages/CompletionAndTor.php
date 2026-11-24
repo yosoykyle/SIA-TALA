@@ -10,6 +10,7 @@ use App\Actions\Completion\RecordTranscriptRequest;
 use App\Actions\Completion\TranscriptLifecycleProjection;
 use App\Actions\Completion\TranscriptPreview;
 use App\Actions\Completion\TranscriptSignatory;
+use App\Filament\Concerns\HasAcademicOversightReturn;
 use App\Filament\Resources\TranscriptRequests\Concerns\InteractsWithTranscriptActions;
 use App\Models\DegreeConferral;
 use App\Models\StudentProfile;
@@ -48,6 +49,7 @@ use Livewire\Attributes\Url;
 
 class CompletionAndTor extends Page implements HasTable
 {
+    use HasAcademicOversightReturn;
     use InteractsWithTable;
     use InteractsWithTranscriptActions;
 
@@ -90,7 +92,23 @@ class CompletionAndTor extends Page implements HasTable
 
     public function mount(): void
     {
-        $this->completionView = auth()->user()?->hasRole(User::StaffRoleRegistrar) && $this->completionView !== 'graduation' ? 'tor' : 'graduation';
+        $this->completionView = $this->canMutateCompletion() && $this->completionView !== 'graduation' ? 'tor' : 'graduation';
+    }
+
+    public function canMutateCompletion(): bool
+    {
+        return $this->isRegistrarActor();
+    }
+
+    public function showOversightHeaderActions(): bool
+    {
+        return $this->isAcademicHeadReader();
+    }
+
+    /** @return array{oversightTermId?: int} */
+    public function oversightDrillParameters(): array
+    {
+        return $this->oversightQueryParameters();
     }
 
     public function bootInteractsWithTranscriptActions(): void
@@ -105,7 +123,7 @@ class CompletionAndTor extends Page implements HasTable
     #[Computed]
     public function torRequests(): LengthAwarePaginator
     {
-        abort_unless(auth()->user()?->hasRole(User::StaffRoleRegistrar), 403);
+        abort_unless($this->canMutateCompletion(), 403);
 
         return TranscriptRequest::query()->with(['studentProfile.program', 'studentProfile.user', 'officialOutputRestrictions', 'events', 'snapshots.events'])
             ->when(filled($this->torSearch), fn (Builder $query) => $query->where(function (Builder $query): void {
@@ -138,7 +156,7 @@ class CompletionAndTor extends Page implements HasTable
 
     private function request(): TranscriptRequest
     {
-        abort_unless(auth()->user()?->hasRole(User::StaffRoleRegistrar), 403);
+        abort_unless($this->canMutateCompletion(), 403);
 
         return $this->selectedTorRequest() ?? abort(404);
     }
@@ -156,7 +174,7 @@ class CompletionAndTor extends Page implements HasTable
     public function updatedCompletionView(): void
     {
         abort_unless(in_array($this->completionView, ['tor', 'graduation'], true), 404);
-        abort_if($this->completionView === 'tor' && ! auth()->user()?->hasRole(User::StaffRoleRegistrar), 403);
+        abort_if($this->completionView === 'tor' && ! $this->canMutateCompletion(), 403);
         $this->flushCachedTableRecords();
         $this->resetErrorBag();
     }
@@ -164,7 +182,7 @@ class CompletionAndTor extends Page implements HasTable
     public function selectCompletionView(string $view): void
     {
         abort_unless(in_array($view, ['tor', 'graduation'], true), 404);
-        abort_if($view === 'tor' && ! auth()->user()?->hasRole(User::StaffRoleRegistrar), 403);
+        abort_if($view === 'tor' && ! $this->canMutateCompletion(), 403);
         $this->completionView = $view;
         $this->flushCachedTableRecords();
         $this->resetErrorBag();
@@ -255,7 +273,8 @@ class CompletionAndTor extends Page implements HasTable
     public function setTorSignatoryAction(): Action
     {
         return Action::make('setTorSignatory')->label('Set TOR signatory')->color('gray')->icon('heroicon-o-cog-6-tooth')
-            ->visible(fn (): bool => auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false)
+            ->visible(fn (): bool => $this->canMutateCompletion())
+            ->authorize(fn (): bool => $this->canMutateCompletion())
             ->modalHeading('Name printed on the TOR')
             ->modalDescription('Enter the school-confirmed signatory. These details are reused on new TORs. Issued documents keep their original certification.')
             ->modalWidth(Width::Large)
@@ -276,8 +295,9 @@ class CompletionAndTor extends Page implements HasTable
     public function reviewTorAction(): Action
     {
         return Action::make('reviewTor')->label('Review TOR')->icon('heroicon-o-eye')
-            ->visible(fn (): bool => (auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false)
+            ->visible(fn (): bool => $this->canMutateCompletion()
                 && ($this->currentSnapshot() === null))
+            ->authorize(fn (): bool => $this->canMutateCompletion())
             ->disabled(fn (): bool => $this->torDetail()['blocker'] !== null)
             ->action(function (): void {
                 $request = $this->request();
@@ -323,16 +343,16 @@ class CompletionAndTor extends Page implements HasTable
 
     public function getSubheading(): ?string
     {
-        return auth()->user()?->hasRole(User::StaffRoleRegistrar)
+        return $this->canMutateCompletion()
             ? 'Review graduation requirements or handle transcript requests.'
             : 'Inspect current completion requirements and recorded graduation results. The Registrar records graduation and handles TOR requests.';
     }
 
     public function getBreadcrumbs(): array
     {
-        return auth()->user()?->hasRole(User::StaffRoleRegistrar)
-            ? [GradesAndCompletion::getUrl() => 'Students Record', 'Completion & TOR']
-            : [AcademicApprovals::getUrl() => 'Academic Oversight', 'Completion & TOR'];
+        return $this->isAcademicHeadReader()
+            ? [$this->oversightReturnUrl() => 'Academic Oversight', 'Completion & TOR']
+            : [GradesAndCompletion::getUrl() => 'Students Record', 'Completion & TOR'];
     }
 
     public function getHeader(): ?View
@@ -343,13 +363,18 @@ class CompletionAndTor extends Page implements HasTable
     /** @return list<Action> */
     protected function getHeaderActions(): array
     {
-        if (! (auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false)) {
+        if ($this->isAcademicHeadReader()) {
+            return [$this->returnToOversightAction()];
+        }
+
+        if (! $this->canMutateCompletion()) {
             return [];
         }
 
         return [
             Action::make('recordTorRequest')->label('Record TOR request')->icon('heroicon-o-document-plus')
-                ->visible(fn (): bool => $this->completionView === 'tor')
+                ->visible(fn (): bool => $this->canMutateCompletion() && $this->completionView === 'tor')
+                ->authorize(fn (): bool => $this->canMutateCompletion())
                 ->modalSubmitActionLabel('Record request')
                 ->modalWidth(Width::TwoExtraLarge)
                 ->stickyModalHeader()
@@ -466,8 +491,9 @@ class CompletionAndTor extends Page implements HasTable
     public function recordGraduationAction(): Action
     {
         return Action::make('recordGraduation')->label('Record graduation')->icon('heroicon-o-check-badge')
-            ->visible(fn (): bool => (auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false)
+            ->visible(fn (): bool => $this->canMutateCompletion()
                 && $this->selectedGraduationStudent() !== null && $this->selectedGraduationStudent()->degreeConferrals->isEmpty())
+            ->authorize(fn (): bool => $this->canMutateCompletion())
             ->modalHeading(fn (): string => 'Record graduation for '.$this->studentName($this->selectedGraduationStudent()))
             ->modalDescription('Record the actual institutional degree outcome after reviewing the current requirements. This preserves the final evaluation and marks the student Completed. The graduation date is entered only when supplied by the institution. The recorder and recording time are saved automatically.')
             ->modalWidth(Width::ThreeExtraLarge)
@@ -523,8 +549,9 @@ class CompletionAndTor extends Page implements HasTable
     public function correctGraduationAction(): Action
     {
         return Action::make('correctGraduation')->label('Correct graduation record')->color('gray')->icon('heroicon-o-pencil-square')
-            ->visible(fn (): bool => (auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false)
+            ->visible(fn (): bool => $this->canMutateCompletion()
                 && $this->selectedGraduationStudent()?->degreeConferrals->isNotEmpty())
+            ->authorize(fn (): bool => $this->canMutateCompletion())
             ->modalDescription('Record the school-confirmed correction. Earlier graduation results and issued TORs remain in history; affected TORs become superseded.')
             ->modalWidth(Width::ThreeExtraLarge)
             ->stickyModalHeader()
@@ -607,7 +634,7 @@ class CompletionAndTor extends Page implements HasTable
     private function actor(): User
     {
         $actor = auth()->user();
-        abort_unless($actor instanceof User && $actor->hasRole(User::StaffRoleRegistrar), 403);
+        abort_unless($actor instanceof User && $this->canMutateCompletion(), 403);
 
         return $actor;
     }

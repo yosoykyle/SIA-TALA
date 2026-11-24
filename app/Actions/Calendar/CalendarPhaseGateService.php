@@ -219,6 +219,10 @@ class CalendarPhaseGateService
 
     public function activePackage(int $termId): ?TermCalendarPackage
     {
+        if (Term::query()->whereKey($termId)->where('state', Term::StateClosed)->exists()) {
+            return null;
+        }
+
         return TermCalendarPackage::query()
             ->where('term_id', $termId)
             ->where('state', TermCalendarPackage::StateActive)

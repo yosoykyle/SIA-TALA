@@ -6,10 +6,8 @@ use App\Actions\Calendar\ActivateTermCalendarPackage;
 use App\Actions\Scheduling\PrepareTermClassProposal;
 use App\Filament\Pages\TermCalendar;
 use App\Filament\Pages\TermClasses;
-use App\Filament\Pages\TermClassProposal;
 use App\Filament\Pages\TermResources;
 use App\Filament\Pages\TermTimetable;
-use App\Filament\Resources\Sections\SectionResource;
 use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
@@ -70,8 +68,8 @@ final class Issue66TermPreparationTest extends TestCase
         $this->assertInstanceOf(\DOMElement::class, $host);
         $this->assertSame(0, $xpath->query('ancestor::details', $host)->length, 'Calendar editing must open independently of its source disclosure.');
 
-        foreach (['recordCalendarPackage', 'addOperationalDates'] as $action) {
-            $page->mountAction($action)->assertActionMounted($action)->assertMountedActionModalSee($action === 'recordCalendarPackage' ? 'Classes start' : 'Approved activity dates');
+        foreach (['saveAndActivateCalendar', 'addOperationalDates'] as $action) {
+            $page->mountAction($action)->assertActionMounted($action)->assertMountedActionModalSee($action === 'saveAndActivateCalendar' ? 'Classes start' : 'Approved activity dates');
             $page->unmountAction();
         }
     }
@@ -151,21 +149,15 @@ final class Issue66TermPreparationTest extends TestCase
         $version = PublishedTimetableVersion::factory()->create(['term_id' => $term->id]);
         PublishedTimetableMeeting::factory()->for($version, 'timetableVersion')->create(['section_id' => $class->id]);
 
-        $page = Livewire::actingAs($actor)->test(TermClassProposal::class, ['termId' => $term->id])
-            ->assertSee('controlled timetable revision');
-        $rows = $page->get('proposal.classes');
-        $publishedKey = array_key_first(array_filter($rows, fn (array $row): bool => (int) ($row['section_id'] ?? 0) === $class->id));
-        $this->assertNotNull($publishedKey);
-        $this->assertTrue($rows[$publishedKey]['requires_timetable_revision']);
+        $preview = $service->preview($term);
+        $publishedRow = collect($preview['classes'])->firstWhere('section_id', $class->id);
+        $this->assertNotNull($publishedRow);
+        $this->assertTrue($publishedRow['requires_timetable_revision']);
 
-        $repeater = $page->instance()->form->getComponent('classes');
-        $action = $repeater->getChildSchema($publishedKey)->getComponent('action');
-        $this->assertSame(['keep' => 'Keep existing class'], $action->getOptions());
-
-        $tamperedCancel = [...$rows[$publishedKey], 'action' => 'cancel', 'requires_timetable_revision' => false,
+        $tamperedCancel = [...$publishedRow, 'action' => 'cancel', 'requires_timetable_revision' => false,
             'cancellation_reason' => 'Attempted ordinary cancellation.'];
         try {
-            $service->confirm($term, $actor, [$tamperedCancel], $service->preview($term)['token']);
+            $service->confirm($term, $actor, [$tamperedCancel], $preview['token']);
             $this->fail('A client-tampered published class must remain protected by the service guard.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('classes', $exception->errors());
@@ -201,33 +193,24 @@ final class Issue66TermPreparationTest extends TestCase
         FacultyQualification::factory()->create(['faculty_user_id' => $faculty->id, 'course_id' => $entry->courseSpecification->course_id]);
         Livewire::actingAs($actor)->test(TermResources::class, ['termId' => $term->id])
             ->assertDontSee($faculty->name)->filterTable('faculty_scope', 'all')
-            ->assertSee($faculty->name)->assertSee('Not requested')->assertDontSee('Awaiting response');
+            ->assertSee($faculty->name)->assertSee('No response')->assertSee('Not sent')->assertDontSee('Reminder sent');
         OperationalEvent::factory()->create(['event_type' => OperationalEvent::TypeFacultyAvailabilityRequestedEmail, 'related_record_type' => TermCalendarPackage::class,
             'related_record_id' => $term->calendarPackages()->where('state', 'Active')->value('id'), 'user_id' => $faculty->id,
             'status' => OperationalEvent::StatusProcessed, 'sent_at' => now()]);
-        Livewire::actingAs($actor)->test(TermResources::class, ['termId' => $term->id])->assertSee('Awaiting response');
-        Livewire::actingAs($actor)->test(TermClassProposal::class, ['termId' => $term->id])->assertSee('Term class decisions')->assertSee('Add courses');
+        Livewire::actingAs($actor)->test(TermResources::class, ['termId' => $term->id])->assertSee('No response')->assertSee('Reminder sent');
+        Livewire::actingAs($actor)->test(TermClasses::class, ['termId' => $term->id])->assertSee('Load from curriculum')->assertSee('Add class');
     }
 
     public function test_course_decision_keeps_class_fields_closed_until_the_course_is_included(): void
     {
-        [$term, $entry, , $actor] = $this->source();
+        [$term, $entry, $cohort, $actor] = $this->source();
 
-        $proposal = Livewire::actingAs($actor)->test(TermClassProposal::class, ['termId' => $term->id])
-            ->assertSee('Add courses')->assertDontSee('Approved capacity');
-        $this->assertCount(0, $proposal->get('proposal.classes'));
-
-        $proposal->callAction('addCourses', ['program' => $entry->curriculumVersion->program->name, 'entries' => [$entry->id]])->assertHasNoActionErrors();
-        $rows = $proposal->get('proposal.classes');
-        $this->assertCount(1, $rows);
-        $row = reset($rows);
-        $this->assertSame($entry->id, (int) $row['entry_id']);
-        $this->assertSame('confirm', $row['action']);
-        $this->assertNull($row['capacity']);
-        $this->assertSame([], $row['cohorts']);
-        $proposal->assertSee($entry->courseSpecification->title)
-            ->assertSee('Approved capacity')->assertSee('Student sections served')
-            ->assertSee('Review class proposal');
+        Livewire::actingAs($actor)->withQueryParams(['termId' => $term->id])->test(TermClasses::class)
+            ->mountAction('loadCurriculumSubjects')
+            ->assertActionMounted('loadCurriculumSubjects')
+            ->assertMountedActionModalSee('Load classes from curriculum')
+            ->assertMountedActionModalSee($entry->courseSpecification->title)
+            ->call('unmountAction');
 
         $this->assertSame(0, Section::query()->whereHas('termOffering', fn ($query) => $query->where('term_id', $term->id))->count());
     }
@@ -238,18 +221,14 @@ final class Issue66TermPreparationTest extends TestCase
         $offering = TermOffering::factory()->for($term)->create(['curriculum_entry_id' => $entry->id]);
         $class = Section::factory()->for($offering, 'termOffering')->create(['confirmed_at' => null]);
 
-        $page = Livewire::actingAs($actor)->test(TermClassProposal::class, ['termId' => $term->id]);
-        $rows = $page->get('proposal.classes');
-        $this->assertCount(1, $rows);
-        $key = array_key_first($rows);
-        $this->assertSame($class->id, (int) $rows[$key]['section_id']);
-        $this->assertSame('keep', $rows[$key]['action']);
-        $draftAction = $page->instance()->form->getComponent('classes')->getChildSchema($key)->getComponent('action');
-        $this->assertSame(['confirm' => 'Prepare and confirm', 'keep' => 'Keep as Draft', 'cancel' => 'Cancel existing class'], $draftAction->getOptions());
-        $page->assertActionDisabled('confirmProposal')
-            ->set('proposal.classes.'.$key.'.code', 'UNSAVED-CLASS-REFERENCE')
-            ->mountAction('addCourses')->call('unmountAction');
-        $this->assertSame('UNSAVED-CLASS-REFERENCE', $page->get('proposal.classes.'.$key.'.code'));
+        $preview = app(PrepareTermClassProposal::class)->preview($term);
+        $row = collect($preview['classes'])->firstWhere('section_id', $class->id);
+        $this->assertNotNull($row);
+        $this->assertFalse($row['is_confirmed']);
+        $this->assertSame('confirm', $row['action']);
+
+        Livewire::actingAs($actor)->withQueryParams(['termId' => $term->id])->test(TermClasses::class)
+            ->mountAction('loadCurriculumSubjects')->call('unmountAction');
         $this->assertSame($class->code, $class->fresh()->code);
         $this->assertNull($class->fresh()->confirmed_at);
     }
@@ -264,17 +243,16 @@ final class Issue66TermPreparationTest extends TestCase
             'term_type' => Term::TypeSecondSemester,
         ]);
 
-        Livewire::actingAs($actor)->test(TermClassProposal::class, ['termId' => $term->id])
-            ->assertSee('2 approved entries')
-            ->mountAction('viewApprovedCurriculum')
-            ->assertActionMounted('viewApprovedCurriculum')
-            ->assertMountedActionModalSee('For this Term type')
-            ->assertMountedActionModalSee('Other Term types · Additional approval required')
+        $preview = app(PrepareTermClassProposal::class)->preview($term);
+        $this->assertCount(2, $preview['catalog']);
+
+        Livewire::actingAs($actor)->withQueryParams(['termId' => $term->id])->test(TermClasses::class)
+            ->mountAction('addClass')
+            ->assertActionMounted('addClass')
             ->assertMountedActionModalSee($entry->courseSpecification->title)
             ->assertMountedActionModalSee($entry->courseSpecification->course->code)
-            ->assertMountedActionModalSee(CourseComponent::meetingPatternOptions()[$entry->courseSpecification->components->first()->meeting_pattern])
-            ->assertMountedActionModalSee('Existing classes')
-            ->assertMountedActionModalSee('Close');
+            ->assertMountedActionModalSee('Additional approval required')
+            ->call('unmountAction');
 
         $this->assertSame(0, Section::query()->count());
     }
@@ -286,22 +264,21 @@ final class Issue66TermPreparationTest extends TestCase
         Livewire::actingAs($actor)->test(TermClasses::class, ['termId' => $term->id, 'classesView' => 'cohorts'])
             ->searchTable($cohort->program->name)->assertCanSeeTableRecords([$cohort])
             ->searchTable('')
-            ->assertTableActionHasLabel('linkedClasses', 'Prepare classes', $cohort)
-            ->assertTableActionHasUrl('linkedClasses', TermClassProposal::getUrl(['termId' => $term->id]), $cohort);
+            ->assertTableActionVisible('loadCohortCurriculum', $cohort)
+            ->assertTableActionHidden('linkedClasses', $cohort);
 
         $proposal = app(PrepareTermClassProposal::class);
         $preview = $proposal->preview($term);
         $proposal->confirm($term, $actor, [$this->row($entry, $cohort, 'SYNTH66-LINKED')], $preview['token']);
 
         Livewire::actingAs($actor)->test(TermClasses::class, ['termId' => $term->id, 'classesView' => 'cohorts'])
-            ->assertTableActionHasLabel('linkedClasses', 'View classes', $cohort)
-            ->assertTableActionDoesNotHaveUrl('linkedClasses', TermClassProposal::getUrl(['termId' => $term->id]), $cohort);
+            ->assertTableActionVisible('linkedClasses', $cohort)
+            ->assertTableActionHasLabel('linkedClasses', 'View classes', $cohort);
 
         $class = Section::query()->where('code', 'SYNTH66-LINKED')->sole();
         Livewire::actingAs($actor)->test(TermClasses::class, ['termId' => $term->id, 'classesView' => 'cohorts'])
             ->mountTableAction('linkedClasses', $cohort)
             ->assertMountedActionModalSee($class->code)
-            ->assertMountedActionModalSeeHtml('href="'.SectionResource::getUrl('view', ['record' => $class, 'termId' => $term->id]).'"')
             ->assertSet('mountedActions.0.hasUnsavedChangesAlert', false);
     }
 
@@ -344,6 +321,69 @@ final class Issue66TermPreparationTest extends TestCase
         $run->forceFill(['status' => ScheduleGenerationRun::StatusFailed, 'candidate_key' => null, 'published_at' => null,
             'diagnostics' => ['solver_dispatch' => ['failure' => ['code' => 'INFEASIBLE', 'retryable' => true, 'final' => true]]]]);
         $this->assertFalse($run->canRetrySolver());
+    }
+
+    public function test_registrar_can_load_all_matching_curriculum_subjects_for_a_student_section_at_once(): void
+    {
+        [$term, $entry, $cohort, $actor] = $this->source();
+        $secondRevision = CourseSpecification::factory()->create([
+            'state' => CourseSpecification::StateActive,
+            'allowed_modalities' => [TermOffering::ModalityOnline],
+        ]);
+        CourseComponent::factory()->for($secondRevision, 'courseSpecification')->create();
+        $secondEntry = CurriculumEntry::factory()->for($entry->curriculumVersion, 'curriculumVersion')->create([
+            'course_specification_id' => $secondRevision->id,
+            'year_level' => '1',
+            'term_type' => $term->type,
+        ]);
+        // Other term type should NOT be loaded automatically
+        CurriculumEntry::factory()->for($entry->curriculumVersion, 'curriculumVersion')->create([
+            'course_specification_id' => $secondRevision->id,
+            'year_level' => '1',
+            'term_label' => 'Second Semester',
+            'term_type' => Term::TypeSecondSemester,
+        ]);
+
+        Livewire::actingAs($actor)->withQueryParams(['termId' => $term->id])->test(TermClasses::class)
+            ->assertSee('Load from curriculum')
+            ->callAction('loadCurriculumSubjects', [
+                'term_cohort_id' => $cohort->id,
+                'year_level' => '1',
+                'default_capacity' => $cohort->confirmed_count,
+                'default_modality' => TermOffering::ModalityOnline,
+                'entry_ids' => [(string) $entry->id, (string) $secondEntry->id],
+            ])
+            ->assertHasNoActionErrors()
+            ->assertNotified('2 classes added and confirmed');
+
+        $sections = Section::query()->whereHas('termOffering', fn ($query) => $query->where('term_id', $term->id))->whereNotNull('confirmed_at')->with('cohorts')->get();
+        $this->assertCount(2, $sections);
+        foreach ($sections as $section) {
+            $this->assertSame((int) $cohort->confirmed_count, (int) $section->capacity);
+            $this->assertSame(Section::SourceRegular, $section->source);
+            $this->assertSame(TermOffering::ModalityOnline, $section->delivery_mode);
+            $this->assertSame($cohort->id, (int) $section->cohorts->sole()->id);
+        }
+    }
+
+    public function test_registrar_can_batch_create_consecutive_student_sections(): void
+    {
+        [$term, $entry, , $actor] = $this->source();
+
+        Livewire::actingAs($actor)->withQueryParams(['termId' => $term->id, 'classesView' => 'cohorts'])
+            ->test(TermClasses::class)
+            ->callAction('recordCohort', [
+                'curriculum_version_id' => $entry->curriculum_version_id,
+                'reference' => 'BSIT-1A',
+                'confirmed_count' => 30,
+                'section_count' => 3,
+            ])
+            ->assertHasNoActionErrors()
+            ->assertNotified('3 student sections recorded');
+
+        $this->assertDatabaseHas('term_cohorts', ['term_id' => $term->id, 'reference' => 'BSIT-1A', 'confirmed_count' => 30]);
+        $this->assertDatabaseHas('term_cohorts', ['term_id' => $term->id, 'reference' => 'BSIT-1B', 'confirmed_count' => 30]);
+        $this->assertDatabaseHas('term_cohorts', ['term_id' => $term->id, 'reference' => 'BSIT-1C', 'confirmed_count' => 30]);
     }
 
     private function registrar(): User

@@ -13,5 +13,5 @@
         <div><dt>Roster members</dt><dd>{{ number_format($roster->current_members_count) }}</dd></div>
     </dl>
     <span class="academic-roster-state">{{ match ($roster->state) { \App\Models\GradeRoster::StateDraft => 'Draft', \App\Models\GradeRoster::StateSubmitted => 'Submitted', \App\Models\GradeRoster::StateReturned => 'Returned', \App\Models\GradeRoster::StateReleased => 'Posted and released', default => 'Late / not submitted' } }}</span>
-    <a class="academic-roster-open" {{ \Filament\Support\generate_href_html(\App\Filament\Resources\GradeRosters\GradeRosterResource::getUrl('view', ['record' => $roster, 'oversightTermId' => $getLivewire()->oversightTermId])) }} aria-label="Open roster for {{ $roster->section?->code }}, {{ $roster->termOffering?->term?->label }}, {{ $roster->termOffering?->term?->academicYear?->label }}">Open roster <span aria-hidden="true">→</span></a>
+    <a class="academic-roster-open" {{ \Filament\Support\generate_href_html($getLivewire()->headRosterUrl($roster)) }} aria-label="Open roster for {{ $roster->section?->code }}, {{ $roster->termOffering?->term?->label }}, {{ $roster->termOffering?->term?->academicYear?->label }}">Open roster <span aria-hidden="true">→</span></a>
 </article>

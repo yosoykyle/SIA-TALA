@@ -35,9 +35,12 @@ class ScheduleReleasedMail extends Mailable implements ShouldQueue
     public function envelope(): Envelope
     {
         $institution = (string) config('institution.name', 'Servitech Institute Asia Inc.');
+        $subject = filled($this->termLabel)
+            ? "{$institution} — Your teaching schedule for {$this->termLabel} is ready"
+            : "{$institution} — Your teaching schedule is ready";
 
         return new Envelope(
-            subject: "{$institution} — Your class schedule is available",
+            subject: $subject,
         );
     }
 

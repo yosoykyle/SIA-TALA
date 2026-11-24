@@ -5,6 +5,9 @@
         @if ($showSummary ?? true)<p>{{ $proposal->items->count() }} {{ $proposal->items->count() === 1 ? 'subject' : 'subjects' }} · {{ (float) $proposal->items->sum('units_snapshot') }} units</p>@endif
         @if ($preparing)<p>Subjects may change before your enrollment is ready to confirm.</p>@endif
     </div>
+    @if (isset($enrollment) && $enrollment)
+        <x-enrollment-proposal-explanation :enrollment="$enrollment" :proposal="$proposal" :audience="($isStudent ?? false) ? 'student' : 'applicant'" />
+    @endif
     @if ($proposal->items->isNotEmpty())
         <div class="tala-data-table-scroll student-academic-table-wrap" role="region" aria-label="{{ $subjectsHeading }} and classes" tabindex="0">
             <table class="tala-data-table student-academic-table">

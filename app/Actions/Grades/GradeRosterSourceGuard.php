@@ -4,7 +4,9 @@ namespace App\Actions\Grades;
 
 use App\Models\ClassOfferingTeachingAssignment;
 use App\Models\GradeRoster;
+use App\Models\Term;
 use App\Models\User;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
 class GradeRosterSourceGuard
@@ -20,6 +22,17 @@ class GradeRosterSourceGuard
 
     public function assertCurrent(GradeRoster $roster, User $actor, bool $submitting = false): void
     {
+        $term = $roster->termOffering?->term;
+        $isClosed = $term instanceof Term
+            ? $term->state === Term::StateClosed
+            : ($roster->termOffering?->term_id !== null
+                && Term::query()->whereKey($roster->termOffering->term_id)->where('state', Term::StateClosed)->exists());
+
+        if ($isClosed) {
+            throw ValidationException::withMessages([
+                'term' => 'This term is closed and grade rosters can no longer be submitted or modified.',
+            ]);
+        }
         $assignment = ClassOfferingTeachingAssignment::query()->lockForUpdate()->find($roster->teaching_assignment_id);
 
         if (! $assignment instanceof ClassOfferingTeachingAssignment

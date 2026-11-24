@@ -21,6 +21,7 @@ use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
+use App\Models\CurriculumVersionBatch;
 use App\Models\Enrollment;
 use App\Models\FacultyQualification;
 use App\Models\FacultyTermLoadOverride;
@@ -102,7 +103,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             $specifications = $this->createCourseCatalog($term, $priorTerm);
             $curricula = $this->createCurricula($term, $registrar, $programs, $specifications);
 
-            $this->createStudents($programs, $curricula);
+            $this->createStudents($priorTerm, $programs, $curricula);
             $this->createRooms();
             $this->createFacultyReadiness($term, $registrar, $faculty, $specifications);
             $this->createSchedulingWindow($term, $registrar);
@@ -318,6 +319,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             $programs[$code] = Program::query()->create([
                 'code' => $code,
                 'name' => $name,
+                'description' => $this->programDescriptions()[$code] ?? null,
                 'duration_years' => 3,
                 'is_active' => true,
             ]);
@@ -538,6 +540,14 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
                 'approved_by' => $registrar->id,
                 'approved_at' => '2025-12-01 08:00:00',
             ]);
+
+            CurriculumVersionBatch::query()->create([
+                'program_id' => $program->id,
+                'curriculum_version_id' => $curriculum->id,
+                'academic_year_id' => $term->academic_year_id,
+                'added_by' => $registrar->id,
+            ]);
+
             $sequence = 1;
 
             foreach ($this->curriculumPlacements($programCode) as $placement) {
@@ -562,7 +572,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
      * @param  array<string, Program>  $programs
      * @param  array<string, CurriculumVersion>  $curricula
      */
-    private function createStudents(array $programs, array $curricula): void
+    private function createStudents(Term $entryTerm, array $programs, array $curricula): void
     {
         $globalNumber = 1;
 
@@ -579,6 +589,7 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
                 StudentProfile::query()->create([
                     'user_id' => $user->id,
                     'student_number' => $studentNumber,
+                    'entry_term_id' => $entryTerm->id,
                     'first_name' => $firstName,
                     'middle_name' => $middleName,
                     'last_name' => $lastName,
@@ -1960,6 +1971,16 @@ final class ClientAlignedAcceptanceBaselineSeeder extends Seeder
             'DBM' => 'Diploma in Business Management Technology',
             'DIT' => 'Diploma in Information Technology',
             'DTHM' => 'Diploma in Tourism and Hospitality Management Services',
+        ];
+    }
+
+    /** @return array<string, string> */
+    private function programDescriptions(): array
+    {
+        return [
+            'DBM' => 'Builds practical skills in business operations, entrepreneurship, marketing, and office management for careers in modern organizations.',
+            'DIT' => 'Prepares students for software development, networking, and IT systems administration through hands-on computer laboratory work.',
+            'DTHM' => 'Develops service, event, travel, and hospitality management skills for careers in tourism, hotels, and food service.',
         ];
     }
 

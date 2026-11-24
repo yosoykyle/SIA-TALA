@@ -104,9 +104,66 @@
                 <ul class="student-tile-list">@foreach ($activeHolds as $hold)<li>{{ $hold->studentFacingMessage() }}</li>@endforeach</ul>
             </section>
         @endif
+        @php
+            $hasWeeklySchedule = $schedulePresentation && ($schedulePresentation['meetings'] ?? []) !== [];
+            $hasExternalClasses = ($externallyArrangedClasses ?? []) !== [];
+        @endphp
         <section class="student-tile student-tile-full student-home-schedule" aria-labelledby="home-schedule-heading">
-            <div class="student-home-schedule-heading"><h2 class="student-tile-kicker" id="home-schedule-heading"><x-filament::icon icon="heroicon-o-calendar-days" />Class schedule</h2>@if ($official && $schedulePresentation && $schedulePresentation['meetings'] !== [])<x-filament::link :href="route('student.schedule.print')" target="_blank" icon="heroicon-m-printer">Print schedule</x-filament::link>@endif</div>
-            @if ($schedulePresentation && $schedulePresentation['meetings'] !== [])<x-enrollment-schedule :presentation="$schedulePresentation" :source-key="'home-'.$case->current_cor_version_id" />@else<p class="student-home-empty">{{ $official ? 'No weekly meetings are recorded. Ask the Registrar about your class schedule.' : 'Your class schedule appears here after official enrollment.' }}</p>@endif
+            <div class="student-home-schedule-heading">
+                <h2 class="student-tile-kicker" id="home-schedule-heading"><x-filament::icon icon="heroicon-o-calendar-days" />Class schedule</h2>
+                <div class="flex flex-wrap items-center gap-3">
+                    <x-filament::link :href="\App\Filament\Student\Pages\ScheduleView::getUrl(panel: 'student')" icon="heroicon-m-arrow-right" icon-position="after">Open full schedule</x-filament::link>
+                    @if (($activeOfficialTermCount ?? 0) >= 2)
+                        <x-filament::link :href="\App\Filament\Student\Pages\ScheduleView::getUrl(panel: 'student')" icon="heroicon-m-arrows-right-left">Switch active term</x-filament::link>
+                    @endif
+                    @if ($official && ($hasWeeklySchedule || $hasExternalClasses))
+                        <x-filament::link :href="route('student.schedule.print')" target="_blank" icon="heroicon-m-printer">Print schedule</x-filament::link>
+                    @endif
+                </div>
+            </div>
+            @if (($recentScheduleRevisions ?? []) !== [])
+                <section class="tala-warning-banner mb-3" role="status" aria-labelledby="home-schedule-changes-heading">
+                    <div class="space-y-1">
+                        <h3 id="home-schedule-changes-heading" class="flex items-center gap-2 text-sm font-semibold">
+                            <x-filament::icon icon="heroicon-o-exclamation-triangle" class="h-5 w-5" aria-hidden="true" />
+                            <span>Affected by recent change</span>
+                        </h3>
+                        <p class="text-sm">
+                            {{ count($recentScheduleRevisions) === 1 ? '1 of your classes has a recent schedule update.' : count($recentScheduleRevisions).' of your classes have recent schedule updates.' }}
+                        </p>
+                    </div>
+                    <ul class="tala-faculty-affected-list mt-1">
+                        @foreach ($recentScheduleRevisions as $revision)
+                            <li class="tala-faculty-affected-row">
+                                <div class="tala-faculty-affected-row__main">
+                                    <x-filament::badge :color="$revision['badge_color']" size="sm">
+                                        {{ $revision['badge_label'] }}
+                                    </x-filament::badge>
+                                    <strong>{{ $revision['course_section'] }}</strong>
+                                    <span class="tabular-nums">{{ $revision['schedule_line'] }}</span>
+                                </div>
+                                <span class="tala-faculty-affected-row__detail">{{ $revision['detail_line'] }}</span>
+                            </li>
+                        @endforeach
+                    </ul>
+                </section>
+            @endif
+            @if ($hasWeeklySchedule)
+                <x-enrollment-schedule :presentation="$schedulePresentation" :source-key="'home-'.$case->current_cor_version_id" />
+            @endif
+            @if ($hasExternalClasses)
+                <div class="mt-3 space-y-2">
+                    <h3 class="text-sm font-semibold">Externally arranged classes</h3>
+                    <ul class="student-tile-list">
+                        @foreach ($externallyArrangedClasses as $externalClass)
+                            <li><strong>{{ $externalClass['course_code'] }} · {{ $externalClass['course_title'] }}</strong> ({{ $externalClass['section_code'] }}) — Externally arranged · No fixed weekly room or time slot</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+            @if (! $hasWeeklySchedule && ! $hasExternalClasses)
+                <p class="student-home-empty">{{ $official ? 'No weekly meetings are recorded. Ask the Registrar about your class schedule.' : 'Your class schedule appears here after official enrollment.' }}</p>
+            @endif
         </section>
     </div>
 </div>

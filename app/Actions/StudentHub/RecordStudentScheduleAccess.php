@@ -35,14 +35,16 @@ class RecordStudentScheduleAccess
             return;
         }
 
-        $currentEnrollment = $this->currentEnrollmentResolver->forStudent($student);
+        $activeEnrollments = $this->currentEnrollmentResolver->allActiveForStudent($student);
+        $resolvedEnrollment = $enrollment instanceof Enrollment
+            ? $activeEnrollments->first(fn (Enrollment $candidate): bool => $candidate->is($enrollment))
+            : $activeEnrollments->first();
 
-        if (! $currentEnrollment instanceof Enrollment
-            || ($enrollment instanceof Enrollment && ! $enrollment->is($currentEnrollment))) {
+        if (! $resolvedEnrollment instanceof Enrollment) {
             return;
         }
 
-        $enrollment = $currentEnrollment;
+        $enrollment = $resolvedEnrollment;
 
         $registrations = CourseEnrollment::query()
             ->where('enrollment_id', $enrollment->id)

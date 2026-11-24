@@ -24,7 +24,7 @@ final class SchemaConformanceTest extends TestCase
         'assessment_effect_revalidations', 'assessment_lines', 'assessment_obligations', 'assessments',
         'calendar_events', 'candidate_schedule_rows', 'class_offering_teaching_assignments',
         'checklist_items', 'completion_readiness_versions', 'cor_versions', 'course_components', 'course_drop_records', 'course_enrollments', 'course_requirements',
-        'course_specifications', 'courses', 'curriculum_entries', 'curriculum_versions',
+        'course_specifications', 'courses', 'curriculum_entries', 'curriculum_version_batches', 'curriculum_versions',
         'degree_conferrals', 'document_evidence', 'duplicate_profile_resolutions', 'enrollment_adjustments', 'enrollment_exceptions',
         'enrollment_seat_reservations', 'enrollments',
         'external_competency_requirements', 'external_competency_results',

@@ -31,9 +31,13 @@ class CourseSpecification extends Model
 
     public const AcademicClassificationOrdinary = 'ORDINARY';
 
+    public const AcademicClassificationTesdaCompetency = 'TESDA_COMPETENCY';
+
     public const AcademicClassificationPe = 'PE';
 
     public const AcademicClassificationNstp = 'NSTP';
+
+    public const AcademicClassificationNonCredit = 'NON_CREDIT';
 
     /**
      * @var array<string, mixed>
@@ -144,9 +148,47 @@ class CourseSpecification extends Model
     public static function academicClassificationOptions(): array
     {
         return [
-            self::AcademicClassificationOrdinary => 'Ordinary academic course',
-            self::AcademicClassificationPe => 'Physical Education (excluded from averages)',
-            self::AcademicClassificationNstp => 'NSTP / CWTS / LTS / ROTC (excluded from averages)',
+            self::AcademicClassificationOrdinary => 'Regular academic subject (included in GWA)',
+            self::AcademicClassificationTesdaCompetency => 'TESDA / TVET Competency (included in GWA)',
+            self::AcademicClassificationPe => 'Physical Education (excluded from GWA)',
+            self::AcademicClassificationNstp => 'NSTP / CWTS / LTS / ROTC (excluded from GWA)',
+            self::AcademicClassificationNonCredit => 'Non-credit / Bridging (excluded from GWA)',
         ];
+    }
+
+    /** @return list<string> */
+    public static function gwaExcludedClassifications(): array
+    {
+        return [
+            self::AcademicClassificationPe,
+            self::AcademicClassificationNstp,
+            self::AcademicClassificationNonCredit,
+        ];
+    }
+
+    public static function isExcludedFromGwa(?string $classification): bool
+    {
+        return in_array($classification, self::gwaExcludedClassifications(), true);
+    }
+
+    /** @return array<string, string> */
+    public static function shortClassificationOptions(): array
+    {
+        return [
+            self::AcademicClassificationOrdinary => 'Regular',
+            self::AcademicClassificationTesdaCompetency => 'TESDA Competency',
+            self::AcademicClassificationPe => 'Physical Education (PE)',
+            self::AcademicClassificationNstp => 'NSTP',
+            self::AcademicClassificationNonCredit => 'Non-credit / Bridging',
+        ];
+    }
+
+    public static function shortClassificationLabel(?string $classification): string
+    {
+        if ($classification === null || $classification === '') {
+            return self::shortClassificationOptions()[self::AcademicClassificationOrdinary];
+        }
+
+        return self::shortClassificationOptions()[$classification] ?? $classification;
     }
 }

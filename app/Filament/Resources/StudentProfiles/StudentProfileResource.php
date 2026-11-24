@@ -471,12 +471,20 @@ class StudentProfileResource extends Resource
 
     public static function academicRecordUrl(StudentProfile $record, HasTable $livewire): string
     {
-        return self::getUrl('view', ['record' => $record, ...(
-            ($livewire->viewTab ?? \Filament\Support\original_request()->query('viewTab')) === 'academic-progress'
+        $oversightTermId = property_exists($livewire, 'oversightTermId')
+            && is_int($livewire->oversightTermId)
+            && $livewire->oversightTermId > 0
+            ? $livewire->oversightTermId
+            : (\Filament\Support\original_request()->integer('oversightTermId') ?: null);
+
+        return self::getUrl('view', [
+            'record' => $record,
+            ...($oversightTermId !== null ? ['oversightTermId' => $oversightTermId] : []),
+            ...(($livewire->viewTab ?? \Filament\Support\original_request()->query('viewTab')) === 'academic-progress'
                 ? ['viewTab' => 'academic-progress', 'queue' => self::academicQueueParameters([
                     'filters' => $livewire->tableFilters ?? [], 'search' => $livewire->getTableSearch(), 'page' => $livewire->getTablePage(),
-                ])] : []
-        )]);
+                ])] : []),
+        ]);
     }
 
     /** @param array<string, mixed> $parameters @return array<string, mixed> */

@@ -7,23 +7,20 @@ use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
 use App\Filament\Resources\FacultyTermLoadOverrides\FacultyTermLoadOverrideResource;
 use App\Filament\Resources\Rooms\RoomResource;
-use App\Filament\Resources\ScheduleGenerationRuns\Pages\ViewScheduleGenerationRun;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\SchedulingDemands\SchedulingDemandResource;
 use App\Filament\Resources\Terms\TermResource;
 use App\Models\CalendarEvent;
 use App\Models\FacultyQualification;
 use App\Models\FacultyTermLoadOverride;
+use App\Models\PublishedTimetableVersion;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
 use App\Models\Term;
+use App\Models\User;
 use App\Support\DisplayDateTime;
-use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\RepeatableEntry\TableColumn;
-use Filament\Infolists\Components\TextEntry;
-use Filament\Schemas\Components\Section;
-use Filament\Schemas\Components\Utilities\Get;
+use Carbon\CarbonImmutable;
 use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Model;
@@ -32,390 +29,406 @@ use Illuminate\Support\Str;
 
 class ScheduleGenerationRunInfolist
 {
+    /**
+     * @var array<string, string>
+     */
+    private const HARD_CONSTRAINT_LABELS = [
+        'assign_every_ready_scheduling_demand_once' => 'Every ready class placed once',
+        'faculty_no_overlap' => 'Zero faculty overlaps',
+        'room_no_overlap' => 'Zero room overlaps',
+        'section_delivery_group_no_overlap' => 'Zero student-section overlaps',
+        'student_cohort_no_overlap' => 'Zero student-section overlaps',
+        'cohort_no_overlap' => 'Zero student-section overlaps',
+        'respect_fixed_assignments' => 'Locked slots respected',
+        'respect_calendar_blocks' => 'Calendar hours & breaks respected',
+        'respect_room_capacity_type_and_features' => 'Room capacity & type matched',
+        'room_suitability' => 'Room capacity & type matched',
+        'respect_faculty_qualification_and_load' => 'Faculty qualifications & load caps respected',
+    ];
+
+    /**
+     * @var array<string, string>
+     */
+    private const HARD_CONSTRAINT_PASSED_NOTES = [
+        'assign_every_ready_scheduling_demand_once' => 'All ready class meetings are placed in the timetable.',
+        'faculty_no_overlap' => 'No teacher is double-booked in overlapping time slots.',
+        'room_no_overlap' => 'No physical room has overlapping class assignments.',
+        'section_delivery_group_no_overlap' => 'No student section or cohort group has overlapping classes.',
+        'student_cohort_no_overlap' => 'No student section or cohort group has overlapping classes.',
+        'cohort_no_overlap' => 'No student section or cohort group has overlapping classes.',
+        'respect_fixed_assignments' => 'All locked days, times, teachers, and rooms were kept intact.',
+        'respect_calendar_blocks' => 'All classes fit inside active teaching hours and avoid breaks.',
+        'respect_room_capacity_type_and_features' => 'Assigned rooms meet class size, room type, and equipment needs.',
+        'room_suitability' => 'Assigned rooms meet class size, room type, and equipment needs.',
+        'respect_faculty_qualification_and_load' => 'Assigned teachers hold active subject approval within term load limits.',
+    ];
+
+    /**
+     * @var array<string, string>
+     */
+    private const SOFT_OBJECTIVE_LABELS = [
+        'cohort_mode_switches' => 'Cohort mode switches',
+        'cohort_idle_time' => 'Cohort idle time',
+        'faculty_load_imbalance' => 'Faculty load balance',
+        'faculty_idle_time' => 'Faculty idle time',
+        'room_seat_waste' => 'Unused room seats',
+        'stable_earlier_placement' => 'Stability preference',
+    ];
+
     public static function reviewSummary(ScheduleGenerationRun $record): View
     {
         return View::make('filament.pages.partials.timetable-run-summary')
-            ->viewData([
-                'run' => $record,
-                'evidence' => $record->reviewEvidence(),
-                'summary' => $record->publicationSummary(),
-                'assignmentCount' => $record->candidateRows()->count(),
-                'nextStep' => self::nextStep($record),
-                'wasPublished' => $record->isPublished() || $record->published_at !== null,
-                'publishedVersion' => ($record->isPublished() || $record->published_at !== null) ? $record->timetableVersions()->latest('version')->first() : null,
-            ])
             ->columnSpanFull();
     }
 
     public static function configure(Schema $schema): Schema
     {
-        return $schema
-            ->components([
-                Section::make('Validation & evidence')
-                    ->id('timetable-run-evidence')
-                    ->collapsible()
-                    ->collapsed(fn (ScheduleGenerationRun $record): bool => $record->isPublished() || $record->published_at !== null)
-                    ->description('Recorded checks, source findings and request history. Review these alongside the meeting assignments.')
-                    ->extraAttributes(['class' => 'tala-run-evidence'])
-                    ->schema([
-                        Section::make('Publication Status')->contained(false)->columnSpanFull()
-                            ->visible(fn (ScheduleGenerationRun $record): bool => $record->published_at !== null)
-                            ->description('A generated timetable remains a proposal until the Registrar explicitly publishes it.')
-                            ->schema([
-                                TextEntry::make('publication_version')
-                                    ->label('Version')
-                                    ->numeric()
-                                    ->placeholder('-'),
-                                TextEntry::make('publisher.name')
-                                    ->label('Published By')
-                                    ->placeholder('-'),
-                                TextEntry::make('published_at')
-                                    ->label('Published (Asia/Manila)')
-                                    ->state(fn (ScheduleGenerationRun $record): string => DisplayDateTime::format($record->published_at))
-                                    ->placeholder('-'),
-                                TextEntry::make('publication_note')
-                                    ->label('Publication Note')
-                                    ->placeholder('-')
-                                    ->columnSpanFull(),
-                            ])
-                            ->columns(3),
-                        Section::make('Current validation')->contained(false)->columnSpanFull()
-                            ->extraAttributes(['class' => 'tala-guide-review-validation'])
-                            ->schema([
-                                TextEntry::make('current_validation_status')
-                                    ->label('Result')
-                                    ->state(fn (ScheduleGenerationRun $record): string => (string) (self::currentRevalidation($record)['status'] ?? '-'))
-                                    ->badge()
-                                    ->color(fn (string $state): string => $state === 'accepted' ? 'success' : ($state === 'blocked' ? 'danger' : 'gray')),
-                                TextEntry::make('current_validation_context')
-                                    ->label('Validation Context')
-                                    ->state(fn (ScheduleGenerationRun $record): string => Str::headline((string) (self::currentRevalidation($record)['context'] ?? '-'))),
-                                TextEntry::make('current_validation_time')
-                                    ->label('Validated At')
-                                    ->state(fn (ScheduleGenerationRun $record): mixed => self::currentRevalidation($record)['validated_at'] ?? null)
-                                    ->dateTime('M j, Y, g:i A')->timezone('Asia/Manila')
-                                    ->placeholder('-'),
-                                TextEntry::make('current_validation_assigned')
-                                    ->label('Assigned')
-                                    ->state(fn (ScheduleGenerationRun $record): int|string => self::recordedCount(self::currentSummary($record), 'assigned_count'))
-                                    ->numeric(),
-                                TextEntry::make('current_validation_unassigned')
-                                    ->label('Unassigned')
-                                    ->state(fn (ScheduleGenerationRun $record): int|string => self::recordedCount(self::currentSummary($record), 'unassigned_count'))
-                                    ->numeric(),
-                                TextEntry::make('current_validation_hard_violations')
-                                    ->label('Hard Violations')
-                                    ->state(fn (ScheduleGenerationRun $record): int|string => self::recordedCount(self::currentSummary($record), 'hard_violation_count'))
-                                    ->badge()
-                                    ->color(fn (int|string $state): string => is_numeric($state) ? ($state > 0 ? 'danger' : 'success') : 'gray'),
-                                TextEntry::make('current_validation_warnings')
-                                    ->label('Warnings')
-                                    ->state(fn (ScheduleGenerationRun $record): int|string => self::recordedCount(self::currentSummary($record), 'warning_count'))
-                                    ->badge()
-                                    ->color(fn (int|string $state): string => is_numeric($state) && $state > 0 ? 'warning' : 'gray'),
-                            ])
-                            ->columns([
-                                'default' => 1,
-                                'md' => 2,
-                                'xl' => 4,
-                            ])
-                            ->visible(fn (ScheduleGenerationRun $record): bool => self::currentRevalidation($record) !== []),
-                        Section::make('Schedule quality')->contained(false)->columnSpanFull()->collapsible()->collapsed()
-                            ->extraAttributes(['class' => 'tala-guide-review-quality'])
-                            ->description('These are optimization-quality measures for the generated timetable, not predictive accuracy or an accuracy score.')
-                            ->schema([
-                                TextEntry::make('solution_quality_status')
-                                    ->label('Solver Status')
-                                    ->state(fn (ScheduleGenerationRun $record): string => $record->reviewEvidence()['outcome'])
-                                    ->badge()
-                                    ->color(fn (string $state): string => in_array($state, ['Optimal', 'Feasible'], true) ? 'success' : 'warning'),
-                                TextEntry::make('solution_quality_meaning')
-                                    ->label('What This Status Means')
-                                    ->state(fn (ScheduleGenerationRun $record): string => $record->reviewEvidence()['meaning'])
-                                    ->columnSpanFull(),
-                                TextEntry::make('solution_quality_coverage')
-                                    ->label('Demand Coverage')
-                                    ->state(fn (ScheduleGenerationRun $record): string => $record->reviewEvidence()['coverage']),
-                                TextEntry::make('solution_quality_hard_conflicts')
-                                    ->label('Hard Conflicts')
-                                    ->state(fn (ScheduleGenerationRun $record): int|string => self::recordedCount(self::solverSummary($record), 'hard_violation_count'))
-                                    ->badge()
-                                    ->color(fn (int|string $state): string => is_numeric($state) ? ($state > 0 ? 'danger' : 'success') : 'gray'),
-                                TextEntry::make('solution_quality_warnings')
-                                    ->label('Warnings')
-                                    ->state(fn (ScheduleGenerationRun $record): int|string => self::recordedCount(self::solverSummary($record), 'warning_count'))
-                                    ->badge()
-                                    ->color(fn (int|string $state): string => is_numeric($state) && $state > 0 ? 'warning' : 'gray'),
-                                TextEntry::make('solution_quality_objective')
-                                    ->label('Objective Value')
-                                    ->state(fn (ScheduleGenerationRun $record): string => self::qualityNumber(
-                                        self::solverStatistics($record)['objective_value'] ?? $record->objective_value,
-                                    )),
-                                TextEntry::make('solution_quality_bound')
-                                    ->label('Best Bound')
-                                    ->state(fn (ScheduleGenerationRun $record): string => self::qualityNumber(
-                                        self::solverStatistics($record)['best_objective_bound'] ?? null,
-                                    )),
-                                TextEntry::make('solution_quality_gap')
-                                    ->label('Relative Gap')
-                                    ->state(fn (ScheduleGenerationRun $record): string => self::relativeGap($record)),
-                                TextEntry::make('solution_quality_runtime')
-                                    ->label('Solver runtime')
-                                    ->state(fn (ScheduleGenerationRun $record): string => self::runtime($record)),
-                            ])
-                            ->columns([
-                                'default' => 1,
-                                'md' => 2,
-                                'xl' => 4,
-                            ])
-                            ->visible(fn (ScheduleGenerationRun $record): bool => self::solverStatistics($record) !== [] || is_numeric($record->objective_value)),
-                        Section::make('Original solver result')->contained(false)->columnSpanFull()->extraAttributes(['class' => 'tala-guide-review-evidence'])->collapsible()->collapsed()
-                            ->visible(fn (ScheduleGenerationRun $record): bool => self::solverResult($record) !== [])
-                            ->description('Original provider response retained for technical comparison with current Laravel validation.')
-                            ->schema([
-                                TextEntry::make('solver_result_status')
-                                    ->label('Result')
-                                    ->state(fn (ScheduleGenerationRun $record): string => (string) (self::solverResult($record)['solver_status'] ?? '-'))
-                                    ->badge()
-                                    ->color(fn (string $state): string => in_array($state, ['optimal', 'feasible'], true) ? 'success' : ($state === '-' ? 'gray' : 'danger')),
-                                TextEntry::make('solver_result_assigned')
-                                    ->label('Assigned')
-                                    ->state(fn (ScheduleGenerationRun $record): int|string => self::recordedCount(self::solverSummary($record), 'assigned_count'))
-                                    ->numeric(),
-                                TextEntry::make('solver_result_unassigned')
-                                    ->label('Unassigned')
-                                    ->state(fn (ScheduleGenerationRun $record): int|string => self::recordedCount(self::solverSummary($record), 'unassigned_count'))
-                                    ->numeric(),
-                                TextEntry::make('solver_result_hard_violations')
-                                    ->label('Hard Violations')
-                                    ->state(fn (ScheduleGenerationRun $record): int|string => self::recordedCount(self::solverSummary($record), 'hard_violation_count'))
-                                    ->badge()
-                                    ->color(fn (int|string $state): string => is_numeric($state) ? ($state > 0 ? 'danger' : 'success') : 'gray'),
-                                TextEntry::make('solver_result_warnings')
-                                    ->label('Warnings')
-                                    ->state(fn (ScheduleGenerationRun $record): int|string => self::recordedCount(self::solverSummary($record), 'warning_count'))
-                                    ->badge()
-                                    ->color(fn (int|string $state): string => is_numeric($state) && $state > 0 ? 'warning' : 'gray'),
-                            ])
-                            ->columns([
-                                'default' => 1,
-                                'md' => 3,
-                                'xl' => 5,
-                            ])
-                            ->collapsible()
-                            ->collapsed(),
-                        Section::make('Hard constraint checklist')->contained(false)->columnSpanFull()
-                            ->collapsible()
-                            ->collapsed(fn (ScheduleGenerationRun $record): bool => self::hardConstraintRows($record) !== [] && collect(self::hardConstraintRows($record))->every(fn (array $row): bool => $row['status'] === 'Passed'))
-                            ->description('Each listed rule comes from this run\'s captured solver input. Passed means Laravel revalidated the complete candidate and found no violation for that rule.')
-                            ->schema([
-                                RepeatableEntry::make('hard_constraint_checklist')
-                                    ->label('Hard constraint checklist')
-                                    ->state(fn (ScheduleGenerationRun $record): array => self::hardConstraintRows($record))
-                                    ->table([
-                                        TableColumn::make('Rule'),
-                                        TableColumn::make('Result'),
-                                        TableColumn::make('Evidence'),
-                                    ])
-                                    ->schema([
-                                        TextEntry::make('label')
-                                            ->wrap(),
-                                        TextEntry::make('status')
-                                            ->badge()
-                                            ->color(fn (string $state): string => match ($state) {
-                                                'Passed' => 'success',
-                                                'Finding' => 'danger',
-                                                default => 'gray',
-                                            }),
-                                        TextEntry::make('evidence')
-                                            ->wrap(),
-                                    ])
-                                    ->contained(false)
-                                    ->columnSpanFull(),
-                            ])
-                            ->visible(fn (ScheduleGenerationRun $record): bool => self::hardConstraintRows($record) !== []),
-                        Section::make('Soft objective evidence')->contained(false)->columnSpanFull()->extraAttributes(['class' => 'tala-guide-review-evidence'])->collapsible()->collapsed()
-                            ->description('Soft objectives rank otherwise valid schedules. They are measured preferences, not pass/fail constraints or an accuracy score.')
-                            ->schema([
-                                RepeatableEntry::make('soft_objective_evidence')
-                                    ->label('Soft objective evidence')
-                                    ->state(fn (ScheduleGenerationRun $record): array => self::softObjectiveRows($record))
-                                    ->table([
-                                        TableColumn::make('Objective'),
-                                        TableColumn::make('Evidence status'),
-                                        TableColumn::make('Recorded result'),
-                                    ])
-                                    ->schema([
-                                        TextEntry::make('label')
-                                            ->wrap(),
-                                        TextEntry::make('status')
-                                            ->badge()
-                                            ->color(fn (string $state): string => $state === 'Measured' ? 'success' : 'gray'),
-                                        TextEntry::make('evidence')
-                                            ->wrap(),
-                                    ])
-                                    ->contained(false)
-                                    ->columnSpanFull(),
-                            ])
-                            ->visible(fn (ScheduleGenerationRun $record): bool => collect(self::softObjectiveRows($record))->contains('status', 'Measured')),
-                        Section::make('Validation Findings')->contained(false)->columnSpanFull()
-                            ->extraAttributes(['class' => 'tala-guide-review-findings'])
-                            ->visible(fn (ScheduleGenerationRun $record): bool => self::findingRows($record) !== [])
-                            ->description(fn (ScheduleGenerationRun $record): string => self::currentRevalidation($record) !== []
-                                ? 'Latest current-record revalidation findings.'
-                                : 'Original solver-result validation findings.')
-                            ->schema([
-                                TextEntry::make('validation_result_empty')
-                                    ->label('Validation Findings')
-                                    ->state('No validation findings.')
-                                    ->visible(fn (ScheduleGenerationRun $record): bool => self::findingRows($record) === [])
-                                    ->columnSpanFull(),
-                                RepeatableEntry::make('validation_findings')
-                                    ->label('Validation Findings')
-                                    ->state(fn (ScheduleGenerationRun $record): array => self::findingRows($record))
-                                    ->table([
-                                        TableColumn::make('Severity'),
-                                        TableColumn::make('Constraint'),
-                                        TableColumn::make('Finding'),
-                                        TableColumn::make('Source'),
-                                    ])
-                                    ->schema([
-                                        TextEntry::make('severity')
-                                            ->badge()
-                                            ->color(fn (string $state): string => $state === 'blocking' ? 'danger' : 'warning'),
-                                        TextEntry::make('constraint')
-                                            ->formatStateUsing(fn (?string $state): string => Str::headline($state ?? '-')),
-                                        TextEntry::make('message')
-                                            ->wrap(),
-                                        TextEntry::make('source_label')
-                                            ->url(function (Get $get, ViewScheduleGenerationRun $livewire): ?string {
-                                                $url = $get('source_url');
-
-                                                return filled($url) && $livewire->termId !== null
-                                                    ? url()->query($url, ['termId' => $livewire->termId])
-                                                    : $url;
-                                            })
-                                            ->color(fn (Get $get): string => filled($get('source_url')) ? 'primary' : 'gray')
-                                            ->wrap(),
-                                        TextEntry::make('source_url')
-                                            ->hidden(),
-                                    ])
-                                    ->contained(false)
-                                    ->visible(fn (ScheduleGenerationRun $record): bool => self::findingRows($record) !== [])
-                                    ->columnSpanFull(),
-                            ])
-                            ->columns(1),
-                        Section::make('Technical diagnostics')->contained(false)->columnSpanFull()->extraAttributes(['class' => 'tala-guide-review-evidence'])->collapsible()->collapsed()
-                            ->description('Recorded Term, requester and technical provenance for troubleshooting. These fields do not make the timetable official.')
-                            ->schema([
-                                TextEntry::make('technical_recovery_source')
-                                    ->label('Service recovery')
-                                    ->state(fn (ScheduleGenerationRun $record): string => 'From attempt #'.data_get($record->diagnostics, 'technical_recovery.source_run_id'))
-                                    ->url(fn (ScheduleGenerationRun $record): string => ScheduleGenerationRunResource::getUrl('view', ['record' => data_get($record->diagnostics, 'technical_recovery.source_run_id'), 'termId' => $record->term_id]))
-                                    ->visible(fn (ScheduleGenerationRun $record): bool => filled(data_get($record->diagnostics, 'technical_recovery.source_run_id'))),
-                                TextEntry::make('technical_recovery_actor')
-                                    ->label('Recovery requested by')
-                                    ->state(fn (ScheduleGenerationRun $record): string => ($record->requester?->name ?? 'Staff member').' (#'.data_get($record->diagnostics, 'technical_recovery.requested_by').')')
-                                    ->visible(fn (ScheduleGenerationRun $record): bool => filled(data_get($record->diagnostics, 'technical_recovery.source_run_id'))),
-                                TextEntry::make('diagnostics.technical_recovery.requested_at')
-                                    ->label('Recovery requested')->dateTime()
-                                    ->visible(fn (ScheduleGenerationRun $record): bool => filled(data_get($record->diagnostics, 'technical_recovery.source_run_id'))),
-                                TextEntry::make('diagnostics.technical_recovery.correction_explanation')
-                                    ->label('What was fixed?')->wrap()->columnSpanFull()
-                                    ->visible(fn (ScheduleGenerationRun $record): bool => filled(data_get($record->diagnostics, 'technical_recovery.source_run_id'))),
-                                TextEntry::make('term.label')->label('Term'),
-                                TextEntry::make('requester.name')->label('Requested by')->placeholder('-'),
-                                TextEntry::make('dispatch_cycle')
-                                    ->label('Dispatch Cycle')
-                                    ->state(fn (ScheduleGenerationRun $record): int => $record->dispatchCycle())
-                                    ->numeric(),
-                                TextEntry::make('solver_attempt_count')
-                                    ->label('Attempt Count')
-                                    ->state(fn (ScheduleGenerationRun $record): int => $record->solverAttemptCount())
-                                    ->numeric(),
-                                TextEntry::make('latest_solver_outcome')
-                                    ->label('Latest Outcome')
-                                    ->state(fn (ScheduleGenerationRun $record): string => self::latestSolverOutcome($record))
-                                    ->badge()
-                                    ->color(fn (string $state): string => match ($state) {
-                                        'Processed' => 'success',
-                                        'Failed' => 'danger',
-                                        'Pending' => 'warning',
-                                        default => 'gray',
-                                    }),
-                                TextEntry::make('solver_retryable')
-                                    ->label('Retryable')
-                                    ->state(fn (ScheduleGenerationRun $record): string => ($record->finalSolverFailure()['retryable'] ?? false) ? 'Yes' : 'No')
-                                    ->badge()
-                                    ->color(fn (string $state): string => $state === 'Yes' ? 'warning' : 'gray'),
-                                TextEntry::make('solver_failure_classification')
-                                    ->label('Failure Classification')
-                                    ->state(fn (ScheduleGenerationRun $record): string => Str::headline(
-                                        (string) ($record->finalSolverFailure()['classification'] ?? '-'),
-                                    ))
-                                    ->visible(fn (ScheduleGenerationRun $record): bool => $record->finalSolverFailure() !== []),
-                                TextEntry::make('solver_failure_message')
-                                    ->label('Final Failure')
-                                    ->state(fn (ScheduleGenerationRun $record): string => (string) ($record->finalSolverFailure()['message'] ?? '-'))
-                                    ->visible(fn (ScheduleGenerationRun $record): bool => $record->finalSolverFailure() !== [])
-                                    ->columnSpanFull(),
-                                TextEntry::make('solver_version')
-                                    ->label('Solver Version')
-                                    ->placeholder('-'),
-                                TextEntry::make('model_version')
-                                    ->label('Model Version')
-                                    ->placeholder('-'),
-                                TextEntry::make('source_contract')
-                                    ->label('Source Contract')
-                                    ->state(fn (ScheduleGenerationRun $record): string => (string) data_get(
-                                        self::inputSnapshot($record),
-                                        'contract_version',
-                                        $record->model_version ?? '-',
-                                    )),
-                                TextEntry::make('source_objective_profile')
-                                    ->label('Source Objective Profile')
-                                    ->state(fn (ScheduleGenerationRun $record): string => (string) data_get(
-                                        self::inputSnapshot($record),
-                                        'constraint_profile.key',
-                                        '-',
-                                    )),
-                                TextEntry::make('solver_deployment_boundary')
-                                    ->label('Deployment Evidence Boundary')
-                                    ->state(fn (ScheduleGenerationRun $record): string => data_get(self::inputSnapshot($record), 'contract_version') === ScheduleGenerationRun::ContractVersion
-                                        ? 'Recorded source contract: tala-timetable-v2 / lexicographic_v1. This snapshot identifies the contract used for this request; it does not identify the deployed solver build.'
-                                        : 'Historical compatibility: tal94-demand-v2 / balanced_v1. It is retained evidence and does not replace the current source contract.')
-                                    ->columnSpanFull(),
-                                TextEntry::make('runtime_ms')
-                                    ->label('Runtime (ms)')
-                                    ->numeric()
-                                    ->placeholder('-'),
-                                TextEntry::make('objective_value')
-                                    ->label('Original Solver Score')
-                                    ->numeric()
-                                    ->placeholder('-'),
-                                TextEntry::make('candidate_key')
-                                    ->label('Candidate Key')
-                                    ->placeholder('-')
-                                    ->columnSpanFull(),
-                            ])
-                            ->columns([
-                                'default' => 1,
-                                'md' => 2,
-                                'xl' => 4,
-                            ])
-                            ->collapsible()
-                            ->collapsed(),
-                    ])->columns(2)->divided()->columnSpanFull(),
-            ]);
+        return $schema->components([
+            View::make('filament.pages.partials.timetable-run-summary')
+                ->columnSpanFull(),
+        ]);
     }
 
-    private static function latestSolverOutcome(ScheduleGenerationRun $record): string
+    /**
+     * @return array<string, mixed>
+     */
+    public static function reportData(ScheduleGenerationRun $record, ?int $contextTermId = null): array
     {
-        $latestAttempt = $record->latestSolverAttempt();
+        $record->loadMissing(['term.academicYear', 'requester', 'publisher', 'candidateReviewer']);
 
-        return $latestAttempt === null
-            ? 'No Attempts'
-            : Str::headline(strtolower($latestAttempt->status));
+        $isActiveRun = in_array($record->status, [
+            ScheduleGenerationRun::StatusQueued,
+            ScheduleGenerationRun::StatusDispatching,
+        ], true);
+
+        $wasPublished = $record->isPublished() || $record->published_at !== null;
+        $publishedVersion = $wasPublished
+            ? $record->timetableVersions()->where('term_id', $record->term_id)->latest('version')->first()
+            : null;
+
+        $evidence = $record->reviewEvidence();
+        $publicationSummary = $record->publicationSummary();
+        $assignmentCount = (int) $publicationSummary['assignments'];
+        $warningCount = (int) $publicationSummary['warnings'];
+
+        $currentRevalidation = self::currentRevalidation($record);
+        $currentSummary = self::currentSummary($record);
+        $solverSummary = self::solverSummary($record);
+        $activeSummary = $currentRevalidation !== [] ? $currentSummary : $solverSummary;
+
+        $requiredCount = self::requiredMeetingCount($record, $activeSummary, $assignmentCount);
+        $meetingsMetric = $requiredCount > 0
+            ? "{$assignmentCount} / {$requiredCount}"
+            : (string) $assignmentCount;
+
+        $hardConflicts = self::hardConflictCount($activeSummary, $publicationSummary, $assignmentCount);
+        $runtimeSeconds = self::runtimeSeconds($record);
+        $runtimeShort = $runtimeSeconds !== null ? self::formatShortSeconds($runtimeSeconds) : '—';
+        $runtimeLong = $runtimeSeconds !== null ? number_format($runtimeSeconds, 2).' seconds' : '—';
+
+        $statusMetric = self::statusMetric($record, $wasPublished, $publishedVersion);
+        $validationPresentation = self::validationPresentation($record, $evidence, $currentRevalidation);
+        $outcomeColor = match ($evidence['outcome']) {
+            'Optimal', 'Feasible' => 'success',
+            'Infeasible', 'ModelInvalid', 'TechnicalFailure' => 'danger',
+            'Local adjustment' => 'info',
+            default => 'warning',
+        };
+
+        $validatedAtRaw = $currentRevalidation['validated_at'] ?? null;
+        $validatedAtFormatted = filled($validatedAtRaw)
+            ? CarbonImmutable::parse((string) $validatedAtRaw)->timezone('Asia/Manila')->format('M j, Y, g:i A')
+            : DisplayDateTime::format($record->updated_at ?? $record->created_at);
+
+        $relativeGap = self::relativeGap($record);
+        $hardConstraintRows = self::hardConstraintRows($record);
+        $qualityRows = self::qualityMeasureRows($record);
+        $hasQualitySection = $qualityRows !== [] || self::solverStatistics($record) !== [] || is_numeric($record->objective_value);
+        $findingRows = self::findingRows($record, $contextTermId ?? $record->term_id);
+
+        $failure = $record->finalSolverFailure();
+        $showFailureDiagnostics = $record->status === ScheduleGenerationRun::StatusFailed || $failure !== [];
+
+        $recoverySourceId = data_get($record->diagnostics, 'technical_recovery.source_run_id');
+        $recovery = filled($recoverySourceId) ? [
+            'source_run_id' => (int) $recoverySourceId,
+            'source_url' => ScheduleGenerationRunResource::getUrl('view', [
+                'record' => (int) $recoverySourceId,
+                'termId' => $record->term_id,
+            ]),
+            'actor' => ($record->requester?->name ?? 'Staff member').(filled(data_get($record->diagnostics, 'technical_recovery.requested_by'))
+                ? ' (#'.data_get($record->diagnostics, 'technical_recovery.requested_by').')'
+                : ''),
+            'requested_at' => filled(data_get($record->diagnostics, 'technical_recovery.requested_at'))
+                ? CarbonImmutable::parse((string) data_get($record->diagnostics, 'technical_recovery.requested_at'))->timezone('Asia/Manila')->format('M j, Y, g:i A')
+                : null,
+            'explanation' => (string) data_get($record->diagnostics, 'technical_recovery.correction_explanation', ''),
+        ] : null;
+
+        $blockerMessage = $record->status === ScheduleGenerationRun::StatusBlocked
+            ? ($failure['message'] ?? data_get($record->diagnostics, 'solver_result.summary.message', 'Review the validation findings below and correct the linked source records before generating again.'))
+            : null;
+
+        $termParts = array_filter([
+            $record->term?->label,
+            $record->term?->academicYear?->label,
+        ]);
+
+        $actor = auth()->user();
+        $isSystemAdmin = $actor instanceof User && $actor->hasRole(User::StaffRoleSystemSuperAdmin);
+
+        return [
+            'run' => $record,
+            'isActiveRun' => $isActiveRun,
+            'wasPublished' => $wasPublished,
+            'publishedVersion' => $publishedVersion,
+            'statusMetric' => $statusMetric,
+            'meetingsMetric' => $meetingsMetric,
+            'meetingsSubnote' => $assignmentCount === 0
+                ? 'No placements recorded'
+                : ($warningCount > 0 ? $warningCount.' advisory '.Str::plural('warning', $warningCount) : 'All placed meetings recorded'),
+            'hardConflicts' => $hardConflicts,
+            'hardConflictsTone' => $hardConflicts > 0 ? 'danger' : ($evidence['validated'] ? 'success' : 'neutral'),
+            'hardConflictsSubnote' => $hardConflicts > 0
+                ? $hardConflicts.' blocking '.Str::plural('issue', $hardConflicts).' flagged'
+                : ($evidence['validated'] ? 'Zero rule violations' : $evidence['conflicts']),
+            'runtimeShort' => $runtimeShort,
+            'runtimeLong' => $runtimeLong,
+            'runtimeSubnote' => $evidence['outcome'],
+            'publisherName' => $record->publisher?->name ?? 'Registrar',
+            'publishedAtFormatted' => $wasPublished
+                ? DisplayDateTime::format($publishedVersion?->published_at ?? $record->published_at)
+                : null,
+            'publishedVersionNumber' => $publishedVersion?->version ?? $record->publication_version,
+            'publicationNote' => filled($record->publication_note) ? (string) $record->publication_note : null,
+            'validatedAtFormatted' => $validatedAtFormatted,
+            'validationBadge' => $validationPresentation['badge'],
+            'validationColor' => $validationPresentation['color'],
+            'validationCoverage' => $evidence['coverage'],
+            'outcomeBadge' => $evidence['outcome'],
+            'outcomeColor' => $outcomeColor,
+            'outcomeMeaning' => $evidence['meaning'],
+            'relativeGap' => $relativeGap,
+            'hardConstraintRows' => $hardConstraintRows,
+            'qualityRows' => $qualityRows,
+            'hasQualitySection' => $hasQualitySection,
+            'findingRows' => $findingRows,
+            'showFailureDiagnostics' => $showFailureDiagnostics,
+            'failureInfo' => [
+                'classification' => filled($failure['classification'] ?? null) ? Str::headline((string) $failure['classification']) : 'Service failure',
+                'message' => filled($failure['message'] ?? null) ? (string) $failure['message'] : 'The solver request did not complete with a valid result.',
+                'retryable' => ($failure['retryable'] ?? false) ? 'Yes' : 'No',
+                'attemptCount' => $record->solverAttemptCount(),
+                'dispatchCycle' => $record->dispatchCycle(),
+                'guidance' => self::nextStep($record),
+            ],
+            'blockerMessage' => is_string($blockerMessage) && $blockerMessage !== '' ? $blockerMessage : null,
+            'recovery' => $recovery,
+            'runReference' => [
+                'term' => $termParts !== [] ? implode(' · ', array_unique($termParts)) : '—',
+                'requestedBy' => $record->requester?->name ?? 'System',
+                'attempt' => '#'.$record->id,
+                'runtime' => $runtimeLong,
+            ],
+            'isSystemAdmin' => $isSystemAdmin,
+            'adminMetadata' => $isSystemAdmin ? [
+                'solverVersion' => $record->solver_version ?: '—',
+                'modelVersion' => $record->model_version ?: (string) data_get(self::inputSnapshot($record), 'contract_version', '—'),
+                'candidateKey' => $record->candidate_key ?: '—',
+            ] : null,
+        ];
+    }
+
+    public static function humanConstraintLabel(?string $constraint): string
+    {
+        if (! filled($constraint)) {
+            return '—';
+        }
+
+        return self::HARD_CONSTRAINT_LABELS[$constraint]
+            ?? self::SOFT_OBJECTIVE_LABELS[$constraint]
+            ?? Str::headline($constraint);
+    }
+
+    /**
+     * @param  array<string, mixed>  $finding
+     * @return array{label:string,url:string|null}
+     */
+    public static function sourcePresentation(array $finding, ?int $termId = null): array
+    {
+        $type = (string) ($finding['source_type'] ?? 'source');
+        $id = is_numeric($finding['source_id'] ?? null) ? (int) $finding['source_id'] : null;
+        $field = filled($finding['source_field'] ?? null) ? (string) $finding['source_field'] : null;
+        $label = Str::headline($type).($id !== null ? ' #'.$id : '').($field !== null ? ' / '.$field : '');
+
+        if ($id === null) {
+            return ['label' => $label, 'url' => null];
+        }
+
+        $context = in_array($type, ['scheduling_demand', 'room', 'faculty_qualification'], true) && $termId !== null
+            ? ['termId' => $termId]
+            : [];
+        $url = match ($type) {
+            'schedule_run' => self::viewUrl(ScheduleGenerationRun::query()->find($id), ScheduleGenerationRunResource::class),
+            'scheduling_demand' => self::viewUrl(SchedulingDemand::query()->find($id), SchedulingDemandResource::class, $context),
+            'room' => self::viewUrl(Room::query()->find($id), RoomResource::class, $context),
+            'term' => self::viewUrl(Term::query()->find($id), TermResource::class),
+            'faculty_qualification' => self::viewUrl(FacultyQualification::query()->find($id), FacultyQualificationResource::class, $context),
+            'faculty_term_load_override' => self::viewUrl(FacultyTermLoadOverride::query()->find($id), FacultyTermLoadOverrideResource::class),
+            'calendar_event' => self::editUrl(CalendarEvent::query()->find($id), CalendarEventResource::class, $termId !== null ? ['termId' => $termId] : []),
+            default => null,
+        };
+
+        return ['label' => $label, 'url' => $url];
+    }
+
+    /**
+     * @return array{label:string,subnote:string,tone:string}
+     */
+    private static function statusMetric(
+        ScheduleGenerationRun $record,
+        bool $wasPublished,
+        ?PublishedTimetableVersion $publishedVersion,
+    ): array {
+        $versionNumber = $publishedVersion?->version ?? $record->publication_version;
+        $versionSuffix = $versionNumber !== null ? ' v'.$versionNumber : '';
+
+        if ($record->isPublished()) {
+            $isSupersededVersion = $publishedVersion instanceof PublishedTimetableVersion
+                && $publishedVersion->state !== 'Published';
+
+            return [
+                'label' => $isSupersededVersion ? 'Replaced' : 'Published'.$versionSuffix,
+                'subnote' => $isSupersededVersion ? 'Historical version'.$versionSuffix : 'Official timetable',
+                'tone' => $isSupersededVersion ? 'neutral' : 'success',
+            ];
+        }
+
+        if ($record->status === ScheduleGenerationRun::StatusSuperseded) {
+            return [
+                'label' => 'Replaced',
+                'subnote' => $wasPublished ? 'Formerly Published'.$versionSuffix : 'Superseded by newer attempt',
+                'tone' => 'neutral',
+            ];
+        }
+
+        if ($record->status === ScheduleGenerationRun::StatusUnderReview) {
+            return match ($record->candidate_state) {
+                'Accepted' => [
+                    'label' => 'Accepted draft',
+                    'subnote' => 'Ready to publish in Timetable',
+                    'tone' => 'success',
+                ],
+                'Rejected' => [
+                    'label' => 'Rejected',
+                    'subnote' => 'Cannot be published',
+                    'tone' => 'danger',
+                ],
+                'Stale' => [
+                    'label' => 'Stale draft',
+                    'subnote' => 'Source records changed',
+                    'tone' => 'warning',
+                ],
+                default => [
+                    'label' => 'Draft',
+                    'subnote' => 'Under review in Timetable',
+                    'tone' => 'neutral',
+                ],
+            };
+        }
+
+        if ($record->status === ScheduleGenerationRun::StatusBlocked) {
+            return [
+                'label' => 'Blocked',
+                'subnote' => 'Needs source correction',
+                'tone' => 'danger',
+            ];
+        }
+
+        if ($record->status === ScheduleGenerationRun::StatusFailed) {
+            return [
+                'label' => 'Failed',
+                'subnote' => 'No trusted schedule produced',
+                'tone' => 'danger',
+            ];
+        }
+
+        return [
+            'label' => ScheduleGenerationRun::statusOptions()[$record->status] ?? Str::headline((string) $record->status),
+            'subnote' => 'Processing solver request',
+            'tone' => 'warning',
+        ];
+    }
+
+    /**
+     * @param  array{outcome:string,meaning:string,validated:bool,coverage:string,conflicts:string}  $evidence
+     * @param  array<string, mixed>  $currentRevalidation
+     * @return array{badge:string,color:string}
+     */
+    private static function validationPresentation(
+        ScheduleGenerationRun $record,
+        array $evidence,
+        array $currentRevalidation,
+    ): array {
+        if ($evidence['validated']) {
+            return ['badge' => 'Verified', 'color' => 'success'];
+        }
+
+        $revalidationStatus = (string) ($currentRevalidation['status'] ?? '');
+
+        if ($revalidationStatus === 'blocked' || $record->status === ScheduleGenerationRun::StatusBlocked) {
+            return ['badge' => 'Blocked', 'color' => 'danger'];
+        }
+
+        if ($record->status === ScheduleGenerationRun::StatusFailed) {
+            return ['badge' => 'Failed', 'color' => 'danger'];
+        }
+
+        if (in_array($record->candidate_state, ['Stale', 'Rejected', 'Superseded'], true)) {
+            return ['badge' => Str::headline((string) $record->candidate_state), 'color' => 'warning'];
+        }
+
+        return ['badge' => 'Unverified', 'color' => 'warning'];
+    }
+
+    /**
+     * @param  array<string, mixed>  $activeSummary
+     */
+    private static function requiredMeetingCount(
+        ScheduleGenerationRun $record,
+        array $activeSummary,
+        int $assignmentCount,
+    ): int {
+        if (is_numeric($activeSummary['required_meeting_count'] ?? null)) {
+            return (int) $activeSummary['required_meeting_count'];
+        }
+
+        $demands = data_get(self::inputSnapshot($record), 'scheduling_demands', []);
+        if (is_array($demands) && $demands !== []) {
+            $sum = collect($demands)->sum(fn (mixed $item): int => is_array($item) ? max(1, (int) ($item['meeting_count'] ?? 1)) : 1);
+
+            if ($sum > 0) {
+                return (int) $sum;
+            }
+        }
+
+        return $assignmentCount;
+    }
+
+    /**
+     * @param  array<string, mixed>  $activeSummary
+     * @param  array{assignments:int,warnings:int,conflicts:int}  $publicationSummary
+     */
+    private static function hardConflictCount(
+        array $activeSummary,
+        array $publicationSummary,
+        int $assignmentCount,
+    ): int {
+        if (is_numeric($activeSummary['hard_violation_count'] ?? null)) {
+            return max((int) $activeSummary['hard_violation_count'], $publicationSummary['conflicts']);
+        }
+
+        return $assignmentCount > 0 ? $publicationSummary['conflicts'] : 0;
     }
 
     private static function nextStep(ScheduleGenerationRun $record): string
@@ -424,21 +437,10 @@ class ScheduleGenerationRunInfolist
             return 'After the System Administrator confirms the service fix, a Registrar can choose Try again after a service fix and record what was corrected. A new attempt checks current planning readiness; this failed attempt stays in history.';
         }
 
-        if (in_array($record->candidate_state, ['Rejected', 'Stale', 'Superseded'], true)) {
-            return 'This candidate is '.strtolower($record->candidate_state).'. Return to Timetable to inspect the current request or prepare a new attempt.';
-        }
-
         return match ($record->status) {
-            ScheduleGenerationRun::StatusQueued => 'Waiting for the timetable worker. This page refreshes automatically while the request is active.',
-            ScheduleGenerationRun::StatusDispatching => 'The timetable worker is processing this request. This page refreshes automatically while it is active.',
             ScheduleGenerationRun::StatusBlocked => 'Review the validation findings and correct the linked source records. Return to Timetable to check readiness and prepare the next request.',
-            ScheduleGenerationRun::StatusFailed => 'Review the failure in Technical diagnostics. Correct linked class or resource findings in Classes & student sections or Faculty & rooms. Contact the System Administrator for service failures, then return to Timetable for the permitted retry.',
-            ScheduleGenerationRun::StatusPublished => 'This timetable has been published. Return to Timetable to inspect the official version and print it. Published changes require controlled revision.',
-            ScheduleGenerationRun::StatusSuperseded => 'A newer request replaced this one. Return to Timetable to inspect the current candidate.',
-            ScheduleGenerationRun::StatusUnderReview => $record->candidate_state === 'Accepted'
-                ? 'Candidate review is accepted. Publish after the current complete scope passes revalidation. TALA records the Registrar and time; an approval reference is optional.'
-                : 'Review the meetings and findings, then accept or reject the whole candidate. Acceptance records your review; publishing makes the timetable official.',
-            default => 'Review the recorded status and return to Timetable for this Term.',
+            ScheduleGenerationRun::StatusFailed => 'Review the failure in Technical diagnostics. Fix any class or resource issues in Classes & sections or Faculty & rooms, or contact the System Administrator for service failures, then return to Timetable to try again.',
+            default => 'Return to Timetable to review or manage the schedule for this term.',
         };
     }
 
@@ -473,25 +475,18 @@ class ScheduleGenerationRunInfolist
         return is_array($statistics) ? $statistics : [];
     }
 
-    /** @param array<string, mixed> $summary */
-    private static function recordedCount(array $summary, string $key): int|string
-    {
-        return is_numeric($summary[$key] ?? null) ? (int) $summary[$key] : 'Not reported';
-    }
-
-    private static function qualityNumber(mixed $value): string
-    {
-        return is_numeric($value) ? number_format((float) $value, 2) : 'Not reported';
-    }
-
-    private static function relativeGap(ScheduleGenerationRun $record): string
+    private static function relativeGap(ScheduleGenerationRun $record): ?string
     {
         $gap = self::solverStatistics($record)['relative_optimality_gap'] ?? null;
 
-        return is_numeric($gap) ? number_format((float) $gap * 100, 2).'%' : 'Not reported';
+        if (! is_numeric($gap)) {
+            return null;
+        }
+
+        return number_format((float) $gap * 100, 2).'%';
     }
 
-    private static function runtime(ScheduleGenerationRun $record): string
+    private static function runtimeSeconds(ScheduleGenerationRun $record): ?float
     {
         $seconds = self::solverStatistics($record)['wall_time_seconds'] ?? null;
 
@@ -499,7 +494,15 @@ class ScheduleGenerationRunInfolist
             $seconds = (float) $record->runtime_ms / 1000;
         }
 
-        return is_numeric($seconds) ? number_format((float) $seconds, 2).' seconds' : 'Not reported';
+        return is_numeric($seconds) ? (float) $seconds : null;
+    }
+
+    private static function formatShortSeconds(float $seconds): string
+    {
+        $roundedTwo = round($seconds, 2);
+        $decimals = abs($roundedTwo - round($roundedTwo, 1)) > 0.001 ? 2 : 1;
+
+        return number_format($roundedTwo, $decimals).'s';
     }
 
     /**
@@ -524,13 +527,13 @@ class ScheduleGenerationRunInfolist
     }
 
     /**
-     * @return list<array{label:string,status:string,evidence:string}>
+     * @return list<array{label:string,status:string,color:string,notes:string}>
      */
     private static function hardConstraintRows(ScheduleGenerationRun $record): array
     {
         $snapshot = self::inputSnapshot($record);
         $constraints = data_get($snapshot, 'constraint_profile.hard_constraints', $snapshot['hard_constraints'] ?? []);
-        $findings = self::findingRows($record);
+        $findings = self::findingRows($record, $record->term_id);
         $validation = self::currentRevalidation($record);
         $summary = $validation !== [] ? self::currentSummary($record) : self::solverSummary($record);
         $accepted = ($summary['status'] ?? null) === 'accepted'
@@ -549,14 +552,30 @@ class ScheduleGenerationRunInfolist
                         && ($row['severity'] ?? null) === 'blocking',
                 );
 
+                if (is_array($finding)) {
+                    return [
+                        'label' => self::humanConstraintLabel($constraint),
+                        'status' => 'Flagged',
+                        'color' => 'danger',
+                        'notes' => (string) ($finding['message'] ?? 'A blocking conflict was recorded for this rule.'),
+                    ];
+                }
+
+                if ($accepted) {
+                    return [
+                        'label' => self::humanConstraintLabel($constraint),
+                        'status' => 'Passed',
+                        'color' => 'success',
+                        'notes' => self::HARD_CONSTRAINT_PASSED_NOTES[$constraint]
+                            ?? 'Verified across the complete schedule with zero violations.',
+                    ];
+                }
+
                 return [
-                    'label' => Str::headline($constraint),
-                    'status' => is_array($finding) ? 'Finding' : ($accepted ? 'Passed' : 'Not proven'),
-                    'evidence' => is_array($finding)
-                        ? (string) ($finding['message'] ?? 'Laravel recorded a blocking finding for this rule.')
-                        : ($accepted
-                            ? 'Laravel accepted the complete candidate with no blocking finding for this rule.'
-                            : 'This stored run does not contain an accepted Laravel validation result for this rule.'),
+                    'label' => self::humanConstraintLabel($constraint),
+                    'status' => 'Unverified',
+                    'color' => 'gray',
+                    'notes' => 'Validation did not complete for this attempt.',
                 ];
             })
             ->values()
@@ -564,27 +583,64 @@ class ScheduleGenerationRunInfolist
     }
 
     /**
-     * @return list<array{label:string,status:string,evidence:string}>
+     * @return list<array{priority:int|null,label:string,value:string}>
      */
-    private static function softObjectiveRows(ScheduleGenerationRun $record): array
+    private static function qualityMeasureRows(ScheduleGenerationRun $record): array
     {
         $snapshot = self::inputSnapshot($record);
         $hierarchy = data_get($snapshot, 'constraint_profile.objective_hierarchy', []);
-        $values = data_get(self::solverResult($record), 'objective_details.values', []);
-        $measures = collect($record->qualityPresentation())->keyBy('key');
+        $solverValues = data_get(self::solverResult($record), 'objective_details.values', []);
+        $storedMeasures = is_array($record->quality_measures) ? $record->quality_measures : [];
 
-        if (is_array($hierarchy) && $hierarchy !== [] && is_array($values)) {
-            return collect($hierarchy)
-                ->filter(fn (mixed $constraint): bool => is_string($constraint) && $constraint !== '')
+        if (is_array($hierarchy) && $hierarchy !== []) {
+            $rows = collect($hierarchy)
+                ->filter(fn (mixed $key): bool => is_string($key) && $key !== '')
                 ->values()
-                ->map(fn (string $constraint, int $index): array => [
-                    'label' => ($index + 1).'. '.Str::headline($constraint),
-                    'status' => is_numeric($values[$constraint] ?? null) ? 'Measured' : 'Not measured',
-                    'evidence' => is_numeric($values[$constraint] ?? null)
-                        ? ($measures->get($constraint)['value'] ?? self::displayValue($values[$constraint])).($constraint === 'stable_earlier_placement' ? '; higher is preferred after every earlier level ties.' : '; lower is preferred after every earlier level ties.')
-                        : 'The solver did not report this fixed hierarchy measure.',
-                ])
+                ->map(function (string $key, int $index) use ($storedMeasures, $solverValues): ?array {
+                    $raw = $storedMeasures[$key] ?? (is_array($solverValues) ? ($solverValues[$key] ?? null) : null);
+
+                    if (! is_numeric($raw)) {
+                        return null;
+                    }
+
+                    return [
+                        'priority' => $index + 1,
+                        'label' => self::SOFT_OBJECTIVE_LABELS[$key] ?? Str::headline($key),
+                        'value' => self::formatQualityMeasure($key, (float) $raw),
+                    ];
+                })
+                ->filter()
+                ->values()
                 ->all();
+
+            if ($rows !== []) {
+                return $rows;
+            }
+        }
+
+        if ($storedMeasures !== []) {
+            $rows = collect(array_keys(self::SOFT_OBJECTIVE_LABELS))
+                ->values()
+                ->map(function (string $key, int $index) use ($storedMeasures): ?array {
+                    $raw = $storedMeasures[$key] ?? null;
+
+                    if (! is_numeric($raw)) {
+                        return null;
+                    }
+
+                    return [
+                        'priority' => $index + 1,
+                        'label' => self::SOFT_OBJECTIVE_LABELS[$key],
+                        'value' => self::formatQualityMeasure($key, (float) $raw),
+                    ];
+                })
+                ->filter()
+                ->values()
+                ->all();
+
+            if ($rows !== []) {
+                return $rows;
+            }
         }
 
         $weights = data_get($snapshot, 'constraint_profile.soft_weights', []);
@@ -593,35 +649,40 @@ class ScheduleGenerationRunInfolist
 
         $weights = is_array($weights) ? $weights : [];
         $terms = is_array($terms) ? $terms : [];
-        $constraints = is_array($constraints) && $constraints !== [] ? $constraints : array_keys($weights);
+        $constraints = is_array($constraints) && $constraints !== [] ? $constraints : array_keys($terms);
 
         return collect($constraints)
-            ->filter(fn (mixed $constraint): bool => is_string($constraint) && $constraint !== '')
+            ->filter(fn (mixed $constraint): bool => is_string($constraint) && $constraint !== '' && is_array($terms[$constraint] ?? null))
             ->unique()
+            ->values()
             ->map(function (string $constraint) use ($weights, $terms): array {
-                $term = $terms[$constraint] ?? null;
-
-                if (is_array($term)) {
-                    return [
-                        'label' => Str::headline($constraint),
-                        'status' => 'Measured',
-                        'evidence' => sprintf(
-                            'Raw %s; weight %s; weighted contribution %s.',
-                            self::displayValue($term['raw'] ?? null),
-                            self::displayValue($term['weight'] ?? $weights[$constraint] ?? null),
-                            self::displayValue($term['weighted'] ?? null),
-                        ),
-                    ];
-                }
+                /** @var array<string, mixed> $term */
+                $term = $terms[$constraint];
 
                 return [
-                    'label' => Str::headline($constraint),
-                    'status' => 'Configured',
-                    'evidence' => 'Weight '.self::displayValue($weights[$constraint] ?? null).'; this stored run does not report a separate contribution.',
+                    'priority' => null,
+                    'label' => self::SOFT_OBJECTIVE_LABELS[$constraint] ?? Str::headline($constraint),
+                    'value' => sprintf(
+                        'Raw %s; weight %s; weighted contribution %s.',
+                        self::displayValue($term['raw'] ?? null),
+                        self::displayValue($term['weight'] ?? $weights[$constraint] ?? null),
+                        self::displayValue($term['weighted'] ?? null),
+                    ),
                 ];
             })
-            ->values()
             ->all();
+    }
+
+    private static function formatQualityMeasure(string $key, float $raw): string
+    {
+        return match ($key) {
+            'cohort_mode_switches' => number_format($raw, 0).' '.Str::plural('switch', (int) round($raw)),
+            'cohort_idle_time', 'faculty_idle_time' => number_format($raw, 0).' '.Str::plural('minute', (int) round($raw)),
+            'faculty_load_imbalance' => number_format($raw / 100, 2).' load units',
+            'room_seat_waste' => number_format($raw, 0).' '.Str::plural('seat', (int) round($raw)),
+            'stable_earlier_placement' => number_format($raw, 0).' '.Str::plural('point', (int) round($raw)),
+            default => self::displayValue($raw),
+        };
     }
 
     /**
@@ -637,7 +698,7 @@ class ScheduleGenerationRunInfolist
     private static function displayValue(mixed $value): string
     {
         if (! is_numeric($value)) {
-            return 'not reported';
+            return '—';
         }
 
         return rtrim(rtrim(number_format((float) $value, 4, '.', ''), '0'), '.');
@@ -646,7 +707,7 @@ class ScheduleGenerationRunInfolist
     /**
      * @return list<array<string, mixed>>
      */
-    private static function findingRows(ScheduleGenerationRun $record): array
+    private static function findingRows(ScheduleGenerationRun $record, ?int $termId = null): array
     {
         $latestValidation = self::currentRevalidation($record);
         $findings = $latestValidation !== []
@@ -657,51 +718,23 @@ class ScheduleGenerationRunInfolist
             return [];
         }
 
+        $effectiveTermId = $termId ?? $record->term_id;
+
         return collect($findings)
             ->filter(fn (mixed $finding): bool => is_array($finding))
-            ->map(function (array $finding) use ($record): array {
-                $source = self::sourcePresentation($finding, $record->term_id);
+            ->map(function (array $finding) use ($effectiveTermId): array {
+                $source = self::sourcePresentation($finding, $effectiveTermId);
+                $constraint = (string) ($finding['constraint'] ?? '');
 
                 return [
                     ...$finding,
+                    'constraint_label' => self::humanConstraintLabel($constraint),
                     'source_label' => $source['label'],
                     'source_url' => $source['url'],
                 ];
             })
             ->values()
             ->all();
-    }
-
-    /**
-     * @param  array<string, mixed>  $finding
-     * @return array{label:string,url:string|null}
-     */
-    public static function sourcePresentation(array $finding, ?int $termId = null): array
-    {
-        $type = (string) ($finding['source_type'] ?? 'source');
-        $id = is_numeric($finding['source_id'] ?? null) ? (int) $finding['source_id'] : null;
-        $field = filled($finding['source_field'] ?? null) ? (string) $finding['source_field'] : null;
-        $label = Str::headline($type).($id !== null ? ' #'.$id : '').($field !== null ? ' / '.$field : '');
-
-        if ($id === null) {
-            return ['label' => $label, 'url' => null];
-        }
-
-        $context = in_array($type, ['scheduling_demand', 'room', 'faculty_qualification'], true) && $termId !== null
-            ? ['termId' => $termId]
-            : [];
-        $url = match ($type) {
-            'schedule_run' => self::viewUrl(ScheduleGenerationRun::query()->find($id), ScheduleGenerationRunResource::class),
-            'scheduling_demand' => self::viewUrl(SchedulingDemand::query()->find($id), SchedulingDemandResource::class, $context),
-            'room' => self::viewUrl(Room::query()->find($id), RoomResource::class, $context),
-            'term' => self::viewUrl(Term::query()->find($id), TermResource::class),
-            'faculty_qualification' => self::viewUrl(FacultyQualification::query()->find($id), FacultyQualificationResource::class, $context),
-            'faculty_term_load_override' => self::viewUrl(FacultyTermLoadOverride::query()->find($id), FacultyTermLoadOverrideResource::class),
-            'calendar_event' => self::editUrl(CalendarEvent::query()->find($id), CalendarEventResource::class, $termId !== null ? ['termId' => $termId] : []),
-            default => null,
-        };
-
-        return ['label' => $label, 'url' => $url];
     }
 
     /**

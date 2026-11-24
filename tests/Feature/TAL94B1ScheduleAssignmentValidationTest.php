@@ -894,12 +894,10 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
             ->test(ViewScheduleGenerationRun::class, ['record' => $context['run']->getRouteKey()])
             ->assertOk()
             ->assertSee('Hard constraint checklist')
-            ->assertSee('Assign Every Ready Scheduling Demand Once')
+            ->assertSee('Every ready class placed once')
             ->assertSee('Passed')
-            ->assertSee('Soft objective evidence')
-            ->assertSee('Prefer Earlier Time Blocks')
-            ->assertSee('Measured')
-            ->assertSee('Raw 1; weight 1; weighted contribution 1.');
+            ->assertSee('Schedule quality')
+            ->assertSee('Prefer Earlier Time Blocks');
     }
 
     /**

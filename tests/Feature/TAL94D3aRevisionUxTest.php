@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Scheduling\PublishedScheduleRevisionService;
 use App\Filament\Pages\TermTimetable;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ViewScheduleGenerationRun;
 use App\Filament\Resources\ScheduleGenerationRuns\RelationManagers\RevisionEventsRelationManager;
@@ -63,7 +64,7 @@ final class TAL94D3aRevisionUxTest extends TestCase
 
     public function test_revision_action_and_history_follow_role_and_published_state_boundaries(): void
     {
-        $published = $this->context();
+        $published = $this->context(withPublishedVersion: true);
         $draft = $this->context(runStatus: ScheduleGenerationRun::StatusUnderReview);
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $academicHead = $this->staff(User::StaffRoleAcademicHead);
@@ -72,15 +73,29 @@ final class TAL94D3aRevisionUxTest extends TestCase
         Livewire::actingAs($registrar)
             ->test(ViewScheduleGenerationRun::class, ['record' => $published['run']->getRouteKey()])
             ->assertOk()
-            ->assertSee('Open issued timetable')
-            ->assertSee('Term revision history')
+            ->assertSee('Solver report')
+            ->assertSee('Back to Timetable')
+            ->assertSee('Revision history')
             ->assertDontSee('role="tablist"', escape: false)
             ->assertDontSee('Review accepted. Publish after')
+            ->assertActionVisible('backToTimetable')
+            ->assertActionDoesNotExist('revisePublishedSchedule')
+            ->assertActionDoesNotExist('cancelPublishedClass')
+            ->assertActionDoesNotExist('publishPendingRevision')
+            ->assertActionDoesNotExist('acceptCandidate')
+            ->assertActionDoesNotExist('rejectCandidate')
+            ->assertActionDoesNotExist('publishSchedule');
+
+        Livewire::actingAs($registrar)
+            ->withQueryParams(['termId' => $published['term']->id, 'timetableState' => 'official'])
+            ->test(TermTimetable::class)
+            ->assertOk()
             ->assertActionVisible('revisePublishedSchedule')
             ->assertActionVisible('cancelPublishedClass');
 
         Livewire::actingAs($academicHead)
-            ->test(ViewScheduleGenerationRun::class, ['record' => $published['run']->getRouteKey()])
+            ->withQueryParams(['termId' => $published['term']->id, 'timetableState' => 'official'])
+            ->test(TermTimetable::class)
             ->assertOk()
             ->assertActionHidden('revisePublishedSchedule')
             ->assertActionHidden('cancelPublishedClass');
@@ -104,7 +119,8 @@ final class TAL94D3aRevisionUxTest extends TestCase
             ->assertForbidden();
 
         Livewire::actingAs($registrar)
-            ->test(ViewScheduleGenerationRun::class, ['record' => $draft['run']->getRouteKey()])
+            ->withQueryParams(['termId' => $draft['term']->id])
+            ->test(TermTimetable::class)
             ->assertActionHidden('revisePublishedSchedule')
             ->assertActionHidden('cancelPublishedClass');
 
@@ -123,12 +139,13 @@ final class TAL94D3aRevisionUxTest extends TestCase
 
     public function test_meeting_context_prefills_the_target_and_cancel_does_not_publish(): void
     {
-        $context = $this->context(meetingCount: 2);
+        $context = $this->context(meetingCount: 2, withPublishedVersion: true);
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $meeting = $context['meetings'][0];
 
         $component = Livewire::actingAs($registrar)
-            ->test(ViewScheduleGenerationRun::class, ['record' => $context['run']->getRouteKey()])
+            ->withQueryParams(['termId' => $context['term']->id, 'timetableState' => 'official'])
+            ->test(TermTimetable::class)
             ->mountAction('revisePublishedSchedule', ['meeting' => $meeting->id])
             ->assertActionDataSet(['section_meeting_ids' => [$meeting->id]])
             ->assertMountedActionModalSee('What do you need to change?')
@@ -161,11 +178,12 @@ final class TAL94D3aRevisionUxTest extends TestCase
 
     public function test_meeting_context_rejects_a_target_from_another_run(): void
     {
-        $context = $this->context();
-        $other = $this->context();
+        $context = $this->context(withPublishedVersion: true);
+        $other = $this->context(withPublishedVersion: true);
 
         Livewire::actingAs($this->staff(User::StaffRoleRegistrar))
-            ->test(ViewScheduleGenerationRun::class, ['record' => $context['run']->getRouteKey()])
+            ->withQueryParams(['termId' => $context['term']->id, 'timetableState' => 'official'])
+            ->test(TermTimetable::class)
             ->mountAction('revisePublishedSchedule', ['meeting' => $other['meetings'][0]->id])
             ->assertNotFound();
 
@@ -298,7 +316,7 @@ final class TAL94D3aRevisionUxTest extends TestCase
             $component->mountTableAction('viewMeeting', (string) $meeting->id)
                 ->assertMountedActionModalSee('Tuesday')
                 ->assertMountedActionModalSee('10:00 AM–11:00 AM')
-                ->assertMountedActionModalSee('Review or change assignments')
+                ->assertMountedActionModalDontSee('Review or change assignments')
                 ->assertMountedActionModalDontSee('Change this meeting');
 
             $issuedMeetingLoads = collect(DB::getQueryLog())->filter(
@@ -401,7 +419,7 @@ final class TAL94D3aRevisionUxTest extends TestCase
             ->mountTableAction('viewMeeting', (string) $issued->id)
             ->assertMountedActionModalSee('Change this meeting')
             ->assertMountedActionModalSee('Cancel this class')
-            ->assertMountedActionModalSee('actionArguments');
+            ->assertMountedActionModalDontSee('actionArguments');
 
         Livewire::actingAs($this->staff(User::StaffRoleAcademicHead))
             ->withQueryParams($parameters)->test(TermTimetable::class)
@@ -418,18 +436,18 @@ final class TAL94D3aRevisionUxTest extends TestCase
 
     public function test_registrar_sees_a_structured_preview_and_applies_a_room_revision(): void
     {
-        $context = $this->context();
+        $context = $this->context(withPublishedVersion: true);
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $meeting = $context['meetings'][0];
 
         $component = Livewire::actingAs($registrar)
-            ->test(ViewScheduleGenerationRun::class, ['record' => $context['run']->getRouteKey()])
+            ->withQueryParams(['termId' => $context['term']->id, 'timetableState' => 'official'])
+            ->test(TermTimetable::class)
             ->mountAction('revisePublishedSchedule')
             ->setActionData([
                 'change_type' => ScheduleRevisionEvent::ChangeRoom,
                 'section_meeting_ids' => [$meeting->id],
                 'replacement_room_id' => $context['replacementRoom']->id,
-                'authority_reference' => null,
                 'reason' => 'The original room is unavailable.',
             ])
             ->assertMountedActionModalSee('Effective immediately when published')
@@ -441,8 +459,7 @@ final class TAL94D3aRevisionUxTest extends TestCase
         $component
             ->callMountedAction()
             ->assertHasNoActionErrors()
-            ->assertNotified('Published schedule revised')
-            ->assertRedirect(TermTimetable::getUrl(['termId' => $context['run']->term_id, 'timetableState' => 'official']));
+            ->assertNotified('Official timetable updated');
 
         $event = ScheduleRevisionEvent::query()->sole();
         $successorMeeting = SectionMeeting::query()->findOrFail($event->section_meeting_id);
@@ -461,18 +478,18 @@ final class TAL94D3aRevisionUxTest extends TestCase
 
     public function test_optional_revision_reference_preserves_supplied_evidence_and_requires_a_reason(): void
     {
-        $context = $this->context();
+        $context = $this->context(withPublishedVersion: true);
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $data = [
             'change_type' => ScheduleRevisionEvent::ChangeRoom,
             'section_meeting_ids' => [$context['meetings'][0]->id],
             'replacement_room_id' => $context['replacementRoom']->id,
-            'authority_reference' => '  SYNTH-APPROVED-ROOM-CHANGE  ',
             'reason' => '',
         ];
 
         $component = Livewire::actingAs($registrar)
-            ->test(ViewScheduleGenerationRun::class, ['record' => $context['run']->getRouteKey()])
+            ->withQueryParams(['termId' => $context['term']->id, 'timetableState' => 'official'])
+            ->test(TermTimetable::class)
             ->mountAction('revisePublishedSchedule')
             ->setActionData($data)
             ->callMountedAction()
@@ -484,16 +501,35 @@ final class TAL94D3aRevisionUxTest extends TestCase
         $data['reason'] = 'The original room is unavailable.';
         $component->setActionData($data)->callMountedAction()->assertHasNoActionErrors();
 
-        $revision = TimetableRevision::query()->sole();
-        $this->assertSame('SYNTH-APPROVED-ROOM-CHANGE', $revision->authority_reference);
-        $this->assertSame('SYNTH-APPROVED-ROOM-CHANGE', PublishedTimetableVersion::query()->findOrFail($revision->successor_version_id)->authority_reference);
+        $uiRevision = TimetableRevision::query()->sole();
+        $this->assertNull($uiRevision->authority_reference);
+        $this->assertNull(PublishedTimetableVersion::query()->findOrFail($uiRevision->successor_version_id)->authority_reference);
+
+        $backendContext = $this->context(withPublishedVersion: true);
+        app(PublishedScheduleRevisionService::class)->revise(
+            run: $backendContext['run'],
+            actor: $registrar,
+            changeType: ScheduleRevisionEvent::ChangeRoom,
+            changes: [[
+                'section_meeting_id' => $backendContext['meetings'][0]->id,
+                'room_id' => $backendContext['replacementRoom']->id,
+            ]],
+            reason: 'The original room is unavailable.',
+            authorityReference: '  SYNTH-APPROVED-ROOM-CHANGE  ',
+        );
+
+        $backendRevision = TimetableRevision::query()
+            ->whereKeyNot($uiRevision->id)
+            ->sole();
+        $this->assertSame('SYNTH-APPROVED-ROOM-CHANGE', $backendRevision->authority_reference);
+        $this->assertSame('SYNTH-APPROVED-ROOM-CHANGE', PublishedTimetableVersion::query()->findOrFail($backendRevision->successor_version_id)->authority_reference);
     }
 
     public function test_registrar_can_apply_faculty_time_modality_and_whole_section_revision_paths(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
 
-        $facultyContext = $this->context();
+        $facultyContext = $this->context(withPublishedVersion: true);
         $replacementFaculty = $this->staff(User::StaffRoleFaculty);
         FacultyQualification::factory()
             ->for($replacementFaculty, 'faculty')
@@ -511,7 +547,7 @@ final class TAL94D3aRevisionUxTest extends TestCase
             $this->currentMeeting($facultyContext['term'], $facultyContext['demand'])->faculty_user_id,
         );
 
-        $timeContext = $this->context();
+        $timeContext = $this->context(withPublishedVersion: true);
         $this->callRevision($registrar, $timeContext['run'], [
             'change_type' => ScheduleRevisionEvent::ChangeTime,
             'section_meeting_ids' => [$timeContext['meetings'][0]->id],
@@ -524,11 +560,18 @@ final class TAL94D3aRevisionUxTest extends TestCase
         $this->assertSame(2, $timeMeeting->day_of_week);
         $this->assertSame('09:00:00', $timeMeeting->starts_at);
 
-        $modalityContext = $this->context();
+        $modalityContext = $this->context(withPublishedVersion: true);
         $modalityContext['meetings'][0]->forceFill([
             'modality' => TermOffering::ModalityOnline,
             'room_id' => null,
         ])->save();
+        PublishedTimetableMeeting::query()
+            ->where('scheduling_demand_id', $modalityContext['demand']->id)
+            ->update([
+                'modality' => TermOffering::ModalityOnline,
+                'room_id' => null,
+                'location_label' => 'Online',
+            ]);
         $this->callRevision($registrar, $modalityContext['run'], [
             'change_type' => ScheduleRevisionEvent::ChangeDeliveryModality,
             'section_meeting_ids' => [$modalityContext['meetings'][0]->id],
@@ -539,7 +582,7 @@ final class TAL94D3aRevisionUxTest extends TestCase
         $this->assertSame(TermOffering::ModalityFaceToFace, $modalityMeeting->modality);
         $this->assertSame($modalityContext['room']->id, $modalityMeeting->room_id);
 
-        $cancellationContext = $this->context(meetingCount: 2);
+        $cancellationContext = $this->context(meetingCount: 2, withPublishedVersion: true);
         $this->callRevision($registrar, $cancellationContext['run'], [
             'change_type' => ScheduleRevisionEvent::ChangeSectionCancellation,
             'section_id' => $cancellationContext['section']->id,
@@ -557,18 +600,18 @@ final class TAL94D3aRevisionUxTest extends TestCase
 
     public function test_source_drift_after_preview_blocks_every_grouped_write(): void
     {
-        $context = $this->context(meetingCount: 2);
+        $context = $this->context(meetingCount: 2, withPublishedVersion: true);
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $meetingIds = collect($context['meetings'])->pluck('id')->all();
 
         $component = Livewire::actingAs($registrar)
-            ->test(ViewScheduleGenerationRun::class, ['record' => $context['run']->getRouteKey()])
+            ->withQueryParams(['termId' => $context['term']->id, 'timetableState' => 'official'])
+            ->test(TermTimetable::class)
             ->mountAction('revisePublishedSchedule')
             ->setActionData([
                 'change_type' => ScheduleRevisionEvent::ChangeRoom,
                 'section_meeting_ids' => $meetingIds,
                 'replacement_room_id' => $context['replacementRoom']->id,
-                'authority_reference' => 'SYNTH-REVISION-SIGNOFF-STALE',
                 'reason' => 'This grouped preview will become stale.',
             ])
             ->assertMountedActionModalSee('Meeting checks passed');
@@ -591,7 +634,7 @@ final class TAL94D3aRevisionUxTest extends TestCase
 
     public function test_revision_history_is_newest_first_filterable_read_only_and_uses_snapshot_fallbacks(): void
     {
-        $context = $this->context();
+        $context = $this->context(withPublishedVersion: true);
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $academicHead = $this->staff(User::StaffRoleAcademicHead);
         $meeting = $context['meetings'][0];
@@ -670,11 +713,12 @@ final class TAL94D3aRevisionUxTest extends TestCase
     private function callRevision(User $registrar, ScheduleGenerationRun $run, array $data): void
     {
         Livewire::actingAs($registrar)
-            ->test(ViewScheduleGenerationRun::class, ['record' => $run->getRouteKey()])
+            ->withQueryParams(['termId' => $run->term_id, 'timetableState' => 'official'])
+            ->test(TermTimetable::class)
             ->callAction(($data['change_type'] ?? null) === ScheduleRevisionEvent::ChangeSectionCancellation
                 ? 'cancelPublishedClass' : 'revisePublishedSchedule', data: $data)
             ->assertHasNoActionErrors()
-            ->assertNotified('Published schedule revised');
+            ->assertNotified('Official timetable updated');
     }
 
     private function currentMeeting(Term $term, SchedulingDemand $demand): SectionMeeting
@@ -691,6 +735,7 @@ final class TAL94D3aRevisionUxTest extends TestCase
     private function context(
         int $meetingCount = 1,
         string $runStatus = ScheduleGenerationRun::StatusPublished,
+        bool $withPublishedVersion = false,
     ): array {
         $this->contextCounter++;
         $term = Term::factory()->create([
@@ -803,6 +848,31 @@ final class TAL94D3aRevisionUxTest extends TestCase
                 'state' => SectionMeeting::StateActive,
                 'published_at' => now()->subDay(),
             ]);
+        }
+
+        if ($withPublishedVersion && $runStatus === ScheduleGenerationRun::StatusPublished) {
+            $version = PublishedTimetableVersion::factory()->create([
+                'term_id' => $term->id,
+                'schedule_run_id' => $run->id,
+                'published_by' => $faculty->id,
+            ]);
+
+            foreach ($meetings as $meeting) {
+                PublishedTimetableMeeting::query()->create([
+                    'published_timetable_version_id' => $version->id,
+                    'section_id' => $section->id,
+                    'scheduling_demand_id' => $meeting->scheduling_demand_id,
+                    'faculty_user_id' => $meeting->faculty_user_id,
+                    'room_id' => $meeting->room_id,
+                    'meeting_sequence' => $meeting->meeting_sequence,
+                    'day_of_week' => $meeting->day_of_week,
+                    'starts_at' => $meeting->starts_at,
+                    'ends_at' => $meeting->ends_at,
+                    'modality' => $meeting->modality,
+                    'location_label' => $meeting->modality === TermOffering::ModalityOnline ? 'Online' : $room->code,
+                ]);
+                $meeting->forceFill(['published_timetable_version_id' => $version->id])->save();
+            }
         }
 
         return compact(

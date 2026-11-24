@@ -2,6 +2,7 @@
 
 namespace App\Actions\Scheduling;
 
+use App\Actions\Enrollment\RegistrationAcademicEligibilityQuery;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumVersion;
 use App\Models\SchedulingDemand;
@@ -146,24 +147,29 @@ final class ConfirmClassOffering
             throw ValidationException::withMessages(['cohorts' => 'Every confirmed cohort must be an existing cohort for this exact Term.']);
         }
 
+        $equivalentCourseIds = $locked->courseRevision?->course_id !== null
+            ? app(RegistrationAcademicEligibilityQuery::class)->expandWithEquivalentCourseIds(collect([(int) $locked->courseRevision->course_id]))
+            : collect();
+
         foreach ($cohorts as $cohort) {
             $curriculum = $cohort->curriculumVersion;
             $courseRevision = $locked->courseRevision;
             $belongsToExactTerm = (int) $cohort->term_id === (int) $locked->calendarPackage->term_id;
             $hasConsistentProgram = (int) $curriculum->program_id === (int) $cohort->program_id;
-            $containsCourse = $curriculum->entries->contains(function ($entry) use ($courseRevision): bool {
+            $containsCourse = $curriculum->entries->contains(function ($entry) use ($courseRevision, $equivalentCourseIds): bool {
                 $entrySpecification = $entry->courseSpecification;
 
                 return (int) $entry->course_specification_id === (int) $courseRevision->id
                     || ($entrySpecification instanceof CourseSpecification
-                        && (int) $entrySpecification->course_id === (int) $courseRevision->course_id);
+                        && ((int) $entrySpecification->course_id === (int) $courseRevision->course_id
+                            || $equivalentCourseIds->contains((int) $entrySpecification->course_id)));
             });
 
             if (! $belongsToExactTerm
                 || ! $hasConsistentProgram
-                || $curriculum->state !== CurriculumVersion::StateActive
+                || ! in_array($curriculum->state, [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded], true)
                 || ! $containsCourse) {
-                throw ValidationException::withMessages(['cohorts' => 'Each cohort must belong to this exact Term and an active, program-consistent curriculum containing the offered course.']);
+                throw ValidationException::withMessages(['cohorts' => 'Each cohort must belong to this exact Term and a published, program-consistent curriculum containing the offered course.']);
             }
         }
 

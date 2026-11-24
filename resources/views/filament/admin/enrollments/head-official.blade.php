@@ -35,10 +35,10 @@
         <section class="head-enrollment-panel head-enrollment-schedule tala-task-surface" aria-labelledby="head-enrollment-schedule">
             <h2 id="head-enrollment-schedule">Published class schedule</h2>
             @if ($schedule && $schedule['meetings'] !== [])
-                <p class="head-enrollment-note">Current published meetings for these official subjects · Asia/Manila</p>
-                <ul class="head-enrollment-meetings">@foreach ($schedule['meetings'] as $meeting)
-                    <li><div class="head-enrollment-meeting-time"><strong>{{ $meeting['dayLabel'] ?: 'Day unavailable' }}</strong><span>{{ $meeting['time'] ?: 'Time unavailable' }}</span></div><div><h3>{{ $meeting['courseTitle'] ?: $meeting['courseCode'] }}</h3><p>{{ $meeting['class'] }} · {{ $meeting['room'] }} · {{ $meeting['faculty'] }}</p>@if (! $meeting['plottable'] || $meeting['offGrid'])<p>Meeting time needs Registrar review.</p>@endif</div></li>
-                @endforeach</ul>
+                <p class="head-enrollment-note">Current published meetings for these official subjects.</p>
+                <div class="mt-3">
+                    <x-enrollment-schedule :presentation="$schedule" :source-key="'head-official-'.$case->id" />
+                </div>
             @else<p class="head-enrollment-note">{{ $schedule === null ? 'No published timetable is available for this term.' : 'No recurring meetings are recorded for these subjects. Externally arranged subjects use their recorded teaching arrangements.' }}</p>@endif
         </section>
     </div>

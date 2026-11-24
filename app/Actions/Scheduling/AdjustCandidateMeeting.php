@@ -23,24 +23,33 @@ final class AdjustCandidateMeeting
         CandidateScheduleRow $requestedRow,
         User $actor,
         array $assignment,
-        string $reason,
+        ?string $reason = null,
         ?string $authority = null,
     ): ScheduleGenerationRun {
         Gate::forUser($actor)->authorize('reviewCandidates', $requestedRow->scheduleRun);
 
         return DB::transaction(function () use ($requestedRow, $actor, $assignment, $reason, $authority): ScheduleGenerationRun {
-            $reason = trim($reason);
-
-            if ($reason === '') {
-                throw ValidationException::withMessages(['reason' => 'A candidate-adjustment reason is required.']);
-            }
-
             Term::query()->whereKey($requestedRow->scheduleRun->term_id)->lockForUpdate()->firstOrFail();
             $run = ScheduleGenerationRun::query()->whereKey($requestedRow->schedule_run_id)->lockForUpdate()->firstOrFail();
             Gate::forUser($actor)->authorize('reviewCandidates', $run);
 
             if ($run->status !== ScheduleGenerationRun::StatusUnderReview || $run->candidate_state === 'Stale') {
                 throw ValidationException::withMessages(['candidate' => 'Only the current non-stale candidate can be adjusted.']);
+            }
+
+            $reason = trim((string) ($reason ?? ''));
+            $authority = filled($authority) ? trim((string) $authority) : null;
+
+            if ($reason === '' && $run->status === ScheduleGenerationRun::StatusUnderReview) {
+                $reason = 'Registrar draft adjustment';
+            }
+
+            if ($authority === null && $run->status === ScheduleGenerationRun::StatusUnderReview) {
+                $authority = 'Registrar draft adjustment';
+            }
+
+            if ($reason === '') {
+                throw ValidationException::withMessages(['reason' => 'A candidate-adjustment reason is required.']);
             }
 
             $rows = CandidateScheduleRow::query()
@@ -126,19 +135,49 @@ final class AdjustCandidateMeeting
                 'publication_version' => null,
             ])->save();
 
+            $timestamp = CarbonImmutable::now(config('app.timezone'));
+            $timestampString = $timestamp->toDateTimeString();
+            $rowsToInsert = [];
+
             foreach ($rows as $index => $row) {
-                $successor->candidateRows()->create([
-                    ...$payloads[$index],
+                $payload = $payloads[$index];
+                $rowsToInsert[] = [
+                    'schedule_run_id' => $successor->id,
                     'supersedes_candidate_row_id' => $row->id,
+                    'scheduling_demand_id' => $payload['scheduling_demand_id'],
+                    'meeting_sequence' => $payload['meeting_sequence'],
+                    'faculty_user_id' => $payload['faculty_user_id'],
+                    'room_id' => $payload['room_id'] ?? null,
+                    'day_of_week' => $payload['day_of_week'],
+                    'starts_at' => $payload['starts_at'],
+                    'ends_at' => $payload['ends_at'],
+                    'time_block_key' => $payload['time_block_key'] ?? null,
+                    'status' => $payload['status'],
                     'change_type' => $row->is($target) ? 'LocalAdjustment' : 'Unchanged',
+                    'scores' => is_array($payload['scores'] ?? null)
+                        ? json_encode($payload['scores'], JSON_THROW_ON_ERROR)
+                        : ($payload['scores'] ?? null),
+                    'warnings' => is_array($payload['warnings'] ?? null)
+                        ? json_encode($payload['warnings'], JSON_THROW_ON_ERROR)
+                        : ($payload['warnings'] ?? null),
+                    'violations' => is_array($payload['violations'] ?? null)
+                        ? json_encode($payload['violations'], JSON_THROW_ON_ERROR)
+                        : ($payload['violations'] ?? null),
                     'override_authority' => $authority ?? (string) $actor->id,
                     'override_reason' => $reason,
-                ]);
+                    'created_at' => $timestampString,
+                    'updated_at' => $timestampString,
+                ];
+            }
+
+            if ($rowsToInsert !== []) {
+                foreach (array_chunk($rowsToInsert, 1000) as $chunk) {
+                    CandidateScheduleRow::query()->insert($chunk);
+                }
             }
 
             $run->forceFill(['status' => ScheduleGenerationRun::StatusSuperseded, 'candidate_state' => 'Superseded'])->save();
 
-            $timestamp = CarbonImmutable::now(config('app.timezone'));
             DB::table('activity_log')->insert([
                 'log_name' => 'scheduling',
                 'description' => 'Candidate schedule assignment corrected and revalidated as an immutable successor.',

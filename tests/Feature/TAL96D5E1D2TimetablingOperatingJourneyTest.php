@@ -2,13 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Filament\Pages\TermCalendar;
 use App\Filament\Pages\TermOverview;
+use App\Filament\Pages\TermTimetable;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ListScheduleGenerationRuns;
 use App\Filament\Resources\ScheduleGenerationRuns\Pages\ViewScheduleGenerationRun;
-use App\Filament\Resources\SectionMeetings\Pages\ListSectionMeetings;
+use App\Models\PublishedTimetableMeeting;
+use App\Models\PublishedTimetableVersion;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
-use App\Models\SectionMeeting;
 use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
@@ -51,9 +53,19 @@ final class TAL96D5E1D2TimetablingOperatingJourneyTest extends TestCase
         ]);
 
         $this->actingAs($registrar)
-            ->get(TermOverview::getUrl(['termId' => $term->id]))
+            ->get(TermOverview::getUrl())
             ->assertOk()
             ->assertSee('Selected Operating Term');
+
+        $this->actingAs($registrar)
+            ->get(TermOverview::getUrl(['termId' => $term->id]))
+            ->assertRedirect(TermCalendar::getUrl(['termId' => $term->id]));
+
+        $this->actingAs($registrar)
+            ->get(TermCalendar::getUrl(['termId' => $term->id]))
+            ->assertOk()
+            ->assertSee($term->academicYear->label)
+            ->assertSee($term->typeLabel());
     }
 
     #[Test]
@@ -98,34 +110,53 @@ final class TAL96D5E1D2TimetablingOperatingJourneyTest extends TestCase
     public function published_timetable_supports_term_day_and_section_operating_filters(): void
     {
         $registrar = $this->registrar();
-        $selectedRun = $this->scheduleRun(Term::factory()->create(), ScheduleGenerationRun::StatusPublished);
-        $otherRun = $this->scheduleRun(Term::factory()->create(), ScheduleGenerationRun::StatusPublished);
+        $selectedTerm = Term::factory()->create();
+        $otherTerm = Term::factory()->create();
+        $selectedRun = $this->scheduleRun($selectedTerm, ScheduleGenerationRun::StatusPublished);
+        $otherRun = $this->scheduleRun($otherTerm, ScheduleGenerationRun::StatusPublished);
+        $selectedVersion = PublishedTimetableVersion::factory()->for($selectedTerm)->create([
+            'schedule_run_id' => $selectedRun->id,
+            'state' => PublishedTimetableVersion::StatePublished,
+            'published_at' => now(),
+        ]);
+        $otherVersion = PublishedTimetableVersion::factory()->for($otherTerm)->create([
+            'schedule_run_id' => $otherRun->id,
+            'state' => PublishedTimetableVersion::StatePublished,
+            'published_at' => now(),
+        ]);
         $selectedDemand = SchedulingDemand::factory()->create();
         $otherDemand = SchedulingDemand::factory()->create();
         $faculty = User::factory()->create();
-        $selected = $this->officialMeeting($selectedRun, $selectedDemand, $faculty, 1);
-        $other = $this->officialMeeting($otherRun, $otherDemand, $faculty, 2);
+        $selected = $this->officialMeeting($selectedRun, $selectedVersion, $selectedDemand, $faculty, 1);
+        $other = $this->officialMeeting($otherRun, $otherVersion, $otherDemand, $faculty, 2);
+
+        $selectedCode = (string) $selectedDemand->sectionDeliveryGroup->section->code;
+        $otherCode = (string) $otherDemand->sectionDeliveryGroup->section->code;
 
         Livewire::actingAs($registrar)
-            ->test(ListSectionMeetings::class)
-            ->assertTableFilterExists('term_id')
-            ->assertTableFilterExists('day_of_week')
-            ->assertTableFilterExists('section_id')
-            ->filterTable('term_id', $selectedRun->term_id)
-            ->assertCanSeeTableRecords([$selected])
-            ->assertCanNotSeeTableRecords([$other]);
+            ->withQueryParams([
+                'termId' => $selectedTerm->id,
+                'timetableState' => 'official',
+                'timetableFormat' => 'list',
+            ])
+            ->test(TermTimetable::class)
+            ->assertOk()
+            ->assertSee($selectedCode)
+            ->assertDontSee($otherCode);
 
         Livewire::actingAs($registrar)
-            ->test(ListSectionMeetings::class)
-            ->filterTable('day_of_week', 1)
-            ->assertCanSeeTableRecords([$selected])
-            ->assertCanNotSeeTableRecords([$other]);
-
-        Livewire::actingAs($registrar)
-            ->test(ListSectionMeetings::class)
-            ->filterTable('section_id', $selectedDemand->sectionDeliveryGroup->section_id)
-            ->assertCanSeeTableRecords([$selected])
-            ->assertCanNotSeeTableRecords([$other]);
+            ->withQueryParams([
+                'termId' => $selectedTerm->id,
+                'timetableState' => 'official',
+                'timetableFormat' => 'list',
+                'timetableView' => 'faculty',
+                'viewFilter' => $faculty->name,
+                'tableSearch' => $selectedCode,
+            ])
+            ->test(TermTimetable::class)
+            ->assertOk()
+            ->assertSee($selectedCode)
+            ->assertDontSee($otherCode);
     }
 
     private function registrar(): User
@@ -157,13 +188,15 @@ final class TAL96D5E1D2TimetablingOperatingJourneyTest extends TestCase
 
     private function officialMeeting(
         ScheduleGenerationRun $run,
+        PublishedTimetableVersion $version,
         SchedulingDemand $demand,
         User $faculty,
         int $dayOfWeek,
-    ): SectionMeeting {
-        return SectionMeeting::query()->create([
-            'schedule_run_id' => $run->id,
+    ): PublishedTimetableMeeting {
+        return PublishedTimetableMeeting::query()->create([
+            'published_timetable_version_id' => $version->id,
             'scheduling_demand_id' => $demand->id,
+            'section_id' => $demand->sectionDeliveryGroup->section_id,
             'meeting_sequence' => 1,
             'faculty_user_id' => $faculty->id,
             'room_id' => null,
@@ -171,8 +204,7 @@ final class TAL96D5E1D2TimetablingOperatingJourneyTest extends TestCase
             'starts_at' => '08:00:00',
             'ends_at' => '10:00:00',
             'modality' => TermOffering::ModalityOnline,
-            'state' => SectionMeeting::StateActive,
-            'published_at' => now(),
+            'location_label' => 'Online',
         ]);
     }
 }

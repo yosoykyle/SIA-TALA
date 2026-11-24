@@ -3,10 +3,7 @@
 namespace App\Actions\Scheduling;
 
 use App\Mail\ScheduleReleasedMail;
-use App\Models\CourseEnrollment;
-use App\Models\Enrollment;
 use App\Models\OperationalEvent;
-use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SectionMeeting;
@@ -69,46 +66,9 @@ final class ScheduleReleaseNotificationService
                 trigger: 'published_run',
                 termId: (int) $run->term_id,
                 termLabel: (string) $term->label,
-                scheduleUrl: route('filament.admin.pages.faculty-schedule'),
+                scheduleUrl: route('filament.admin.pages.faculty-schedule', ['termId' => (int) $run->term_id]),
             );
         }
-    }
-
-    public function recordOfficialEnrollment(Enrollment $enrollment): void
-    {
-        $enrollment->loadMissing(['studentProfile.user.roles', 'term']);
-        $recipient = $enrollment->studentProfile?->user;
-
-        $officialSectionIds = CourseEnrollment::query()
-            ->where('enrollment_id', $enrollment->id)
-            ->where('status', CourseEnrollment::StatusActive)
-            ->where('is_current', true)
-            ->whereNotNull('section_id')
-            ->pluck('section_id');
-        $hasCurrentOfficialMeeting = PublishedTimetableMeeting::query()
-            ->whereIn('section_id', $officialSectionIds)
-            ->whereHas('timetableVersion', fn ($query) => $query
-                ->where('term_id', $enrollment->term_id)
-                ->where('state', PublishedTimetableVersion::StatePublished))
-            ->exists();
-
-        if ($enrollment->canonical_outcome !== Enrollment::OutcomeOfficiallyEnrolled
-            || ! $recipient instanceof User
-            || ! $recipient->hasRole('student')
-            || ! $hasCurrentOfficialMeeting) {
-            return;
-        }
-
-        $this->recordRecipient(
-            recipient: $recipient,
-            externalId: "schedule-release:official-enrollment:{$enrollment->id}:user:{$recipient->id}",
-            relatedRecordType: Enrollment::class,
-            relatedRecordId: (int) $enrollment->id,
-            trigger: 'official_enrollment',
-            termId: (int) $enrollment->term_id,
-            termLabel: (string) $enrollment->term?->label,
-            scheduleUrl: route('filament.student.pages.schedule-view'),
-        );
     }
 
     public function resend(OperationalEvent $event, User $actor): OperationalEvent
@@ -209,11 +169,16 @@ final class ScheduleReleaseNotificationService
 
         try {
             $payload = is_array($deliveryEvent->payload) ? $deliveryEvent->payload : [];
+            $termId = is_numeric($payload['term_id'] ?? null) ? (int) $payload['term_id'] : null;
+            $fallbackUrl = $termId !== null
+                ? route('filament.admin.pages.faculty-schedule', ['termId' => $termId])
+                : route('filament.admin.pages.faculty-schedule');
+
             Mail::to($recipient)->queue(new ScheduleReleasedMail(
                 operationalEventId: (int) $deliveryEvent->id,
                 recipientName: (string) $recipient->name,
-                termLabel: (string) ($payload['term_label'] ?? 'Published timetable'),
-                scheduleUrl: (string) ($payload['schedule_url'] ?? route('filament.admin.pages.faculty-schedule')),
+                termLabel: (string) ($payload['term_label'] ?? ''),
+                scheduleUrl: (string) ($payload['schedule_url'] ?? $fallbackUrl),
             ));
         } catch (Throwable $exception) {
             $this->markFailed($deliveryEvent, 'Mail could not be queued.', $exception);

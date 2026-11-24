@@ -15,9 +15,12 @@ use App\Models\PreliminaryEvidenceReview;
 use App\Models\User;
 use App\Support\AdmissionApplicationReference;
 use Carbon\CarbonImmutable;
+use Filament\Actions\Action;
+use Filament\Notifications\Notification;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -191,6 +194,42 @@ class SubmitAdmissionApplication
                     'submitted_edit' => $submittedEdit,
                 ],
             );
+
+            if (! $firstSubmission && ! $submittedEdit) {
+                $applicationId = (int) $locked->id;
+                $applicationReference = (string) $locked->application_reference;
+                $applicantName = (string) $applicant->name;
+
+                DB::afterCommit(function () use ($applicationId, $applicationReference, $applicantName): void {
+                    $registrars = User::query()
+                        ->where('status', User::StatusActive)
+                        ->whereHas('roles', fn ($query) => $query->where('name', User::StaffRoleRegistrar))
+                        ->get();
+
+                    if ($registrars->isEmpty()) {
+                        return;
+                    }
+
+                    $url = Route::has('filament.admin.resources.admission-applications.view')
+                        ? route('filament.admin.resources.admission-applications.view', ['record' => $applicationId])
+                        : null;
+
+                    $notification = Notification::make()
+                        ->title('Applicant resubmitted corrections')
+                        ->body("{$applicantName} ({$applicationReference}) resubmitted requested admission corrections for review.")
+                        ->info();
+
+                    if ($url !== null) {
+                        $notification->actions([
+                            Action::make('reviewApplication')
+                                ->label('Review application')
+                                ->url($url),
+                        ]);
+                    }
+
+                    $notification->sendToDatabase($registrars);
+                });
+            }
 
             return $locked->refresh()->load('currentSubmissionVersion');
         }, attempts: 3);

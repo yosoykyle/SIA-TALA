@@ -12,11 +12,14 @@ use App\Models\IncDeadlineAmendment;
 use App\Models\OperationalEvent;
 use App\Models\StudentLifecycleChange;
 use App\Models\User;
+use Filament\Actions\Action;
+use Filament\Notifications\Notification;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -65,12 +68,49 @@ class AcademicRecordNotificationService
 
     public function recordRosterReturnedAfterCommit(GradeRoster $roster): ?OperationalEvent
     {
-        $roster->loadMissing('teachingAssignment');
+        $roster->loadMissing(['teachingAssignment', 'section.courseRevision.course']);
         $faculty = User::query()->find($roster->teachingAssignment?->faculty_user_id);
 
-        return $faculty instanceof User
-            ? $this->recordForRecipientAfterCommit($faculty, OperationalEvent::TypeGradeRosterReturnedEmail, $roster, 'Named roster rows were returned for correction', route('filament.admin.pages.faculty-grade-roster', ['roster' => $roster->id], false), "version:{$roster->current_version_number}")
-            : null;
+        if (! $faculty instanceof User) {
+            return null;
+        }
+
+        $event = $this->recordForRecipientAfterCommit(
+            $faculty,
+            OperationalEvent::TypeGradeRosterReturnedEmail,
+            $roster,
+            'Named roster rows were returned for correction',
+            route('filament.admin.pages.faculty-grade-roster', ['roster' => $roster->id], false),
+            "version:{$roster->current_version_number}",
+        );
+
+        DB::afterCommit(function () use ($faculty, $roster): void {
+            $courseCode = trim((string) ($roster->section?->courseRevision?->course?->code ?? ''));
+            $sectionCode = trim((string) ($roster->section?->code ?? ''));
+            $subjectLabel = trim(implode(' · ', array_filter([$courseCode, $sectionCode])));
+            $url = Route::has('filament.admin.pages.faculty-grade-roster')
+                ? route('filament.admin.pages.faculty-grade-roster', ['roster' => $roster->id])
+                : null;
+
+            $notification = Notification::make()
+                ->title('Grade roster returned for correction')
+                ->body($subjectLabel !== ''
+                    ? "{$subjectLabel} was returned by the Registrar. Review the return notes and resubmit the updated roster."
+                    : 'Review the Registrar’s return notes and resubmit the updated grade roster.')
+                ->warning();
+
+            if ($url !== null) {
+                $notification->actions([
+                    Action::make('openRoster')
+                        ->label('Open grade roster')
+                        ->url($url),
+                ]);
+            }
+
+            $notification->sendToDatabase($faculty);
+        });
+
+        return $event;
     }
 
     public function recordIncDeadlineAmendedAfterCommit(IncDeadlineAmendment $amendment): void

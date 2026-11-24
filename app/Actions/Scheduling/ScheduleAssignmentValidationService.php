@@ -1153,14 +1153,67 @@ final class ScheduleAssignmentValidationService
         int $sequence,
     ): array {
         $fields = [
-            'fixed_faculty_user_id' => ['assignment_field' => 'faculty_user_id', 'code' => 'fixed_faculty_mismatch'],
-            'fixed_room_id' => ['assignment_field' => 'room_id', 'code' => 'fixed_room_mismatch'],
-            'fixed_day_of_week' => ['assignment_field' => 'day_of_week', 'code' => 'fixed_day_mismatch'],
-            'fixed_start_time' => ['assignment_field' => 'starts_at', 'code' => 'fixed_start_time_mismatch'],
+            'fixed_faculty_user_id' => ['assignment_field' => 'faculty_user_id', 'code' => 'fixed_faculty_mismatch', 'slot_scoped' => false],
+            'fixed_room_id' => ['assignment_field' => 'room_id', 'code' => 'fixed_room_mismatch', 'slot_scoped' => false],
+            'fixed_day_of_week' => ['assignment_field' => 'day_of_week', 'code' => 'fixed_day_mismatch', 'slot_scoped' => true],
+            'fixed_start_time' => ['assignment_field' => 'starts_at', 'code' => 'fixed_start_time_mismatch', 'slot_scoped' => true],
         ];
+        $fixedMeetings = collect($this->listValue($demand['fixed_meetings'] ?? null))
+            ->filter(fn (mixed $pin): bool => is_array($pin) && $this->integerValue($pin['meeting_sequence'] ?? null) !== null)
+            ->keyBy(fn (array $pin): int => (int) $pin['meeting_sequence']);
+
+        if ($fixedMeetings->isNotEmpty()) {
+            $sequencePin = $fixedMeetings->get($sequence);
+            $findings = [];
+
+            foreach ($fields as $fixedField => $rule) {
+                if (is_array($sequencePin)) {
+                    $fixed = $sequencePin[$fixedField] ?? ($rule['slot_scoped'] ? null : ($demand['unscoped_'.$fixedField] ?? null));
+                } else {
+                    if ($rule['slot_scoped']) {
+                        continue;
+                    }
+
+                    $fixed = $demand['unscoped_'.$fixedField] ?? null;
+                }
+
+                if ($fixed === null || $fixed === '') {
+                    continue;
+                }
+
+                $actual = $assignment[$rule['assignment_field']] ?? null;
+                $matches = str_contains($fixedField, '_time')
+                    ? $this->stringValue($fixed) === $this->stringValue($actual)
+                    : $this->integerValue($fixed) === $this->integerValue($actual);
+
+                if ($matches) {
+                    continue;
+                }
+
+                $findings[] = $this->finding(
+                    run: $run,
+                    code: $rule['code'],
+                    constraint: 'respect_fixed_assignments',
+                    message: "The assignment does not preserve {$fixedField}.",
+                    demandId: $demandId,
+                    meetingSequence: $sequence,
+                    sourceType: 'scheduling_demand',
+                    sourceId: $demandId,
+                    sourceField: $fixedField,
+                );
+            }
+
+            return $findings;
+        }
+
+        $targetSequence = $this->integerValue($demand['fixed_meeting_sequence'] ?? null) ?? 1;
         $findings = [];
 
         foreach ($fields as $fixedField => $rule) {
+            if ($rule['slot_scoped'] && $sequence !== $targetSequence) {
+                continue;
+            }
+
             $fixed = $demand[$fixedField] ?? null;
 
             if ($fixed === null || $fixed === '') {
@@ -1458,26 +1511,27 @@ final class ScheduleAssignmentValidationService
         $findings = [];
 
         foreach ($requiredGroups as $groupDemands) {
-            if ($groupDemands->count() < 2) {
-                continue;
-            }
-
             $demandIds = $groupDemands->pluck('scheduling_demand_id')->map(fn (mixed $id): int => (int) $id);
             $groupAssignments = collect($assignments)
                 ->filter(fn (array $assignment): bool => $demandIds->contains((int) $assignment['scheduling_demand_id']));
+
+            if ($groupAssignments->count() < 2) {
+                continue;
+            }
 
             if ($groupAssignments->pluck('faculty_user_id')->filter()->unique()->count() <= 1) {
                 continue;
             }
 
-            $demandId = (int) $groupAssignments->last()['scheduling_demand_id'];
+            $lastAssignment = $groupAssignments->last();
+            $demandId = (int) $lastAssignment['scheduling_demand_id'];
             $findings[] = $this->finding(
                 run: $run,
                 code: 'same_faculty_mismatch',
                 constraint: 'same_faculty_requirement',
                 message: 'Linked components marked same-faculty-required use different faculty assignments.',
                 demandId: $demandId,
-                meetingSequence: 1,
+                meetingSequence: (int) ($lastAssignment['meeting_sequence'] ?? 1),
                 sourceType: 'scheduling_demand',
                 sourceId: $demandId,
                 sourceField: 'same_faculty_required',

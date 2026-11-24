@@ -57,9 +57,9 @@ class WorkspaceNavigationSearchTest extends TestCase
 {
     use DatabaseTransactions;
 
-    public function test_registrar_navigation_groups_keep_all_five_destinations_and_admissions_entry(): void
+    public function test_registrar_navigation_groups_keep_all_six_destinations_and_admissions_entry(): void
     {
-        $user = $this->signIn(User::StaffRoleRegistrar, ['approve-documents']);
+        $user = $this->signIn(User::StaffRoleRegistrar, ['approve-documents', 'manage-admission-setup']);
 
         $groups = collect(Filament::getNavigation())->mapWithKeys(fn ($group): array => [
             $group->getLabel() => collect($group->getItems())->map->getLabel()->all(),
@@ -67,7 +67,7 @@ class WorkspaceNavigationSearchTest extends TestCase
 
         $this->assertSame([
             'Learner work' => ['Admissions', 'Students & Enrollment', 'Students Record'],
-            'Academic setup' => ['Catalog & Curricula', 'Term Planning'],
+            'Academic setup' => ['Programs & Curricula', 'School Resources', 'Term Planning', 'Admission cycles'],
         ], $groups);
         $this->assertSame('/admin/admissions', app(WorkspaceContextResolver::class)
             ->destinationFor($user, User::StaffRoleRegistrar));
@@ -99,12 +99,14 @@ class WorkspaceNavigationSearchTest extends TestCase
 
         foreach ([
             'Academic Years', 'Terms', 'Term Offerings', 'Classes', 'Rooms',
-            'Faculty Qualifications', 'Faculty Term Load Overrides', 'Programs', 'Subjects',
+            'Faculty Qualifications', 'Faculty Term Load Overrides', 'Programs', 'Subject catalog',
             'Curricula',
-            'Weekly unavailable times', 'Schedule Requirements', 'Generated Timetables', 'Published Timetable',
+            'Weekly unavailable times', 'Schedule Requirements', 'Generated Timetables',
         ] as $title) {
             $this->assertContains($title, $this->titles($title));
         }
+
+        $this->assertSame([], $this->titles('Published Timetable'));
 
         $this->assertSame([], $this->titles($user->email));
         $this->assertSame([], $this->titles('Users'));
@@ -150,7 +152,7 @@ class WorkspaceNavigationSearchTest extends TestCase
         $this->assertSame($labels, collect(Filament::getNavigation())
             ->flatMap(fn ($group) => $group->getItems())->map->getLabel()->values()->all());
         foreach (['Term Offerings', 'Classes', 'Rooms', 'Faculty Qualifications', 'Programs', 'Admission cycles'] as $title) {
-            $this->assertSame([], $this->titles($title));
+            $this->assertNotContains($title, $this->titles($title));
         }
     }
 
@@ -160,7 +162,7 @@ class WorkspaceNavigationSearchTest extends TestCase
         $user->assignRole(Role::findOrCreate(User::StaffRoleAccounting, 'web'));
         $this->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleAccounting]);
 
-        foreach (['queue', 'cycle', 'Rooms', 'Term Offerings', 'Qualifications', 'Subjects'] as $query) {
+        foreach (['queue', 'cycle', 'Rooms', 'Term Offerings', 'Qualifications', 'Subject catalog'] as $query) {
             $this->assertSame([], $this->titles($query));
         }
         $this->assertContains('Student accounts', $this->titles('Student accounts'));
@@ -180,13 +182,26 @@ class WorkspaceNavigationSearchTest extends TestCase
         $this->signIn(User::StaffRoleSystemSuperAdmin, ['manage-faqs', 'manage-public-notices']);
 
         $this->assertContains('FAQ', $this->titles('FAQ'));
+
+        $publicContent = collect(Filament::getNavigation())
+            ->flatMap(fn ($group) => $group->getItems())
+            ->first(fn ($item): bool => $item->getLabel() === 'Public Content');
+
+        $this->assertNotNull($publicContent);
+        $this->assertSame(
+            ['Notices', 'FAQ'],
+            collect($publicContent->getChildItems())->map->getLabel()->values()->all(),
+        );
     }
 
     public function test_faculty_finds_sibling_availability_without_a_duplicate_sidebar_destination(): void
     {
         $this->signIn(User::StaffRoleFaculty);
 
-        $this->assertContains('My Availability', $this->titles('Availability'));
+        $this->assertContains('Overview', $this->titles('Overview'));
+        $this->assertContains('My schedule', $this->titles('Schedule'));
+        $this->assertContains('My availability', $this->titles('Availability'));
+        $this->assertContains('Class grades', $this->titles('Class grades'));
         $this->assertSame([], $this->titles('Term Planning'));
     }
 
@@ -195,7 +210,7 @@ class WorkspaceNavigationSearchTest extends TestCase
     {
         return [
             'Accounting' => [User::StaffRoleAccounting, ['Overview', 'Student accounts', 'Fee plans', 'Payment channels'], []],
-            'Faculty' => [User::StaffRoleFaculty, ['My schedule', 'My availability', 'Grade rosters'], []],
+            'Faculty' => [User::StaffRoleFaculty, ['Overview', 'My schedule', 'My availability', 'Class grades'], []],
             'Academic Head' => [User::StaffRoleAcademicHead, ['Academic Oversight'], []],
             'System Administrator' => [User::StaffRoleSystemSuperAdmin, ['Users & Access', 'Public Content', 'System Health', 'Governance & Audit'], ['manage-faqs', 'manage-public-notices']],
         ];
@@ -261,7 +276,8 @@ class WorkspaceNavigationSearchTest extends TestCase
         $this->signIn(User::StaffRoleRegistrar, ['approve-documents']);
         Livewire::test(ListAdmissionApplications::class)
             ->assertSee('aria-label="Filter applications"', false)
-            ->assertSee('aria-label="Columns"', false);
+            ->assertSee('aria-label="Columns"', false)
+            ->assertDontSeeHtml('fi-ta-filters-above-content-ctn');
     }
 
     public function test_record_action_accessible_name_waits_for_its_record(): void
@@ -389,31 +405,31 @@ class WorkspaceNavigationSearchTest extends TestCase
             'Resolve duplicate',
         ], Livewire::test(CreateDuplicateProfileResolution::class)->instance()->getBreadcrumbs());
         $this->assertSame([
-            TermOverview::getUrl(['chooseTerm' => true]) => 'Term planning',
+            TermOverview::getUrl() => 'Term Planning',
             'Academic Years',
         ], Livewire::test(ListAcademicYears::class)->instance()->getBreadcrumbs());
         $this->assertSame([
-            TermOverview::getUrl(['chooseTerm' => true]) => 'Term planning',
+            TermOverview::getUrl() => 'Term Planning',
             AcademicYearResource::getUrl('index') => 'Academic Years',
             'Academic Year 2030-2031',
         ], Livewire::test(ViewAcademicYear::class, ['record' => $year->getRouteKey()])->instance()->getBreadcrumbs());
         $this->assertSame([
-            TermOverview::getUrl(['chooseTerm' => true]) => 'Term planning',
+            TermOverview::getUrl() => 'Term Planning',
             AcademicYearResource::getUrl('index') => 'Academic Years',
             'Add academic year',
         ], Livewire::test(CreateAcademicYear::class)->instance()->getBreadcrumbs());
         $this->assertSame([
-            TermOverview::getUrl(['chooseTerm' => true]) => 'Term planning',
+            TermOverview::getUrl() => 'Term Planning',
             AcademicYearResource::getUrl('index') => 'Academic Years',
             AcademicYearResource::getUrl('view', ['record' => $year]) => 'Academic Year 2030-2031',
             'Edit',
         ], Livewire::test(EditAcademicYear::class, ['record' => $year->getRouteKey()])->instance()->getBreadcrumbs());
         $this->assertSame([
-            TermOverview::getUrl(['chooseTerm' => true]) => 'Term planning',
+            TermOverview::getUrl() => 'Term Planning',
             'Academic Calendar Windows',
         ], Livewire::test(ListAcademicCalendarWindows::class)->instance()->getBreadcrumbs());
         $this->assertSame([
-            TermOverview::getUrl(['chooseTerm' => true]) => 'Term planning',
+            TermOverview::getUrl() => 'Term Planning',
             AcademicCalendarWindowResource::getUrl('index') => 'Academic Calendar Windows',
             'Add calendar window',
         ], Livewire::test(CreateAcademicCalendarWindow::class)->instance()->getBreadcrumbs());

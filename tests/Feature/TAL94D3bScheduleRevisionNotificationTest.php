@@ -116,7 +116,7 @@ class TAL94D3bScheduleRevisionNotificationTest extends TestCase
         );
         $this->assertSame(['PENDING'], $deliveryEvents->pluck('status')->unique()->values()->all());
         $this->assertSame(3, $deliveryEvents->pluck('external_id')->unique()->count());
-        $this->assertStringNotContainsString($reason, $deliveryEvents->toJson());
+        $this->assertStringContainsString($reason, $deliveryEvents->toJson());
         $this->assertStringNotContainsString($academicHead->email, $deliveryEvents->toJson());
 
         app(ScheduleRevisionNotificationService::class)->recordAndQueue($events);
@@ -255,11 +255,92 @@ class TAL94D3bScheduleRevisionNotificationTest extends TestCase
             );
             $mail->assertSeeInHtml($context['course']->code)
                 ->assertSeeInHtml($context['section']->code)
-                ->assertDontSeeInHtml($reason)
+                ->assertSeeInHtml($reason)
+                ->assertSeeInHtml('Open Class Schedule')
+                ->assertSeeInHtml('Student Hub')
+                ->assertSeeInHtml('8:00 AM–9:30 AM')
+                ->assertDontSeeInHtml('Open My Schedule')
                 ->assertDontSeeInHtml($otherStudent->email);
 
             return true;
         });
+
+        Mail::assertQueued(ScheduleRevisionMail::class, function (ScheduleRevisionMail $mail) use ($reason, $context): bool {
+            if (! $mail->hasTo($context['faculty']->email)) {
+                return false;
+            }
+
+            $this->assertSame('faculty', $mail->recipientRole);
+            $this->assertSame(
+                route('filament.admin.pages.faculty-schedule', ['termId' => $context['term']->id]),
+                $mail->scheduleUrl,
+            );
+            $mail->assertSeeInHtml($context['course']->code)
+                ->assertSeeInHtml($reason)
+                ->assertSeeInHtml('Open My Schedule')
+                ->assertSeeInHtml('Staff Workspace')
+                ->assertSeeInHtml('8:00 AM–9:30 AM')
+                ->assertDontSeeInHtml('Student Hub');
+
+            return true;
+        });
+    }
+
+    public function test_cancellation_revision_mail_renders_cancelled_state_subject_effective_date_reason_and_12h_times(): void
+    {
+        $institution = (string) config('institution.name', 'Servitech Institute Asia Inc.');
+        $mail = new ScheduleRevisionMail(
+            operationalEventId: 77,
+            recipientName: 'Student Clara',
+            revisionPayload: [
+                'recipient_role' => 'student',
+                'term_id' => 9,
+                'term_label' => '1st Semester 2026-2027',
+                'effective_date' => '2026-09-14',
+                'reason' => 'Merged into section BSIT-1B due to low enrollment.',
+                'affected_enrollments' => [['enrollment_id' => 1]],
+                'changes' => [[
+                    'revision_event_id' => 11,
+                    'section_meeting_id' => 22,
+                    'meeting_sequence' => 1,
+                    'change_type' => ScheduleRevisionEvent::ChangeSectionCancellation,
+                    'change_label' => 'Section Cancellation',
+                    'is_cancelled' => true,
+                    'course' => 'IT 101',
+                    'section' => 'BSIT-1A',
+                    'before' => [
+                        'faculty' => 'Prof. Reyes',
+                        'room' => 'Room 201',
+                        'day' => 'Monday',
+                        'starts_at' => '08:00:00',
+                        'ends_at' => '11:00:00',
+                        'modality' => 'Face-to-Face',
+                        'state' => 'Active',
+                    ],
+                    'after' => [
+                        'faculty' => 'Prof. Reyes',
+                        'room' => 'Room 201',
+                        'day' => 'Monday',
+                        'starts_at' => '08:00:00',
+                        'ends_at' => '11:00:00',
+                        'modality' => 'Face-to-Face',
+                        'state' => 'Cancelled',
+                    ],
+                ]],
+            ],
+        );
+
+        $this->assertSame("{$institution} — Class cancelled — IT 101 BSIT-1A", $mail->envelope()->subject);
+        $mail->assertSeeInHtml('Class cancelled')
+            ->assertSeeInHtml('Status: Cancelled')
+            ->assertSeeInHtml('Sep 14, 2026')
+            ->assertSeeInHtml('Merged into section BSIT-1B due to low enrollment.')
+            ->assertSeeInHtml('8:00 AM–11:00 AM')
+            ->assertSeeInHtml('Open Class Schedule')
+            ->assertDontSeeInHtml('Scheduling demand #')
+            ->assertDontSeeInHtml('Meeting #')
+            ->assertDontSeeInHtml('Faculty #')
+            ->assertDontSeeInHtml('Room #');
     }
 
     public function test_message_sent_and_failed_hooks_update_only_the_correlated_event(): void

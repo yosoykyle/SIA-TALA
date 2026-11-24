@@ -12,7 +12,6 @@ use App\Filament\Resources\FacultyTermLoadOverrides\FacultyTermLoadOverrideResou
 use App\Filament\Resources\Rooms\RoomResource;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\SchedulingDemands\SchedulingDemandResource;
-use App\Filament\Resources\SectionMeetings\SectionMeetingResource;
 use App\Filament\Resources\Sections\SectionResource;
 use App\Filament\Resources\TermOfferings\TermOfferingResource;
 use App\Models\Term;
@@ -115,7 +114,6 @@ trait HasTermPlanningContext
                 FacultyQualificationResource::class => 'faculty qualification',
                 FacultyTermLoadOverrideResource::class => 'Faculty load exception',
                 SchedulingDemandResource::class => 'weekly meeting requirement',
-                SectionMeetingResource::class => 'official class meeting',
                 CalendarEventResource::class => 'weekly unavailable time',
                 default => null,
             };
@@ -198,7 +196,6 @@ trait HasTermPlanningContext
                 ->orWhere(fn (Builder $legacy): Builder => $legacy->whereNull('term_calendar_package_id')
                     ->whereHas('termOffering', fn (Builder $offering): Builder => $offering->where('term_id', $this->termId)))),
             SchedulingDemandResource::class => $query->whereHas('termOffering', fn (Builder $offering): Builder => $offering->where('term_id', $this->termId)),
-            SectionMeetingResource::class => $query->whereHas('scheduleRun', fn (Builder $run): Builder => $run->where('term_id', $this->termId)),
             default => $query->where($query->qualifyColumn('term_id'), $this->termId),
         };
     }
@@ -230,7 +227,6 @@ trait HasTermPlanningContext
         return match (static::getResource()) {
             RoomResource::class, FacultyQualificationResource::class, FacultyTermLoadOverrideResource::class, CalendarEventResource::class => 'resources',
             ScheduleGenerationRunResource::class => 'generate',
-            SectionMeetingResource::class => 'published',
             default => 'classes',
         };
     }
@@ -256,7 +252,6 @@ trait HasTermPlanningContext
             FacultyTermLoadOverrideResource::class => 'Faculty load exceptions',
             CalendarEventResource::class => 'Weekly unavailable times',
             ScheduleGenerationRunResource::class => 'Timetable requests',
-            SectionMeetingResource::class => 'Official meetings',
             default => static::getResource()::getTitleCasePluralModelLabel(),
         };
     }
@@ -272,7 +267,6 @@ trait HasTermPlanningContext
             FacultyTermLoadOverrideResource::class => 'Approved exceptions to this Term’s default Faculty load.',
             CalendarEventResource::class => 'Prevent meetings during these times for this Term. Record dated no-class exceptions in Calendar.',
             ScheduleGenerationRunResource::class => 'Inspect generation requests, candidate assignments and validation. Accepting a candidate and publishing an official timetable are separate decisions.',
-            SectionMeetingResource::class => 'Inspect official meetings from the published timetable. Changes to published meetings use controlled timetable revision.',
             default => '',
         };
     }

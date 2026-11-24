@@ -6,6 +6,7 @@ use App\Actions\Academics\ExaminationPeriodProjection;
 use App\Actions\AcademicSetup\AcademicReadinessService;
 use App\Actions\Calendar\CalendarPhaseGateService;
 use App\Actions\Calendar\TermCalendarPackageReadinessService;
+use App\Actions\Scheduling\FacultyAvailabilityStatusProjection;
 use App\Filament\Resources\CurriculumVersions\CurriculumVersionResource;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
@@ -15,6 +16,7 @@ use App\Models\Enrollment;
 use App\Models\GradeRoster;
 use App\Models\Program;
 use App\Models\PublishedTimetableVersion;
+use App\Models\ScheduleGenerationRun;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermCalendarWindow;
@@ -74,6 +76,15 @@ class AcademicApprovals extends Page
         $calendarReadiness = $calendar ? app(TermCalendarPackageReadinessService::class)->for($calendar) : null;
         $timetable = $term ? PublishedTimetableVersion::query()->where('term_id', $term->id)
             ->where('state', PublishedTimetableVersion::StatePublished)->withCount('meetings')->latest('version')->first() : null;
+        $hasDraftTimetable = $term !== null && $timetable === null
+            && ScheduleGenerationRun::query()
+                ->where('term_id', $term->id)
+                ->whereIn('status', [
+                    ScheduleGenerationRun::StatusQueued,
+                    ScheduleGenerationRun::StatusDispatching,
+                    ScheduleGenerationRun::StatusUnderReview,
+                ])
+                ->exists();
         $readiness = app(AcademicReadinessService::class);
         $programs = Program::query()->with([
             'curriculumVersions.entries.courseSpecification.components',
@@ -81,11 +92,18 @@ class AcademicApprovals extends Page
         ])->orderBy('code')->get();
         $authorityRows = $programs->map(function (Program $program) use ($readiness): array {
             $curriculum = $readiness->currentCurriculum($program);
+            $successorDraft = $readiness->successorDraft($program);
+            $programReadiness = $readiness->programReadiness($program);
 
             return [
                 'program' => $program,
                 'curriculum' => $curriculum,
-                'readiness' => $readiness->programReadiness($program),
+                'successorDraft' => $successorDraft,
+                'successorReadiness' => $programReadiness['successor_draft'],
+                'successorUrl' => $successorDraft
+                    ? CurriculumVersionResource::getUrl('review', ['record' => $successorDraft, 'oversightTermId' => $this->termId])
+                    : null,
+                'readiness' => $programReadiness,
                 'url' => $curriculum
                     ? CurriculumVersionResource::getUrl('review', ['record' => $curriculum, 'oversightTermId' => $this->termId])
                     : ProgramResource::getUrl('view', ['record' => $program, 'oversightTermId' => $this->termId]),
@@ -93,15 +111,22 @@ class AcademicApprovals extends Page
         });
         $attention = [];
         $calendarUrl = TermCalendar::getUrl(['termId' => $this->termId]);
+        $timetableUrl = TermTimetable::getUrl([
+            'termId' => $this->termId,
+            ...($timetable ? ['timetableState' => 'official', 'selectedVersionId' => $timetable->id] : []),
+        ]);
         if ($term && ! $calendar) {
-            $attention[] = ['title' => 'Active calendar unavailable', 'detail' => 'No active Calendar Package is recorded for this Term.', 'owner' => 'Registrar', 'url' => $calendarUrl, 'scope' => 'Selected term'];
+            $attention[] = ['title' => 'Active term calendar unavailable', 'detail' => 'No active term calendar is recorded for this term.', 'owner' => 'Registrar', 'url' => $calendarUrl, 'scope' => 'Selected term'];
         }
         foreach ($calendarReadiness['blockers'] ?? [] as $blocker) {
             $attention[] = ['title' => $blocker['source'], 'detail' => $blocker['reason'], 'owner' => $blocker['owner'], 'url' => $calendarUrl, 'scope' => 'Selected term'];
         }
         $examination = $this->examinationPeriod();
         if ($term && $examination['status'] === 'Unavailable') {
-            $attention[] = ['title' => 'Examination Period unavailable', 'detail' => $examination['message'], 'owner' => $examination['owner'], 'url' => $calendarUrl, 'scope' => 'Selected term'];
+            $attention[] = ['title' => 'Exam period unavailable', 'detail' => $examination['message'], 'owner' => $examination['owner'], 'url' => $calendarUrl, 'scope' => 'Selected term'];
+        }
+        if ($term instanceof Term) {
+            array_push($attention, ...$this->selectedTermOperationalFindings($term, $timetable));
         }
         foreach ($authorityRows as $row) {
             if ($row['readiness']['status'] !== 'Active') {
@@ -112,17 +137,146 @@ class AcademicApprovals extends Page
                     'url' => $row['url'],
                     'scope' => 'Institution-wide',
                 ];
+            } elseif ($row['successorDraft'] !== null && $row['successorReadiness'] !== null && $row['successorUrl'] !== null) {
+                $attention[] = [
+                    'title' => $row['program']->code.' · Successor draft · '.$row['successorReadiness']['status'],
+                    'detail' => 'Active curriculum remains in effect. Successor draft "'.$row['successorDraft']->name.'": '.$row['successorReadiness']['blocker'],
+                    'owner' => 'Registrar',
+                    'url' => $row['successorUrl'],
+                    'scope' => 'Institution-wide',
+                ];
             }
         }
 
-        return compact('term', 'calendar', 'calendarReadiness', 'timetable', 'authorityRows', 'attention', 'examination') + [
+        $termLinks = $term instanceof Term ? [
+            [
+                'label' => 'Calendar',
+                'icon' => 'heroicon-o-calendar',
+                'url' => $calendarUrl,
+            ],
+            [
+                'label' => 'Classes & sections',
+                'icon' => 'heroicon-o-rectangle-group',
+                'url' => TermClasses::getUrl(['termId' => $term->id]),
+            ],
+            [
+                'label' => 'Faculty & rooms',
+                'icon' => 'heroicon-o-users',
+                'url' => TermResources::getUrl(['termId' => $term->id]),
+            ],
+            [
+                'label' => $timetable
+                    ? 'Timetable ('.$timetable->meetings_count.' published)'
+                    : ($hasDraftTimetable ? 'Timetable (Draft)' : 'Timetable (Unpublished)'),
+                'icon' => 'heroicon-o-table-cells',
+                'url' => $timetableUrl,
+            ],
+        ] : [];
+
+        return compact('term', 'calendar', 'calendarReadiness', 'timetable', 'hasDraftTimetable', 'timetableUrl', 'termLinks', 'authorityRows', 'attention', 'examination') + [
             'terms' => Term::query()->with('academicYear')->latest('starts_on')->get(),
             'checkedAt' => now('Asia/Manila'),
             'enrollmentSummary' => $this->enrollmentSummary($term),
             'gradeSummary' => $this->gradeSummary($term),
-            'curriculumSummary' => ['total' => $authorityRows->count(), 'ready' => $authorityRows->where('readiness.status', 'Active')->count()],
+            'curriculumSummary' => [
+                'total' => $authorityRows->count(),
+                'ready' => $authorityRows->where('readiness.status', 'Active')->count(),
+                'successor_drafts' => $authorityRows->whereNotNull('successorDraft')->count(),
+            ],
             'calendarTimeline' => $this->calendarTimeline($calendar, $examination, $calendarUrl),
         ];
+    }
+
+    /**
+     * @return list<array{title: string, detail: string, owner: string, url: string, scope: string}>
+     */
+    private function selectedTermOperationalFindings(Term $term, ?PublishedTimetableVersion $timetable): array
+    {
+        $findings = [];
+
+        $rosterCounts = GradeRoster::query()
+            ->whereHas('termOffering', fn ($query) => $query->where('term_id', $term->id))
+            ->whereIn('state', [GradeRoster::StateReturned, GradeRoster::StateLateNotSubmitted])
+            ->select('state')
+            ->selectRaw('COUNT(*) AS aggregate')
+            ->groupBy('state')
+            ->pluck('aggregate', 'state');
+
+        $returnedCount = (int) $rosterCounts->get(GradeRoster::StateReturned, 0);
+        if ($returnedCount > 0) {
+            $findings[] = [
+                'title' => $returnedCount.' returned '.str('class roster')->plural($returnedCount),
+                'detail' => 'Returned grade rosters require Faculty correction and resubmission before Registrar release.',
+                'owner' => 'Faculty',
+                'url' => GradeRosterResource::getUrl('index', [
+                    'oversightTermId' => $term->id,
+                    'filters' => [
+                        'term' => ['value' => $term->id],
+                        'state' => ['value' => GradeRoster::StateReturned],
+                    ],
+                ]),
+                'scope' => 'Selected term',
+            ];
+        }
+
+        $overdueCount = (int) $rosterCounts->get(GradeRoster::StateLateNotSubmitted, 0);
+        if ($overdueCount > 0) {
+            $findings[] = [
+                'title' => $overdueCount.' overdue '.str('class roster')->plural($overdueCount),
+                'detail' => 'Grade entry closed without submission. Faculty submission requires Registrar late-encoding authorization.',
+                'owner' => 'Faculty · Registrar',
+                'url' => GradeRosterResource::getUrl('index', [
+                    'oversightTermId' => $term->id,
+                    'filters' => [
+                        'term' => ['value' => $term->id],
+                        'state' => ['value' => GradeRoster::StateLateNotSubmitted],
+                    ],
+                ]),
+                'scope' => 'Selected term',
+            ];
+        }
+
+        $latestRun = ScheduleGenerationRun::query()
+            ->where('term_id', $term->id)
+            ->latest('id')
+            ->first();
+
+        if ($latestRun instanceof ScheduleGenerationRun
+            && in_array($latestRun->status, [ScheduleGenerationRun::StatusFailed, ScheduleGenerationRun::StatusBlocked], true)) {
+            $evidence = $latestRun->reviewEvidence();
+            $statusLabel = $latestRun->status === ScheduleGenerationRun::StatusBlocked ? 'blocked' : 'failed';
+            $findings[] = [
+                'title' => 'Latest timetable generation run '.$statusLabel,
+                'detail' => $evidence['meaning'],
+                'owner' => $evidence['outcome'] === 'ModelInvalid' ? 'System Administrator' : 'Registrar',
+                'url' => TermTimetable::getUrl(['termId' => $term->id]),
+                'scope' => 'Selected term',
+            ];
+        }
+
+        $availability = app(FacultyAvailabilityStatusProjection::class)->forTerm($term);
+        if (($availability['late_impact_count'] ?? 0) > 0) {
+            $officialRevisionUrl = TermTimetable::getUrl([
+                'termId' => $term->id,
+                'timetableState' => 'official',
+                ...($timetable ? ['selectedVersionId' => $timetable->id] : []),
+            ]);
+
+            foreach ($availability['unresolved_late_impacts'] ?? [] as $impact) {
+                $meetingCount = count($impact['affected_meetings'] ?? []);
+                $findings[] = [
+                    'title' => 'Faculty availability conflict with published schedule · '.$impact['faculty_name'],
+                    'detail' => $meetingCount.' official '.str('meeting')->plural($meetingCount)
+                        .' '.($meetingCount === 1 ? 'conflicts' : 'conflict')
+                        .' with updated availability ('.$impact['mode_label'].'). Official timetable revision is pending.',
+                    'owner' => 'Registrar',
+                    'url' => $officialRevisionUrl,
+                    'scope' => 'Selected term',
+                ];
+            }
+        }
+
+        return $findings;
     }
 
     /** @return array<string|int, string> */
@@ -241,12 +395,17 @@ class AcademicApprovals extends Page
      */
     public function approvalAreas(): array
     {
+        $oversightParameters = $this->termId !== null ? ['oversightTermId' => $this->termId] : [];
+
         return collect([
             [
                 'title' => 'Grades & Progress',
-                'description' => 'Recorded grade rosters and released results.',
-                'action' => 'Grade Review',
-                'url' => GradeRosterResource::getUrl('index', ['oversightTermId' => $this->termId, ...($this->termId !== null ? ['filters' => ['term' => ['value' => $this->termId]]] : [])]),
+                'description' => 'Recorded class rosters and released results.',
+                'action' => 'Class rosters',
+                'url' => GradeRosterResource::getUrl('index', [
+                    ...$oversightParameters,
+                    ...($this->termId !== null ? ['filters' => ['term' => ['value' => $this->termId]]] : []),
+                ]),
                 'icon' => 'heroicon-o-document-check',
                 'available' => GradeRosterResource::canAccess(),
             ],
@@ -254,9 +413,17 @@ class AcademicApprovals extends Page
                 'title' => 'Lifecycle & Completion',
                 'description' => 'Recorded lifecycle changes and their institutional authority.',
                 'action' => 'Lifecycle Exceptions',
-                'url' => StudentLifecycleChangeResource::getUrl('index', ['oversightTermId' => $this->termId]),
+                'url' => StudentLifecycleChangeResource::getUrl('index', $oversightParameters),
                 'icon' => 'heroicon-o-arrow-path-rounded-square',
                 'available' => StudentLifecycleChangeResource::canAccess(),
+            ],
+            [
+                'title' => 'Lifecycle & Completion',
+                'description' => 'Read-only completion readiness and recorded graduation outcomes.',
+                'action' => 'Completion & TOR',
+                'url' => CompletionAndTor::getUrl($oversightParameters),
+                'icon' => 'heroicon-o-academic-cap',
+                'available' => CompletionAndTor::canAccess(),
             ],
         ])
             ->where('available', true)

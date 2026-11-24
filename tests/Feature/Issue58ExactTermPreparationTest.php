@@ -81,9 +81,9 @@ final class Issue58ExactTermPreparationTest extends TestCase
         $this->assertSame(Term::StateActive, $package->term->fresh()->state);
         Livewire::actingAs($actor)->test(TermCalendar::class, ['termId' => $package->term_id])
             ->assertSet('termId', $package->term_id)
-            ->assertSee('Calendar ready for class planning.')->assertSee('Dates not configured')
-            ->assertSee('Grade Entry')->assertSee('Ordinary grade entry and submission are unavailable.')
-            ->assertSee('These dates do not block class planning.')
+            ->assertSee('Calendar ready for class planning')->assertSee('Not set')
+            ->assertSee('Grade Entry')
+            ->assertSee('Activity dates do not block class planning.')
             ->assertViewHas('operationalDates', fn ($dates): bool => $dates->every(fn (array $date): bool => $date['window'] === null))
             ->assertViewHas('coreReadiness', fn (array $readiness): bool => $readiness['ready']);
     }
@@ -118,7 +118,7 @@ final class Issue58ExactTermPreparationTest extends TestCase
             app(ActivateTermCalendarPackage::class)->execute($package, $actor, $token);
             $this->fail('Stale source must be rejected.');
         } catch (ValidationException $exception) {
-            $this->assertStringContainsString('source changed', $exception->errors()['package_id'][0]);
+            $this->assertStringContainsString('calendar changed', $exception->errors()['package_id'][0]);
         }
         $this->assertSame(TermCalendarPackage::StateDraft, $package->fresh()->state);
         $this->assertSame(Term::StateDraft, $package->term->fresh()->state);
@@ -131,12 +131,11 @@ final class Issue58ExactTermPreparationTest extends TestCase
         app(ActivateTermCalendarPackage::class)->execute($package, $actor);
         $core = $package->fresh()->coreSignature();
         Livewire::actingAs($actor)->test(TermCalendar::class, ['termId' => $package->term_id])
-            ->mountAction('recordCalendarPackage')->callMountedAction()->assertHasNoActionErrors();
+            ->mountAction('saveAndActivateCalendar')->callMountedAction()->assertHasNoActionErrors();
         $successor = $package->term->calendarPackages()->latest('version')->first();
         $this->assertSame(2, $successor->version);
         $this->assertSame($core, $successor->coreSignature());
-        TermCalendarWindow::factory()->for($successor, 'package')->create(['window_type' => TermCalendarWindow::TypeEnrollment]);
-        app(ActivateTermCalendarPackage::class)->execute($successor, $actor);
+        $this->assertSame(TermCalendarPackage::StateActive, $successor->state);
         $this->assertSame(TermCalendarPackage::StateClosed, $package->fresh()->state);
         $this->assertSame(Term::StateActive, $package->term->fresh()->state);
         $this->assertSame($core, $package->fresh()->coreSignature());
@@ -188,10 +187,10 @@ final class Issue58ExactTermPreparationTest extends TestCase
         $actor = $this->staff();
         $year = AcademicYear::factory()->create();
         Livewire::actingAs($actor)->test(CreateTerm::class)->fillForm([
-            'academic_year_id' => $year->id, 'label' => 'Issue58 new Term', 'type' => Term::TypeFirstSemester,
+            'academic_year_id' => $year->id, 'type' => Term::TypeFirstSemester,
             'starts_on' => $year->starts_on->toDateString(), 'ends_on' => $year->ends_on->toDateString(), 'state' => Term::StateActive,
         ])->call('create')->assertHasNoFormErrors();
-        $term = Term::query()->where('label', 'Issue58 new Term')->sole();
+        $term = Term::query()->where('academic_year_id', $year->id)->sole();
         $this->assertSame(Term::StateDraft, $term->state);
         Livewire::actingAs($actor)->test(EditTerm::class, ['record' => $term->id])->fillForm(['state' => Term::StateActive])->call('save')->assertHasNoFormErrors();
         $this->assertSame(Term::StateDraft, $term->fresh()->state);
@@ -275,7 +274,9 @@ final class Issue58ExactTermPreparationTest extends TestCase
         $package = $this->core();
         Livewire::actingAs($head)->test(TermCalendar::class, ['termId' => $package->term_id])
             ->assertSet('termId', $package->term_id)
-            ->assertSee('Read-only · Registrar maintains these records.')->assertActionHidden('recordCalendarPackage')->assertActionHidden('activateCalendarPackage');
+            ->assertSee('Read-only · The Registrar maintains these records.')
+            ->assertActionHidden('saveAndActivateCalendar')
+            ->assertActionHidden('addOperationalDates');
         $this->expectException(AuthorizationException::class);
         app(ActivateTermCalendarPackage::class)->execute($package, $head);
     }
@@ -308,13 +309,13 @@ final class Issue58ExactTermPreparationTest extends TestCase
             ->assertSee('Choose an academic term')
             ->assertSee('Select an academic year and term to view its calendar, enrollment and class rosters.')
             ->assertSee('Institution-wide records')
-            ->assertSee('Catalog & Curricula', false)->assertSee('Grade Review')->assertSee('Lifecycle Exceptions')->assertSee('Student academic records')
+            ->assertSee('Programs &amp; Curricula', false)->assertSee('Class rosters')->assertSee('Lifecycle Exceptions')->assertSee('Completion & TOR')->assertSee('Student academic records')
             ->assertDontSeeHtml('class="oversight-board"');
         $this->assertSame(1, substr_count($page->html(), 'Academic Year and Term'));
 
         $page->call('selectTerm', $first->term_id)
             ->assertSet('termId', $first->term_id)->assertSee('Issue58 first source')
-            ->assertSee(TermPlanningWorkbench::getUrl(['termId' => $first->term_id]))
+            ->assertSee(TermCalendar::getUrl(['termId' => $first->term_id]))
             ->assertSeeHtml('id="oversight-authority-title">Curricula</h2>')->assertSee('Grades & Progress')->assertSee('Lifecycle & Completion')
             ->assertDontSee('Choose an academic term')
             ->assertDontSee('Academic decisions requiring oversight')->assertDontSee('resolve their stated blockers')
@@ -333,7 +334,7 @@ final class Issue58ExactTermPreparationTest extends TestCase
 
         Livewire::actingAs($head)->test(AcademicApprovals::class, ['termId' => $package->term_id])
             ->assertViewHas('authorityRows', fn ($rows): bool => $rows->firstWhere('program.id', $curriculumProgram->id)['url'] === CurriculumVersionResource::getUrl('review', ['record' => $curriculum, 'oversightTermId' => $package->term_id]))
-            ->assertViewHas('attention', fn (array $findings): bool => collect($findings)->contains(fn (array $finding): bool => $finding['title'] === 'Active calendar unavailable' && $finding['owner'] === 'Registrar' && $finding['url'] === $calendarUrl)
+            ->assertViewHas('attention', fn (array $findings): bool => collect($findings)->contains(fn (array $finding): bool => $finding['title'] === 'Active term calendar unavailable' && $finding['owner'] === 'Registrar' && $finding['url'] === $calendarUrl)
                 && collect($findings)->contains(fn (array $finding): bool => str_starts_with($finding['title'], 'OVERSIGHT-SOURCE') && $finding['url'] === $programUrl))
             ->assertViewHas('calendar', null)
             ->assertDontSee('Every ready Class Offering must be confirmed');
@@ -354,8 +355,10 @@ final class Issue58ExactTermPreparationTest extends TestCase
                 ->assertActionExists('returnToOversight', fn (Action $action): bool => $action->getUrl() === $returnUrl);
         }
         Livewire::actingAs($head)->test(TermOverview::class, ['termId' => $package->term_id])
+            ->assertRedirect(TermCalendar::getUrl(['termId' => $package->term_id]));
+        Livewire::actingAs($head)->test(TermCalendar::class, ['termId' => $package->term_id])
             ->assertSet('termId', $package->term_id)
-            ->assertSee($returnUrl)->assertSee('Term planning')->assertDontSee('Plan this Term')
+            ->assertSee($returnUrl)->assertSee('Term calendar')->assertDontSee('Plan this Term')
             ->assertViewHas('readOnly', true);
     }
 
@@ -369,10 +372,10 @@ final class Issue58ExactTermPreparationTest extends TestCase
         $document = new \DOMDocument;
         @$document->loadHTML($page->html());
         $xpath = new \DOMXPath($document);
-        $links = $xpath->query('//a[normalize-space(.)="Inspect Term planning"]');
+        $links = $xpath->query('//a[@href="'.TermCalendar::getUrl(['termId' => $package->term_id]).'"][normalize-space(.)="Calendar"]');
         $this->assertCount(1, $links);
         $link = $links->item(0);
-        $this->assertSame(TermOverview::getUrl(['termId' => $package->term_id]), $link->getAttribute('href'));
+        $this->assertSame(TermCalendar::getUrl(['termId' => $package->term_id]), $link->getAttribute('href'));
         $this->assertSame(0, $xpath->query('ancestor::details', $link)->length);
     }
 

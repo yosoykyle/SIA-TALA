@@ -3,13 +3,17 @@
 namespace App\Actions\Finance;
 
 use App\Mail\PaymentPostedMail;
+use App\Models\Enrollment;
 use App\Models\OperationalEvent;
 use App\Models\Payment;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\User;
 use App\Support\DecimalMoney;
+use Filament\Actions\Action;
+use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Route;
 use Throwable;
 
 class PaymentPostedNotificationService
@@ -63,6 +67,8 @@ class PaymentPostedNotificationService
             return;
         }
 
+        $this->sendDatabaseNotifications($payment, $recipient);
+
         $email = trim((string) $recipient->email);
 
         if (filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
@@ -100,5 +106,63 @@ class PaymentPostedNotificationService
             'failed_at' => $timestamp,
             'diagnostics' => $diagnostics,
         ])->save();
+    }
+
+    private function sendDatabaseNotifications(Payment $payment, User $recipient): void
+    {
+        $formattedAmount = 'PHP '.number_format((float) $this->money->normalize((string) $payment->amount), 2);
+        $termLabel = $payment->term instanceof Term ? (string) $payment->term->label : 'your current term';
+
+        if ($recipient->hasRole('student')) {
+            $financeUrl = Route::has('filament.student.pages.finance')
+                ? route('filament.student.pages.finance')
+                : null;
+
+            $studentNotification = Notification::make()
+                ->title('Payment posted')
+                ->body("{$formattedAmount} was verified and posted for {$termLabel}.")
+                ->success();
+
+            if ($financeUrl !== null) {
+                $studentNotification->actions([
+                    Action::make('viewFinance')
+                        ->label('View finance')
+                        ->url($financeUrl),
+                ]);
+            }
+
+            $studentNotification->sendToDatabase($recipient);
+        }
+
+        $enrollment = $payment->termAccount?->enrollment;
+        if ($enrollment instanceof Enrollment && $enrollment->canonical_outcome === Enrollment::OutcomeInProgress) {
+            $registrars = User::query()
+                ->where('status', User::StatusActive)
+                ->whereHas('roles', fn ($query) => $query->where('name', User::StaffRoleRegistrar))
+                ->get();
+
+            if ($registrars->isEmpty()) {
+                return;
+            }
+
+            $enrollmentUrl = Route::has('filament.admin.resources.enrollments.view')
+                ? route('filament.admin.resources.enrollments.view', ['record' => $enrollment->id])
+                : null;
+
+            $registrarNotification = Notification::make()
+                ->title('Payment verified for pending enrollment')
+                ->body("{$formattedAmount} was verified for {$recipient->name} ({$termLabel}).")
+                ->success();
+
+            if ($enrollmentUrl !== null) {
+                $registrarNotification->actions([
+                    Action::make('reviewEnrollment')
+                        ->label('Review enrollment')
+                        ->url($enrollmentUrl),
+                ]);
+            }
+
+            $registrarNotification->sendToDatabase($registrars);
+        }
     }
 }

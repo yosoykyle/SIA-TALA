@@ -3,6 +3,8 @@
 namespace App\Filament\Resources\AdmissionCycles\Schemas;
 
 use App\Actions\Admissions\AdmissionCycleReadinessService;
+use App\Filament\Pages\TermCalendar;
+use App\Filament\Pages\TermOverview;
 use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use App\Models\AdmissionCycle;
 use App\Models\AdmissionCycleEvent;
@@ -50,7 +52,13 @@ class AdmissionCycleInfolist
                                     default => 'Open for new applications',
                                 })->badge()
                                 ->color(fn (AdmissionCycle $record): string => $record->state === AdmissionCycle::StatePublished && $record->opens_at?->isPast() && $record->closes_at?->isFuture() ? 'success' : 'gray'),
-                            TextEntry::make('term.label')->label('Target term')->placeholder('Not selected'),
+                            TextEntry::make('term.label')
+                                ->label('Target term')
+                                ->placeholder('Not selected')
+                                ->url(fn (AdmissionCycle $record): ?string => $record->term_id !== null && TermOverview::canAccess()
+                                    ? TermCalendar::getUrl(['termId' => $record->term_id])
+                                    : null)
+                                ->color(fn (AdmissionCycle $record): ?string => $record->term_id !== null && TermOverview::canAccess() ? 'primary' : null),
                             TextEntry::make('program_acceptance')
                                 ->label('Programs and student types')
                                 ->state(fn (AdmissionCycle $record): array => $record->programs

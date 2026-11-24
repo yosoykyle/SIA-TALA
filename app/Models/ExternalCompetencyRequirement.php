@@ -33,7 +33,10 @@ class ExternalCompetencyRequirement extends Model
     {
         return $query->where('state', 'ACTIVE')
             ->where('curriculum_version_id', $student->curriculum_version_id)
-            ->whereHas('curriculumVersion', fn (Builder $versions): Builder => $versions->where('state', CurriculumVersion::StateActive));
+            ->whereHas('curriculumVersion', fn (Builder $versions): Builder => $versions->whereIn('state', [
+                CurriculumVersion::StateActive,
+                CurriculumVersion::StateSuperseded,
+            ]));
     }
 
     public function scopeWithCurrentResultFor(Builder $query, StudentProfile $student): Builder

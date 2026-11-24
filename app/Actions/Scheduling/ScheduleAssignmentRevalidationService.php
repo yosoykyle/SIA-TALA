@@ -47,7 +47,13 @@ final class ScheduleAssignmentRevalidationService
         array $excludedMeetingIds = [],
         array $excludedDemandIds = [],
     ): ScheduleValidationResult {
-        $snapshot = $this->snapshotService->currentForRun($run, $excludedDemandIds);
+        $includedFacultyIds = collect($assignments)
+            ->map(fn (array $assignment): ?int => $this->integerValue($assignment['faculty_user_id'] ?? $assignment['faculty_id'] ?? null))
+            ->filter(fn (?int $id): bool => $id !== null && $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+        $snapshot = $this->snapshotService->currentForRun($run, $excludedDemandIds, $includedFacultyIds);
         $validation = $this->assignmentValidator->validateCandidateAssignments(
             $run,
             $snapshot,

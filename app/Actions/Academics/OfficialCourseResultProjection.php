@@ -126,6 +126,8 @@ class OfficialCourseResultProjection
                         : ($result['inc_settled'] ? '; completion overdue, no credit.' : '; completion remains open.'));
             } elseif (in_array($classification, [CourseSpecification::AcademicClassificationPe, CourseSpecification::AcademicClassificationNstp], true)) {
                 $result['average_exclusion'] = $code.': PE/NSTP-equivalent course excluded.';
+            } elseif ($classification === CourseSpecification::AcademicClassificationNonCredit) {
+                $result['average_exclusion'] = $code.': Non-credit/bridging course excluded.';
             } elseif (in_array($result['result'], ['DRP', 'W', 'CREDIT'], true)) {
                 $result['average_exclusion'] = $code.': nonnumeric Registrar outcome excluded.';
             }

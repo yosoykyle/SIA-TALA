@@ -7,11 +7,12 @@ use App\Filament\Resources\Rooms\Pages\ViewRoom;
 use App\Filament\Resources\Rooms\RoomResource;
 use App\Models\Room;
 use App\Models\User;
+use App\Support\DisplayDateTime;
 use App\Support\RoomEquipment;
 use Filament\Actions\Action;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Actions;
-use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -22,54 +23,71 @@ class RoomInfolist
     public static function configure(Schema $schema, bool $compact = false): Schema
     {
         return $schema->components([
-            Section::make('Room details')
+            Section::make('Room summary')
+                ->compact()
                 ->schema([
-                    Group::make([
-                        TextEntry::make('code')->label('Room code')->weight('bold')->copyable(),
-                        TextEntry::make('room_type')
-                            ->label('Room type')
-                            ->formatStateUsing(fn (?string $state): string => $state === null ? '-' : (Room::typeOptions()[$state] ?? str($state)->headline()->toString())),
-                        TextEntry::make('name')->placeholder('-'),
-                        TextEntry::make('capacity')->numeric()->suffix(' seats')->placeholder('-'),
-                        TextEntry::make('building')->placeholder('-'),
-                        TextEntry::make('is_active')
-                            ->label('Status')
-                            ->formatStateUsing(fn (bool $state): string => $state ? 'Active' : 'Inactive')
-                            ->icon(fn (bool $state): Heroicon => $state ? Heroicon::CheckCircle : Heroicon::MinusCircle)
-                            ->color(fn (bool $state): string => $state ? 'success' : 'gray'),
-                    ])->columns(2),
+                    Grid::make(['default' => 1, 'md' => 3])
+                        ->schema([
+                            TextEntry::make('code')
+                                ->label('Room code')
+                                ->weight('semibold')
+                                ->copyable(),
+                            TextEntry::make('is_active')
+                                ->label('Status')
+                                ->badge()
+                                ->formatStateUsing(fn (bool $state): string => $state ? 'Active' : 'Inactive')
+                                ->icon(fn (bool $state): Heroicon => $state ? Heroicon::CheckCircle : Heroicon::MinusCircle)
+                                ->color(fn (bool $state): string => $state ? 'success' : 'gray'),
+                            TextEntry::make('room_type')
+                                ->label('Room type')
+                                ->badge()
+                                ->color('gray')
+                                ->formatStateUsing(fn (?string $state): string => $state === null ? '-' : (Room::typeOptions()[$state] ?? str($state)->headline()->toString())),
+                        ])
+                        ->columnSpanFull(),
+                    Grid::make(['default' => 1, 'md' => 3])
+                        ->schema([
+                            TextEntry::make('capacity')
+                                ->numeric()
+                                ->suffix(' seats')
+                                ->placeholder('-')
+                                ->extraAttributes(['class' => 'tabular-nums']),
+                            TextEntry::make('building')
+                                ->placeholder('-'),
+                            TextEntry::make('name')
+                                ->label('Room name')
+                                ->placeholder('-'),
+                        ])
+                        ->columnSpanFull(),
+                ])
+                ->columnSpanFull(),
+            Grid::make(['default' => 1, 'md' => 2])
+                ->schema([
                     Section::make('Equipment')
-                        ->contained(false)
+                        ->compact()
                         ->schema([
                             TextEntry::make('features.feature_key')
-                                ->label('Equipment')
                                 ->hiddenLabel()
+                                ->badge()
+                                ->color('gray')
                                 ->formatStateUsing(fn (?string $state): string => RoomEquipment::label($state))
-                                ->listWithLineBreaks()
-                                ->placeholder('None recorded'),
+                                ->placeholder('No special equipment recorded'),
                         ]),
                     Section::make('Notes')
-                        ->contained(false)
+                        ->compact()
                         ->schema([
-                            TextEntry::make('notes')->hiddenLabel()->placeholder('No notes recorded'),
+                            TextEntry::make('notes')
+                                ->hiddenLabel()
+                                ->placeholder('No notes recorded')
+                                ->extraAttributes(['class' => 'leading-relaxed']),
                         ]),
-                    Section::make('Record details')
-                        ->visible(! $compact)
-                        ->contained(false)
-                        ->schema([
-                            TextEntry::make('created_at')
-                                ->label('Created (Asia/Manila)')
-                                ->dateTime('M j, Y, g:i A')
-                                ->timezone('Asia/Manila'),
-                            TextEntry::make('updated_at')
-                                ->label('Last updated (Asia/Manila)')
-                                ->dateTime('M j, Y, g:i A')
-                                ->timezone('Asia/Manila'),
-                        ])
-                        ->columns(['default' => 1, 'md' => 2]),
                 ])
-                ->columns(1)
-                ->divided()
+                ->columnSpanFull(),
+            TextEntry::make('record_metadata')
+                ->hiddenLabel()
+                ->state(fn (Room $record): string => 'Created '.DisplayDateTime::format($record->created_at).' · Last updated '.DisplayDateTime::format($record->updated_at).' (Asia/Manila)')
+                ->color('gray')
+                ->extraAttributes(['class' => 'text-xs text-zinc-500 dark:text-zinc-400 tabular-nums'])
                 ->columnSpanFull(),
             Actions::make([
                 Action::make('backToRooms')

@@ -1,14 +1,28 @@
 @props(['presentation', 'sourceKey'])
 <div
     x-data="{ scheduleMode: window.matchMedia('(min-width: 1024px)').matches ? 'weekly' : 'list' }"
-    x-on:resize.window.debounce.150ms="scheduleMode = window.matchMedia('(min-width: 1024px)').matches ? 'weekly' : 'list'"
     class="enrollment-schedule" wire:key="learner-schedule-{{ $sourceKey }}"
 >
     <div class="enrollment-schedule-tools">
+        <x-tala-navigation label="Schedule view" compact>
+            <x-filament::tabs.item
+                alpine-active="scheduleMode === 'weekly'"
+                icon="heroicon-o-calendar-days"
+                x-bind:aria-current="scheduleMode === 'weekly' ? 'true' : false"
+                x-on:click="scheduleMode = 'weekly'"
+            >
+                Weekly
+            </x-filament::tabs.item>
+            <x-filament::tabs.item
+                alpine-active="scheduleMode === 'list'"
+                icon="heroicon-o-list-bullet"
+                x-bind:aria-current="scheduleMode === 'list' ? 'true' : false"
+                x-on:click="scheduleMode = 'list'"
+            >
+                List
+            </x-filament::tabs.item>
+        </x-tala-navigation>
         <p>Times in Asia/Manila</p>
-        <x-filament::button type="button" color="gray" x-on:click="scheduleMode = scheduleMode === 'weekly' ? 'list' : 'weekly'">
-            <span x-text="scheduleMode === 'weekly' ? 'View meeting list' : 'View week'">View meeting list</span>
-        </x-filament::button>
     </div>
     <p class="sr-only" role="status" x-text="scheduleMode === 'weekly' ? 'Showing weekly schedule' : 'Showing meeting list'"></p>
     <div x-show="scheduleMode === 'weekly'" class="enrollment-schedule-week">

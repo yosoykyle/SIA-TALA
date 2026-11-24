@@ -3,6 +3,7 @@
 use App\Filament\Pages\Auth\AccountSecurity;
 use App\Http\Controllers\AdmissionApplicationAcknowledgmentController;
 use App\Http\Controllers\AdmissionEvidenceDownloadController;
+use App\Http\Controllers\ApplicantEmailVerificationController;
 use App\Http\Controllers\CorPrintController;
 use App\Http\Controllers\FacultySchedulePrintController;
 use App\Http\Controllers\FinanceExportDownloadController;
@@ -32,6 +33,10 @@ Route::get('/sign-in', $signInPanel->getLoginRouteAction())
     ->middleware($signInPanel->getMiddleware())
     ->name('public.sign-in');
 Route::get('/apply', [PublicGatewayController::class, 'apply'])->name('public.apply');
+$applicantPanel = Filament::getPanel('applicant');
+Route::get('/applicant/email-verification/verify/{id}/{hash}', ApplicantEmailVerificationController::class)
+    ->middleware([...$applicantPanel->getMiddleware(), 'signed', 'throttle:6,1'])
+    ->name('filament.applicant.auth.email-verification.verify');
 Route::get('/application-status/{token?}', fn () => response()->view('admissions.public-entry-recovery')
     ->withHeaders([
         'Cache-Control' => 'no-store, private',

@@ -27,6 +27,13 @@ class ScheduleGenerationService
             /** @var Term $lockedTerm */
             $lockedTerm = Term::query()->lockForUpdate()->findOrFail($term->id);
 
+            if ($lockedTerm->state === Term::StateClosed) {
+                throw ValidationException::withMessages([
+                    'term_id' => 'This term is closed and cannot generate a new timetable.',
+                    'state' => 'This term is closed and cannot generate a new timetable.',
+                ]);
+            }
+
             $anotherActiveRunExists = ScheduleGenerationRun::query()
                 ->where('term_id', $lockedTerm->id)
                 ->whereIn('status', [

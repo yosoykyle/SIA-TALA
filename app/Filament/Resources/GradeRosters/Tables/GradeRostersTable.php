@@ -84,6 +84,17 @@ class GradeRostersTable
             ->defaultSort('submitted_at', 'desc');
     }
 
+    public static function stateColor(string $state): string
+    {
+        return match ($state) {
+            GradeRoster::StateReleased => 'success',
+            GradeRoster::StateReturned => 'warning',
+            GradeRoster::StateLateNotSubmitted => 'danger',
+            GradeRoster::StateSubmitted => 'info',
+            default => 'gray',
+        };
+    }
+
     private static function rosterUrl(GradeRoster $record, HasTable $livewire): string
     {
         return GradeRosterResource::getUrl('view', [
