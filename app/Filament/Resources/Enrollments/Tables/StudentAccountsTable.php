@@ -46,6 +46,7 @@ class StudentAccountsTable
                 TextColumn::make('credentialUser.name')->label('Student')
                     ->description(fn (Enrollment $record): string => AccountingDisplay::learnerIdentifier($record))
                     ->weight('semibold')->sortable()->wrap(),
+                EnrollmentsTable::studentTypeColumn(),
                 TextColumn::make('program')->label('Program / term')
                     ->state(fn (Enrollment $record): string => AccountingDisplay::learnerProgram($record))
                     ->description(fn (Enrollment $record): string => $record->term?->label ?? 'Term unavailable')->wrap(),

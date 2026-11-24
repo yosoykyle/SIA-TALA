@@ -175,7 +175,7 @@ class AdmissionDecisionAuthorityTest extends TestCase
         [$application, $registrar] = $this->application();
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
-            ->callAction('recordDecision', data: [
+            ->callAction('reviewApplication', data: [
                 'decision' => AdmissionDecision::DecisionAdmitted,
                 'reason' => 'Private review basis',
                 'applicant_explanation' => 'Safe explanation',
@@ -191,7 +191,7 @@ class AdmissionDecisionAuthorityTest extends TestCase
         [$application, $registrar] = $this->application();
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
-            ->mountAction('recordDecision')
+            ->mountAction('reviewApplication')
             ->fillForm(['decision' => AdmissionDecision::DecisionAdmitted])
             ->assertSchemaComponentHidden('decision_reason', 'mountedActionSchema0')
             ->assertSchemaComponentHidden('reason', 'mountedActionSchema0')
@@ -207,12 +207,12 @@ class AdmissionDecisionAuthorityTest extends TestCase
         [$application, $registrar] = $this->application();
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
-            ->callAction('recordDecision', data: ['decision' => AdmissionDecision::DecisionNotAdmitted])
+            ->callAction('reviewApplication', data: ['decision' => AdmissionDecision::DecisionNotAdmitted])
             ->assertHasActionErrors(['reason' => 'required', 'applicant_explanation' => 'required']);
         $this->assertSame(0, $application->decisions()->count());
 
         Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
-            ->callAction('recordDecision', data: ['decision' => AdmissionDecision::DecisionAdmitted])
+            ->callAction('reviewApplication', data: ['decision' => AdmissionDecision::DecisionAdmitted])
             ->assertHasNoActionErrors();
 
         $decision = $application->decisions()->sole();
@@ -229,13 +229,16 @@ class AdmissionDecisionAuthorityTest extends TestCase
             $application, $registrar, AdmissionDecision::DecisionAdmitted, 'Original basis', null, 'Original safe explanation',
         );
         Filament::setCurrentPanel(Filament::getPanel('admin'));
+        // The page no longer offers a replacement after admission (#99 Scope 10); the decision service still requires a reference.
         Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
-            ->callAction('recordDecision', data: [
-                'decision' => AdmissionDecision::DecisionNotAdmitted,
-                'reason' => 'Private review basis',
-                'applicant_explanation' => 'Safe explanation',
-            ])
-            ->assertHasActionErrors(['authority_reference' => 'required']);
+            ->assertActionHidden('reviewApplication');
+
+        try {
+            app(RecordAdmissionDecision::class)->execute($application->fresh(), $registrar, AdmissionDecision::DecisionNotAdmitted, 'Private review basis', null, 'Safe explanation',
+                expectedCurrentDecisionId: $application->decisions()->value('id'));
+            $this->fail('A replacement decision without a reference must be rejected.');
+        } catch (ValidationException) {
+        }
 
         $this->assertSame(1, $application->decisions()->count());
     }

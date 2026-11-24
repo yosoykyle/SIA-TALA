@@ -306,7 +306,7 @@
 .tala-workspace-text-link > .fi-icon { inline-size: 1rem; block-size: 1rem; flex-shrink: 0; }
 .tala-workspace-text-link:focus-visible { outline: 3px solid var(--tala-focus); outline-offset: 3px; }
 .tala-workspace-card {
-    display: grid; grid-template-columns: 2.5rem minmax(0, 1fr) 1rem; align-items: center;
+    display: grid; grid-template-columns: 2.5rem minmax(0, 1fr) auto; align-items: center;
     gap: .75rem; min-inline-size: 0; padding: var(--tala-card-pad); color: var(--tala-text); text-decoration: none;
 }
 .tala-workspace-card__content { display: grid; gap: .5rem; min-inline-size: 0; }

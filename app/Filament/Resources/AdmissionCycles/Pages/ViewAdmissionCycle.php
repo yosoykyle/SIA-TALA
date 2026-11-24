@@ -173,7 +173,7 @@ class ViewAdmissionCycle extends ViewRecord
                         ->placeholder('Select date and time')
                         ->helperText(fn (): string => 'Current correction boundary: '.($this->cycle()->correction_closes_at?->timezone('Asia/Manila')->format('M j, Y · g:i A') ?? 'Not set').' (Asia/Manila). The proposed boundary must be strictly after the current boundary.')
                         ->native(false)
-                        ->minDate(fn (): mixed => $this->cycle()->correction_closes_at?->copy()->addSecond())
+                        ->minDate(fn (): ?string => $this->cycle()->correction_closes_at?->copy()->addSecond()->timezone((string) config('app.display_timezone'))->toIso8601String())
                         ->required(),
                     ...$this->authoritySchema(),
                 ])
@@ -294,7 +294,7 @@ class ViewAdmissionCycle extends ViewRecord
                         ->placeholder('Select date and time')
                         ->helperText(fn (): string => 'Current public closing: '.($this->cycle()->closes_at?->timezone('Asia/Manila')->format('M j, Y · g:i A') ?? 'Not set').' (Asia/Manila).')
                         ->native(false)
-                        ->minDate(now())
+                        ->minDate(fn (): string => now((string) config('app.display_timezone'))->toIso8601String())
                         ->required(),
                     DateTimePicker::make('correction_closes_at')
                         ->label('New correction requests end (if needed)')

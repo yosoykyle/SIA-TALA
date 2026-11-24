@@ -54,6 +54,11 @@ use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Schemas\Components\Actions;
+use Filament\Schemas\Components\Fieldset;
+use Filament\Schemas\Components\Flex;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Text;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Support\Enums\Width;
@@ -132,147 +137,6 @@ class ViewAdmissionApplication extends ViewRecord
                 ->action(fn (array $data, Action $action): mixed => $this->runAction(function (User $actor) use ($data): void {
                     app(AdmissionReviewGuard::class)->start($this->application(), $actor, (int) $data['expected_submission_version_id']);
                 }, 'Review started', $action)),
-            Action::make('requestCorrection')
-                ->label('Request corrections')
-                ->modalSubmitActionLabel('Request corrections')
-                ->icon('heroicon-o-pencil-square')
-                ->color('warning')
-                ->modalWidth('4xl')
-                ->modalDescription(fn (): string => 'Reopen only the named fields and copies in '.$this->application()->application_reference.'. The Applicant receives your instruction and due date. Readiness remains unavailable until the required corrections and review are complete; submitted history is retained.')
-                ->schema([
-                    Hidden::make('expected_submission_version_id')->default(fn (): ?int => $this->application()->current_submission_version_id),
-                    Hidden::make('expected_target_requirement_set_id'),
-                    Hidden::make('responsible_party')->default('Applicant'),
-                    Select::make('fields')
-                        ->label('Application fields to reopen')
-                        ->helperText('Select any submitted demographic, contact, or educational fields that require Applicant correction.')
-                        ->options($this->correctableFieldOptions())
-                        ->live()
-                        ->multiple()
-                        ->searchable()
-                        ->rule(fn (Get $get): \Closure => function (string $attribute, mixed $value, \Closure $fail) use ($get): void {
-                            $fields = (array) $value;
-                            $evidence = (array) $get('evidence_requirements');
-                            if (blank(array_filter($fields)) && blank(array_filter($evidence))) {
-                                $fail('Select at least one field or evidence requirement to reopen for correction.');
-                            }
-                        }),
-                    Radio::make('target_application_path')->label('Requested Student type')
-                        ->options(fn (): array => array_diff_key(AdmissionCycle::studentTypeOptions(), [$this->application()->application_path => true]))
-                        ->visible(fn (Get $get): bool => in_array('application_path', (array) $get('fields'), true))
-                        ->required()->live()->afterStateUpdated(function (Set $set, ?string $state): void {
-                            $set('type_scope_confirmed', false);
-                            $set('expected_target_requirement_set_id', null);
-                            if (filled($state)) {
-                                try {
-                                    $preview = app(RequestAdmissionCorrection::class)->studentTypeScope($this->application(), $state);
-                                    $set('expected_target_requirement_set_id', $preview['requirement_set_id']);
-                                } catch (ValidationException $exception) {
-                                    Notification::make()->title('Student type correction unavailable')->body($exception->validator->errors()->first())->warning()->send();
-                                }
-                            }
-                        }),
-                    Placeholder::make('type_correction_scope')->label('Complete dependent correction scope')
-                        ->visible(fn (Get $get): bool => in_array('application_path', (array) $get('fields'), true))
-                        ->content(function (Get $get): string {
-                            if (blank($get('target_application_path'))) {
-                                return 'Choose the supported target Student type to preview its required answers and copies.';
-                            }
-                            try {
-                                $preview = app(RequestAdmissionCorrection::class)->studentTypeScope($this->application(), (string) $get('target_application_path'));
-                                $set = AdmissionRequirementSet::query()->findOrFail($preview['requirement_set_id']);
-                                $labels = collect($preview['scopes'])->map(function (array $scope): string {
-                                    if ($scope['type'] === ApplicationCorrectionItem::ScopeEvidence) {
-                                        return AdmissionRequirement::query()->findOrFail($scope['admission_requirement_id'])->label;
-                                    }
-
-                                    return $scope['key'] === 'accuracy_declared' ? 'Accuracy declaration'
-                                        : ($this->correctableFieldOptions()[$scope['key']] ?? str($scope['key'])->headline()->toString());
-                                })->all();
-
-                                return 'Requirements version '.$set->version.': '.implode('; ', $labels).'. Earlier submitted copies stay in history. These target requirements and any other selected fields will be named together; unrelated fields remain locked.';
-                            } catch (ValidationException $exception) {
-                                return $exception->validator->errors()->first();
-                            }
-                        }),
-                    Checkbox::make('type_scope_confirmed')->label('I confirm the target Student type and complete dependent scope above.')
-                        ->visible(fn (Get $get): bool => in_array('application_path', (array) $get('fields'), true))->accepted()->required(),
-                    Select::make('evidence_requirements')
-                        ->label('Evidence review copies to replace')
-                        ->helperText('Select any preliminary evidence requirements where a replacement copy must be uploaded.')
-                        ->options($this->requirementOptions())
-                        ->visible(fn (Get $get): bool => ! in_array('application_path', (array) $get('fields'), true))
-                        ->multiple()
-                        ->searchable(),
-                    Select::make('correction_reason')
-                        ->label('Common correction reason')->options([
-                            'Unreadable copy' => 'Unreadable copy', 'Incomplete information' => 'Incomplete information',
-                            'Details do not match the submitted copy' => 'Details do not match the submitted copy', 'Other' => 'Other',
-                        ])->live()->afterStateUpdated(function (Set $set, ?string $state): void {
-                            if (filled($state) && $state !== 'Other') {
-                                $set('applicant_instruction', $state.'. Correct only the selected items, then resubmit.');
-                            }
-                        }),
-                    Textarea::make('applicant_instruction')
-                        ->hint('Describe the selected correction')
-                        ->label('Applicant instruction')
-                        ->helperText('Specific instructions for the Applicant explaining what needs correction.')
-                        ->required()
-                        ->maxLength(1500),
-                    DateTimePicker::make('due_at')
-                        ->label('Correction due (Manila time)')
-                        ->helperText('Choose a date and time on or before the cycle correction boundary. An active correction remains available after its deadline.')
-                        ->timezone(config('app.display_timezone'))
-                        ->displayFormat('M j, Y · g:i A')
-                        ->seconds(false)
-                        ->prefixIcon('heroicon-o-calendar-days')
-                        ->native(false)
-                        ->minDate(now())
-                        ->maxDate(fn (): mixed => $this->application()->admissionCycle?->correction_closes_at)
-                        ->required(),
-                ])
-                ->visible(fn (): bool => $this->canReview()
-                    && $this->application()->application_state === AdmissionApplication::StateSubmitted
-                    && $this->correctionIssuanceIsOpen())
-                ->action(fn (array $data, Action $action): mixed => $this->runAction(function (User $actor) use ($data): void {
-                    $scopes = [];
-                    foreach ((array) ($data['fields'] ?? []) as $field) {
-                        if (filled($field)) {
-                            $scopes[] = [
-                                'type' => ApplicationCorrectionItem::ScopeField,
-                                'key' => (string) $field,
-                                'admission_requirement_id' => null,
-                            ];
-                        }
-                    }
-                    foreach ((array) ($data['evidence_requirements'] ?? []) as $requirementId) {
-                        if (filled($requirementId)) {
-                            $scopes[] = [
-                                'type' => ApplicationCorrectionItem::ScopeEvidence,
-                                'key' => 'requirement:'.(int) $requirementId,
-                                'admission_requirement_id' => (int) $requirementId,
-                            ];
-                        }
-                    }
-
-                    if (empty($scopes)) {
-                        throw ValidationException::withMessages([
-                            'fields' => 'Select at least one field or evidence requirement to reopen for correction.',
-                        ]);
-                    }
-
-                    app(RequestAdmissionCorrection::class)->execute(
-                        $this->application(),
-                        $actor,
-                        $scopes,
-                        (string) $data['applicant_instruction'],
-                        (string) ($data['responsible_party'] ?? 'Applicant'),
-                        CarbonImmutable::parse((string) $data['due_at']),
-                        filled($data['expected_submission_version_id'] ?? null) ? (int) $data['expected_submission_version_id'] : null,
-                        in_array('application_path', (array) ($data['fields'] ?? []), true) ? ($data['target_application_path'] ?? null) : null,
-                        filled($data['expected_target_requirement_set_id'] ?? null) ? (int) $data['expected_target_requirement_set_id'] : null,
-                    );
-                }, 'Scoped correction requested', $action)),
             Action::make('manageCorrectionBoundary')
                 ->label('Extend correction boundary')
                 ->icon('heroicon-o-calendar-days')
@@ -308,93 +172,7 @@ class ViewAdmissionApplication extends ViewRecord
                     ->modalCancelActionLabel('Close')
                     ->visible(fn (): bool => $this->application()->application_state === AdmissionApplication::StateAdmitted
                         && app(ReadyApplicantProjectionQuery::class)->forApplication($this->application())['ready']),
-                Action::make('reviewEvidence')
-                    ->label('Review preliminary evidence')
-                    ->modalSubmitActionLabel('Save review')
-                    ->icon('heroicon-o-document-magnifying-glass')
-                    ->fillForm(function (array $arguments): array {
-                        $evidenceId = $arguments['document_evidence_id'] ?? null;
-                        $evidence = $evidenceId ? $this->application()->evidenceVersions->find((int) $evidenceId) : null;
-
-                        return [
-                            'document_evidence_id' => $evidenceId ? (int) $evidenceId : null,
-                            'expected_current_review_id' => $evidence?->preliminaryReviews()->whereDoesntHave('successor')->value('id'),
-                            'expected_submission_version_id' => $this->application()->current_submission_version_id,
-                        ];
-                    })
-                    ->schema([
-                        Radio::make('document_evidence_id')
-                            ->label('Choose the submitted copy to review')
-                            ->helperText('Select a copy, then use View selected copy to inspect it before recording the result. Earlier versions remain in history.')
-                            ->options($this->evidenceOptions())
-                            ->live()
-                            ->afterStateHydrated(function (Set $set, mixed $state): void {
-                                if (filled($state)) {
-                                    $evidence = $this->application()->evidenceVersions->find((int) $state);
-                                    $set('expected_current_review_id', $evidence?->preliminaryReviews()->whereDoesntHave('successor')->value('id'));
-                                }
-                            })
-                            ->afterStateUpdated(function (Set $set, mixed $state): void {
-                                $evidence = $this->application()->evidenceVersions->find((int) $state);
-                                $set('expected_current_review_id', $evidence?->preliminaryReviews()->whereDoesntHave('successor')->value('id'));
-                            })
-                            ->required(),
-                        Hidden::make('expected_current_review_id'),
-                        Hidden::make('expected_submission_version_id')->default(fn () => $this->application()->current_submission_version_id),
-                        Actions::make([
-                            Action::make('viewSelectedEvidence')
-                                ->label('View selected copy')->icon('heroicon-o-eye')->color('gray')
-                                ->url(fn (Get $get): ?string => $this->application()->evidenceVersions->contains('id', (int) $get('document_evidence_id'))
-                                    ? route('admissions.evidence.view', ['evidence' => (int) $get('document_evidence_id')]) : null)
-                                ->openUrlInNewTab()
-                                ->visible(fn (Get $get): bool => filled($get('document_evidence_id'))),
-                            Action::make('downloadSelectedEvidence')
-                                ->label('Download selected private evidence')
-                                ->icon('heroicon-o-arrow-down-tray')
-                                ->color('gray')
-                                ->url(fn (Get $get): ?string => $this->application()->evidenceVersions->contains('id', (int) $get('document_evidence_id'))
-                                    ? route('admissions.evidence.download', ['evidence' => (int) $get('document_evidence_id')]) : null)
-                                ->openUrlInNewTab()
-                                ->visible(fn (Get $get): bool => filled($get('document_evidence_id'))),
-                        ]),
-                        Select::make('result')
-                            ->options([
-                                PreliminaryEvidenceReview::ResultUnderReview => 'Under review',
-                                PreliminaryEvidenceReview::ResultAccepted => 'Accepted as preliminary evidence',
-                                PreliminaryEvidenceReview::ResultActionNeeded => 'Action needed',
-                            ])
-                            ->live()
-                            ->required(),
-                        Textarea::make('reason')
-                            ->label('Remarks')
-                            ->helperText(fn (Get $get): string => $get('result') === PreliminaryEvidenceReview::ResultActionNeeded
-                                ? 'Required: explain the problem and what the Applicant needs to replace or clarify.'
-                                : 'Optional: note what is still being checked on this copy.')
-                            ->visible(fn (Get $get): bool => in_array($get('result'), [
-                                PreliminaryEvidenceReview::ResultUnderReview,
-                                PreliminaryEvidenceReview::ResultActionNeeded,
-                            ], true))
-                            ->placeholder('For example: The birth date is unreadable. Upload a clear copy showing the full page.')
-                            ->required(fn (Get $get): bool => $get('result') === PreliminaryEvidenceReview::ResultActionNeeded)
-                            ->rows(3)
-                            ->maxLength(1000),
-                    ])
-                    ->visible(fn (): bool => $this->canReview() && $this->evidenceOptions() !== [])
-                    ->action(fn (array $data, Action $action): mixed => $this->runAction(function (User $actor) use ($data): void {
-                        $evidence = $this->application()->evidenceVersions->findOrFail((int) $data['document_evidence_id']);
-                        $expectedReviewId = filled($data['expected_current_review_id'] ?? null)
-                            ? (int) $data['expected_current_review_id']
-                            : null;
-
-                        app(ReviewPreliminaryEvidence::class)->execute(
-                            $evidence,
-                            $actor,
-                            (string) $data['result'],
-                            filled($data['reason'] ?? null) ? (string) $data['reason'] : null,
-                            $expectedReviewId,
-                            (int) $data['expected_submission_version_id'],
-                        );
-                    }, 'Preliminary evidence review recorded', $action)),
+                $this->reviewApplicationAction(),
                 Action::make('resolveIdentity')
                     ->label('Resolve identity warning')
                     ->modalSubmitActionLabel('Record identity resolution')
@@ -436,112 +214,11 @@ class ViewAdmissionApplication extends ViewRecord
                             (int) $data['expected_submission_version_id'],
                         );
                     }, 'Identity warning resolved', $action)),
-                Action::make('recordDecision')
-                    ->label('Application screening')
-                    ->modalHeading('Application screening')
-                    ->modalSubmitActionLabel('Record decision')
-                    ->icon('heroicon-o-scale')
-                    ->modalDescription(function (): string {
-                        $isReplacement = filled($this->application()->decisions()->whereDoesntHave('successor')->value('id'));
-                        $currentOutcome = str($this->application()->application_state)->headline();
-
-                        return $isReplacement
-                            ? "Replace the current {$currentOutcome} decision for {$this->application()->application_reference}. An approval reference is required. Previous decisions remain in history; readiness is recalculated."
-                            : "Record the first decision for {$this->application()->application_reference} under your Registrar authority. The Applicant is told the outcome; Not admitted also needs a review basis and an explanation. The decision is retained and readiness is recalculated.";
-                    })
-                    ->schema([
-                        Hidden::make('expected_current_decision_id')->default(fn (): ?int => $this->application()->decisions()->whereDoesntHave('successor')->value('id')),
-                        Hidden::make('expected_submission_version_id')->default(fn (): ?int => $this->application()->current_submission_version_id),
-                        Radio::make('decision')
-                            ->live()
-                            ->options([
-                                AdmissionDecision::DecisionAdmitted => 'Admitted',
-                                AdmissionDecision::DecisionNotAdmitted => 'Not admitted',
-                            ])
-                            ->disableOptionWhen(fn (string $value): bool => $value === AdmissionDecision::DecisionAdmitted && (! $this->preliminaryReviewIsComplete() || $this->identityWarningOptions() !== []))
-                            ->helperText(fn (): ?string => $this->admissionBlockerGuidance())
-                            ->required(),
-                        Radio::make('papers_confirmed')
-                            ->label('Physical requirement checks')
-                            ->options([0 => 'Admit — papers pending', 1 => 'Admit — papers confirmed'])
-                            ->default(0)->live()
-                            ->visible(fn (Get $get): bool => $get('decision') === AdmissionDecision::DecisionAdmitted),
-                        Checkbox::make('external_checks_confirmed')
-                            ->label('I confirm the school completed all required physical requirement checks.')
-                            ->visible(fn (Get $get): bool => $get('decision') === AdmissionDecision::DecisionAdmitted && (bool) $get('papers_confirmed'))
-                            ->accepted(fn (Get $get): bool => $get('decision') === AdmissionDecision::DecisionAdmitted && (bool) $get('papers_confirmed')),
-                        Select::make('decision_reason')
-                            ->label('Common review reason')->options([
-                                'Required evidence is acceptable' => 'Required evidence is acceptable',
-                                'Required evidence remains incomplete' => 'Required evidence remains incomplete',
-                                'Unsupported admission eligibility' => 'Unsupported admission eligibility',
-                                'Submitted documents do not match the current curriculum' => 'Submitted documents do not match the current curriculum',
-                                'Other' => 'Other',
-                            ])->live()->afterStateUpdated(function (Set $set, ?string $state): void {
-                                if (filled($state) && $state !== 'Other') {
-                                    $set('reason', $state);
-                                }
-                            })
-                            ->visible(fn (Get $get): bool => $get('decision') === AdmissionDecision::DecisionNotAdmitted),
-                        Textarea::make('reason')->label('Private review reason')
-                            ->helperText('Record the basis for the decision. This note is for authorized staff.')
-                            ->placeholder('Summarize the reviewed evidence and the reason for this outcome.')
-                            ->rows(3)->required()->maxLength(1500)
-                            ->visible(fn (Get $get): bool => $get('decision') === AdmissionDecision::DecisionNotAdmitted),
-                        Textarea::make('applicant_explanation')->label('Applicant explanation')
-                            ->helperText('Shown to the Applicant. Explain the outcome and a safe next step without private identity or staff details.')
-                            ->placeholder('Explain what happens next or how to contact Admissions for help.')
-                            ->rows(3)->required()->maxLength(1500)
-                            ->visible(fn (Get $get): bool => $get('decision') === AdmissionDecision::DecisionNotAdmitted),
-                        TextInput::make('authority_reference')
-                            ->label('Separate approval reference')
-                            ->helperText('Required for a replacement decision. Enter the school approval or recorded authorization reference; an ordinary first decision uses your recorded Registrar authority.')
-                            ->required(fn (Get $get): bool => filled($get('expected_current_decision_id')))
-                            ->visible(fn (Get $get): bool => filled($get('expected_current_decision_id')))
-                            ->maxLength(255),
-                    ])
-                    ->visible(fn (): bool => $this->canReview()
-                        && in_array($this->application()->application_state, [
-                            AdmissionApplication::StateSubmitted,
-                            AdmissionApplication::StateAdmitted,
-                        ], true))
-                    ->action(fn (array $data, Action $action): mixed => $this->runAction(function (User $actor) use ($data): void {
-                        if (($data['decision'] ?? null) === AdmissionDecision::DecisionAdmitted) {
-                            if (! $this->preliminaryReviewIsComplete()) {
-                                throw ValidationException::withMessages([
-                                    'decision' => 'Cannot record Admitted while preliminary evidence reviews are incomplete.',
-                                ]);
-                            }
-                            if ($this->identityWarningOptions() !== []) {
-                                throw ValidationException::withMessages([
-                                    'decision' => 'Cannot record Admitted while identity warnings remain unresolved.',
-                                ]);
-                            }
-                        }
-
-                        $expectedDecisionId = filled($data['expected_current_decision_id'] ?? null)
-                            ? (int) $data['expected_current_decision_id']
-                            : null;
-                        $expectedSubmissionVersionId = filled($data['expected_submission_version_id'] ?? null)
-                            ? (int) $data['expected_submission_version_id']
-                            : null;
-
-                        app(RecordAdmissionOutcome::class)->execute(
-                            $this->application(),
-                            $actor,
-                            (string) $data['decision'],
-                            (string) ($data['reason'] ?? self::AdmittedDecisionReason),
-                            filled($data['authority_reference'] ?? null) ? (string) $data['authority_reference'] : null,
-                            (string) ($data['applicant_explanation'] ?? self::AdmittedApplicantExplanation),
-                            $expectedDecisionId,
-                            $expectedSubmissionVersionId,
-                            papersConfirmed: (bool) ($data['papers_confirmed'] ?? false) && (bool) ($data['external_checks_confirmed'] ?? false),
-                        );
-                    }, 'Admission decision recorded', $action)),
                 Action::make('recordEnrollmentClearance')
                     ->label(fn (): string => $this->application()->enrollmentClearances()->whereDoesntHave('successor')->exists() ? 'Update enrollment clearance' : 'Check enrollment papers')
                     ->modalHeading(fn (): string => $this->application()->enrollmentClearances()->whereDoesntHave('successor')->exists() ? 'Update enrollment clearance' : 'Enrollment clearance')
-                    ->modalSubmitActionLabel('Record clearance')
+                    // Clearing starts the enrollment in the same step whenever the term allows it (#99 Scope 10).
+                    ->modalSubmitActionLabel(fn (): string => $this->canStartEnrollment(requireReady: false) ? 'Record clearance and start enrollment' : 'Record clearance')
                     ->modalSubmitAction(fn (Action $action): Action => $action->color('success'))
                     ->modalWidth(Width::TwoExtraLarge)
                     ->icon('heroicon-o-check-badge')
@@ -584,50 +261,63 @@ class ViewAdmissionApplication extends ViewRecord
                             ->displayFormat('M j, Y · g:i A')
                             ->seconds(false)
                             ->native(false)
-                            ->minDate(now())
+                            ->minDate(fn (): ?string => $this->pickerBound(now()))
                             ->prefixIcon('heroicon-o-calendar-days')
                             ->visible(fn (Get $get): bool => filled($get('held_papers'))),
                         Checkbox::make('external_checks_confirmed')
                             ->label('I confirm the required external enrollment checks are complete.')
                             ->visible(fn (): bool => $this->clearanceChecklist() === []),
-                        Textarea::make('safe_instruction')
-                            ->label('Deficiency remarks for the Applicant')
-                            ->helperText('Required when notifying the Applicant. Name the paper and say what to bring or fix.')
-                            ->placeholder("For example: The Form 138 is a photocopy. Bring the original with the school dry seal to the Registrar's Office.")
-                            ->rows(3)
-                            ->maxLength(1500),
                         Textarea::make('reason')
                             ->label('Reason for replacing the previous clearance')
                             ->visible(fn (Get $get): bool => filled($get('expected_current_clearance_id')))
                             ->required(fn (Get $get): bool => filled($get('expected_current_clearance_id')))
                             ->maxLength(1500),
-                        TextInput::make('authority_reference')
-                            ->label('Supporting approval or correction reference (if applicable)')
-                            ->helperText('Identify an existing school approval when this clearance records an exception or correction. Routine clearance already records your Registrar identity, time and submitted source.')
-                            ->placeholder('For example: approval memo or recorded correction reference')
-                            ->maxLength(255),
                     ])
                     ->extraModalFooterActions(fn (Action $action): array => [
-                        $action->makeModalSubmitAction('notifyDeficiencies', arguments: ['result' => RegistrarEnrollmentClearance::ResultActionNeeded])
+                        // The deficiency remarks are asked for only when the Registrar chooses to notify (#99 Scope 10).
+                        Action::make('notifyDeficiencies')
+                            ->modalCancelAction(false)
                             ->label('Notify Applicant of deficiencies')
-                            ->color('warning'),
-                        $action->makeModalSubmitAction('clearAndStartEnrollment', arguments: ['result' => RegistrarEnrollmentClearance::ResultCleared, 'start_enrollment' => true])
-                            ->label('Record clearance and start enrollment')
-                            ->color('success')
-                            ->outlined()
-                            ->visible(fn (): bool => $this->canStartEnrollment(requireReady: false)),
+                            ->color('warning')
+                            ->modalHeading('Notify Applicant of deficiencies')
+                            ->modalDescription('Tell the Applicant which papers are missing or need fixing. Papers you ticked are still recorded as passed.')
+                            ->modalSubmitActionLabel('Send to Applicant')
+                            ->schema([
+                                Textarea::make('safe_instruction')
+                                    ->label('Deficiency remarks for the Applicant')
+                                    ->helperText('Name the paper and say what to bring or fix.')
+                                    ->placeholder("For example: The Form 138 is a photocopy. Bring the original with the school dry seal to the Registrar's Office.")
+                                    ->required()
+                                    ->rows(3)
+                                    ->maxLength(1500),
+                            ])
+                            ->action(function (array $data, Action $notify): void {
+                                $clearance = (array) ($this->mountedActions[0]['data'] ?? []);
+
+                                $this->runAction(
+                                    fn (User $actor) => $this->recordClearanceWithChecklist($actor, [...$clearance, 'safe_instruction' => $data['safe_instruction']], RegistrarEnrollmentClearance::ResultActionNeeded),
+                                    'Applicant notified of deficiencies',
+                                    $notify,
+                                );
+                            }),
                     ])
+                    // Gone once the papers are cleared; an Action needed clearance can still be updated (#99 Scope 10).
                     ->visible(fn (): bool => $this->canReview()
                         && $this->application()->application_state === AdmissionApplication::StateAdmitted
-                        && $this->deadlineStatus()['kind'] !== AdmissionDeadlineStatus::KindRequirements)
+                        && $this->deadlineStatus()['kind'] !== AdmissionDeadlineStatus::KindRequirements
+                        && ! $this->readinessIsCleared())
                     ->action(function (array $data, array $arguments, Action $action): void {
+                        $result = (string) ($arguments['result'] ?? RegistrarEnrollmentClearance::ResultCleared);
+                        $startEnrollment = (bool) ($arguments['start_enrollment']
+                            ?? ($result === RegistrarEnrollmentClearance::ResultCleared && $this->canStartEnrollment(requireReady: false)));
+
                         $this->runAction(
-                            fn (User $actor) => $this->recordClearanceWithChecklist($actor, $data, (string) ($arguments['result'] ?? RegistrarEnrollmentClearance::ResultCleared)),
-                            ($arguments['result'] ?? null) === RegistrarEnrollmentClearance::ResultActionNeeded ? 'Applicant notified of deficiencies' : 'Enrollment clearance recorded',
+                            fn (User $actor) => $this->recordClearanceWithChecklist($actor, $data, $result),
+                            $result === RegistrarEnrollmentClearance::ResultActionNeeded ? 'Applicant notified of deficiencies' : 'Enrollment clearance recorded',
                             $action,
                         );
 
-                        if ((bool) ($arguments['start_enrollment'] ?? false)) {
+                        if ($startEnrollment) {
                             $this->deadlineStatusCache = null;
                             $this->startEnrollmentAndOpen(afterClearance: true);
                         }
@@ -652,6 +342,7 @@ class ViewAdmissionApplication extends ViewRecord
                     ->label(fn (): string => $this->deadlineStatus()['status'] === AdmissionDeadlineStatus::Expired ? 'Re-admit with a new deadline' : 'Extend deadline')
                     ->modalHeading(fn (): string => $this->deadlineStatus()['status'] === AdmissionDeadlineStatus::Expired ? 'Re-admit with a new deadline' : 'Extend deadline')
                     ->modalSubmitActionLabel('Save new deadline')
+                    ->modalSubmitAction(fn (Action $action): Action => $action->disabled(! $this->deadlineWindowIsOpen()))
                     ->icon('heroicon-o-calendar-days')
                     ->modalDescription(fn (): string => $this->deadlineStatus()['status'] === AdmissionDeadlineStatus::Expired
                         ? 'This application expired: '.$this->deadlineStatus()['reason'].' A new deadline returns the Applicant to the pending step and emails them the new date.'
@@ -678,13 +369,36 @@ class ViewAdmissionApplication extends ViewRecord
                             ->displayFormat('M j, Y · g:i A')
                             ->seconds(false)
                             ->native(false)
-                            ->minDate(now())
-                            ->maxDate(fn (): mixed => $this->application()->admissionCycle?->period_ends_at)
+                            ->minDate(fn (): ?string => $this->pickerBound(now()))
+                            ->maxDate(fn (): ?string => $this->pickerBound($this->application()->admissionCycle?->period_ends_at))
                             ->prefixIcon('heroicon-o-calendar-days')
-                            ->helperText(fn (): string => ($period = $this->formatDeadline($this->application()->admissionCycle?->period_ends_at))
-                                ? 'Must be on or before the end of the admission period: '.$period.'.'
-                                : 'No admission-period end is set for this cycle.')
+                            ->helperText(fn (): string => $this->deadlineWindowGuidance())
+                            ->rule(fn (): \Closure => function (string $attribute, mixed $value, \Closure $fail): void {
+                                if (blank($value)) {
+                                    return;
+                                }
+
+                                $chosen = CarbonImmutable::parse((string) $value, (string) config('app.timezone'));
+                                $periodEndsAt = $this->application()->admissionCycle?->period_ends_at;
+                                if (! $chosen->isFuture()) {
+                                    $fail('Choose a time after now ('.$this->formatDeadline(now()).').');
+                                } elseif ($periodEndsAt !== null && $chosen->greaterThan($periodEndsAt)) {
+                                    $fail('Choose a time on or before the end of the admission period ('.$this->formatDeadline($periodEndsAt).').');
+                                }
+                            })
+                            ->disabled(fn (): bool => ! $this->deadlineWindowIsOpen())
                             ->required(),
+                        Actions::make([
+                            Action::make('openCycleDeadlines')
+                                ->label('Set admission deadlines')
+                                ->icon('heroicon-o-arrow-top-right-on-square')
+                                ->color('gray')
+                                ->link()
+                                ->url(fn (): ?string => $this->application()->admissionCycle
+                                    ? AdmissionCycleResource::getUrl('view', ['record' => $this->application()->admissionCycle])
+                                    : null)
+                                ->openUrlInNewTab(),
+                        ])->visible(fn (): bool => ! $this->deadlineWindowIsOpen() && $this->canManageAdmissionSetup()),
                         Textarea::make('reason')
                             ->label('Reason')
                             ->placeholder('For example: The Applicant asked for more time to get the original Form 138 from their school.')
@@ -787,7 +501,7 @@ class ViewAdmissionApplication extends ViewRecord
         $primaryName = match ($this->application()->application_state) {
             AdmissionApplication::StateSubmitted => $this->isClosed() ? null : (! $this->application()->reviewHasStarted() ? 'startReview' : ($this->identityWarningOptions() !== []
                 ? 'resolveIdentity'
-                : ($this->preliminaryReviewIsComplete() ? 'recordDecision' : 'reviewEvidence'))),
+                : 'reviewApplication')),
             AdmissionApplication::StateAdmitted => match (true) {
                 $this->deadlineStatus()['status'] === AdmissionDeadlineStatus::Closed => null,
                 $this->deadlineStatus()['status'] === AdmissionDeadlineStatus::Expired => 'extendDeadline',
@@ -807,17 +521,574 @@ class ViewAdmissionApplication extends ViewRecord
         foreach ([...$actions, ...$group->getActions()] as $action) {
             if ($action instanceof Action && $action->getName() === $primaryName) {
                 $primary = $action->group(null)->button()->color(in_array($primaryName, ['reviewReadiness', 'openEnrollment'], true) ? 'gray' : 'primary');
-            } else {
-                $secondary[] = $action;
+            } elseif ($action instanceof Action) {
+                // Side-by-side buttons instead of a dropdown; review choices live on the Application screening step.
+                $secondary[] = $action->group(null)->button()->outlined()->color($action->getName() === 'withdraw' ? 'danger' : 'gray');
             }
         }
 
-        return array_values(array_filter([$primary, $group->actions($secondary)]));
+        // Every modal closes with its corner X, so no footer Cancel button (#99 Scope 10).
+        return array_map(
+            fn (Action $action): Action => $action->modalCancelAction(false),
+            array_values(array_filter([$primary, ...$secondary])),
+        );
+    }
+
+    /** Scoped correction request, opened from the Application screening step's For correction button. */
+    public function requestCorrectionAction(): Action
+    {
+        return Action::make('requestCorrection')
+            ->modalCancelAction(false)
+            ->label('Request corrections')
+            ->modalSubmitActionLabel('Request corrections')
+            ->icon('heroicon-o-pencil-square')
+            ->color('warning')
+            ->modalWidth('4xl')
+            ->modalDescription(fn (): string => 'Reopen only the named fields and copies in '.$this->application()->application_reference.'. The Applicant receives your instruction and due date. Readiness remains unavailable until the required corrections and review are complete; submitted history is retained.')
+            ->schema([
+                Hidden::make('expected_submission_version_id')->default(fn (): ?int => $this->application()->current_submission_version_id),
+                Hidden::make('expected_target_requirement_set_id'),
+                Hidden::make('responsible_party')->default('Applicant'),
+                Select::make('fields')
+                    ->label('Application fields to reopen')
+                    ->helperText('Select any submitted demographic, contact, or educational fields that require Applicant correction.')
+                    ->options($this->correctableFieldOptions())
+                    ->live()
+                    ->multiple()
+                    ->searchable()
+                    ->rule(fn (Get $get): \Closure => function (string $attribute, mixed $value, \Closure $fail) use ($get): void {
+                        $fields = (array) $value;
+                        $evidence = (array) $get('evidence_requirements');
+                        if (blank(array_filter($fields)) && blank(array_filter($evidence))) {
+                            $fail('Select at least one field or evidence requirement to reopen for correction.');
+                        }
+                    }),
+                Radio::make('target_application_path')->label('Requested Student type')
+                    ->options(fn (): array => array_diff_key(AdmissionCycle::studentTypeOptions(), [$this->application()->application_path => true]))
+                    ->visible(fn (Get $get): bool => in_array('application_path', (array) $get('fields'), true))
+                    ->required()->live()->afterStateUpdated(function (Set $set, ?string $state): void {
+                        $set('type_scope_confirmed', false);
+                        $set('expected_target_requirement_set_id', null);
+                        if (filled($state)) {
+                            try {
+                                $preview = app(RequestAdmissionCorrection::class)->studentTypeScope($this->application(), $state);
+                                $set('expected_target_requirement_set_id', $preview['requirement_set_id']);
+                            } catch (ValidationException $exception) {
+                                Notification::make()->title('Student type correction unavailable')->body($exception->validator->errors()->first())->warning()->send();
+                            }
+                        }
+                    }),
+                Placeholder::make('type_correction_scope')->label('Complete dependent correction scope')
+                    ->visible(fn (Get $get): bool => in_array('application_path', (array) $get('fields'), true))
+                    ->content(function (Get $get): string {
+                        if (blank($get('target_application_path'))) {
+                            return 'Choose the supported target Student type to preview its required answers and copies.';
+                        }
+                        try {
+                            $preview = app(RequestAdmissionCorrection::class)->studentTypeScope($this->application(), (string) $get('target_application_path'));
+                            $set = AdmissionRequirementSet::query()->findOrFail($preview['requirement_set_id']);
+                            $labels = collect($preview['scopes'])->map(function (array $scope): string {
+                                if ($scope['type'] === ApplicationCorrectionItem::ScopeEvidence) {
+                                    return AdmissionRequirement::query()->findOrFail($scope['admission_requirement_id'])->label;
+                                }
+
+                                return $scope['key'] === 'accuracy_declared' ? 'Accuracy declaration'
+                                    : ($this->correctableFieldOptions()[$scope['key']] ?? str($scope['key'])->headline()->toString());
+                            })->all();
+
+                            return 'Requirements version '.$set->version.': '.implode('; ', $labels).'. Earlier submitted copies stay in history. These target requirements and any other selected fields will be named together; unrelated fields remain locked.';
+                        } catch (ValidationException $exception) {
+                            return $exception->validator->errors()->first();
+                        }
+                    }),
+                Checkbox::make('type_scope_confirmed')->label('I confirm the target Student type and complete dependent scope above.')
+                    ->visible(fn (Get $get): bool => in_array('application_path', (array) $get('fields'), true))->accepted()->required(),
+                Select::make('evidence_requirements')
+                    ->label('Evidence review copies to replace')
+                    ->helperText('Select any preliminary evidence requirements where a replacement copy must be uploaded.')
+                    ->options($this->requirementOptions())
+                    ->default(fn (): array => collect($this->copiesMarkedForCorrection())->pluck('requirement_id')->all())
+                    ->visible(fn (Get $get): bool => ! in_array('application_path', (array) $get('fields'), true))
+                    ->multiple()
+                    ->searchable(),
+                Select::make('correction_reason')
+                    ->label('Common correction reason')->options([
+                        'Unreadable copy' => 'Unreadable copy', 'Incomplete information' => 'Incomplete information',
+                        'Details do not match the submitted copy' => 'Details do not match the submitted copy', 'Other' => 'Other',
+                    ])->live()->afterStateUpdated(function (Set $set, ?string $state): void {
+                        if (filled($state) && $state !== 'Other') {
+                            $set('applicant_instruction', $state.'. Correct only the selected items, then resubmit.');
+                        }
+                    }),
+                Textarea::make('applicant_instruction')
+                    ->hint('Describe the selected correction')
+                    ->default(fn (): ?string => collect($this->copiesMarkedForCorrection())
+                        ->map(fn (array $copy): string => $copy['label'].': '.$copy['reason'])
+                        ->implode("\n") ?: null)
+                    ->label('Applicant instruction')
+                    ->helperText('Specific instructions for the Applicant explaining what needs correction.')
+                    ->required()
+                    ->maxLength(1500),
+                DateTimePicker::make('due_at')
+                    ->label('Correction due (Manila time)')
+                    ->helperText('Choose a date and time on or before the cycle correction boundary. An active correction remains available after its deadline.')
+                    ->timezone(config('app.display_timezone'))
+                    ->displayFormat('M j, Y · g:i A')
+                    ->seconds(false)
+                    ->prefixIcon('heroicon-o-calendar-days')
+                    ->native(false)
+                    ->minDate(fn (): ?string => $this->pickerBound(now()))
+                    ->maxDate(fn (): ?string => $this->pickerBound($this->application()->admissionCycle?->correction_closes_at))
+                    ->required(),
+            ])
+            ->visible(fn (): bool => $this->canReview()
+                && $this->application()->application_state === AdmissionApplication::StateSubmitted
+                && $this->correctionIssuanceIsOpen())
+            ->action(fn (array $data, Action $action): mixed => $this->runAction(function (User $actor) use ($data): void {
+                $scopes = [];
+                foreach ((array) ($data['fields'] ?? []) as $field) {
+                    if (filled($field)) {
+                        $scopes[] = [
+                            'type' => ApplicationCorrectionItem::ScopeField,
+                            'key' => (string) $field,
+                            'admission_requirement_id' => null,
+                        ];
+                    }
+                }
+                foreach ((array) ($data['evidence_requirements'] ?? []) as $requirementId) {
+                    if (filled($requirementId)) {
+                        $scopes[] = [
+                            'type' => ApplicationCorrectionItem::ScopeEvidence,
+                            'key' => 'requirement:'.(int) $requirementId,
+                            'admission_requirement_id' => (int) $requirementId,
+                        ];
+                    }
+                }
+
+                if (empty($scopes)) {
+                    throw ValidationException::withMessages([
+                        'fields' => 'Select at least one field or evidence requirement to reopen for correction.',
+                    ]);
+                }
+
+                app(RequestAdmissionCorrection::class)->execute(
+                    $this->application(),
+                    $actor,
+                    $scopes,
+                    (string) $data['applicant_instruction'],
+                    (string) ($data['responsible_party'] ?? 'Applicant'),
+                    CarbonImmutable::parse((string) $data['due_at']),
+                    filled($data['expected_submission_version_id'] ?? null) ? (int) $data['expected_submission_version_id'] : null,
+                    in_array('application_path', (array) ($data['fields'] ?? []), true) ? ($data['target_application_path'] ?? null) : null,
+                    filled($data['expected_target_requirement_set_id'] ?? null) ? (int) $data['expected_target_requirement_set_id'] : null,
+                );
+            }, 'Scoped correction requested', $action));
+    }
+
+    /**
+     * One modal for the whole screening: a result for every submitted copy, then the admission decision (#99 Scope 10).
+     * Copy reviews and the decision keep their own records and rules; only the screen is shared.
+     */
+    public function reviewApplicationAction(): Action
+    {
+        return Action::make('reviewApplication')
+            ->label('Review application')
+            ->modalHeading('Review application')
+            ->modalWidth(Width::FourExtraLarge)
+            ->modalSubmitActionLabel(fn (): string => $this->application()->application_state === AdmissionApplication::StateAdmitted ? 'Replace decision' : 'Save review')
+            ->icon('heroicon-o-document-magnifying-glass')
+            ->modalDescription(function (): string {
+                if ($this->application()->application_state === AdmissionApplication::StateAdmitted) {
+                    return 'Replace the current Admitted decision for '.$this->application()->application_reference.'. An approval reference is required. Previous decisions remain in history; readiness is recalculated.';
+                }
+
+                return 'Record a result for each submitted copy, then the admission decision. Leave the decision empty to save the copy results only. Earlier reviews and decisions remain in history.';
+            })
+            ->fillForm(fn (): array => [
+                'copies' => collect($this->currentEvidence())->mapWithKeys(function (DocumentEvidence $evidence): array {
+                    $review = $this->application()->currentPreliminaryReview($evidence);
+
+                    return [$evidence->id => [
+                        'result' => $review?->result,
+                        'reason' => $review?->reason,
+                        'expected_review_id' => $evidence->preliminaryReviews()->whereDoesntHave('successor')->value('id'),
+                    ]];
+                })->all(),
+                'expected_submission_version_id' => $this->application()->current_submission_version_id,
+                'expected_current_decision_id' => $this->application()->decisions()->whereDoesntHave('successor')->value('id'),
+                'papers_confirmed' => 0,
+            ])
+            ->schema(fn (): array => [
+                Hidden::make('expected_submission_version_id'),
+                Hidden::make('expected_current_decision_id'),
+                Section::make('Submitted copies')
+                    ->description('Open each copy, then record its result. Action needed requires a remark telling the Applicant what to replace.')
+                    ->compact()
+                    ->visible($this->currentEvidence() !== [])
+                    ->disabled(fn (): bool => $this->application()->application_state !== AdmissionApplication::StateSubmitted)
+                    ->schema(collect($this->currentEvidence())->map(fn (DocumentEvidence $evidence): Fieldset => Fieldset::make($evidence->admissionRequirement->label)
+                        ->statePath('copies.'.$evidence->id)
+                        ->columns(['default' => 1, 'md' => 2])
+                        ->schema([
+                            Hidden::make('expected_review_id'),
+                            Select::make('result')
+                                ->label('Result')
+                                ->options([
+                                    PreliminaryEvidenceReview::ResultAccepted => 'Accepted',
+                                    PreliminaryEvidenceReview::ResultActionNeeded => 'Action needed',
+                                    PreliminaryEvidenceReview::ResultUnderReview => 'Under review',
+                                ])
+                                ->placeholder('Not reviewed yet')
+                                ->live(),
+                            Actions::make([
+                                Action::make('viewCopy'.$evidence->id)
+                                    ->label('View copy')->icon('heroicon-o-eye')->color('gray')->link()
+                                    ->url(route('admissions.evidence.view', ['evidence' => $evidence->id]))
+                                    ->openUrlInNewTab(),
+                                Action::make('downloadCopy'.$evidence->id)
+                                    ->label('Download')->icon('heroicon-o-arrow-down-tray')->color('gray')->link()
+                                    ->url(route('admissions.evidence.download', ['evidence' => $evidence->id]))
+                                    ->openUrlInNewTab(),
+                            ])->verticalAlignment('end'),
+                            Textarea::make('reason')
+                                ->label('Remarks')
+                                ->placeholder('For example: The birth date is unreadable. Upload a clear copy showing the full page.')
+                                ->required(fn (Get $get): bool => $get('result') === PreliminaryEvidenceReview::ResultActionNeeded)
+                                ->visible(fn (Get $get): bool => in_array($get('result'), [PreliminaryEvidenceReview::ResultActionNeeded, PreliminaryEvidenceReview::ResultUnderReview], true))
+                                ->rows(2)
+                                ->maxLength(1000)
+                                ->columnSpanFull(),
+                        ]))->all()),
+                Section::make('Admission decision')
+                    ->compact()
+                    ->description(fn (Get $get): ?string => $this->copiesNeedAction($get('copies'))
+                        ? 'A copy needs action, so no decision is recorded now. Save, then use Request corrections to tell the Applicant what to replace.'
+                        : null)
+                    ->schema([
+                        Radio::make('decision')
+                            ->live()
+                            ->hiddenLabel()
+                            ->options([
+                                AdmissionDecision::DecisionAdmitted => 'Admitted',
+                                AdmissionDecision::DecisionNotAdmitted => 'Not admitted',
+                            ])
+                            ->disableOptionWhen(fn (string $value, Get $get): bool => $value === AdmissionDecision::DecisionAdmitted
+                                && (! $this->copiesAccepted($get('copies')) || $this->identityWarningOptions() !== []))
+                            ->helperText(fn (Get $get): ?string => $this->copiesAccepted($get('copies')) && $this->identityWarningOptions() === []
+                                ? 'Leave empty to save the copy results only.'
+                                : 'Admitted needs every copy Accepted and no open identity warning. Not admitted remains available with a review basis and an Applicant explanation.')
+                            ->required(fn (): bool => $this->application()->application_state === AdmissionApplication::StateAdmitted)
+                            ->visible(fn (Get $get): bool => ! $this->copiesNeedAction($get('copies'))),
+                        Radio::make('papers_confirmed')
+                            ->label('Physical requirement checks')
+                            ->options([0 => 'Admit — papers pending', 1 => 'Admit — papers confirmed'])
+                            ->live()
+                            ->visible(fn (Get $get): bool => $get('decision') === AdmissionDecision::DecisionAdmitted),
+                        Checkbox::make('external_checks_confirmed')
+                            ->label('I confirm the school completed all required physical requirement checks.')
+                            ->visible(fn (Get $get): bool => $get('decision') === AdmissionDecision::DecisionAdmitted && (bool) $get('papers_confirmed'))
+                            ->accepted(fn (Get $get): bool => $get('decision') === AdmissionDecision::DecisionAdmitted && (bool) $get('papers_confirmed')),
+                        Select::make('decision_reason')
+                            ->label('Common review reason')->options([
+                                'Required evidence is acceptable' => 'Required evidence is acceptable',
+                                'Required evidence remains incomplete' => 'Required evidence remains incomplete',
+                                'Unsupported admission eligibility' => 'Unsupported admission eligibility',
+                                'Submitted documents do not match the current curriculum' => 'Submitted documents do not match the current curriculum',
+                                'Other' => 'Other',
+                            ])->live()->afterStateUpdated(function (Set $set, ?string $state): void {
+                                if (filled($state) && $state !== 'Other') {
+                                    $set('reason', $state);
+                                }
+                            })
+                            ->visible(fn (Get $get): bool => $get('decision') === AdmissionDecision::DecisionNotAdmitted),
+                        Textarea::make('reason')->label('Private review reason')
+                            ->helperText('Record the basis for the decision. This note is for authorized staff.')
+                            ->placeholder('Summarize the reviewed evidence and the reason for this outcome.')
+                            ->rows(3)->required()->maxLength(1500)
+                            ->visible(fn (Get $get): bool => $get('decision') === AdmissionDecision::DecisionNotAdmitted),
+                        Textarea::make('applicant_explanation')->label('Applicant explanation')
+                            ->helperText('Shown to the Applicant. Explain the outcome and a safe next step without private identity or staff details.')
+                            ->placeholder('Explain what happens next or how to contact Admissions for help.')
+                            ->rows(3)->required()->maxLength(1500)
+                            ->visible(fn (Get $get): bool => $get('decision') === AdmissionDecision::DecisionNotAdmitted),
+                        TextInput::make('authority_reference')
+                            ->label('Separate approval reference')
+                            ->helperText('Required for a replacement decision. Enter the school approval or recorded authorization reference; an ordinary first decision uses your recorded Registrar authority.')
+                            ->required(fn (Get $get): bool => filled($get('expected_current_decision_id')) && filled($get('decision')))
+                            ->visible(fn (Get $get): bool => filled($get('expected_current_decision_id')) && filled($get('decision')))
+                            ->maxLength(255),
+                    ]),
+            ])
+            // Only while the application is under review; after admission the case ends through Record withdrawal (#99 Scope 10).
+            ->visible(fn (): bool => $this->canReview()
+                && $this->application()->application_state === AdmissionApplication::StateSubmitted)
+            ->action(function (array $data, Action $action): mixed {
+                $decision = filled($data['decision'] ?? null) && ! $this->copiesNeedAction($data['copies'] ?? []) ? (string) $data['decision'] : null;
+
+                return $this->runAction(function (User $actor) use ($data, $decision): void {
+                    DB::transaction(function () use ($actor, $data, $decision): void {
+                        $saved = $this->saveCopyReviews($actor, (array) ($data['copies'] ?? []), (int) $data['expected_submission_version_id']);
+
+                        if ($decision === null) {
+                            if ($saved === 0) {
+                                throw ValidationException::withMessages(['copies' => 'Nothing changed. Record a copy result or the admission decision.']);
+                            }
+
+                            return;
+                        }
+
+                        app(RecordAdmissionOutcome::class)->execute(
+                            $this->application()->fresh(),
+                            $actor,
+                            $decision,
+                            (string) ($data['reason'] ?? self::AdmittedDecisionReason),
+                            filled($data['authority_reference'] ?? null) ? (string) $data['authority_reference'] : null,
+                            (string) ($data['applicant_explanation'] ?? self::AdmittedApplicantExplanation),
+                            filled($data['expected_current_decision_id'] ?? null) ? (int) $data['expected_current_decision_id'] : null,
+                            filled($data['expected_submission_version_id'] ?? null) ? (int) $data['expected_submission_version_id'] : null,
+                            papersConfirmed: (bool) ($data['papers_confirmed'] ?? false) && (bool) ($data['external_checks_confirmed'] ?? false),
+                        );
+                    }, attempts: 3);
+                }, $decision !== null ? 'Admission decision recorded' : 'Copy reviews saved', $action);
+            });
+    }
+
+    /**
+     * Screening shortcut (#99 Scope 10): one compact row per submitted copy. Ticked means approved; For correction
+     * marks the copy Action needed with a remark. With every copy ticked the Registrar admits; with a copy for
+     * correction the modal saves the copy results instead, ready for Request corrections.
+     */
+    public function admitApplicationAction(): Action
+    {
+        return Action::make('admitApplication')
+            ->modalCancelAction(false)
+            ->label('Admit')
+            ->icon('heroicon-o-check-circle')
+            ->color('success')
+            ->modalHeading('Admit application')
+            ->modalWidth(Width::ThreeExtraLarge)
+            ->modalDescription(fn (): string => 'Open each submitted copy, tick it when it passes, or mark it For correction. Admit needs every copy ticked. '.$this->application()->application_reference.' is told the outcome; papers are checked next in Enrollment clearance.')
+            ->modalSubmitActionLabel(fn (): string => $this->admitFormHasCorrections() ? 'Save' : 'Admit')
+            ->fillForm(fn (): array => [
+                'copies' => collect($this->currentEvidence())->mapWithKeys(function (DocumentEvidence $evidence): array {
+                    $review = $this->application()->currentPreliminaryReview($evidence);
+
+                    return [$evidence->id => [
+                        'passed' => $review?->result === PreliminaryEvidenceReview::ResultAccepted,
+                        'for_correction' => $review?->result === PreliminaryEvidenceReview::ResultActionNeeded,
+                        'reason' => $review?->result === PreliminaryEvidenceReview::ResultActionNeeded ? $review->reason : null,
+                        'expected_review_id' => $evidence->preliminaryReviews()->whereDoesntHave('successor')->value('id'),
+                    ]];
+                })->all(),
+                'expected_submission_version_id' => $this->application()->current_submission_version_id,
+            ])
+            ->schema(fn (): array => [
+                Hidden::make('expected_submission_version_id'),
+                ...collect($this->currentEvidence())->map(fn (DocumentEvidence $evidence): Group => Group::make([
+                    Hidden::make('expected_review_id'),
+                    Hidden::make('for_correction'),
+                    Flex::make([
+                        Checkbox::make('passed')
+                            ->label($evidence->admissionRequirement->label)
+                            ->live()
+                            ->afterStateUpdated(function (Set $set, mixed $state): void {
+                                if ($state) {
+                                    $set('for_correction', false);
+                                    $set('reason', null);
+                                }
+                            })
+                            ->grow(),
+                        Text::make('For correction')
+                            ->badge()
+                            ->color('warning')
+                            ->visible(fn (Get $get): bool => (bool) $get('for_correction'))
+                            ->grow(false),
+                        Actions::make([
+                            Action::make('openCopy'.$evidence->id)
+                                ->label('Open')
+                                ->icon('heroicon-m-arrow-top-right-on-square')
+                                ->color('gray')
+                                ->link()
+                                ->url(route('admissions.evidence.view', ['evidence' => $evidence->id]))
+                                ->openUrlInNewTab(),
+                            Action::make('markForCorrection'.$evidence->id)
+                                ->label('For correction')
+                                ->color('warning')
+                                ->size('sm')
+                                ->outlined()
+                                ->action(function (Set $set): void {
+                                    $set('for_correction', true);
+                                    $set('passed', false);
+                                }),
+                        ])->grow(false),
+                    ])->verticallyAlignCenter(),
+                    TextInput::make('reason')
+                        ->hiddenLabel()
+                        ->placeholder('What should the Applicant replace or fix? For example: the copy is unreadable, upload a clear scan.')
+                        ->required(fn (Get $get): bool => (bool) $get('for_correction'))
+                        ->visible(fn (Get $get): bool => (bool) $get('for_correction'))
+                        ->maxLength(1000),
+                ])
+                    ->statePath('copies.'.$evidence->id)
+                    ->extraAttributes(['class' => 'tala-admit-copy-row']))->all(),
+            ])
+            ->visible(fn (): bool => $this->canReview()
+                && $this->application()->application_state === AdmissionApplication::StateSubmitted
+                && $this->identityWarningOptions() === [])
+            ->action(function (array $data, Action $action): mixed {
+                $copies = (array) ($data['copies'] ?? []);
+                $corrections = collect($copies)->filter(fn (mixed $row): bool => is_array($row) && (bool) ($row['for_correction'] ?? false));
+
+                return $this->runAction(function (User $actor) use ($data, $copies, $corrections): void {
+                    if ($corrections->isEmpty()) {
+                        $unticked = collect($this->currentEvidence())->reject(fn (DocumentEvidence $evidence): bool => (bool) ($copies[$evidence->id]['passed'] ?? false));
+                        if ($unticked->isNotEmpty()) {
+                            throw ValidationException::withMessages(['copies' => 'Tick every copy to admit, or mark one For correction. Not ticked: '.$unticked->map(fn (DocumentEvidence $evidence): string => $evidence->admissionRequirement->label)->implode(', ').'.']);
+                        }
+                    }
+
+                    DB::transaction(function () use ($actor, $data, $copies, $corrections): void {
+                        foreach ($this->currentEvidence() as $evidence) {
+                            $row = (array) ($copies[$evidence->id] ?? []);
+                            $result = match (true) {
+                                (bool) ($row['for_correction'] ?? false) => PreliminaryEvidenceReview::ResultActionNeeded,
+                                (bool) ($row['passed'] ?? false) => PreliminaryEvidenceReview::ResultAccepted,
+                                default => null,
+                            };
+                            $reason = $result === PreliminaryEvidenceReview::ResultActionNeeded ? trim((string) ($row['reason'] ?? '')) : null;
+                            $current = $this->application()->currentPreliminaryReview($evidence);
+
+                            if ($result === null || ($current?->result === $result && trim((string) $current->reason) === (string) $reason)) {
+                                continue;
+                            }
+
+                            app(ReviewPreliminaryEvidence::class)->execute(
+                                $evidence,
+                                $actor,
+                                $result,
+                                $reason,
+                                filled($row['expected_review_id'] ?? null) ? (int) $row['expected_review_id'] : null,
+                                (int) $data['expected_submission_version_id'],
+                            );
+                        }
+
+                        if ($corrections->isNotEmpty()) {
+                            return;
+                        }
+
+                        app(RecordAdmissionOutcome::class)->execute(
+                            $this->application()->fresh(),
+                            $actor,
+                            AdmissionDecision::DecisionAdmitted,
+                            self::AdmittedDecisionReason,
+                            null,
+                            self::AdmittedApplicantExplanation,
+                            $this->application()->decisions()->whereDoesntHave('successor')->value('id'),
+                            (int) $data['expected_submission_version_id'],
+                            papersConfirmed: false,
+                        );
+                    }, attempts: 3);
+                }, $corrections->isNotEmpty() ? 'Copy results saved. Use For correction to send the Applicant what to fix.' : 'Application admitted', $action);
+            });
+    }
+
+    /**
+     * Current copies whose latest review is Action needed, so Request corrections opens already filled in.
+     *
+     * @return list<array{requirement_id: int, label: string, reason: string}>
+     */
+    private function copiesMarkedForCorrection(): array
+    {
+        return collect($this->currentEvidence())
+            ->map(fn (DocumentEvidence $evidence): ?array => ($review = $this->application()->currentPreliminaryReview($evidence))?->result === PreliminaryEvidenceReview::ResultActionNeeded
+                ? ['requirement_id' => (int) $evidence->admission_requirement_id, 'label' => $evidence->admissionRequirement->label, 'reason' => (string) $review->reason]
+                : null)
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    /** A copy in the open Admit modal is marked For correction, so the modal saves instead of admitting. */
+    private function admitFormHasCorrections(): bool
+    {
+        return collect((array) data_get($this->mountedActions, '0.data.copies', []))
+            ->contains(fn (mixed $row): bool => is_array($row) && (bool) ($row['for_correction'] ?? false));
+    }
+
+    /**
+     * Record a successor review for each copy whose result or remark changed; unchanged copies keep their review.
+     *
+     * @param  array<int|string, array{result?: string|null, reason?: string|null, expected_review_id?: int|string|null}>  $copies
+     */
+    private function saveCopyReviews(User $actor, array $copies, int $expectedSubmissionVersionId): int
+    {
+        $saved = 0;
+
+        foreach ($this->currentEvidence() as $evidence) {
+            $row = $copies[$evidence->id] ?? [];
+            $result = $row['result'] ?? null;
+            if (blank($result)) {
+                continue;
+            }
+
+            $reason = filled($row['reason'] ?? null) ? trim((string) $row['reason']) : null;
+            $current = $this->application()->currentPreliminaryReview($evidence);
+            if ($current?->result === $result && trim((string) $current->reason) === (string) $reason) {
+                continue;
+            }
+
+            app(ReviewPreliminaryEvidence::class)->execute(
+                $evidence,
+                $actor,
+                (string) $result,
+                $result === PreliminaryEvidenceReview::ResultAccepted ? null : $reason,
+                filled($row['expected_review_id'] ?? null) ? (int) $row['expected_review_id'] : null,
+                $expectedSubmissionVersionId,
+            );
+            $saved++;
+        }
+
+        return $saved;
+    }
+
+    /** @param array<int|string, array{result?: string|null}>|null $copies */
+    private function copiesAccepted(?array $copies): bool
+    {
+        return collect($this->currentEvidence())
+            ->every(fn (DocumentEvidence $evidence): bool => ($copies[$evidence->id]['result'] ?? null) === PreliminaryEvidenceReview::ResultAccepted);
+    }
+
+    /** @param array<int|string, array{result?: string|null}>|null $copies */
+    private function copiesNeedAction(?array $copies): bool
+    {
+        return collect($copies ?? [])->contains(fn (mixed $row): bool => is_array($row) && ($row['result'] ?? null) === PreliminaryEvidenceReview::ResultActionNeeded);
+    }
+
+    /**
+     * The current copy of each requirement that needs preliminary evidence in the submitted requirement set.
+     *
+     * @return list<DocumentEvidence>
+     */
+    private function currentEvidence(): array
+    {
+        $requirements = $this->application()->currentSubmissionVersion?->requirementSet?->requirements
+            ?->where('requires_preliminary_evidence', true)
+            ->sortBy('display_order') ?? collect();
+
+        return $requirements
+            ->map(fn (AdmissionRequirement $requirement): ?DocumentEvidence => $this->application()->evidenceVersions
+                ->where('admission_requirement_id', $requirement->id)
+                ->sortByDesc('id')
+                ->first())
+            ->filter()
+            ->values()
+            ->all();
     }
 
     public function sendProcessRemarkAction(): Action
     {
         return Action::make('sendProcessRemark')
+            ->modalCancelAction(false)
             ->label('Notify Applicant')
             ->requiresConfirmation()
             ->modalIcon('heroicon-o-paper-airplane')
@@ -877,7 +1148,11 @@ class ViewAdmissionApplication extends ViewRecord
         $remarks = $application->events
             ->where('event_type', AdmissionApplicationEvent::TypeProcessRemarkSent)
             ->sortByDesc('occurred_at')
-            ->groupBy(fn (AdmissionApplicationEvent $event): string => (string) ($event->payload['step'] ?? ''));
+            ->groupBy(fn (AdmissionApplicationEvent $event): string => match ($step = (string) ($event->payload['step'] ?? '')) {
+                // Copy review and screening are one step since #99 Scope 10; earlier copy-review remarks show under it.
+                SendAdmissionProcessRemark::StepEvidence => SendAdmissionProcessRemark::StepScreening,
+                default => $step,
+            });
 
         $steps = [
             [
@@ -892,30 +1167,21 @@ class ViewAdmissionApplication extends ViewRecord
                 'button' => 'Start review',
             ],
             [
-                'key' => SendAdmissionProcessRemark::StepEvidence,
-                'done' => $copiesAccepted || $decision !== null,
-                'stopped' => false,
-                'summary' => $copies->isEmpty()
-                    ? 'No preliminary copies are required for this application.'
-                    : ($copiesAccepted
-                        ? 'All '.$copies->count().' submitted copies accepted.'
-                        : $copies->where('accepted', true)->count().' of '.$copies->count().' submitted copies accepted.'
-                            .($decision !== null ? ' Review closed by the admission decision.' : '')),
-                'blocker' => $copiesAccepted ? null : ($correctionNote ?? 'Waiting on: '.$copies->where('accepted', false)
-                    ->map(fn (array $copy): string => $copy['label'].' ('.$copy['status'].')')->implode('; ').'.'),
-                'action' => 'reviewEvidence',
-                'button' => 'Review copies',
-            ],
-            [
                 'key' => SendAdmissionProcessRemark::StepScreening,
                 'done' => $application->application_state === AdmissionApplication::StateAdmitted,
                 'stopped' => $application->application_state === AdmissionApplication::StateNotAdmitted,
-                'summary' => $decision
-                    ? str($decision->decision)->headline().' by '.($decision->decisionMaker?->getFilamentName() ?? 'Registrar').' · '.$format($decision->decided_at)
-                    : 'Review every submitted copy, then record the admission decision.',
-                'blocker' => $decision ? null : ($correctionNote ?? $this->admissionBlockerGuidance()),
-                'action' => 'recordDecision',
-                'button' => 'Record decision',
+                'summary' => collect([
+                    $copies->isEmpty()
+                        ? 'No preliminary copies are required.'
+                        : ($copiesAccepted ? 'All '.$copies->count().' submitted copies accepted' : $copies->where('accepted', true)->count().' of '.$copies->count().' submitted copies accepted'),
+                    $decision
+                        ? str($decision->decision)->headline().' by '.($decision->decisionMaker?->getFilamentName() ?? 'Registrar').' · '.$format($decision->decided_at)
+                        : 'Decision pending',
+                ])->implode(' · ').'.',
+                'blocker' => $decision ? null : ($correctionNote ?? ($copiesAccepted ? $this->admissionBlockerGuidance() : 'Waiting on: '.$copies->where('accepted', false)
+                    ->map(fn (array $copy): string => $copy['label'].' ('.$copy['status'].')')->implode('; ').'.')),
+                'action' => 'reviewApplication',
+                'button' => 'Review application',
             ],
             [
                 'key' => SendAdmissionProcessRemark::StepClearance,
@@ -995,6 +1261,13 @@ class ViewAdmissionApplication extends ViewRecord
             $action = in_array($state, ['current', 'expired'], true) && $step['action'] !== null ? $this->getAction($step['action']) : null;
             $actionIsAvailable = $action instanceof Action && $action->isVisible();
             $isClosed = $state === 'stopped' && $deadline['status'] === AdmissionDeadlineStatus::Closed;
+            // Screening is a choice, not a remark: Admit or For correction replace the remark box (#99 Scope 10).
+            $choices = $state === 'current' && $step['key'] === SendAdmissionProcessRemark::StepScreening
+                ? collect([
+                    ['action' => 'admitApplication', 'label' => 'Admit', 'color' => 'success', 'icon' => 'heroicon-m-check-circle'],
+                    ['action' => 'requestCorrection', 'label' => 'For correction', 'color' => 'warning', 'icon' => 'heroicon-m-pencil-square'],
+                ])->filter(fn (array $choice): bool => ($candidate = $this->getAction($choice['action'])) instanceof Action && $candidate->isVisible())->values()->all()
+                : [];
 
             return [
                 'key' => $step['key'],
@@ -1009,6 +1282,7 @@ class ViewAdmissionApplication extends ViewRecord
                 'blocker' => in_array($state, ['current', 'expired'], true) ? $step['blocker'] : null,
                 'action' => $actionIsAvailable ? $step['action'] : null,
                 'action_label' => $actionIsAvailable ? $step['button'] : null,
+                'choices' => $choices,
                 'remarks' => ($remarks->get($step['key']) ?? collect())->map(fn (AdmissionApplicationEvent $event): array => [
                     'remark' => (string) ($event->payload['remark'] ?? ''),
                     'by' => $event->actor?->getFilamentName() ?? 'Registrar',
@@ -1243,6 +1517,43 @@ class ViewAdmissionApplication extends ViewRecord
         return app(ReadyApplicantProjectionQuery::class)->forApplication($this->application())['clearance_result'] === RegistrarEnrollmentClearance::ResultCleared;
     }
 
+    /**
+     * A date-picker bound as Manila wall time with its offset (#99 Scope 9). The picker reads the wall time, and
+     * Filament's own server rule (after_or_equal / before_or_equal) parses the offset, so both agree on the instant.
+     * A bound without an offset is read as Manila time by the picker but as UTC by the server rule.
+     */
+    private function pickerBound(?CarbonInterface $moment): ?string
+    {
+        return $moment?->copy()->timezone((string) config('app.display_timezone'))->toIso8601String();
+    }
+
+    /** Some time remains between now and the end of the admission period (or no period end is set). */
+    private function deadlineWindowIsOpen(): bool
+    {
+        $periodEndsAt = $this->application()->admissionCycle?->period_ends_at;
+
+        return $periodEndsAt === null || $periodEndsAt->isFuture();
+    }
+
+    public function deadlineWindowGuidance(): string
+    {
+        $periodEndsAt = $this->application()->admissionCycle?->period_ends_at;
+
+        if ($periodEndsAt === null) {
+            return 'Choose a time after now. No admission-period end is set for this cycle.';
+        }
+
+        if (! $periodEndsAt->isFuture()) {
+            return 'No time is left: the admission period ended '.$this->formatDeadline($periodEndsAt).'. Move the admission period end in the cycle\'s Set admission deadlines first.';
+        }
+
+        $window = 'Allowed: after now ('.$this->formatDeadline(now()).') and on or before the end of the admission period ('.$this->formatDeadline($periodEndsAt).'), Manila time.';
+
+        return $periodEndsAt->lessThanOrEqualTo(now()->addDay())
+            ? $window.' Warning: the admission period ends in '.now()->diffForHumans($periodEndsAt, ['syntax' => CarbonInterface::DIFF_ABSOLUTE, 'parts' => 2]).', so very little time can be given.'
+            : $window;
+    }
+
     private function formatDeadline(mixed $moment): ?string
     {
         return $moment?->copy()->timezone((string) config('app.display_timezone'))->format('M j, Y · g:i A');
@@ -1347,23 +1658,6 @@ class ViewAdmissionApplication extends ViewRecord
             ->sortBy('display_order')
             ->pluck('label', 'id')
             ->all() ?? [];
-    }
-
-    private function preliminaryReviewIsComplete(): bool
-    {
-        return app(ReadyApplicantProjectionQuery::class)->preliminaryReviewIsComplete($this->application());
-    }
-
-    /** @return array<int, string> */
-    private function evidenceOptions(): array
-    {
-        $requirements = $this->application()->currentSubmissionVersion?->requirementSet?->requirements->pluck('id') ?? collect();
-
-        return $this->application()->evidenceVersions->whereIn('admission_requirement_id', $requirements)
-            ->sortByDesc('id')->unique('admission_requirement_id')
-            ->mapWithKeys(fn (DocumentEvidence $evidence): array => [
-                $evidence->id => $evidence->admissionRequirement->label.' — '.$evidence->uploaded_at->timezone(config('app.display_timezone'))->format('M j, Y g:i A').' — Current',
-            ])->all();
     }
 
     /** @return array<int, string> */

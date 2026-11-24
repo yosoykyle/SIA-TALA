@@ -65,6 +65,12 @@ class AdmissionApplicationsTable
                     ->tooltip(fn (AdmissionApplication $record): string => $record->application_reference)
                     ->copyable()
                     ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('application_path')
+                    ->label('Student type')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state): string => AdmissionCycle::studentTypeLabel($state))
+                    ->color(fn (?string $state): string|array => AdmissionCycle::studentTypeColor($state))
+                    ->icon(fn (?string $state): string => AdmissionCycle::studentTypeIcon($state)),
                 TextColumn::make('scope')
                     ->label('Program / cycle')
                     ->state(function (AdmissionApplication $record): string {
@@ -75,7 +81,7 @@ class AdmissionApplicationsTable
                     ->description(function (AdmissionApplication $record): string {
                         $cycle = $record->getRelation('admissionCycle');
 
-                        return AdmissionCycle::studentTypeLabel($record->application_path).' · '.($cycle instanceof AdmissionCycle ? $cycle->code : 'Cycle unavailable');
+                        return $cycle instanceof AdmissionCycle ? $cycle->code : 'Cycle unavailable';
                     })
                     ->tooltip(fn (AdmissionApplication $record): ?string => $record->program?->name)
                     ->wrap()
@@ -236,11 +242,13 @@ class AdmissionApplicationsTable
                             return $query;
                         }
 
-                        $readyIds = app(ReadyApplicantProjectionQuery::class)->readyApplicationIds();
+                        $readyApplicants = app(ReadyApplicantProjectionQuery::class);
+                        $readyIds = $readyApplicants->readyApplicationIds();
 
                         return $data['value'] === 'ready'
                             ? $query->whereIn('id', $readyIds)
-                            : $query->where('application_state', AdmissionApplication::StateAdmitted)->whereNotIn('id', $readyIds);
+                            : $query->where('application_state', AdmissionApplication::StateAdmitted)
+                                ->whereNotIn('id', [...$readyIds, ...$readyApplicants->officiallyEnrolledApplicationIds()]);
                     }),
                 SelectFilter::make('preliminary_readiness')
                     ->options(['complete' => 'Current preliminary review complete', 'pending' => 'Current preliminary review pending'])

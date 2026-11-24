@@ -2703,6 +2703,16 @@ dialog::backdrop,
 }
 /* Applicant record: the applicant's submitted details sit beside the work tabs on wide screens. */
 .tala-applicant-details-panel { align-self: start; }
+/* The work tab bar stays under the top bar while the steps scroll (#99 Scope 10). */
+.tala-applicant-record-tabs:not(.tala-applicant-details-panel) > .fi-tabs {
+    position: sticky; inset-block-start: 3.75rem; z-index: 2;
+    background: inherit; border-start-start-radius: inherit; border-start-end-radius: inherit;
+}
+.tala-applicant-record-tabs:not(.tala-applicant-details-panel) { background-clip: padding-box; }
+/* Side by side (xl): the Applicant details scroll in their own box beside the work tabs. */
+@media (min-width: 80rem) {
+    .tala-applicant-details-panel { position: sticky; inset-block-start: 4.75rem; max-block-size: calc(100dvh - 6rem); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+}
 /* A single always-open panel needs no tab switcher; the panel keeps its accessible name from the hidden tab. */
 .tala-applicant-details-panel > .fi-tabs { display: none; }
 .tala-applicant-details-panel .fi-sc-tabs-tab > .fi-grid > .fi-grid-col + .fi-grid-col .fi-section-not-contained { padding-block-start: 1rem; border-block-start: 1px solid color-mix(in srgb, currentColor 12%, transparent); }

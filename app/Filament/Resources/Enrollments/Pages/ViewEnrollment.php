@@ -1292,6 +1292,8 @@ class ViewEnrollment extends ViewRecord
                     ->descriptions(fn (): array => $this->sectionDescriptions())
                     ->searchable()
                     ->searchPrompt('Find a subject or class')
+                    // Select all ticks only the classes the year, term and search filters leave visible.
+                    ->bulkToggleable()
                     ->columns(1)
                     ->required()
                     ->live()

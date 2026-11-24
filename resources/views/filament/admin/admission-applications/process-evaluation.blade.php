@@ -14,7 +14,6 @@
                 [$badgeLabel, $badgeColor] = $stateBadge[$step['state']];
                 $badgeLabel = $step['state'] === 'stopped' ? $step['stop_label'] : $badgeLabel;
                 $isActive = in_array($step['state'], ['current', 'expired'], true);
-                $remarkId = 'process-remark-'.$step['key'];
             @endphp
             <li @class(['tala-process-step', 'is-'.$step['state']]) wire:key="process-step-{{ $step['key'] }}">
                 <span class="tala-process-mark" aria-hidden="true">
@@ -40,34 +39,13 @@
                         <p class="tala-process-blocker">{{ $step['blocker'] }}</p>
                     @endif
 
-                    @if ($isActive && $canNotify)
-                        <div class="tala-process-remark">
-                            <label for="{{ $remarkId }}" class="tala-process-remark-label">Remarks for the Applicant</label>
-                            <x-filament::input.wrapper class="fi-fo-textarea">
-                                <textarea
-                                    id="{{ $remarkId }}"
-                                    rows="2"
-                                    maxlength="1500"
-                                    wire:model="processRemarks.{{ $step['key'] }}"
-                                    placeholder="What is blocking this step, or what should the Applicant do next?"
-                                ></textarea>
-                            </x-filament::input.wrapper>
-                            <div class="tala-process-actions">
-                                @if ($step['action'])
-                                    <x-filament::button size="sm" wire:click="mountAction('{{ $step['action'] }}')">
-                                        {{ $step['action_label'] }}
-                                    </x-filament::button>
-                                @endif
-                                <x-filament::button
-                                    size="sm"
-                                    color="warning"
-                                    outlined
-                                    icon="heroicon-m-paper-airplane"
-                                    wire:click="mountAction('sendProcessRemark', { step: '{{ $step['key'] }}' })"
-                                >
-                                    Notify Applicant
+                    @if ($isActive && ($step['choices'] ?? []) !== [])
+                        <div class="tala-process-actions">
+                            @foreach ($step['choices'] as $choice)
+                                <x-filament::button size="sm" :color="$choice['color']" :icon="$choice['icon']" wire:click="mountAction('{{ $choice['action'] }}')">
+                                    {{ $choice['label'] }}
                                 </x-filament::button>
-                            </div>
+                            @endforeach
                         </div>
                     @elseif ($isActive && $step['action'])
                         <div class="tala-process-actions">

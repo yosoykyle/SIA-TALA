@@ -17,6 +17,7 @@
             <li wire:key="ready-applicant-{{ $application->id }}">
                 <div>
                     <h2>{{ collect([$application->first_name, $application->middle_name, $application->last_name])->filter()->implode(' ') }}</h2>
+                    <x-student-type-badge :path="$application->application_path" />
                     <p class="registrar-ready-reference">{{ $application->application_reference }}</p>
                 </div>
                 <div class="registrar-ready-studies">

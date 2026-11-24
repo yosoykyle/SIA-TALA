@@ -37,6 +37,7 @@
 <article class="registrar-enrollment-record">
     <div class="registrar-enrollment-person">
         <h2>{{ $learner }}</h2>
+        <x-student-type-badge :path="$case->admissionApplication?->application_path" :continuing="$case->admission_application_id === null" />
         <p class="registrar-enrollment-identifier">{{ $case->studentProfile?->student_number ?? $case->admissionApplication?->application_reference ?? 'Number not assigned' }}</p>
     </div>
     <div class="registrar-enrollment-studies">

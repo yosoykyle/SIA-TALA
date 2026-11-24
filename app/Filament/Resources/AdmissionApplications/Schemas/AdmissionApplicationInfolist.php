@@ -44,7 +44,8 @@ class AdmissionApplicationInfolist
         }
 
         return $schema
-            ->columns(['default' => 1, 'xl' => 2])
+            // 2/5 work tabs, 3/5 Applicant details: the details carry more of the review (#99 Scope 10).
+            ->columns(['default' => 1, 'xl' => 5])
             ->components([
                 Tabs::make('ApplicantRecord')
                     ->extraAttributes(['class' => 'tala-applicant-record-tabs'])
@@ -61,27 +62,6 @@ class AdmissionApplicationInfolist
                         Tab::make('Record history')
                             ->icon('heroicon-o-clock')
                             ->schema([
-                                Section::make('Decision basis')
-                                    ->schema([
-                                        TextEntry::make('decision_private_basis')
-                                            ->label('Registrar review basis')
-                                            ->visible(fn (AdmissionApplication $record): bool => $record->decisions->whereNull('successor')->isNotEmpty())
-                                            ->state(function (AdmissionApplication $record): ?string {
-                                                $decision = $record->decisions->whereNull('successor')->sortByDesc('decided_at')->first();
-
-                                                return $decision?->reason;
-                                            })
-                                            ->helperText(function (AdmissionApplication $record): ?string {
-                                                $decision = $record->decisions->whereNull('successor')->sortByDesc('decided_at')->first();
-                                                if (filled($decision?->authority_reference)) {
-                                                    return 'Authority reference: '.$decision->authority_reference;
-                                                }
-
-                                                return null;
-                                            }),
-                                    ])
-                                    ->visible(fn (AdmissionApplication $record): bool => $record->decisions->isNotEmpty())
-                                    ->compact()->collapsible()->collapsed(),
                                 View::make('filament.admin.admission-applications.activity-evidence')
                                     ->viewData(fn (AdmissionApplication $record): array => [
                                         'application' => $record,
@@ -90,7 +70,7 @@ class AdmissionApplicationInfolist
                                     ]),
                             ]),
                     ])
-                    ->columnSpan(['default' => 'full', 'xl' => 1]),
+                    ->columnSpan(['default' => 'full', 'xl' => 2]),
                 Tabs::make('ApplicantDetails')
                     ->extraAttributes(['class' => 'tala-applicant-record-tabs tala-applicant-details-panel'])
                     ->tabs([
@@ -183,7 +163,7 @@ class AdmissionApplicationInfolist
                                     ]),
                             ]),
                     ])
-                    ->columnSpan(['default' => 'full', 'xl' => 1]),
+                    ->columnSpan(['default' => 'full', 'xl' => 3]),
             ]);
     }
 
@@ -318,7 +298,7 @@ class AdmissionApplicationInfolist
                         && $record->admissionApplication->reviewHasStarted()
                         && (bool) auth()->user()?->can('review', $record->admissionApplication)
                     )
-                    ->action(fn (DocumentEvidence $record, ViewAdmissionApplication $livewire) => $livewire->replaceMountedAction('reviewEvidence', ['document_evidence_id' => $record->id])
+                    ->action(fn (DocumentEvidence $record, ViewAdmissionApplication $livewire) => $livewire->replaceMountedAction('reviewApplication')
                     ),
                 Action::make('viewEvidence')->label('View')->iconButton()->tooltip('View copy')->color('gray')->icon('heroicon-o-eye')
                     ->extraAttributes(fn (DocumentEvidence $record): array => ['aria-label' => e('View '.($record->admissionRequirement?->label ?? 'evidence').' copy '.$record->id)])

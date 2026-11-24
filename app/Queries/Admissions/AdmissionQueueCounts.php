@@ -26,6 +26,9 @@ class AdmissionQueueCounts
     /** @var list<int>|null */
     private ?array $readyApplicationIds = null;
 
+    /** @var list<int>|null */
+    private ?array $officiallyEnrolledIds = null;
+
     /** @var array<string, list<int>> */
     private array $deadlineIds = [];
 
@@ -68,7 +71,7 @@ class AdmissionQueueCounts
             self::NeedsReview => $query->where('application_state', AdmissionApplication::StateSubmitted)->whereNotIn('id', $closed),
             self::WaitingForApplicant => $query->where('application_state', AdmissionApplication::StateActionNeeded)->whereNotIn('id', $closed),
             self::RegistrarClearance => $query->where('application_state', AdmissionApplication::StateAdmitted)
-                ->whereNotIn('id', [...$this->readyApplicationIds(), ...$closed, ...$expired]),
+                ->whereNotIn('id', [...$this->readyApplicationIds(), ...$this->officiallyEnrolledIds(), ...$closed, ...$expired]),
             self::ReadyForEnrollment => $query->whereIn('id', $this->readyApplicationIds())->whereNotIn('id', [...$closed, ...$expired]),
             self::Expired => $query->whereIn('id', $expired),
             self::Closed => $query->where(fn (Builder $closedQuery): Builder => $closedQuery
@@ -112,6 +115,12 @@ class AdmissionQueueCounts
     private function idsWith(string $status): array
     {
         return $this->deadlineIds[$status] ??= $this->deadlines->idsWith($status);
+    }
+
+    /** @return list<int> */
+    private function officiallyEnrolledIds(): array
+    {
+        return $this->officiallyEnrolledIds ??= $this->readyApplicants->officiallyEnrolledApplicationIds();
     }
 
     /** @return list<int> */

@@ -186,7 +186,7 @@ class PrepareRegistrationProposal
             $fallbackCurriculumId = $curriculumIds->unique()->count() === 1 ? $curriculumIds->first() : null;
             $curriculum = $this->eligibility->resolveStudentCurriculum($locked, $fallbackCurriculumId);
             if (! $curriculum instanceof CurriculumVersion) {
-                throw ValidationException::withMessages(['sections' => 'All proposal items must use one authoritative Curriculum Version.']);
+                throw ValidationException::withMessages(['sections' => $this->unresolvedCurriculumMessage($locked, $curriculumIds->unique()->count())]);
             }
 
             $this->eligibility->assertEligible(
@@ -318,5 +318,25 @@ class PrepareRegistrationProposal
 
             return $proposal->load('items');
         }, attempts: 3);
+    }
+
+    /**
+     * Say why no single curriculum could be chosen and what the Registrar can do about it (#99).
+     */
+    private function unresolvedCurriculumMessage(Enrollment $enrollment, int $selectedCurriculumCount): string
+    {
+        $profile = $enrollment->studentProfile;
+        $program = $profile?->program ?? $enrollment->admissionApplication?->program;
+        $academicYear = $profile?->entryTerm?->academicYear ?? $enrollment->term?->academicYear;
+
+        if ($program !== null && $program->curriculumVersionBatches()->exists()) {
+            return $program->name.' has no curriculum set for '.($academicYear?->label ?? 'this academic year').' entrants. Add a curriculum batch for that year in Programs & Curricula, then save the subjects again.';
+        }
+
+        if ($selectedCurriculumCount > 1) {
+            return 'The selected classes come from different curricula. Choose classes from one curriculum only.';
+        }
+
+        return 'No curriculum could be chosen for this student. Assign the student\'s curriculum or add a curriculum batch in Programs & Curricula, then save the subjects again.';
     }
 }
