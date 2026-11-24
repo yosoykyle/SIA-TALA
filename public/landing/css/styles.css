@@ -498,6 +498,7 @@ button.text-link { background: transparent; border: 0; padding: 0.5rem 0; min-he
 
 .update-card__title { margin: 0 0 0.5rem; color: #ffffff; font-size: 1.25rem; font-weight: 650; line-height: 1.35; }
 .update-card__message { max-width: 70ch; margin: 0 0 0.5rem; color: var(--landing-hero-muted); white-space: pre-line; }
+.update-card--notice .update-card__message { text-align: justify; text-justify: inter-word; hyphens: auto; }
 
 .admission-grid {
     display: grid;

@@ -75,6 +75,8 @@ class OperationalEvent extends Model
 
     public const TypeAdmissionApplicationWithdrawn = 'admission_application_withdrawn';
 
+    public const TypeAdmissionProcessRemarkSent = 'admission_process_remark_sent';
+
     public const TypeOfficialEnrollmentEmail = 'official_enrollment_email';
 
     public const TypeEnrollmentWindowEmail = 'enrollment_window_email';

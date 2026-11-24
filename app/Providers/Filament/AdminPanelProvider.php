@@ -840,6 +840,7 @@ class AdminPanelProvider extends PanelProvider
                     AdmissionQueueCounts::WaitingForApplicant => Heroicon::OutlinedClock,
                     AdmissionQueueCounts::RegistrarClearance => Heroicon::OutlinedClipboardDocumentCheck,
                     AdmissionQueueCounts::ReadyForEnrollment => Heroicon::OutlinedCheckCircle,
+                    AdmissionQueueCounts::Expired => Heroicon::OutlinedExclamationTriangle,
                     AdmissionQueueCounts::Closed => Heroicon::OutlinedArchiveBox,
                     default => Heroicon::OutlinedQueueList,
                 })

@@ -140,13 +140,50 @@ class AdmissionApplicationDomainActionsTest extends TestCase
 
         try {
             app(SubmitAdmissionApplication::class)->execute($draft, $applicant);
-            $this->fail('A first submission without an LRN must be rejected.');
+            $this->fail('A Freshman first submission without an LRN must be rejected.');
         } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('lrn', $exception->errors());
+            $this->assertArrayHasKey('lrn_availability', $exception->errors());
         }
 
         $this->assertSame(AdmissionApplication::StateDraft, $draft->fresh()->application_state);
         $this->assertSame(0, $draft->submissionVersions()->count());
+    }
+
+    public function test_transferee_never_issued_an_lrn_can_submit_while_not_available_is_still_rejected(): void
+    {
+        [$cycle, $program] = $this->openCycle();
+        $transfereeData = [
+            ...$this->applicationData($program),
+            'application_path' => AdmissionApplication::PathTransferee,
+            'credential_basis' => AdmissionApplication::CredentialTransfer,
+            'lrn' => null,
+        ];
+
+        $notAvailableApplicant = $this->applicant();
+        $notAvailable = app(SaveAdmissionApplication::class)->execute(
+            $notAvailableApplicant,
+            $cycle,
+            [...$transfereeData, 'lrn_availability' => 'NotAvailable'],
+        );
+
+        try {
+            app(SubmitAdmissionApplication::class)->execute($notAvailable, $notAvailableApplicant);
+            $this->fail('A Transferee first submission may omit the LRN only when it was never issued.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('lrn_availability', $exception->errors());
+        }
+
+        $applicant = $this->applicant();
+        $draft = app(SaveAdmissionApplication::class)->execute(
+            $applicant,
+            $cycle,
+            [...$transfereeData, 'lrn_availability' => 'NotIssued'],
+        );
+        $submitted = app(SubmitAdmissionApplication::class)->execute($draft, $applicant);
+
+        $this->assertSame(AdmissionApplication::StateSubmitted, $submitted->application_state);
+        $this->assertSame('NotIssued', $submitted->lrn_availability);
+        $this->assertNull($submitted->lrn);
     }
 
     public function test_switching_a_transferee_draft_to_first_year_clears_its_hidden_prior_college_identifier(): void

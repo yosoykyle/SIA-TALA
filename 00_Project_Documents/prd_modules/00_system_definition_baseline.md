@@ -218,10 +218,11 @@ Clinic 2 owns these admissions messages:
 
 - Application submission with the stable reference
 - One consolidated Action Needed request
-- Admitted with official-credential instructions
-- Not Admitted
+- Admitted with official-credential instructions, listing the physical papers and paper deadline
+- Not Admitted (final)
 - Ready for Enrollment
 - Withdrawal confirmation
+- Enrollment-clearance deficiencies, a Registrar's Process evaluation remark, and a re-admission deadline extension (PRD 02 Section 14.2, #96)
 
 Send email when the recipient must act or an official result needs communicating. Routine progress remains in the workspace. The event ownership below supplies source and recipient boundaries; it is not a message quota or permission to notify every derived status change. Consolidate events from one action where their safe instruction and recipient are the same.
 
@@ -230,7 +231,7 @@ The module-level ownership is:
 | Owner | Authorized events | Source and failure boundary |
 |---|---|---|
 | Clinic 1 | Verification/resend, password recovery, Staff invitation, email-change verification/alerts, account disable/reactivate, Staff-role change | Credential/access event; failure never changes account state |
-| Clinic 2 | Submission, one consolidated Action Needed request, Admitted, Not Admitted, Ready for Enrollment, withdrawal | Application/decision/readiness reference; workspace remains authoritative |
+| Clinic 2 | Submission, one consolidated Action Needed request, Admitted, Not Admitted, Ready for Enrollment, withdrawal, clearance deficiencies, process remark, deadline extension | Application/decision/readiness reference; workspace remains authoritative |
 | Clinic 3 | Faculty availability request, first timetable publication, one shared published-revision event | Availability request or published version plus recipient identity; Clinic 4 supplies affected enrolled-Student context without sending a duplicate |
 | Clinic 4 | Continuing-Student enrollment window, proposal ready/materially revised, payment/coverage action, official enrollment/COR, reservation release/case expiry, adjustment/Course Drop | Owning window/proposal/case/COR/change version; first-enrollment message also announces Student access |
 | Clinic 5 | Grade-roster action/return/release, INC release/deadline and resolution, deadline amendment, correction, progress/lifecycle, completion action, conferral | Owning roster/result/deadline-amendment/decision/conferral reference; deadline passage alone sends no email; grade values and attachments are excluded |
@@ -257,7 +258,7 @@ The complete product remains lean because every normally expected SIS capability
 | Capability | Authority and record owner | User journey and UI projection | Failure, correction, or output | Scope disposition |
 |---|---|---|---|---|
 | Identity, access, and public entry | PRD 01; account, role assignments, invitation, and verification | Public Gateway, unified sign-in, authorized post-authentication context resolution, Users & Access | Recovery, disablement, inaccessible routes, access correction, security email | Retained |
-| Admissions | PRD 02; Admission Cycle, Application, evidence, decision, and Registrar enrollment clearance | Applicant Home/Application/Requirements; Registrar Admissions | Correction, withdrawal, reopening, superseding decision, acknowledgment | Retained |
+| Admissions | PRD 02; Admission Cycle, Application, evidence, decision, and Registrar enrollment clearance | Applicant Home/Application/Requirements; Registrar Admissions | Correction, withdrawal, reopening, superseding decision over Admitted (Not Admitted is final), derived Expired/Closed with re-admission, acknowledgment | Retained |
 | Academic authority and curriculum | PRD 03; Program, Course Revision, Curriculum Version, and authorized external-competency requirements | Catalog & Curricula; read-only Academic Oversight | Import finding, blocked activation, successor authority, external-result source correction | Retained with bounded external evidence |
 | Terms and offerings | PRD 03; Term Calendar Package, Term Cohort, and Class Offering | Term Planning; Faculty availability and informational Examination Period projections | Missing authority, incomplete resource, Additional Offering correction, unavailable calendar source | Retained |
 | Scheduling | PRD 03; solver request/result, candidate, and Published Timetable Version | Generate & Review, Published Timetable, Faculty/Student projections | Infeasible, Unknown, ModelInvalid, TechnicalFailure, bounded correction, revision | Retained |
@@ -627,7 +628,7 @@ Every readiness projection names its source, owner, effective version or as-of t
 | Title/label | Title maximum 160 characters; short label maximum 120 |
 | Administrative reason | Required for rejection, correction, reversal and authority-backed exceptions; 10–1,000 characters. An owning PRD may use an attributable fixed result for routine successful verification/clearance without a separate narrative. Actor, time and current source are still required. |
 | Safe learner explanation | 1–500 characters; no internal notes, secrets, private evidence, or unsupported accusation |
-| LRN | Required for every first submission (owner decision, October 14, 2026): exactly 12 digits stored as text, preserving leading zeros. Historical Not issued / Not available facts are retained. Before `Admitted`, Registrar resolves a verified identity collision or unavailable-LRN warning through the non-disclosing PRD 02 path. Initial submission remains available; `NotAdmitted` uses its own recorded decision basis. |
+| LRN | Required for every first submission (owner decision, October 14, 2026): exactly 12 digits stored as text, preserving leading zeros. A Transferee never issued an LRN may record Not issued on first submission (owner decision, November 22, 2026, #96). Historical Not issued / Not available facts are retained. Before `Admitted`, Registrar resolves a verified identity collision or unavailable-LRN warning through the non-disclosing PRD 02 path. Initial submission remains available; `NotAdmitted` uses its own recorded decision basis. |
 | Telephone | Requiredness belongs to the owning field contract; normalize to 8–15 international digits while accepting Philippine-friendly input |
 | Money | PHP only for MVP, two decimal places, nonnegative; payment and coverage postings must be positive |
 | Units | Positive, up to two decimal places; curriculum/authority reconciliation controls validity, not a universal cap |

@@ -4,21 +4,45 @@
     @php($application = $receipt->application)
     <x-filament::section>
         <x-slot name="heading">{{ $receipt->id === $application->current_submission_version_id ? 'Application received' : 'Earlier submitted version' }}</x-slot>
-        <x-slot name="description">Version {{ $receipt->version }} · received {{ $receipt->submitted_at->timezone(config('app.display_timezone'))->format('F j, Y, g:i A') }} (Asia/Manila)</x-slot>
-        <x-application-reference :value="$snapshot['application_reference'] ?? $application->application_reference" />
-        <p class="mt-4">{{ collect([$snapshot['first_name'] ?? null, $snapshot['middle_name'] ?? null, $snapshot['last_name'] ?? null, $snapshot['extension_name'] ?? null])->filter()->implode(' ') ?: 'Applicant name was not retained in this version.' }}</p>
-        <p>{{ $snapshot['program']['name'] ?? 'Program name was not retained in this version.' }} · {{ \App\Models\AdmissionCycle::studentTypeLabel($snapshot['application_path'] ?? null) }}</p>
-        <p>{{ $snapshot['term']['label'] ?? 'Term label was not retained in this version.' }}</p>
+        <x-slot name="description">Received {{ $receipt->submitted_at->timezone(config('app.display_timezone'))->format('F j, Y, g:i A') }} (Asia/Manila)</x-slot>
+        <div class="tala-receipt-reference">
+            <p class="tala-receipt-reference-label">Application reference</p>
+            <x-application-reference :value="$snapshot['application_reference'] ?? $application->application_reference" />
+            <p class="tala-receipt-reference-hint">Keep this reference for any question to the Registrar.</p>
+        </div>
+        <dl class="tala-receipt-facts">
+            <div class="tala-receipt-fact tala-receipt-fact--wide">
+                <dt>Applicant</dt>
+                <dd>{{ collect([$snapshot['first_name'] ?? null, $snapshot['middle_name'] ?? null, $snapshot['last_name'] ?? null, $snapshot['extension_name'] ?? null])->filter()->implode(' ') ?: 'Applicant name was not retained in this version.' }}</dd>
+            </div>
+            <div class="tala-receipt-fact tala-receipt-fact--wide">
+                <dt>Program</dt>
+                <dd>{{ $snapshot['program']['name'] ?? 'Program name was not retained in this version.' }}</dd>
+            </div>
+            <div class="tala-receipt-fact">
+                <dt>Student type</dt>
+                <dd>{{ \App\Models\AdmissionCycle::studentTypeLabel($snapshot['application_path'] ?? null) ?: 'Student type was not retained in this version.' }}</dd>
+            </div>
+            <div class="tala-receipt-fact">
+                <dt>Term</dt>
+                <dd>{{ $snapshot['term']['label'] ?? 'Term label was not retained in this version.' }}</dd>
+            </div>
+        </dl>
         @php($receivedCopies = collect($snapshot['requirements'] ?? [])->filter(fn (array $requirement): bool => filled($requirement['evidence'] ?? null)))
         @if ($receivedCopies->isNotEmpty())
-            <p class="mt-4 font-medium">Copies received with this version</p>
-            <ul class="mt-2 list-disc ps-5">
-                @foreach ($receivedCopies as $requirement)
-                    <li>{{ $requirement['label'] ?? 'Requirement' }}</li>
-                @endforeach
-            </ul>
+            <div class="tala-receipt-copies">
+                <p class="tala-receipt-copies-label">Copies received with this version</p>
+                <ul>
+                    @foreach ($receivedCopies as $requirement)
+                        <li>
+                            <x-filament::icon icon="heroicon-o-document-check" class="tala-receipt-copy-icon" />
+                            <span>{{ $requirement['label'] ?? 'Requirement' }}</span>
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
         @endif
-        <p class="mt-4">This receipt confirms the submitted application. Admission and enrollment clearance are recorded separately by the Registrar.</p>
+        <p class="tala-receipt-note">This receipt confirms the submitted application. Admission and enrollment clearance are recorded separately by the Registrar.</p>
     </x-filament::section>
     <x-filament::section>
         <x-slot name="heading">What happens next</x-slot>

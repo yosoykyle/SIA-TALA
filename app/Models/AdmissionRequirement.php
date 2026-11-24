@@ -78,6 +78,27 @@ class AdmissionRequirement extends Model
         ];
     }
 
+    /**
+     * The official paper is handed to the school in person, whether or not a preliminary copy is also uploaded.
+     */
+    public function isOnSite(): bool
+    {
+        return $this->official_submission_method === self::SubmissionInPerson;
+    }
+
+    /**
+     * Applicant-facing wording for when the official paper is due.
+     */
+    public function dueStageLabel(): string
+    {
+        return match ($this->due_stage) {
+            self::DuePreliminaryReview => 'During application review',
+            self::DueEnrollmentReadiness => 'Before enrollment',
+            self::DuePostEnrollmentFollowUp => 'After enrollment',
+            default => 'When the Registrar asks',
+        };
+    }
+
     public static function isCoreClassification(?string $classification): bool
     {
         return in_array($classification, [

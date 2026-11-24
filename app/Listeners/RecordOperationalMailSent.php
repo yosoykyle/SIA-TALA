@@ -28,6 +28,7 @@ class RecordOperationalMailSent
                 OperationalEvent::TypeAdmissionApplicationNotAdmitted,
                 OperationalEvent::TypeAdmissionReadyForEnrollment,
                 OperationalEvent::TypeAdmissionApplicationWithdrawn,
+                OperationalEvent::TypeAdmissionProcessRemarkSent,
                 ...OperationalEvent::registrationNotificationTypes(),
                 ...OperationalEvent::academicNotificationTypes(),
             ], true)) {

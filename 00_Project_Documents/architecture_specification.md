@@ -270,7 +270,7 @@ MongoDB can support transactions, but its document model would not remove the ne
 - First application submission assigns one stable reference and freezes the submitted snapshot atomically.
 - One account is constrained to one application per Admission Cycle; admission decisions recheck cycle, correction, identity-match, requirement-version, and prior-decision facts server-side.
 - Admission-decision corrections append a superseding decision rather than overwriting the earlier decision.
-- Enrollment readiness is derived from the current admitted decision, resolved identity warnings and matching current Registrar enrollment clearance after externally completed school checks. Clinic 4 consumes the same application projection and creates no duplicate admissions record.
+- Enrollment readiness is derived from the current admitted decision, resolved identity warnings and matching current Registrar enrollment clearance after the per-paper physical requirement checks. Clinic 4 consumes the same application projection and creates no duplicate admissions record.
 - Admission public close and correction boundary are revalidated independently; issuing a new correction after its boundary requires an authorized boundary extension, while an existing active correction remains resubmittable and overdue never auto-rejects the application.
 - Proposal confirmation locks and validates the current proposal version and Class Offering capacity before creating deadline-bound reservations. Expiry releases seats without deleting the case or payment evidence.
 - Reopening a terminal Registration Case locks the same learner/Term record, revalidates cutoff or exact late authority and current sources, appends one event, and restores no prior checkpoint facts.
