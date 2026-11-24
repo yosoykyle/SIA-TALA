@@ -2,6 +2,7 @@
 
 namespace App\Actions\Grades;
 
+use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Models\ClassOfferingTeachingAssignment;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
@@ -21,7 +22,16 @@ class CurrentClassRosterOutput
     /** @return array{roster:GradeRoster,generatedAt:Carbon,headers:list<string>,rows:list<list<?string>>,count:int} */
     public function forRoster(GradeRoster $roster, User $actor): array
     {
-        abort_unless($actor->canAuthenticate() && $actor->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleFaculty]), 403);
+        abort_unless($actor->canAuthenticate(), 403);
+        abort_if(
+            $actor->hasRole(User::StaffRoleAcademicHead)
+                && (
+                    ! $actor->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleFaculty])
+                    || app(WorkspaceContextResolver::class)->selected($actor) === User::StaffRoleAcademicHead
+                ),
+            403,
+        );
+        abort_unless($actor->hasAnyRole([User::StaffRoleRegistrar, User::StaffRoleFaculty]), 403);
         $snapshot = $this->membershipSnapshot($roster, $actor);
         abort_unless($actor->hasRole(User::StaffRoleRegistrar)
             || ClassOfferingTeachingAssignment::query()->where('section_id', $snapshot['roster']->section_id)

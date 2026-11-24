@@ -11,6 +11,7 @@ use App\Models\CalendarEvent;
 use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
+use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\FacultyQualification;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
@@ -211,6 +212,13 @@ class Issue58PlanningGridTest extends TestCase
         $section = Section::factory()->for($offering, 'termOffering')->create(['capacity' => 10, 'state' => Section::StatePlanned]);
         $group = SectionDeliveryGroup::factory()->for($section)->create(['expected_count' => 10, 'modality' => TermOffering::ModalityFaceToFace, 'state' => SectionDeliveryGroup::StateReady]);
         FacultyQualification::factory()->for($faculty, 'faculty')->create(['course_id' => $specification->course_id, 'is_active' => true]);
+        FacultyAvailabilityDeclaration::factory()->create([
+            'term_id' => $term->id,
+            'faculty_user_id' => $faculty->id,
+            'declaration' => FacultyAvailabilityDeclaration::DeclarationAvailable,
+            'availability_mode' => FacultyAvailabilityDeclaration::ModeAnyApproved,
+            'hard_unavailability' => [],
+        ]);
         $room = Room::factory()->create(['room_type' => Room::TypeLectureRoom, 'capacity' => 40, 'is_active' => true]);
         $run = ScheduleGenerationRun::factory()->for($term)->create(['input_snapshot' => [], 'status' => ScheduleGenerationRun::StatusQueued]);
 

@@ -14,10 +14,16 @@ use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
+use App\Models\Term;
+use App\Models\TermOffering;
 use App\Models\User;
+use Carbon\CarbonImmutable;
+use Filament\Actions\Action;
+use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
@@ -33,6 +39,7 @@ final class ScheduleRevisionNotificationService
         }
 
         $events->load([
+            'term',
             'sectionMeeting.schedulingDemand.courseComponent.courseSpecification.course',
             'sectionMeeting.schedulingDemand.sectionDeliveryGroup.section',
         ]);
@@ -60,7 +67,11 @@ final class ScheduleRevisionNotificationService
 
         foreach ($recipients as $recipient) {
             $recipientEvents = new EloquentCollection(array_values($eventsByRecipient['events'][(int) $recipient->id]));
-            $payload = $this->payload($recipientEvents, $roomLabels, $facultyLabels, $recipient);
+            $kinds = $recipientKinds[(int) $recipient->id] ?? [];
+            $recipientRole = isset($kinds['faculty']) && $recipient->hasRole(User::StaffRoleFaculty) && ! isset($kinds['student'])
+                ? 'faculty'
+                : (isset($kinds['student']) && $recipient->hasRole('student') ? 'student' : 'faculty');
+            $payload = $this->payload($recipientEvents, $roomLabels, $facultyLabels, $recipient, $recipientRole);
             $externalId = "schedule-revision:{$eventSetHash}:user:{$recipient->id}";
             $deliveryEvent = OperationalEvent::query()->firstOrCreate(
                 [
@@ -95,7 +106,66 @@ final class ScheduleRevisionNotificationService
             }
 
             $this->queue($deliveryEvent, $recipient);
+            $this->sendDatabaseNotification($recipient, $recipientEvents, $payload, $recipientRole);
         }
+    }
+
+    /**
+     * @param  EloquentCollection<int, ScheduleRevisionEvent>  $events
+     * @param  array<string, mixed>  $payload
+     */
+    private function sendDatabaseNotification(User $recipient, EloquentCollection $events, array $payload, string $recipientRole): void
+    {
+        $allCancelled = $events->every(
+            fn (ScheduleRevisionEvent $event): bool => $event->change_type === ScheduleRevisionEvent::ChangeSectionCancellation,
+        );
+        $changesCount = count($payload['changes'] ?? $events->all());
+        $termLabel = trim((string) ($payload['term_label'] ?? ''));
+        $termId = (int) ($payload['term_id'] ?? 0);
+
+        $title = match (true) {
+            $allCancelled => $changesCount > 1 ? 'Classes cancelled' : 'Class cancelled',
+            $changesCount > 1 => 'Your class schedule was updated',
+            default => 'Class schedule update',
+        };
+
+        $subjectSummary = $changesCount === 1
+            ? '1 scheduled meeting'
+            : "{$changesCount} scheduled meetings";
+        $body = $termLabel !== ''
+            ? "{$subjectSummary} changed in {$termLabel}. Review your updated schedule for room, teacher, or time details."
+            : "{$subjectSummary} changed. Review your updated schedule for room, teacher, or time details.";
+
+        $url = match ($recipientRole) {
+            'faculty' => Route::has('filament.admin.pages.faculty-schedule')
+                ? route('filament.admin.pages.faculty-schedule', $termId > 0 ? ['termId' => $termId] : [])
+                : null,
+            'student' => Route::has('filament.student.pages.schedule-view')
+                ? route('filament.student.pages.schedule-view')
+                : null,
+            default => null,
+        };
+
+        $notification = Notification::make()
+            ->title($title)
+            ->body($body)
+            ->color($allCancelled ? 'danger' : 'warning');
+
+        if ($allCancelled) {
+            $notification->danger();
+        } else {
+            $notification->warning();
+        }
+
+        if ($url !== null) {
+            $notification->actions([
+                Action::make('viewSchedule')
+                    ->label('View schedule')
+                    ->url($url),
+            ]);
+        }
+
+        $notification->sendToDatabase($recipient);
     }
 
     public function resend(OperationalEvent $event, User $actor): OperationalEvent
@@ -249,39 +319,66 @@ final class ScheduleRevisionNotificationService
      * @param  array<int, string>  $facultyLabels
      * @return array<string, mixed>
      */
-    private function payload(EloquentCollection $events, array $roomLabels, array $facultyLabels, User $recipient): array
-    {
+    private function payload(
+        EloquentCollection $events,
+        array $roomLabels,
+        array $facultyLabels,
+        User $recipient,
+        string $recipientRole = 'student',
+    ): array {
         $events = $events->sortBy('id')->values();
+        $firstTerm = $events->first()?->term;
+        $termId = $firstTerm instanceof Term ? (int) $firstTerm->id : (int) ($events->first()?->term_id ?? 0);
+        $termLabel = $firstTerm instanceof Term ? (string) $firstTerm->label : '';
         $sectionIds = $events
             ->map(fn (ScheduleRevisionEvent $event): int => (int) $event->sectionMeeting?->schedulingDemand?->sectionDeliveryGroup?->section_id)
             ->filter()
             ->unique()
             ->values();
-        $enrollmentContexts = CourseEnrollment::query()
-            ->with('enrollment.currentCorVersion')
-            ->whereIn('section_id', $sectionIds)
-            ->where('status', CourseEnrollment::StatusActive)
-            ->where('is_current', true)
-            ->whereHas('enrollment', fn ($query) => $query->where('credential_user_id', $recipient->id))
-            ->get()
-            ->pluck('enrollment')
+        $enrollmentContexts = $recipientRole === 'student'
+            ? CourseEnrollment::query()
+                ->with('enrollment.currentCorVersion')
+                ->whereIn('section_id', $sectionIds)
+                ->where('status', CourseEnrollment::StatusActive)
+                ->where('is_current', true)
+                ->whereHas('enrollment', fn ($query) => $query->where('credential_user_id', $recipient->id))
+                ->get()
+                ->pluck('enrollment')
+                ->filter()
+                ->unique('id')
+                ->map(fn ($enrollment): array => [
+                    'enrollment_id' => (int) $enrollment->id,
+                    'cor_version_id' => $enrollment->current_cor_version_id,
+                    'enrollment_url' => route('filament.student.pages.enrollment'),
+                    'cor_url' => $enrollment->current_cor_version_id !== null
+                        ? route('cor.print', ['enrollment' => $enrollment->id])
+                        : null,
+                ])
+                ->values()
+                ->all()
+            : [];
+
+        $scheduleUrl = $recipientRole === 'faculty'
+            ? route('filament.admin.pages.faculty-schedule', $termId > 0 ? ['termId' => $termId] : [])
+            : route('filament.student.pages.schedule-view');
+
+        $reasons = $events
+            ->pluck('reason')
+            ->map(fn (mixed $value): string => trim((string) $value))
             ->filter()
-            ->unique('id')
-            ->map(fn ($enrollment): array => [
-                'enrollment_id' => (int) $enrollment->id,
-                'cor_version_id' => $enrollment->current_cor_version_id,
-                'enrollment_url' => route('filament.student.pages.enrollment'),
-                'cor_url' => $enrollment->current_cor_version_id !== null
-                    ? route('cor.print', ['enrollment' => $enrollment->id])
-                    : null,
-            ])
+            ->unique()
             ->values()
             ->all();
 
         return [
+            'recipient_role' => $recipientRole,
+            'term_id' => $termId > 0 ? $termId : null,
+            'term_label' => $termLabel,
+            'schedule_url' => $scheduleUrl,
             'revision_event_ids' => $events->modelKeys(),
             'change_types' => $events->pluck('change_type')->unique()->values()->all(),
             'effective_date' => $events->pluck('effective_date')->filter()->sort()->first()?->toDateString(),
+            'reason' => $reasons !== [] ? implode(' ', $reasons) : null,
             'affected_enrollments' => $enrollmentContexts,
             'changes' => $events->map(function (ScheduleRevisionEvent $event) use ($roomLabels, $facultyLabels): array {
                 $meeting = $event->sectionMeeting;
@@ -298,8 +395,13 @@ final class ScheduleRevisionNotificationService
                     'meeting_sequence' => (int) ($event->new_snapshot_json['meeting_sequence'] ?? $event->old_snapshot_json['meeting_sequence'] ?? 0),
                     'change_type' => (string) $event->change_type,
                     'change_label' => ScheduleRevisionEvent::changeTypeOptions()[$event->change_type] ?? str((string) $event->change_type)->headline()->toString(),
-                    'course' => $course instanceof Course ? $course->code : 'Scheduling demand #'.(int) ($event->new_snapshot_json['scheduling_demand_id'] ?? 0),
-                    'section' => $section instanceof Section ? $section->code : 'Meeting #'.(int) $event->section_meeting_id,
+                    'is_cancelled' => $event->change_type === ScheduleRevisionEvent::ChangeSectionCancellation
+                        || ($event->new_snapshot_json['state'] ?? null) === SectionMeeting::StateCancelled,
+                    'reason' => filled($event->reason) ? trim((string) $event->reason) : null,
+                    'effective_date' => $event->effective_date?->toDateString(),
+                    'course' => $course instanceof Course ? $course->code : 'Assigned subject',
+                    'course_title' => $courseSpecification instanceof CourseSpecification ? (string) $courseSpecification->title : null,
+                    'section' => $section instanceof Section ? $section->code : 'Class section',
                     'before' => $this->assignment($event->old_snapshot_json, $roomLabels, $facultyLabels),
                     'after' => $this->assignment($event->new_snapshot_json, $roomLabels, $facultyLabels),
                 ];
@@ -318,15 +420,39 @@ final class ScheduleRevisionNotificationService
         $facultyId = (int) ($snapshot['faculty_user_id'] ?? 0);
         $roomId = (int) ($snapshot['room_id'] ?? 0);
         $day = (int) ($snapshot['day_of_week'] ?? 0);
+        $modalityKey = (string) ($snapshot['modality'] ?? '');
+        $stateKey = (string) ($snapshot['state'] ?? '');
 
         return [
-            'faculty' => $facultyLabels[$facultyId] ?? "Faculty #{$facultyId}",
-            'room' => $roomId === 0 ? 'No physical room' : ($roomLabels[$roomId] ?? "Room #{$roomId}"),
-            'day' => SectionMeeting::dayOptions()[$day] ?? "Day {$day}",
-            'starts_at' => substr((string) ($snapshot['starts_at'] ?? ''), 0, 5),
-            'ends_at' => substr((string) ($snapshot['ends_at'] ?? ''), 0, 5),
-            'modality' => str((string) ($snapshot['modality'] ?? ''))->headline()->toString(),
-            'state' => str((string) ($snapshot['state'] ?? ''))->headline()->toString(),
+            'faculty' => $facultyId > 0 ? ($facultyLabels[$facultyId] ?? 'Assigned instructor') : 'Unassigned',
+            'room' => $roomId === 0 ? 'No physical room' : ($roomLabels[$roomId] ?? 'Assigned room'),
+            'day' => SectionMeeting::dayOptions()[$day] ?? 'Scheduled day',
+            'starts_at' => $this->formatClockTime((string) ($snapshot['starts_at'] ?? '')),
+            'ends_at' => $this->formatClockTime((string) ($snapshot['ends_at'] ?? '')),
+            'modality' => TermOffering::modalityOptions()[$modalityKey]
+                ?? ($modalityKey !== '' ? str($modalityKey)->headline()->toString() : 'Not specified'),
+            'state' => $stateKey === SectionMeeting::StateCancelled
+                ? 'Cancelled'
+                : ($stateKey !== '' ? str($stateKey)->headline()->toString() : 'Active'),
         ];
+    }
+
+    private function formatClockTime(string $time): string
+    {
+        $trimmed = trim($time);
+
+        if ($trimmed === '') {
+            return '';
+        }
+
+        foreach (['H:i:s', 'H:i', 'g:i A', 'g:i a'] as $format) {
+            try {
+                return CarbonImmutable::createFromFormat($format, $trimmed)->format('g:i A');
+            } catch (Throwable) {
+                continue;
+            }
+        }
+
+        return substr($trimmed, 0, 5);
     }
 }

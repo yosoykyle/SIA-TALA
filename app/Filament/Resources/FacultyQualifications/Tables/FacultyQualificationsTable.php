@@ -81,11 +81,11 @@ class FacultyQualificationsTable
             ->filtersApplyAction(fn (Action $action): Action => $action->alpineClickHandler('$wire.applyTableFilters(); close()'))
             ->filtersRemoveAllAction(fn (Action $action): Action => $action->button()->label('Clear filters')->icon(null))
             ->recordActions([
-                ViewAction::make()->label('View details')->button()->color('gray')->url(fn (FacultyQualification $record, Component $livewire): string => FacultyQualificationResource::getUrl('view', [
+                ViewAction::make()->label('View')->size('xs')->button()->color('gray')->url(fn (FacultyQualification $record, Component $livewire): string => FacultyQualificationResource::getUrl('view', [
                     'record' => $record,
                     ...($livewire instanceof ListFacultyQualifications && $livewire->termId !== null ? ['termId' => $livewire->termId] : []),
                 ])),
-                EditAction::make()->button()->color('gray')->url(fn (FacultyQualification $record, Component $livewire): string => FacultyQualificationResource::getUrl('edit', [
+                EditAction::make()->size('xs')->button()->color('gray')->url(fn (FacultyQualification $record, Component $livewire): string => FacultyQualificationResource::getUrl('edit', [
                     'record' => $record,
                     ...($livewire instanceof ListFacultyQualifications && $livewire->termId !== null ? ['termId' => $livewire->termId] : []),
                 ])),

@@ -2,17 +2,22 @@
 
 namespace App\Filament\Resources\FeePlans\Schemas;
 
+use App\Actions\Finance\AccountingDisplay;
 use App\Models\Program;
 use App\Models\Term;
 use App\Support\DecimalMoney;
+use Filament\Actions\Action;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section as SchemaSection;
+use Filament\Schemas\Components\Text;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\View;
 use Illuminate\Support\Str;
 
@@ -32,6 +37,7 @@ class FeePlanForm
                 ->contained(false)
                 ->extraAttributes(['class' => 'accounting-finance-form-section'])
                 ->schema([
+                    self::tuitionCalculatorSection(includeCode: true, unitsEditableHint: 'Enter standard units and rate per unit to calculate and apply the Tuition charge.'),
                     Repeater::make('charges')->label('Charges')->hiddenLabel()->schema([
                         Hidden::make('code')->default(fn (): string => 'CHG-'.Str::uuid()),
                         Hidden::make('category'),
@@ -110,5 +116,144 @@ class FeePlanForm
         };
 
         return ['chargeTotal' => $sum($charges), 'paymentTotal' => $sum($obligations)];
+    }
+
+    public static function tuitionCalculatorSection(
+        bool $includeCode = false,
+        string $unitsEditableHint = 'Pre-filled with the student’s enrolled units; adjust if needed.',
+    ): SchemaSection {
+        return SchemaSection::make('Tuition fee calculator')
+            ->description($unitsEditableHint)
+            ->contained(false)
+            ->extraAttributes(['class' => 'accounting-finance-form-section'])
+            ->afterHeader([
+                Action::make('applyTuitionToCharges')
+                    ->label('Apply to Tuition charge')
+                    ->icon('heroicon-o-calculator')
+                    ->color('gray')
+                    ->action(function (Get $get, Set $set) use ($includeCode): void {
+                        $applied = self::applyTuitionToCharges(
+                            $get('charges') ?? [],
+                            $get('tuition_rate_per_unit'),
+                            $get('tuition_units'),
+                            $includeCode,
+                        );
+                        if ($applied === null) {
+                            Notification::make()
+                                ->title('Enter rate per unit and units first')
+                                ->body('Provide valid non-negative numbers for Rate per unit (PHP) and Units before applying.')
+                                ->warning()
+                                ->send();
+
+                            return;
+                        }
+
+                        $set('charges', $applied);
+                    }),
+            ])
+            ->schema([
+                Grid::make()->gridContainer()->columns(['default' => 1, '@sm' => 2])->schema([
+                    TextInput::make('tuition_rate_per_unit')
+                        ->label('Rate per unit (PHP)')
+                        ->numeric()
+                        ->minValue(0)
+                        ->step('0.01')
+                        ->prefix('PHP')
+                        ->dehydrated(false)
+                        ->live(onBlur: true),
+                    TextInput::make('tuition_units')
+                        ->label('Units')
+                        ->numeric()
+                        ->minValue(0)
+                        ->step('0.5')
+                        ->dehydrated(false)
+                        ->live(onBlur: true),
+                ]),
+                Text::make(fn (Get $get): string => self::tuitionCalculatorSummary($get('tuition_rate_per_unit'), $get('tuition_units')))
+                    ->color('neutral')
+                    ->columnSpanFull(),
+            ]);
+    }
+
+    public static function tuitionCalculatorSummary(mixed $rate, mixed $units): string
+    {
+        $calculated = self::calculateTuitionLine($rate, $units);
+        if ($calculated === null) {
+            return 'Enter a rate per unit and units to calculate tuition.';
+        }
+
+        return 'Computed tuition: '.AccountingDisplay::money($calculated['amount']).' · '.$calculated['label'];
+    }
+
+    /**
+     * @param  array<array-key, array<string, mixed>>  $charges
+     * @return array<array-key, array<string, mixed>>|null
+     */
+    public static function applyTuitionToCharges(array $charges, mixed $rate, mixed $units, bool $includeCode = true): ?array
+    {
+        $calculated = self::calculateTuitionLine($rate, $units);
+        if ($calculated === null) {
+            return null;
+        }
+
+        $existingKey = null;
+        foreach ($charges as $key => $row) {
+            $code = strtoupper(trim((string) ($row['code'] ?? '')));
+            $label = strtolower(trim((string) ($row['label'] ?? '')));
+            if ($code === 'TUITION' || str_starts_with($label, 'tuition')) {
+                $existingKey = $key;
+                break;
+            }
+        }
+
+        if ($existingKey === null && count($charges) === 1) {
+            $onlyKey = array_key_first($charges);
+            $onlyRow = $charges[$onlyKey] ?? [];
+            if (blank($onlyRow['label'] ?? null) && blank($onlyRow['amount'] ?? null)) {
+                $existingKey = $onlyKey;
+            }
+        }
+
+        $targetKey = $existingKey ?? (string) Str::uuid();
+        $existingRow = is_array($charges[$targetKey] ?? null) ? $charges[$targetKey] : [];
+
+        $charges[$targetKey] = [
+            ...$existingRow,
+            ...($includeCode ? ['code' => filled($existingRow['code'] ?? null) ? $existingRow['code'] : 'TUITION'] : []),
+            'label' => $calculated['label'],
+            'amount' => $calculated['amount'],
+        ];
+
+        return $charges;
+    }
+
+    public static function formatUnitCount(float $units): string
+    {
+        $formatted = number_format($units, 2, '.', '');
+
+        return str_contains($formatted, '.') ? rtrim(rtrim($formatted, '0'), '.') : $formatted;
+    }
+
+    /** @return array{label:string,amount:string}|null */
+    private static function calculateTuitionLine(mixed $rate, mixed $units): ?array
+    {
+        if (! is_numeric($rate) || ! is_numeric($units)) {
+            return null;
+        }
+
+        $rateValue = (float) $rate;
+        $unitsValue = (float) $units;
+        if ($rateValue < 0 || $unitsValue < 0) {
+            return null;
+        }
+
+        $total = round($rateValue * $unitsValue, 2);
+        $unitsLabel = self::formatUnitCount($unitsValue);
+        $rateLabel = number_format($rateValue, 2, '.', ',');
+
+        return [
+            'label' => "Tuition Fee ({$unitsLabel} units @ PHP {$rateLabel}/unit)",
+            'amount' => number_format($total, 2, '.', ''),
+        ];
     }
 }

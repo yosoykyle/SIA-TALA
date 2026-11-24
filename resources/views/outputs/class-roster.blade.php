@@ -16,16 +16,16 @@
             .class-roster-document .official-output-toolbar { box-sizing: border-box; max-width: 1120px; display: flex; justify-content: space-between; gap: 12px; }
             .class-roster-document .official-output-toolbar a { margin: 0; }
             .class-roster-brand { display: flex; justify-content: space-between; align-items: center; gap: 24px; margin-bottom: 28px; }
-            .class-roster-brand p { margin: 0; color: #374151; }
+            .class-roster-brand p { margin: 0; color: #3f3f46; }
             .class-roster-brand img { width: 48px; height: 48px; object-fit: contain; }
             .class-roster-school { display: flex; align-items: center; gap: 14px; font-size: 12px; }
             .class-roster-heading h1 { font-size: 22px; font-weight: 400; margin: 0 0 14px; }
             .class-roster-heading h2 { font-size: 30px; line-height: 1.2; margin: 0 0 12px; text-wrap: balance; }
             .class-roster-heading p { margin: 6px 0 0; line-height: 1.5; }
-            .class-roster-context { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px 24px; padding: 16px 0; margin: 28px 0 24px; border-block: 1px solid #9ca3af; font-size: 12px; }
+            .class-roster-context { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px 24px; padding: 16px 0; margin: 28px 0 24px; border-block: 1px solid #a1a1aa; font-size: 12px; }
             .class-roster-context p { margin: 0; line-height: 1.5; }
             .class-roster-document table { table-layout: fixed; }
-            .class-roster-document th, .class-roster-document td { border: 0; border-bottom: 1px solid #d1d5db; padding: 12px 16px; overflow-wrap: anywhere; }
+            .class-roster-document th, .class-roster-document td { border: 0; border-bottom: 1px solid #d4d4d8; padding: 12px 16px; overflow-wrap: anywhere; }
             .class-roster-document th { font-size: 12px; }
             .class-roster-document td:first-child { font-variant-numeric: tabular-nums; }
             .class-roster-document td:nth-child(2) { font-weight: 700; }
@@ -44,7 +44,7 @@
             @media print {
                 .class-roster-document .official-output { padding: 0; max-width: none; }
                 .class-roster-document .class-roster-context { break-inside: avoid; }
-                .class-roster-document th, .class-roster-document td { border: 0 !important; border-bottom: 1px solid #6b7280 !important; }
+                .class-roster-document th, .class-roster-document td { border: 0 !important; border-bottom: 1px solid #71717a !important; }
                 .class-roster-document thead { display: table-header-group; }
             }
         </style>

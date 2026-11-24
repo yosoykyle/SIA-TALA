@@ -31,7 +31,7 @@ class HumanCenteredSharedThemeTest extends TestCase
         $response = $this->get('/admin/login')->assertOk()
             ->assertSee('Sign in')
             ->assertSee('<main', false)
-            ->assertSee('Back to home')
+            ->assertSee('Back to school site')
             ->assertSee('Contact support')
             ->assertDontSee('Remember me')
             ->assertDontSee('Remember device');
@@ -259,7 +259,7 @@ class HumanCenteredSharedThemeTest extends TestCase
         $this->assertStringContainsString('.fi-body .fi-input-wrp:not(.fi-disabled, .fi-invalid):not(:focus-within)', $theme);
         $this->assertStringContainsString('--tw-ring-color: var(--tala-control-border);', $theme);
         $this->assertStringContainsString('--tala-control-border: #71717b;', $foundation);
-        $this->assertStringContainsString('--tala-control-border: #a2acb9;', $foundation);
+        $this->assertStringContainsString('--tala-control-border: #a1a1aa;', $foundation);
     }
 
     public function test_native_sidebar_keeps_collapsed_names_and_hides_the_closed_mobile_drawer(): void

@@ -6,6 +6,8 @@ use App\Actions\Applicants\AdmissionWindowService;
 use App\Actions\Applicants\ApplicantEntryReadinessService;
 use App\Filament\Applicant\Pages\Application;
 use App\Models\AdmissionCycle;
+use App\Models\CurriculumVersion;
+use App\Models\CurriculumVersionBatch;
 use App\Models\FaqEntry;
 use App\Models\Program;
 use App\Models\PublicNotice;
@@ -132,6 +134,21 @@ class PublicGatewayController extends Controller
     /** @return Collection<int, Program> */
     private function acceptingPrograms(): Collection
     {
+        $openAcademicYearIds = AdmissionCycle::query()
+            ->where('state', AdmissionCycle::StatePublished)
+            ->where('opens_at', '<=', now())
+            ->where('closes_at', '>', now())
+            ->whereHas('term', fn (Builder $term): Builder => $term->where('state', Term::StateActive))
+            ->with('term:id,academic_year_id')
+            ->get()
+            ->pluck('term.academic_year_id')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $schoolUsesBatches = CurriculumVersionBatch::query()->exists();
+
         return Program::query()->where('is_active', true)
             ->whereHas('admissionCycles', fn (Builder $query): Builder => $query
                 ->where('state', AdmissionCycle::StatePublished)
@@ -141,6 +158,13 @@ class PublicGatewayController extends Controller
                 ->where(fn (Builder $eligible): Builder => $eligible
                     ->where('admission_cycle_program.accepts_first_year', true)
                     ->orWhere('admission_cycle_program.accepts_transferee', true)))
+            ->when(
+                $schoolUsesBatches && $openAcademicYearIds !== [],
+                fn (Builder $query): Builder => $query->whereHas('curriculumVersionBatches', fn (Builder $batches): Builder => $batches
+                    ->whereIn('academic_year_id', $openAcademicYearIds)
+                    ->whereHas('curriculumVersion', fn (Builder $versions): Builder => $versions
+                        ->whereIn('state', [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded]))),
+            )
             ->get();
     }
 }

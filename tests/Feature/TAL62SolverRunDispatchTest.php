@@ -33,6 +33,7 @@ use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
+use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\FacultyQualification;
 use App\Models\FacultyTermLoadOverride;
 use App\Models\OperationalEvent;
@@ -795,7 +796,9 @@ final class TAL62SolverRunDispatchTest extends TestCase
         $calendarBlocks = $snapshot['calendar_blocks'] ?? null;
         $this->assertIsArray($calendarBlocks);
 
-        $this->assertSame([], $snapshot['faculty_availability']);
+        $this->assertCount(1, $snapshot['faculty_availability']);
+        $this->assertSame(FacultyAvailabilityDeclaration::ModeAnyApproved, $snapshot['faculty_availability'][0]['availability_mode']);
+        $this->assertSame([], $snapshot['faculty_availability'][0]['hard_unavailability']);
         $this->assertSame(
             [$institutionBlock->id, $facultyBlock->id, $roomBlock->id],
             collect($calendarBlocks)->pluck('calendar_event_id')->all(),
@@ -1211,6 +1214,14 @@ final class TAL62SolverRunDispatchTest extends TestCase
                     'approved_overload_units' => 3.00,
                     'is_active' => true,
                 ]);
+
+            FacultyAvailabilityDeclaration::factory()->create([
+                'term_id' => $term->id,
+                'faculty_user_id' => $faculty->id,
+                'declaration' => FacultyAvailabilityDeclaration::DeclarationAvailable,
+                'availability_mode' => FacultyAvailabilityDeclaration::ModeAnyApproved,
+                'hard_unavailability' => [],
+            ]);
         }
 
         Room::factory()->create([

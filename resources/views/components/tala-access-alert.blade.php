@@ -9,6 +9,7 @@
     $resolvedIcon = $icon ?? match ($variant) {
         'danger' => 'heroicon-o-exclamation-circle',
         'info' => 'heroicon-o-information-circle',
+        'success' => 'heroicon-o-check-circle',
         default => 'heroicon-o-exclamation-triangle',
     };
 @endphp

@@ -13,6 +13,7 @@ use App\Models\CourseDropRecord;
 use App\Models\Enrollment;
 use App\Models\FeePlan;
 use App\Models\RegistrationProposalVersion;
+use App\Models\Term;
 use App\Models\TermAccount;
 use App\Models\User;
 use App\Support\DecimalMoney;
@@ -36,9 +37,20 @@ class CreateAssessmentFromPublishedFeePlan
     {
         $this->authorizePublishedAssessment($enrollment, $actor);
 
+        if ($enrollment->term?->state === Term::StateClosed) {
+            throw ValidationException::withMessages([
+                'term' => 'This term is closed and new assessments cannot be created.',
+            ]);
+        }
+
         return DB::transaction(function () use ($enrollment, $actor, $expectedProposalVersionId, $expectedFeePlanId): Assessment {
-            $locked = Enrollment::query()->with(['admissionApplication', 'studentProfile', 'currentProposalVersion'])->whereKey($enrollment->id)->lockForUpdate()->firstOrFail();
+            $locked = Enrollment::query()->with(['admissionApplication', 'studentProfile', 'currentProposalVersion', 'term'])->whereKey($enrollment->id)->lockForUpdate()->firstOrFail();
             $this->authorizePublishedAssessment($locked, $actor);
+            if ($locked->term?->state === Term::StateClosed) {
+                throw ValidationException::withMessages([
+                    'term' => 'This term is closed and new assessments cannot be created.',
+                ]);
+            }
             if ($expectedProposalVersionId !== null && (int) $locked->current_proposal_version_id !== $expectedProposalVersionId) {
                 throw ValidationException::withMessages([
                     'assessment' => 'The proposal changed after this assessment was opened. Review the current subjects and Fee Plan before recording it.',
@@ -92,6 +104,12 @@ class CreateAssessmentFromPublishedFeePlan
      */
     public function create(Enrollment $enrollment, User $actor, string $basis, ?string $reasonCategory, ?string $authorityReference, ?CarbonImmutable $authorityDate, ?FeePlan $feePlan, array $charges, array $obligations, ?string $noPaymentRequiredAuthorityReference = null, ?CourseDropRecord $courseDrop = null): Assessment
     {
+        if (Term::query()->whereKey($enrollment->term_id)->where('state', Term::StateClosed)->exists()) {
+            throw ValidationException::withMessages([
+                'term' => 'This term is closed and new assessments cannot be created.',
+            ]);
+        }
+
         if ($basis === 'PublishedFeePlan') {
             $this->authorizePublishedAssessment($enrollment, $actor);
             if (! $feePlan instanceof FeePlan || $feePlan->state !== FeePlan::StatePublished

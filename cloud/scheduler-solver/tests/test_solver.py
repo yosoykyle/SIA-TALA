@@ -863,6 +863,168 @@ class SolveSnapshotTest(unittest.TestCase):
 
         self.assertEqual("model_invalid", result["solver_status"])
 
+    def test_multi_meeting_demand_spreads_across_distinct_days_when_multiple_days_exist(self) -> None:
+        two_meeting_snapshot = self.meeting_pattern_snapshot(meeting_count=2, meeting_duration_minutes=90)
+        two_result = solve_snapshot(two_meeting_snapshot, timeout_seconds=10)
+
+        self.assertIn(two_result["solver_status"], {"optimal", "feasible"})
+        self.assertEqual(2, len(two_result["assignments"]))
+        self.assertEqual(
+            2,
+            len({row["day_of_week"] for row in two_result["assignments"]}),
+        )
+
+        three_meeting_snapshot = self.meeting_pattern_snapshot(meeting_count=3, meeting_duration_minutes=60)
+        three_result = solve_snapshot(three_meeting_snapshot, timeout_seconds=10)
+
+        self.assertIn(three_result["solver_status"], {"optimal", "feasible"})
+        self.assertEqual(3, len(three_result["assignments"]))
+        self.assertEqual(
+            3,
+            len({row["day_of_week"] for row in three_result["assignments"]}),
+        )
+
+    def test_four_and_five_sixty_minute_meetings_solve_with_distinct_day_spread(self) -> None:
+        for meeting_count in (4, 5):
+            with self.subTest(meeting_count=meeting_count):
+                snapshot = self.meeting_pattern_snapshot(
+                    meeting_count=meeting_count,
+                    meeting_duration_minutes=60,
+                )
+                result = solve_snapshot(snapshot, timeout_seconds=10)
+
+                self.assertIn(result["solver_status"], {"optimal", "feasible"})
+                self.assertEqual(meeting_count, result["assigned_count"])
+                self.assertEqual(
+                    list(range(1, meeting_count + 1)),
+                    [row["meeting_sequence"] for row in result["assignments"]],
+                )
+                self.assertEqual(
+                    {f"{meeting_count}x60"},
+                    {row["meeting_pattern"] for row in result["assignments"]},
+                )
+                self.assertEqual(
+                    meeting_count,
+                    len({row["day_of_week"] for row in result["assignments"]}),
+                )
+                self.assertEqual([], self.hard_constraint_violations(result["assignments"]))
+                for row in result["assignments"]:
+                    self.assert_laravel_assignment_contract(row)
+
+        invalid_snapshot = self.meeting_pattern_snapshot(meeting_count=7, meeting_duration_minutes=60)
+        invalid_result = solve_snapshot(invalid_snapshot, timeout_seconds=10)
+        self.assertEqual("model_invalid", invalid_result["solver_status"])
+        self.assertEqual(
+            "Every Scheduling Demand requires one to six equal-duration meetings.",
+            invalid_result["infeasible_reasons"][0]["message"],
+        )
+
+    def test_multi_meeting_single_day_synthetic_fixture_still_solves_cleanly(self) -> None:
+        snapshot = self.meeting_pattern_snapshot(meeting_count=2, meeting_duration_minutes=60)
+        snapshot["time_slots"] = [
+            slot for slot in snapshot["time_slots"]
+            if slot["day_of_week"] == 1
+        ]
+
+        result = solve_snapshot(snapshot, timeout_seconds=10)
+
+        self.assertIn(result["solver_status"], {"optimal", "feasible"})
+        self.assertEqual(2, result["assigned_count"])
+        self.assertEqual({1}, {row["day_of_week"] for row in result["assignments"]})
+        self.assertEqual([], self.hard_constraint_violations(result["assignments"]))
+
+    def test_multi_meeting_fixed_day_and_start_pins_only_targeted_sequence(self) -> None:
+        snapshot = self.meeting_pattern_snapshot(meeting_count=2, meeting_duration_minutes=90)
+        demand = snapshot["scheduling_demands"][0]
+        demand.update({
+            "fixed_faculty_user_id": 200,
+            "fixed_room_id": 301,
+            "fixed_day_of_week": 2,
+            "fixed_start_time": "09:00:00",
+        })
+
+        result = solve_snapshot(snapshot, timeout_seconds=10)
+
+        self.assertIn(result["solver_status"], {"optimal", "feasible"})
+        self.assertEqual(2, result["assigned_count"])
+        by_seq = {row["meeting_sequence"]: row for row in result["assignments"]}
+        self.assertEqual(2, by_seq[1]["day_of_week"])
+        self.assertEqual("09:00:00", by_seq[1]["starts_at"])
+        self.assertEqual(200, by_seq[1]["faculty_id"])
+        self.assertEqual(301, by_seq[1]["room_id"])
+        self.assertEqual(1, by_seq[2]["day_of_week"])
+        self.assertEqual(200, by_seq[2]["faculty_id"])
+        self.assertEqual(301, by_seq[2]["room_id"])
+        self.assertEqual([], self.hard_constraint_violations(result["assignments"]))
+        replay = evaluate_candidate_membership(snapshot, result["assignments"])
+        self.assertTrue(replay["all_admissible"])
+
+        explicit_snapshot = copy.deepcopy(snapshot)
+        explicit_snapshot["scheduling_demands"][0].update({
+            "fixed_meeting_sequence": 2,
+            "fixed_day_of_week": 2,
+            "fixed_start_time": "10:00:00",
+        })
+        explicit_result = solve_snapshot(explicit_snapshot, timeout_seconds=10)
+
+        self.assertIn(explicit_result["solver_status"], {"optimal", "feasible"})
+        explicit_by_seq = {row["meeting_sequence"]: row for row in explicit_result["assignments"]}
+        self.assertEqual(2, explicit_by_seq[2]["day_of_week"])
+        self.assertEqual("10:00:00", explicit_by_seq[2]["starts_at"])
+        self.assertEqual(1, explicit_by_seq[1]["day_of_week"])
+        self.assertTrue(evaluate_candidate_membership(explicit_snapshot, explicit_result["assignments"])["all_admissible"])
+
+    def test_multi_meeting_teacher_with_single_available_day_still_solves_without_false_infeasibility(self) -> None:
+        snapshot = self.meeting_pattern_snapshot(meeting_count=2, meeting_duration_minutes=60)
+        demand = snapshot["scheduling_demands"][0]
+        demand["eligible_faculty_user_ids"] = [200]
+        demand["faculty_load_options"] = [{"faculty_user_id": 200, "max_allowed_units": "24.00"}]
+        snapshot["calendar_blocks"] = [
+            {
+                "event_type": "FacultyAvailabilityDeclaration",
+                "scope_type": "Faculty",
+                "faculty_user_id": 200,
+                "room_id": None,
+                "day_of_week": 2,
+                "starts_at": "08:00:00",
+                "ends_at": "12:00:00",
+            }
+        ]
+
+        result = solve_snapshot(snapshot, timeout_seconds=10)
+
+        self.assertIn(result["solver_status"], {"optimal", "feasible"})
+        self.assertEqual(2, result["assigned_count"])
+        self.assertEqual({1}, {row["day_of_week"] for row in result["assignments"]})
+        self.assertEqual([], self.hard_constraint_violations(result["assignments"]))
+
+    def test_multi_meeting_pinned_sequence_blocked_by_calendar_reports_solver_unassigned(self) -> None:
+        snapshot = self.meeting_pattern_snapshot(meeting_count=2, meeting_duration_minutes=60)
+        demand = snapshot["scheduling_demands"][0]
+        demand.update({
+            "eligible_faculty_user_ids": [200],
+            "faculty_load_options": [{"faculty_user_id": 200, "max_allowed_units": "24.00"}],
+            "fixed_day_of_week": 1,
+            "fixed_start_time": "08:00:00",
+            "fixed_meeting_sequence": 1,
+        })
+        snapshot["calendar_blocks"] = [
+            {
+                "event_type": "FacultyAvailabilityDeclaration",
+                "scope_type": "Faculty",
+                "faculty_user_id": 200,
+                "room_id": None,
+                "day_of_week": 1,
+                "starts_at": "08:00:00",
+                "ends_at": "09:00:00",
+            }
+        ]
+
+        result = solve_snapshot(snapshot, timeout_seconds=10)
+
+        self.assertEqual("infeasible", result["solver_status"])
+        self.assertEqual("solver_unassigned", result["assignments"][0]["violations"][0]["type"])
+
     def snapshot(self) -> dict[str, Any]:
         path = Path(__file__).resolve().parents[1] / "samples" / "minimal_snapshot.json"
 
@@ -987,7 +1149,7 @@ class SolveSnapshotTest(unittest.TestCase):
         self.assertRegex(row["ends_at"], r"^\d{2}:\d{2}:\d{2}$")
         self.assertIsInstance(row["time_block_key"], str)
         self.assertGreaterEqual(row["meeting_sequence"], 1)
-        self.assertRegex(row["meeting_pattern"], r"^[1-3]x\d+$")
+        self.assertRegex(row["meeting_pattern"], r"^[1-6]x\d+$")
         self.assertIn(row["assignment_status"], {"ok", "warning", "conflict"})
         self.assertIsInstance(row["violations"], list)
         self.assertIsInstance(row["warnings"], list)

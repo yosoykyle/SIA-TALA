@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\AdmissionCycles\Tables;
 
+use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use App\Models\AdmissionCycle;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
@@ -20,7 +21,7 @@ class AdmissionCyclesTable
         return $table
             ->extraAttributes(['class' => 'tala-admissions-table'])
             ->striped()
-            ->searchPlaceholder('Search cycle name or code')
+            ->searchPlaceholder('Search cycles')
             ->columns([
                 Split::make([
                     Stack::make([
@@ -99,6 +100,13 @@ class AdmissionCyclesTable
             ])
             ->emptyStateHeading('No admission cycles')
             ->emptyStateDescription('Create an admission cycle to configure dates, accepting programs, and requirements.')
+            ->emptyStateActions([
+                Action::make('prepareAdmissionCycle')
+                    ->label('Prepare admission cycle')
+                    ->icon('heroicon-o-plus')
+                    ->url(fn (): string => AdmissionCycleResource::getUrl('create'))
+                    ->visible(fn (): bool => auth()->user()?->can('create', AdmissionCycle::class) ?? false),
+            ])
             ->emptyState(view('filament.partials.collection-empty-state'));
     }
 }

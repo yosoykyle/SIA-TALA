@@ -100,6 +100,12 @@ class Term extends Model
         return $this->hasMany(PublishedTimetableVersion::class);
     }
 
+    /** @return HasMany<ScheduleGenerationRun, $this> */
+    public function scheduleGenerationRuns(): HasMany
+    {
+        return $this->hasMany(ScheduleGenerationRun::class);
+    }
+
     public function facultyTermLoadOverrides(): HasMany
     {
         return $this->hasMany(FacultyTermLoadOverride::class);

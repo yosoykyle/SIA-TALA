@@ -3,20 +3,21 @@
 
 Hello {{ $recipientName }},
 
-The Registrar requests your availability for **{{ $termLabel }}**. Please submit your response by **{{ $dueAt }}**.
+Please share when you can teach for **{{ $termLabel }}** by **{{ $dueAt }}**.
 
-Open My Availability and select **Submit my availability** to answer:
+Open **My Availability** and choose how you can teach this term:
 
-1. **Can you teach this Term?** Select Yes or No.
-2. If Yes, **Any weekly times you cannot teach?** Select Yes and enter each unavailable Day, From and To in Asia/Manila, or select No to confirm no additional restrictions.
+1. **Specific weekly times** — check the days you can teach and set your available weekly time ranges (Asia/Manila).
+2. **Any school teaching time** — available across all approved school teaching hours.
+3. **Unavailable this term** — you will not be assigned classes for this term.
 
-If you already submitted a response, select **Update my availability** to change it and give a reason.
+Select **Save availability** to submit your response. If you already submitted availability, edit it directly on the page, enter a brief reason for the change, and select **Save update**.
 
 <x-mail::button :url="$availabilityUrl">
 Open My Availability
 </x-mail::button>
 
-Your response helps the Registrar plan teaching assignments. This request does not assign a course, room, or official meeting.
+Your response helps the Registrar plan teaching assignments. This request does not assign a subject, room, or official class meeting.
 
 Regards,<br>
 {{ config('institution.name') }} via {{ config('app.name') }}

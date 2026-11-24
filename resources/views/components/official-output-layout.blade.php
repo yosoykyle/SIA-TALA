@@ -27,13 +27,13 @@
     <link rel="stylesheet" href="{{ asset('css/tala-foundation.css').'?v='.filemtime(public_path('css/tala-foundation.css')) }}">
     <style>
         :root {
-            color: #111827;
+            color: #09090b;
             font-family: Arial, sans-serif;
             font-size: 13px;
         }
 
         body {
-            background: #f3f4f6;
+            background: #f4f4f5;
             margin: 0;
         }
 
@@ -82,7 +82,7 @@
 
         .official-output {
             background: #ffffff;
-            border: 1px solid #d1d5db;
+            border: 1px solid #d4d4d8;
             margin-bottom: 24px;
             margin-top: 16px;
             padding: 32px;
@@ -90,7 +90,7 @@
 
         .official-output-header {
             align-items: start;
-            border-bottom: 2px solid #111827;
+            border-bottom: 2px solid #09090b;
             display: flex;
             gap: 24px;
             justify-content: space-between;
@@ -121,13 +121,13 @@
         }
 
         .official-output-meta {
-            color: #4b5563;
+            color: #52525b;
             line-height: 1.5;
             margin-top: 6px;
         }
 
         .official-output-context {
-            border: 1px solid #111827;
+            border: 1px solid #09090b;
             font-weight: 700;
             padding: 8px 12px;
             text-align: center;
@@ -145,14 +145,14 @@
 
         th,
         td {
-            border: 1px solid #d1d5db;
+            border: 1px solid #d4d4d8;
             padding: 8px;
             text-align: left;
             vertical-align: top;
         }
 
         th {
-            background: #f3f4f6;
+            background: #f4f4f5;
         }
 
         .official-output-notice {
@@ -163,7 +163,7 @@
         }
 
         .official-output-footer {
-            color: #4b5563;
+            color: #52525b;
             font-size: 11px;
             margin-top: 24px;
         }
@@ -189,7 +189,7 @@
         }
 
         .schedule-empty {
-            border: 1px solid #d1d5db;
+            border: 1px solid #d4d4d8;
             padding: 16px;
         }
 
@@ -239,7 +239,7 @@
             }
 
             .finance-responsive-table tr {
-                border: 1px solid #d1d5db;
+                border: 1px solid #d4d4d8;
                 margin-bottom: 12px;
             }
 
@@ -248,7 +248,7 @@
                 grid-template-columns: minmax(96px, 40%) minmax(0, 1fr);
                 gap: 12px;
                 border: 0;
-                border-bottom: 1px solid #e5e7eb;
+                border-bottom: 1px solid #e4e4e7;
             }
 
             .finance-responsive-table td:last-child {
@@ -276,7 +276,7 @@
         .schedule-table tbody tr:nth-child(even) { background:#f6f8f6; }
         .schedule-meeting-time { white-space:nowrap; font-weight:600; }
         .schedule-course-title { font-weight:600; }
-        .schedule-source-code { color:#4b5563; font-size:.9em; }
+        .schedule-source-code { color:#52525b; font-size:.9em; }
         @media print { .schedule-table { font-size:10px; } .schedule-table td,.schedule-table th { padding:6px; } .official-output { padding:0; } }
         @endif
 
@@ -335,13 +335,13 @@
             }
 
             th {
-                background: #f3f4f6 !important;
+                background: #f4f4f5 !important;
                 color: #000000 !important;
-                border: 1px solid #374151 !important;
+                border: 1px solid #3f3f46 !important;
             }
 
             td {
-                border: 1px solid #4b5563 !important;
+                border: 1px solid #52525b !important;
                 color: #000000 !important;
             }
 

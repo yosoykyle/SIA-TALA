@@ -27,6 +27,7 @@
     @if ($proposal !== null)
         <section class="registrar-requirement-subjects tala-task-surface" aria-labelledby="selected-subjects-heading">
             <div class="registrar-requirement-subjects-heading"><h2 id="selected-subjects-heading">Selected subjects</h2><p>{{ $proposal->items->count() }} subjects · {{ (float) $proposal->items->sum('units_snapshot') }} units</p></div>
+            <x-enrollment-proposal-explanation :enrollment="$case" :proposal="$proposal" audience="registrar" />
             @include('filament.admin.enrollments.subjects', ['sourceKey' => 'requirements'])
             @if ($schedule && $schedule['meetings'] !== [])
                 <details class="registrar-case-reference"><summary>Proposed schedule</summary>
@@ -34,6 +35,8 @@
                 </details>
             @endif
         </section>
+    @else
+        <x-enrollment-proposal-explanation :enrollment="$case" :proposal="null" audience="registrar" />
     @endif
     <a class="registrar-case-history-link" {{ \Filament\Support\generate_href_html($this->enrollmentUrl(['view' => 'history'])) }}>
         <x-filament::icon icon="heroicon-o-clock" />

@@ -8,6 +8,7 @@ use App\Models\Enrollment;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
 use App\Models\RegistrationCaseEvent;
+use App\Models\RegistrationProposalVersion;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SectionMeeting;
 use App\Models\Term;
@@ -80,7 +81,13 @@ class TimetableRevisionImpactGuard
                 ->map(fn (mixed $id): int => (int) $id)
                 ->unique()
                 ->values();
-            $affectedCaseIds = $this->affectedCaseIds($changedSectionIds->all());
+            $removesMeeting = collect($normalized)->contains(fn (array $change): bool => ($change['remove'] ?? false) === true);
+            $hasTimeChange = $this->hasTimeChange($meetings, $normalized);
+            $affectedCaseIds = $this->blockingCaseIds(
+                $changedSectionIds->all(),
+                $allowSectionCancellation || $removesMeeting,
+                $hasTimeChange,
+            );
             $revision = TimetableRevision::query()->create([
                 'term_id' => $locked->term_id,
                 'source_version_id' => $locked->id,
@@ -91,6 +98,7 @@ class TimetableRevisionImpactGuard
                     'changed_section_ids' => $changedSectionIds->all(),
                     'affected_registration_case_ids' => $affectedCaseIds,
                     'affected_count' => count($affectedCaseIds),
+                    'has_time_change' => $hasTimeChange,
                 ],
                 'content_hash' => $hash,
                 'authority_reference' => $authorityReference,
@@ -123,15 +131,26 @@ class TimetableRevisionImpactGuard
         array $changesByMeetingId,
     ): TimetableRevision {
         $locked = TimetableRevision::query()->whereKey($revision->id)->lockForUpdate()->firstOrFail();
+        $normalized = $this->normalizedChanges($changesByMeetingId);
         if ($locked->state !== TimetableRevision::StateDraft
             || (int) $locked->source_version_id !== (int) $current->id
-            || $locked->content_hash !== $this->contentHash($current, $this->normalizedChanges($changesByMeetingId))) {
+            || $locked->content_hash !== $this->contentHash($current, $normalized)) {
             throw ValidationException::withMessages(['revision' => 'The prepared Timetable Revision is stale or does not match this exact change.']);
         }
 
+        $meetings = PublishedTimetableMeeting::query()
+            ->where('published_timetable_version_id', $current->id)
+            ->orderBy('id')
+            ->get();
+        $removesMeeting = collect($normalized)->contains(fn (array $change): bool => ($change['remove'] ?? false) === true);
+        $hasTimeChange = (bool) ($locked->impact_snapshot['has_time_change'] ?? $this->hasTimeChange($meetings, $normalized));
         $expectedCaseIds = collect($locked->impact_snapshot['affected_registration_case_ids'] ?? [])->map(fn (mixed $id): int => (int) $id)->sort()->values();
-        $currentCaseIds = collect($this->affectedCaseIds($locked->impact_snapshot['changed_section_ids'] ?? []))->sort()->values();
-        if ($expectedCaseIds->all() !== $currentCaseIds->all()) {
+        $currentCaseIds = collect($this->blockingCaseIds(
+            $locked->impact_snapshot['changed_section_ids'] ?? [],
+            $locked->change_type === 'SectionCancellation' || $removesMeeting,
+            $hasTimeChange,
+        ))->sort()->values();
+        if ($currentCaseIds->diff($expectedCaseIds)->isNotEmpty()) {
             throw ValidationException::withMessages(['revision' => 'Enrollment registration placement impacts changed after preparation. Prepare a fresh revision preview.']);
         }
 
@@ -225,13 +244,63 @@ class TimetableRevisionImpactGuard
             return;
         }
 
-        $excludedMeetingIds = SectionMeeting::query()->where('schedule_run_id', $sourceRun->id)->lockForUpdate()->pluck('id')->map(fn (mixed $id): int => (int) $id)->all();
+        $sourceSectionMeetings = SectionMeeting::query()
+            ->where('schedule_run_id', $sourceRun->id)
+            ->where('state', SectionMeeting::StateActive)
+            ->with('schedulingDemand.sectionDeliveryGroup')
+            ->lockForUpdate()
+            ->get();
+        $sourceIdsByDemandSequence = $sourceSectionMeetings->mapWithKeys(
+            fn (SectionMeeting $sectionMeeting): array => [
+                ((int) $sectionMeeting->scheduling_demand_id).':'.((int) $sectionMeeting->meeting_sequence) => (int) $sectionMeeting->id,
+            ],
+        );
+        $sourceIdsBySectionSequence = $sourceSectionMeetings->mapWithKeys(
+            fn (SectionMeeting $sectionMeeting): array => [
+                ((int) ($sectionMeeting->schedulingDemand?->sectionDeliveryGroup?->section_id ?? 0)).':'.((int) $sectionMeeting->meeting_sequence) => (int) $sectionMeeting->id,
+            ],
+        );
+        $resolveSourceMeetingId = function (int $sectionId, ?int $demandId, int $sequence) use ($sourceIdsByDemandSequence, $sourceIdsBySectionSequence): ?int {
+            if ($demandId !== null && $demandId > 0) {
+                $matched = $sourceIdsByDemandSequence->get($demandId.':'.$sequence);
+                if ($matched !== null) {
+                    return $matched;
+                }
+            }
+
+            return $sourceIdsBySectionSequence->get($sectionId.':'.$sequence);
+        };
+
+        $excludedMeetingIds = $meetings
+            ->filter(fn (PublishedTimetableMeeting $meeting): bool => array_key_exists((int) $meeting->id, $changes))
+            ->map(fn (PublishedTimetableMeeting $meeting): ?int => $resolveSourceMeetingId(
+                (int) $meeting->section_id,
+                $meeting->scheduling_demand_id !== null ? (int) $meeting->scheduling_demand_id : null,
+                (int) $meeting->meeting_sequence,
+            ))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
         $excludedDemandIds = $meetings
             ->filter(fn (PublishedTimetableMeeting $meeting): bool => ($changes[(int) $meeting->id]['remove'] ?? false) === true)
             ->pluck('scheduling_demand_id')->filter()->map(fn (mixed $id): int => (int) $id)->values()->all();
         $validation = $this->revalidator->validateLiveAssignments(
             $sourceRun,
-            collect($payloads)->map(fn (array $payload): array => [...$payload, 'term_id' => (int) $current->term_id, 'status' => 'ok'])->all(),
+            collect($payloads)->map(function (array $payload) use ($current, $resolveSourceMeetingId): array {
+                $sourceMeetingId = $resolveSourceMeetingId(
+                    (int) $payload['section_id'],
+                    isset($payload['scheduling_demand_id']) ? (int) $payload['scheduling_demand_id'] : null,
+                    (int) $payload['meeting_sequence'],
+                );
+
+                return [
+                    ...$payload,
+                    'term_id' => (int) $current->term_id,
+                    'status' => 'ok',
+                    'source_section_meeting_id' => $sourceMeetingId,
+                ];
+            })->all(),
             $excludedMeetingIds,
             $excludedDemandIds,
         );
@@ -240,6 +309,85 @@ class TimetableRevisionImpactGuard
                 'revision' => $validation->blockingFindings()[0]['message'] ?? 'The prepared revision violates a current hard scheduling rule.',
             ]);
         }
+
+        $this->assertNoPairwiseStudentConflict((int) $current->term_id, $payloads);
+    }
+
+    /** @param list<array<string, mixed>> $payloads */
+    private function assertNoPairwiseStudentConflict(int $termId, array $payloads): void
+    {
+        if (count($payloads) < 2) {
+            return;
+        }
+
+        $sectionIds = collect($payloads)->pluck('section_id')->map(fn (mixed $id): int => (int) $id)->unique()->values();
+        $studentsBySection = CourseEnrollment::query()
+            ->whereIn('section_id', $sectionIds)
+            ->where('status', CourseEnrollment::StatusActive)
+            ->where('is_current', true)
+            ->whereHas('enrollment', fn ($query) => $query->where('term_id', $termId))
+            ->with('enrollment:id,credential_user_id')
+            ->get()
+            ->groupBy('section_id')
+            ->map(fn (Collection $rows): array => $rows
+                ->map(fn (CourseEnrollment $row): int => (int) ($row->enrollment?->credential_user_id ?? 0))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all());
+
+        foreach ($payloads as $index => $meeting) {
+            $leftStudents = $studentsBySection->get((int) $meeting['section_id'], []);
+            if ($leftStudents === []) {
+                continue;
+            }
+
+            foreach (array_slice($payloads, $index + 1) as $other) {
+                if ((int) $meeting['section_id'] === (int) $other['section_id']) {
+                    continue;
+                }
+
+                $overlaps = (int) $meeting['day_of_week'] === (int) $other['day_of_week']
+                    && $this->normalizeTime($meeting['starts_at']) < $this->normalizeTime($other['ends_at'])
+                    && $this->normalizeTime($other['starts_at']) < $this->normalizeTime($meeting['ends_at']);
+
+                if (! $overlaps) {
+                    continue;
+                }
+
+                $rightStudents = $studentsBySection->get((int) $other['section_id'], []);
+                if (array_intersect($leftStudents, $rightStudents) !== []) {
+                    throw ValidationException::withMessages([
+                        'revision' => 'The proposed live assignment conflicts with another active meeting for an affected student.',
+                    ]);
+                }
+            }
+        }
+    }
+
+    /**
+     * @param  Collection<int, PublishedTimetableMeeting>  $meetings
+     * @param  array<int, array<string, mixed>>  $changes
+     */
+    private function hasTimeChange($meetings, array $changes): bool
+    {
+        return $meetings->contains(function (PublishedTimetableMeeting $meeting) use ($changes): bool {
+            $change = $changes[(int) $meeting->id] ?? null;
+            if (! is_array($change) || ($change['remove'] ?? false) === true) {
+                return false;
+            }
+
+            return (array_key_exists('day_of_week', $change) && (int) $change['day_of_week'] !== (int) $meeting->day_of_week)
+                || (array_key_exists('starts_at', $change) && $this->normalizeTime($change['starts_at']) !== $this->normalizeTime($meeting->starts_at))
+                || (array_key_exists('ends_at', $change) && $this->normalizeTime($change['ends_at']) !== $this->normalizeTime($meeting->ends_at));
+        });
+    }
+
+    private function normalizeTime(mixed $time): string
+    {
+        $value = (string) $time;
+
+        return strlen($value) === 5 ? $value.':00' : $value;
     }
 
     /** @param list<array<string, mixed>> $meetings */
@@ -263,20 +411,45 @@ class TimetableRevisionImpactGuard
         }
     }
 
-    /** @param list<int> $sectionIds @return list<int> */
-    private function affectedCaseIds(array $sectionIds): array
+    /**
+     * @param  list<int>  $sectionIds
+     * @return list<int>
+     */
+    private function blockingCaseIds(array $sectionIds, bool $isCancellation, bool $hasTimeChange): array
     {
-        $official = CourseEnrollment::query()
-            ->whereIn('section_id', $sectionIds)
-            ->where('is_current', true)
-            ->where('status', CourseEnrollment::StatusActive)
-            ->whereHas('enrollment', fn ($query) => $query->where('canonical_outcome', Enrollment::OutcomeOfficiallyEnrolled))
-            ->pluck('enrollment_id');
-        $inProgress = Enrollment::query()
-            ->where('canonical_outcome', Enrollment::OutcomeInProgress)
-            ->whereHas('currentProposalVersion.items', fn ($query) => $query->whereIn('section_id', $sectionIds))
-            ->pluck('id');
+        if ($sectionIds === []) {
+            return [];
+        }
 
-        return $official->merge($inProgress)->map(fn (mixed $id): int => (int) $id)->unique()->sort()->values()->all();
+        if ($isCancellation) {
+            $official = CourseEnrollment::query()
+                ->whereIn('section_id', $sectionIds)
+                ->where('is_current', true)
+                ->where('status', CourseEnrollment::StatusActive)
+                ->whereHas('enrollment', fn ($query) => $query->where('canonical_outcome', Enrollment::OutcomeOfficiallyEnrolled))
+                ->pluck('enrollment_id');
+            $inProgress = Enrollment::query()
+                ->where('canonical_outcome', Enrollment::OutcomeInProgress)
+                ->whereHas('currentProposalVersion.items', fn ($query) => $query->whereIn('section_id', $sectionIds))
+                ->pluck('id');
+
+            return $official->merge($inProgress)->map(fn (mixed $id): int => (int) $id)->unique()->sort()->values()->all();
+        }
+
+        if ($hasTimeChange) {
+            return Enrollment::query()
+                ->where('canonical_outcome', Enrollment::OutcomeInProgress)
+                ->whereHas('currentProposalVersion', fn ($query) => $query
+                    ->where('state', RegistrationProposalVersion::StateConfirmed)
+                    ->whereHas('items', fn ($items) => $items->whereIn('section_id', $sectionIds)))
+                ->pluck('id')
+                ->map(fn (mixed $id): int => (int) $id)
+                ->unique()
+                ->sort()
+                ->values()
+                ->all();
+        }
+
+        return [];
     }
 }

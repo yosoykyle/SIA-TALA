@@ -7,23 +7,29 @@ use Closure;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Auth\MultiFactor\App\AppAuthentication;
+use Filament\Auth\MultiFactor\App\Contracts\HasAppAuthentication;
 use Filament\Auth\MultiFactor\App\Contracts\HasAppAuthenticationRecovery;
 use Filament\Facades\Filament;
+use Filament\Forms\Components\OneTimeCodeInput;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Text;
 use Filament\Schemas\Components\UnorderedList;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\Wizard;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontFamily;
 use Filament\Support\Enums\FontWeight;
 use Filament\Support\Enums\TextSize;
 use Filament\Support\Enums\Width;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Js;
+use Livewire\Component as LivewireComponent;
 
 class TalaAppAuthentication extends AppAuthentication
 {
@@ -72,7 +78,7 @@ class TalaAppAuthentication extends AppAuthentication
 
     public function verifyRecoveryCode(#[\SensitiveParameter] string $recoveryCode, ?HasAppAuthenticationRecovery $user = null): bool
     {
-        $isValid = parent::verifyRecoveryCode($recoveryCode, $user);
+        $isValid = parent::verifyRecoveryCode(trim($recoveryCode), $user);
 
         if ($isValid && $user instanceof User) {
             activity()
@@ -83,6 +89,79 @@ class TalaAppAuthentication extends AppAuthentication
         }
 
         return $isValid;
+    }
+
+    /**
+     * @param  Authenticatable&HasAppAuthentication&HasAppAuthenticationRecovery  $user
+     * @return array<Component>
+     */
+    public function getChallengeFormComponents(Authenticatable $user): array
+    {
+        $isRecoverable = $this->isRecoverable();
+
+        return [
+            OneTimeCodeInput::make('code')
+                ->label(__('filament-panels::auth/multi-factor/app/provider.login_form.code.label'))
+                ->belowContent(fn (Get $get): Action => Action::make('useRecoveryCode')
+                    ->label(__('filament-panels::auth/multi-factor/app/provider.login_form.code.actions.use_recovery_code.label'))
+                    ->link()
+                    ->action(function (Set $set, LivewireComponent $livewire): void {
+                        $set('useRecoveryCode', true);
+                        $set('code', null);
+                        $livewire->resetValidation();
+                    })
+                    ->visible(fn (): bool => $isRecoverable && (! (bool) $get('useRecoveryCode'))))
+                ->validationAttribute(__('filament-panels::auth/multi-factor/app/provider.login_form.code.validation_attribute'))
+                ->visible(fn (Get $get): bool => (! $isRecoverable) || (! (bool) $get('useRecoveryCode')))
+                ->required(fn (Get $get): bool => (! $isRecoverable) || (! (bool) $get('useRecoveryCode')))
+                ->rule(function () use ($user): Closure {
+                    return function (string $attribute, #[\SensitiveParameter] mixed $value, Closure $fail) use ($user): void {
+                        if (blank($value)) {
+                            return;
+                        }
+
+                        if (is_string($value) && $this->verifyCode($value, $this->getSecret($user), shouldPreventCodeReuse: true)) {
+                            return;
+                        }
+
+                        $fail(__('filament-panels::auth/multi-factor/app/provider.login_form.code.messages.invalid'));
+                    };
+                }),
+            TextInput::make('recoveryCode')
+                ->label('Recovery code')
+                ->validationAttribute(__('filament-panels::auth/multi-factor/app/provider.login_form.recovery_code.validation_attribute'))
+                ->password()
+                ->revealable(Filament::arePasswordsRevealable())
+                ->autocomplete('one-time-code')
+                ->autofocus()
+                ->belowContent(fn (Get $get): Action => Action::make('useAuthenticatorCode')
+                    ->label('Use an authenticator app code')
+                    ->link()
+                    ->action(function (Set $set, LivewireComponent $livewire): void {
+                        $set('useRecoveryCode', false);
+                        $set('recoveryCode', null);
+                        $livewire->resetValidation();
+                    })
+                    ->visible(fn (): bool => $isRecoverable && (bool) $get('useRecoveryCode')))
+                ->required(fn (Get $get): bool => $isRecoverable && (bool) $get('useRecoveryCode'))
+                ->rule(function () use ($user): Closure {
+                    return function (string $attribute, #[\SensitiveParameter] mixed $value, Closure $fail) use ($user): void {
+                        $normalized = is_string($value) ? trim($value) : '';
+
+                        if ($normalized === '') {
+                            return;
+                        }
+
+                        if ($this->verifyRecoveryCode($normalized, $user)) {
+                            return;
+                        }
+
+                        $fail(__('filament-panels::auth/multi-factor/app/provider.login_form.recovery_code.messages.invalid'));
+                    };
+                })
+                ->visible(fn (Get $get): bool => $isRecoverable && (bool) $get('useRecoveryCode'))
+                ->live(onBlur: true),
+        ];
     }
 
     /**

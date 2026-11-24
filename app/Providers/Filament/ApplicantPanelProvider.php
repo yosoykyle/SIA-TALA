@@ -31,16 +31,40 @@ use Filament\PanelProvider;
 use Filament\Support\Icons\Heroicon;
 use Filament\View\PanelsRenderHook;
 use Filament\Widgets\AccountWidget;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Contracts\View\View;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 class ApplicantPanelProvider extends PanelProvider
 {
+    public function boot(): void
+    {
+        VerifyEmail::toMailUsing(function (object $notifiable, string $url): MailMessage {
+            $institution = trim((string) config('institution.name', 'Servitech Institute Asia Inc.'));
+
+            if ($institution === '') {
+                $institution = 'Servitech Institute Asia Inc.';
+            }
+
+            $expiresMinutes = (int) config('auth.verification.expire', 60);
+
+            return (new MailMessage)
+                ->subject("{$institution} — Verify your email address")
+                ->greeting('Verify your email address')
+                ->line('Click the button below to verify your email address and continue your Servitech account setup.')
+                ->action('Verify email address', $url)
+                ->line("This verification link expires in {$expiresMinutes} minutes, and only the most recent link can be used.")
+                ->line('If you did not create an account, no further action is required.')
+                ->salutation("Regards,\n{$institution}");
+        });
+    }
+
     public function panel(Panel $panel): Panel
     {
         return TalaPanelTheme::configure($panel)

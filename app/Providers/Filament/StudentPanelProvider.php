@@ -68,6 +68,7 @@ class StudentPanelProvider extends PanelProvider
                 isRequired: true,
             )
             ->multiFactorAuthenticationRequiredMiddlewareName(EnsureStaffMfaIsEnabled::class)
+            ->databaseNotifications()
             ->brandName('Servitech Institute Asia — Student Hub')
             ->plugin(
                 AuthDesignerPlugin::make()
@@ -105,6 +106,7 @@ class StudentPanelProvider extends PanelProvider
 
                 return $builder->items([
                     $this->navigationItem(Dashboard::class, 'Overview'),
+                    $this->navigationItem(ScheduleView::class, 'Class schedule'),
                     $this->enrollmentNavigationItem($badgeCounts, $user),
                     $this->academicsNavigationItem(),
                     $this->financeNavigationItem($badgeCounts, $user),
@@ -148,8 +150,7 @@ class StudentPanelProvider extends PanelProvider
         $panel = Filament::getPanel('student');
         $enrollmentRoute = Enrollment::getRouteName($panel);
         $corRoute = CorView::getRouteName($panel);
-        $scheduleRoute = ScheduleView::getRouteName($panel);
-        $inEnrollment = original_request()->routeIs($enrollmentRoute, $corRoute, $scheduleRoute);
+        $inEnrollment = original_request()->routeIs($enrollmentRoute, $corRoute);
         $enrollmentBadge = fn (): ?string => ($count = $badgeCounts->studentEnrollmentActionCount($user)) > 0 ? (string) $count : null;
         $item = NavigationItem::make('Enrollment')
             ->key(Enrollment::class)
@@ -172,10 +173,6 @@ class StudentPanelProvider extends PanelProvider
                 ->icon('heroicon-o-document-text')
                 ->url(fn (): string => CorView::getUrl(panel: 'student'))
                 ->isActiveWhen(fn (): bool => original_request()->routeIs($corRoute)),
-            NavigationItem::make('Class schedule')
-                ->icon('heroicon-o-calendar-days')
-                ->url(fn (): string => ScheduleView::getUrl(panel: 'student'))
-                ->isActiveWhen(fn (): bool => original_request()->routeIs($scheduleRoute)),
         ]);
     }
 

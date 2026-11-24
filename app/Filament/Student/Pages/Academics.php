@@ -49,6 +49,9 @@ class Academics extends Page
     #[Url]
     public ?int $change = null;
 
+    #[Url]
+    public ?int $enrollmentTerm = null;
+
     public function mount(): void
     {
         $student = $this->actor()->studentProfile;

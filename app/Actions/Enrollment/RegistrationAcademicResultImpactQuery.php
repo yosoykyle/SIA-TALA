@@ -7,9 +7,13 @@ use App\Models\CourseRequirement;
 use App\Models\Enrollment;
 use App\Models\GradeRosterRow;
 use App\Models\RegistrationProposalItem;
+use App\Models\StudentProfile;
+use Illuminate\Support\Collection;
 
 class RegistrationAcademicResultImpactQuery
 {
+    public function __construct(private readonly RegistrationAcademicEligibilityQuery $eligibility) {}
+
     public function affects(Enrollment $registrationCase, GradeRosterRow $changedRow): bool
     {
         $changedRow->loadMissing('courseEnrollment.termOffering.curriculumEntry.courseSpecification');
@@ -38,12 +42,36 @@ class RegistrationAcademicResultImpactQuery
             ->map(fn (mixed $id): int => (int) $id)
             ->unique();
 
-        return $dependentSpecificationIds->isNotEmpty()
-            && CourseRequirement::query()
-                ->whereIn('course_specification_id', $dependentSpecificationIds)
-                ->where('related_course_id', $sourceCourseId)
-                ->where('state', CourseRequirement::StateActive)
-                ->whereIn('rule_type', [CourseRequirement::TypePrerequisite, CourseRequirement::TypeCorequisite])
-                ->exists();
+        if ($dependentSpecificationIds->isEmpty()) {
+            return false;
+        }
+
+        $activeRequirements = CourseRequirement::query()
+            ->whereIn('course_specification_id', $dependentSpecificationIds)
+            ->where('state', CourseRequirement::StateActive)
+            ->whereIn('rule_type', [CourseRequirement::TypePrerequisite, CourseRequirement::TypeCorequisite])
+            ->get();
+
+        $affectedGroups = $activeRequirements
+            ->groupBy(fn (CourseRequirement $requirement): string => $requirement->course_specification_id.':'.$requirement->rule_type.':'.$requirement->group_key)
+            ->filter(fn (Collection $alternatives): bool => $alternatives->contains(
+                fn (CourseRequirement $requirement): bool => (int) $requirement->related_course_id === (int) $sourceCourseId,
+            ));
+
+        if ($affectedGroups->isEmpty()) {
+            return false;
+        }
+
+        $registrationCase->loadMissing('studentProfile');
+        $profile = $registrationCase->studentProfile;
+        if (! $profile instanceof StudentProfile) {
+            return true;
+        }
+
+        $satisfiedCourseIds = $this->eligibility->satisfiedCourseIds($profile);
+
+        return $affectedGroups->contains(fn (Collection $alternatives): bool => ! $alternatives->contains(
+            fn (CourseRequirement $requirement): bool => $satisfiedCourseIds->contains((int) $requirement->related_course_id),
+        ));
     }
 }

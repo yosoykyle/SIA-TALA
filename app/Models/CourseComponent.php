@@ -92,15 +92,19 @@ class CourseComponent extends Model
             '2x60' => '2 × 60 minutes',
             '2x90' => '2 × 90 minutes',
             '2x120' => '2 × 120 minutes',
+            '2x150' => '2 × 150 minutes',
+            '2x180' => '2 × 180 minutes',
             '3x60' => '3 × 60 minutes',
+            '3x120' => '3 × 120 minutes',
             '4x60' => '4 × 60 minutes',
+            '5x60' => '5 × 60 minutes',
         ];
     }
 
     /** @return array{count:int,duration_minutes:int}|null */
     public static function parseMeetingPattern(?string $pattern): ?array
     {
-        if (! is_string($pattern) || preg_match('/^([1-5])x(30|60|90|120|150|180|210|240)$/', $pattern, $matches) !== 1) {
+        if (! is_string($pattern) || preg_match('/^([1-6])x(30|60|90|120|150|180|210|240)$/', $pattern, $matches) !== 1) {
             return null;
         }
 
@@ -108,5 +112,38 @@ class CourseComponent extends Model
             'count' => (int) $matches[1],
             'duration_minutes' => (int) $matches[2],
         ];
+    }
+
+    public static function meetingPatternMinutes(?string $pattern): ?int
+    {
+        $parsed = self::parseMeetingPattern($pattern);
+
+        if ($parsed === null) {
+            return null;
+        }
+
+        return $parsed['count'] * $parsed['duration_minutes'];
+    }
+
+    public static function defaultMeetingPatternForHours(float $hours, string $roomType = self::RoomTypeLectureRoom): string
+    {
+        $weeklyMinutes = (int) round($hours * 60);
+
+        if ($weeklyMinutes === 180) {
+            return $roomType === self::RoomTypeLectureRoom ? '2x90' : '1x180';
+        }
+
+        if ($weeklyMinutes === 120) {
+            return $roomType === self::RoomTypeLectureRoom ? '2x60' : '1x120';
+        }
+
+        return match ($weeklyMinutes) {
+            60 => '1x60',
+            90 => '1x90',
+            240 => '2x120',
+            300 => '2x150',
+            360 => '2x180',
+            default => $weeklyMinutes >= 330 ? '2x180' : ($weeklyMinutes >= 270 ? '2x150' : ($weeklyMinutes >= 210 ? '2x120' : ($weeklyMinutes >= 150 ? '2x90' : ($weeklyMinutes >= 105 ? '2x60' : ($weeklyMinutes >= 75 ? '1x90' : '1x60'))))),
+        };
     }
 }

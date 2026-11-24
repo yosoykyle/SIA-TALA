@@ -183,8 +183,8 @@ class BuildTermOfferings
 
     private function validateScope(Term $term, Program $program, CurriculumVersion $curriculumVersion): void
     {
-        if ($curriculumVersion->state !== CurriculumVersion::StateActive) {
-            throw ValidationException::withMessages(['curriculum_version_id' => 'Only an active curriculum version can source term offerings.']);
+        if (! in_array($curriculumVersion->state, [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded], true)) {
+            throw ValidationException::withMessages(['curriculum_version_id' => 'Only a published (Active or Retired) curriculum version can source term offerings.']);
         }
 
         if ((int) $curriculumVersion->program_id !== (int) $program->id) {

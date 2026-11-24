@@ -211,8 +211,10 @@ class SchoolFirstCommunicationsTest extends TestCase
         $this->assertSame('Sentinel Polytechnic Academy — Mail Connection Test (Powered by TALA Platform)', $mail->envelope()->subject);
         $rendered = $mail->render();
         $this->assertStringContainsString('This is an automated mail self-test for Sentinel Polytechnic Academy triggered from System Health by the signed-in administrator (Powered by TALA Platform).', $rendered);
-        $this->assertStringContainsString('images/brand/servitech-crest.webp', $rendered);
-        $this->assertStringContainsString('© '.date('Y').' Sentinel Polytechnic Academy · Powered by TALA Platform.', $rendered);
+        $this->assertStringContainsString('Sentinel Polytechnic Academy', $rendered);
+        $this->assertStringContainsString('© '.date('Y').' Sentinel Polytechnic Academy. All rights reserved.', $rendered);
+        $this->assertStringNotContainsString('servitech-crest.webp', $rendered);
+        $this->assertStringNotContainsString('talalogo.png', $rendered);
     }
 
     public function test_representative_messages_render_school_first_presentation_with_secondary_tala_attribution(): void
@@ -296,14 +298,16 @@ class SchoolFirstCommunicationsTest extends TestCase
 
         $rendered = $mail->render();
 
-        // 1. Header asserts institution leads and school crest is present
-        $this->assertStringContainsString('images/brand/servitech-crest.webp', $rendered);
+        // 1. Header asserts institution leads without broken remote image icons or Powered by attribution
         $this->assertStringContainsString($institution, $rendered);
-        $this->assertStringContainsString("Powered by {$app}", $rendered);
+        $this->assertStringNotContainsString('images/brand/servitech-crest.webp', $rendered);
+        $this->assertStringNotContainsString('talalogo.png', $rendered);
+        $this->assertStringNotContainsString("Powered by {$app}", $rendered);
 
-        // 2. Footer asserts institution is copyright holder and secondary TALA attribution
+        // 2. Footer asserts institution is copyright holder without Powered by attribution
         $currentYear = date('Y');
-        $this->assertStringContainsString("© {$currentYear} {$institution} · Powered by {$app}. All rights reserved.", $rendered);
+        $trimmedInstitution = rtrim($institution, '.');
+        $this->assertStringContainsString("© {$currentYear} {$trimmedInstitution}. All rights reserved.", $rendered);
 
         // 3. Negative assertion: TALA-only copyright is absent
         $this->assertStringNotContainsString("© {$currentYear} {$app}. All rights reserved.", $rendered);
@@ -321,6 +325,14 @@ class SchoolFirstCommunicationsTest extends TestCase
             availabilityUrl: 'https://example.com/availability',
         );
         $this->assertSame("{$institution} — Action required: submit your teaching availability", $facultyMail->envelope()->subject);
+        $renderedFacultyMail = $facultyMail->render();
+        $this->assertStringContainsString('Specific weekly times', $renderedFacultyMail);
+        $this->assertStringContainsString('Any school teaching time', $renderedFacultyMail);
+        $this->assertStringContainsString('Unavailable this term', $renderedFacultyMail);
+        $this->assertStringContainsString('Save availability', $renderedFacultyMail);
+        $this->assertStringContainsString('Open My Availability', $renderedFacultyMail);
+        $this->assertStringNotContainsString('times you cannot teach', $renderedFacultyMail);
+        $this->assertStringNotContainsString('Submit my availability', $renderedFacultyMail);
 
         $officialEnrollmentMail = new OfficialEnrollmentMail(
             operationalEventId: 2,
@@ -341,11 +353,16 @@ class SchoolFirstCommunicationsTest extends TestCase
 
         $scheduleReleasedMail = new ScheduleReleasedMail(
             operationalEventId: 4,
-            recipientName: 'Student Maria',
+            recipientName: 'Prof. Juan',
             termLabel: 'First Semester',
-            scheduleUrl: 'https://example.com/schedule',
+            scheduleUrl: 'https://example.com/admin/faculty-schedule?termId=1',
         );
-        $this->assertSame("{$institution} — Your class schedule is available", $scheduleReleasedMail->envelope()->subject);
+        $this->assertSame("{$institution} — Your teaching schedule for First Semester is ready", $scheduleReleasedMail->envelope()->subject);
+        $renderedScheduleReleased = $scheduleReleasedMail->render();
+        $this->assertStringContainsString('Open My Schedule', $renderedScheduleReleased);
+        $this->assertStringContainsString('Staff Workspace', $renderedScheduleReleased);
+        $this->assertStringNotContainsString('Student Hub', $renderedScheduleReleased);
+        $this->assertStringNotContainsString('faculty before attending', $renderedScheduleReleased);
 
         $scheduleRevisionMail = new ScheduleRevisionMail(
             operationalEventId: 5,
@@ -431,10 +448,11 @@ class SchoolFirstCommunicationsTest extends TestCase
         $linkCount = substr_count($headerHtml, '<a href=');
         $this->assertSame(1, $linkCount, 'Email header must contain exactly one accessible interactive link.');
 
-        // Decorative TALA mark and crest plate present in header
-        $this->assertStringContainsString('images/brand/servitech-crest.webp', $headerHtml);
-        $this->assertStringContainsString('talalogo.png', $headerHtml);
-        $this->assertStringContainsString("Powered by {$app}", $headerHtml);
+        // Clean text-based school header without broken remote icon boxes or Powered by text
+        $this->assertStringContainsString($institution, $headerHtml);
+        $this->assertStringNotContainsString('images/brand/servitech-crest.webp', $headerHtml);
+        $this->assertStringNotContainsString('talalogo.png', $headerHtml);
+        $this->assertStringNotContainsString('Powered by', $headerHtml);
 
         // Shared palette footer ink remains readable on the neutral canvas.
         $this->assertStringContainsString('color: #52525c', $rendered);

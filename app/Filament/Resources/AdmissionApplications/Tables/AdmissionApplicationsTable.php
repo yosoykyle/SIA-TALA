@@ -19,6 +19,7 @@ use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -188,9 +189,34 @@ class AdmissionApplicationsTable
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
+            ->filtersLayout(FiltersLayout::Dropdown)
+            ->filtersFormColumns(2)
+            ->deferFilters(false)
             ->filtersTriggerAction(fn (Action $action): Action => $action->button()->label('Filter applications')->tooltip('Narrow the selected application queue'))
             ->toggleColumnsTriggerAction(fn (Action $action): Action => $action->button()->label('Columns')->tooltip('Choose supporting application facts'))
             ->filters([
+                SelectFilter::make('admission_cycle_id')
+                    ->label('Admission cycle')
+                    ->relationship('admissionCycle', 'label')
+                    ->searchable()
+                    ->preload(),
+                SelectFilter::make('program_id')
+                    ->label('Program')
+                    ->relationship('program', 'name')
+                    ->searchable()
+                    ->preload(),
+                SelectFilter::make('application_path')
+                    ->label('Student type')
+                    ->options(AdmissionCycle::studentTypeOptions()),
+                SelectFilter::make('application_state')
+                    ->label('State')
+                    ->options([
+                        AdmissionApplication::StateSubmitted => 'Submitted',
+                        AdmissionApplication::StateActionNeeded => 'Action needed',
+                        AdmissionApplication::StateAdmitted => 'Admitted',
+                        AdmissionApplication::StateNotAdmitted => 'Not admitted',
+                        AdmissionApplication::StateWithdrawn => 'Withdrawn',
+                    ]),
                 SelectFilter::make('readiness')
                     ->options(['ready' => 'Ready for enrollment', 'awaiting' => 'Awaiting Registrar clearance'])
                     ->query(function (Builder $query, array $data): Builder {
@@ -215,6 +241,14 @@ class AdmissionApplicationsTable
 
                         return $data['value'] === 'complete' ? $query->whereIn('id', $completeIds) : $query->whereNotIn('id', $completeIds);
                     }),
+                Filter::make('overdue_correction')
+                    ->label('Overdue correction')
+                    ->query(fn (Builder $query): Builder => $query->whereHas(
+                        'correctionRequests',
+                        fn (Builder $corrections): Builder => $corrections
+                            ->where('state', ApplicationCorrectionRequest::StateActive)
+                            ->where('due_at', '<', now(config('app.timezone'))),
+                    )),
                 Filter::make('submitted_at')
                     ->label('Submission date and time')
                     ->schema([
@@ -241,36 +275,6 @@ class AdmissionApplicationsTable
                         filled($data['from'] ?? null) ? 'Activity from '.$data['from'] : null,
                         filled($data['until'] ?? null) ? 'Activity until '.$data['until'] : null,
                     ])),
-                SelectFilter::make('admission_cycle_id')
-                    ->label('Admission cycle')
-                    ->relationship('admissionCycle', 'label')
-                    ->searchable()
-                    ->preload(),
-                SelectFilter::make('program_id')
-                    ->label('Program')
-                    ->relationship('program', 'name')
-                    ->searchable()
-                    ->preload(),
-                SelectFilter::make('application_path')
-                    ->label('Student type')
-                    ->options(AdmissionCycle::studentTypeOptions()),
-                SelectFilter::make('application_state')
-                    ->label('State')
-                    ->options([
-                        AdmissionApplication::StateSubmitted => 'Submitted',
-                        AdmissionApplication::StateActionNeeded => 'Action needed',
-                        AdmissionApplication::StateAdmitted => 'Admitted',
-                        AdmissionApplication::StateNotAdmitted => 'Not admitted',
-                        AdmissionApplication::StateWithdrawn => 'Withdrawn',
-                    ]),
-                Filter::make('overdue_correction')
-                    ->label('Overdue correction')
-                    ->query(fn (Builder $query): Builder => $query->whereHas(
-                        'correctionRequests',
-                        fn (Builder $corrections): Builder => $corrections
-                            ->where('state', ApplicationCorrectionRequest::StateActive)
-                            ->where('due_at', '<', now(config('app.timezone'))),
-                    )),
             ])
             ->recordActions([
                 Action::make('startReview')->label('Start review')->button()->color('primary')->icon('heroicon-o-play')

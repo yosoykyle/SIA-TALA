@@ -26,17 +26,17 @@ final class TermCoverageProjection
                         ->orWhereHas('entries.termOfferings', fn ($offeringQuery) => $offeringQuery
                             ->where('term_id', $term->id)
                             ->where('state', '!=', TermOffering::StateCancelled)))))
-            ->with(['program', 'entries' => fn ($query) => $query->where('term_type', $term->type)->orderBy('sequence'), 'entries.courseSpecification'])->get()->keyBy('id');
+            ->with(['program', 'academicYears', 'entries' => fn ($query) => $query->where('term_type', $term->type)->orderBy('sequence'), 'entries.courseSpecification'])->get()->keyBy('id');
         $offerings = TermOffering::query()->where('term_id', $term->id)
             ->where('state', '!=', TermOffering::StateCancelled)
-            ->with(['curriculumEntry.curriculumVersion.program', 'curriculumEntry.courseSpecification.course',
+            ->with(['curriculumEntry.curriculumVersion.program', 'curriculumEntry.curriculumVersion.academicYears', 'curriculumEntry.courseSpecification.course',
                 'sections' => fn ($query) => $query->whereNotIn('state', [Section::StateCancelled, Section::StateClosed]),
                 'sections.cohorts',
                 'sections.courseRevision',
                 'sections.deliveryGroups' => fn ($query) => $query->whereNotIn('state', [SectionDeliveryGroup::StateCancelled, SectionDeliveryGroup::StateClosed]),
                 'sections.deliveryGroups.schedulingDemands',
             ])->get();
-        $cohorts = TermCohort::query()->where('term_id', $term->id)->with(['program', 'curriculumVersion'])->get();
+        $cohorts = TermCohort::query()->where('term_id', $term->id)->with(['program', 'curriculumVersion.academicYears'])->get();
         $classes = $offerings->flatMap(fn (TermOffering $offering) => $offering->sections)->unique('id');
         $observedYears = [];
         $servedRows = [];
@@ -164,7 +164,15 @@ final class TermCoverageProjection
             'id' => $id, 'program_id' => $curriculum?->program_id,
             'program_name' => $curriculum?->program?->name ?? 'Unmapped program',
             'curriculum_version_id' => $curriculum?->id,
-            'curriculum_label' => $curriculum?->version_code ?? 'Unmapped curriculum',
+            'curriculum_label' => $curriculum instanceof CurriculumVersion ? $curriculum->batchLabel() : 'Unmapped curriculum',
+            'curriculum_version_code' => $curriculum?->version_code,
+            'curriculum_state' => $curriculum?->state,
+            'curriculum_state_label' => match ($curriculum?->state) {
+                CurriculumVersion::StateActive => 'Active',
+                CurriculumVersion::StateDraft => 'Draft',
+                CurriculumVersion::StateSuperseded, CurriculumVersion::StateArchived => 'Inactive',
+                default => null,
+            },
             'year_level' => $year, 'offering_count' => $offerings->unique('id')->count(),
             'sections' => $cohorts->map(fn (TermCohort $cohort): array => $this->cohort($cohort, array_values(array_unique($observedYears[$cohort->id] ?? []))))->values()->all(),
             'section_references' => $cohorts->pluck('reference')->values()->all(),

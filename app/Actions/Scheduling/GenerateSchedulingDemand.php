@@ -8,22 +8,130 @@ use App\Models\CalendarEvent;
 use App\Models\Course;
 use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
+use App\Models\CurriculumEntry;
 use App\Models\FacultyQualification;
-use App\Models\FacultyTermLoadOverride;
 use App\Models\Room;
 use App\Models\SchedulingCommitment;
 use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 class GenerateSchedulingDemand
 {
+    public static function resolveRoomType(?string $rawOverride, CourseComponent $component): ?string
+    {
+        $raw = is_string($rawOverride) ? trim($rawOverride) : '';
+
+        if ($raw !== '') {
+            if (str_starts_with($raw, '{')) {
+                $decoded = json_decode($raw, true);
+
+                if (is_array($decoded)) {
+                    $byComponentId = $decoded[(string) $component->id] ?? null;
+
+                    if (is_string($byComponentId) && trim($byComponentId) !== '') {
+                        return trim($byComponentId);
+                    }
+
+                    $byType = $decoded[(string) $component->component_type] ?? null;
+
+                    if (is_string($byType) && trim($byType) !== '') {
+                        return trim($byType);
+                    }
+
+                    return filled($component->room_type_default) ? (string) $component->room_type_default : null;
+                }
+            }
+
+            return $raw;
+        }
+
+        return filled($component->room_type_default) ? (string) $component->room_type_default : null;
+    }
+
+    /**
+     * @return array{
+     *     is_registrar_pin: bool,
+     *     demand_id: int|null,
+     *     component_id: int|null,
+     *     meeting_sequence: int|null
+     * }
+     */
+    public static function parseCommitmentScope(SchedulingCommitment $commitment): array
+    {
+        $authority = trim((string) $commitment->authority_reference);
+        $reason = trim((string) $commitment->reason);
+        $isRegistrarPin = $authority === 'REGISTRAR-PIN' || str_starts_with($authority, 'REGISTRAR-PIN:');
+        $demandId = null;
+        $componentId = null;
+        $meetingSequence = null;
+
+        if ($isRegistrarPin && str_starts_with($authority, 'REGISTRAR-PIN:')) {
+            if (preg_match('/(?:^|:)D(\d+)(?=:|$)/', $authority, $matches) === 1) {
+                $demandId = (int) $matches[1];
+            }
+            if (preg_match('/(?:^|:)C(\d+)(?=:|$)/', $authority, $matches) === 1) {
+                $componentId = (int) $matches[1];
+            }
+            if (preg_match('/(?:^|:)M(\d+)(?=:|$)/', $authority, $matches) === 1) {
+                $meetingSequence = (int) $matches[1];
+            }
+        }
+
+        if ($reason !== '' && preg_match('/\[(?:D(?<d>\d+))?(?::?C(?<c>\d+))?(?::?M(?<m>\d+))?\]/', $reason, $matches) === 1) {
+            if ($demandId === null && ! empty($matches['d'])) {
+                $demandId = (int) $matches['d'];
+            }
+            if ($componentId === null && ! empty($matches['c'])) {
+                $componentId = (int) $matches['c'];
+            }
+            if ($meetingSequence === null && ! empty($matches['m'])) {
+                $meetingSequence = (int) $matches['m'];
+            }
+        }
+
+        return [
+            'is_registrar_pin' => $isRegistrarPin,
+            'demand_id' => $demandId,
+            'component_id' => $componentId,
+            'meeting_sequence' => $meetingSequence,
+        ];
+    }
+
+    public static function commitmentAppliesToDemand(
+        SchedulingCommitment $commitment,
+        ?int $demandId,
+        ?int $componentId = null,
+    ): bool {
+        $scope = self::parseCommitmentScope($commitment);
+
+        if ($scope['component_id'] !== null && $componentId !== null && $scope['component_id'] !== $componentId) {
+            return false;
+        }
+
+        if ($scope['demand_id'] !== null) {
+            if ($demandId !== null) {
+                return $scope['demand_id'] === $demandId;
+            }
+
+            if ($scope['component_id'] !== null && $componentId !== null) {
+                return $scope['component_id'] === $componentId;
+            }
+
+            return false;
+        }
+
+        return true;
+    }
+
     /**
      * @return array{created:int,updated:int,skipped:int,total:int,ready:int,action_required:int,findings:int}
      */
@@ -44,8 +152,90 @@ class GenerateSchedulingDemand
 
             $offerings = $this->offeringsForTerm($term);
 
+            if ($offerings->isEmpty()) {
+                return $summary;
+            }
+
+            $activePackage = TermCalendarPackage::query()
+                ->where('term_id', $term->id)
+                ->where('state', TermCalendarPackage::StateActive)
+                ->with(['windows', 'teachingGridRows', 'datedExceptions'])
+                ->first();
+            $activePackage?->setRelation('term', $term);
+
+            $schedulingWindowCount = $activePackage instanceof TermCalendarPackage
+                && app(TermCalendarPackageReadinessService::class)->for($activePackage)['ready']
+                ? 1
+                : 0;
+
+            $gridRows = $activePackage instanceof TermCalendarPackage
+                ? $activePackage->teachingGridRows->sortBy('day_of_week')->map(fn ($row): array => [
+                    'day_of_week' => (int) $row->day_of_week,
+                    'starts_at' => substr((string) $row->starts_at, 0, 8),
+                    'ends_at' => substr((string) $row->ends_at, 0, 8),
+                ])->values()
+                : collect();
+            $slotMinutes = app(TermTeachingGrid::class)->slotMinutes($term);
+            $blockingCalendarBlocks = $this->recurringBlockingCalendarBlocks($term, $activePackage);
+
+            $activeRooms = Room::query()->with('features')->where('is_active', true)->get();
+            $activeRoomsById = $activeRooms->keyBy(fn (Room $room): int => (int) $room->id);
+            $activeRoomsByType = $activeRooms->groupBy(fn (Room $room): string => (string) $room->room_type);
+
+            $sectionIds = $offerings
+                ->flatMap(fn (TermOffering $offering) => $offering->sections)
+                ->map(fn (Section $section): int => (int) $section->id)
+                ->unique()
+                ->values()
+                ->all();
+
+            $commitmentsBySection = $sectionIds === []
+                ? collect()
+                : SchedulingCommitment::query()
+                    ->where('term_id', $term->id)
+                    ->whereIn('section_id', $sectionIds)
+                    ->lockForUpdate()
+                    ->get()
+                    ->groupBy(fn (SchedulingCommitment $commitment): int => (int) $commitment->section_id);
+
+            $courseIds = $offerings
+                ->flatMap(function (TermOffering $offering): array {
+                    $ids = [];
+                    $offeringCourseId = $offering->courseSpecification()?->course_id;
+                    if ($offeringCourseId !== null) {
+                        $ids[] = (int) $offeringCourseId;
+                    }
+
+                    foreach ($this->sectionsForOffering($offering) as $section) {
+                        $sectionCourseId = $section->courseRevision?->course_id;
+                        if ($sectionCourseId !== null) {
+                            $ids[] = (int) $sectionCourseId;
+                        }
+                    }
+
+                    return $ids;
+                })
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            $facultyLoadOptionsByCourse = $this->precomputedFacultyLoadOptionsByCourse($term, $courseIds);
+
+            $existingDemands = SchedulingDemand::query()
+                ->whereIn('term_offering_id', $offerings->modelKeys())
+                ->get()
+                ->keyBy(fn (SchedulingDemand $demand): string => "{$demand->term_offering_id}:{$demand->course_component_id}:{$demand->section_delivery_group_id}");
+
+            $now = now();
+            $nowString = $now->toDateTimeString();
+            $rowsToInsert = [];
+            $validComponentIdsByOffering = [];
+            $validComponentIdsByGroup = [];
+
             foreach ($offerings as $offering) {
-                $components = $this->courseComponents($offering);
+                $offeringComponents = $this->courseComponents($offering);
+                $validComponentIdsByOffering[(int) $offering->id] = $offeringComponents->modelKeys();
                 $sections = $this->sectionsForOffering($offering);
 
                 foreach ($sections as $section) {
@@ -53,21 +243,40 @@ class GenerateSchedulingDemand
                         continue;
                     }
 
+                    $components = $section->courseRevision instanceof CourseSpecification
+                        ? $this->componentsForSpecification($section->courseRevision)
+                        : $offeringComponents;
+
                     foreach ($this->deliveryGroupsForSection($section) as $group) {
                         if (in_array($group->state, [SectionDeliveryGroup::StateClosed, SectionDeliveryGroup::StateCancelled], true)) {
                             continue;
                         }
 
+                        $validComponentIdsByGroup[(int) $group->id] = $components->modelKeys();
+                        $group->setRelation('section', $section);
+
                         foreach ($components as $component) {
-                            $attributes = $this->attributesForDemand($actor, $term, $offering, $section, $group, $component);
-                            $demand = SchedulingDemand::query()->firstOrNew([
-                                'term_offering_id' => $attributes['term_offering_id'],
-                                'course_component_id' => $attributes['course_component_id'],
-                                'section_delivery_group_id' => $attributes['section_delivery_group_id'],
-                            ]);
-                            $wasNew = ! $demand->exists;
-                            $demand->fill($attributes);
-                            $demand->save();
+                            $lookupKey = "{$offering->id}:{$component->id}:{$group->id}";
+                            $demand = $existingDemands->get($lookupKey);
+
+                            $attributes = $this->attributesForDemand(
+                                actor: $actor,
+                                term: $term,
+                                offering: $offering,
+                                section: $section,
+                                group: $group,
+                                component: $component,
+                                existingDemand: $demand,
+                                commitmentsBySection: $commitmentsBySection,
+                                facultyLoadOptionsByCourse: $facultyLoadOptionsByCourse,
+                                activeRooms: $activeRooms,
+                                activeRoomsByType: $activeRoomsByType,
+                                activeRoomsById: $activeRoomsById,
+                                schedulingWindowCount: $schedulingWindowCount,
+                                blockingCalendarBlocks: $blockingCalendarBlocks,
+                                gridRows: $gridRows,
+                                slotMinutes: $slotMinutes,
+                            );
 
                             $summary['total']++;
                             $summary['findings'] += count($attributes['readiness_findings']);
@@ -78,9 +287,24 @@ class GenerateSchedulingDemand
                                 $summary['action_required']++;
                             }
 
-                            if ($wasNew) {
+                            if (! $demand instanceof SchedulingDemand) {
+                                $rowsToInsert[] = [
+                                    ...$attributes,
+                                    'source_snapshot' => json_encode($attributes['source_snapshot'], JSON_THROW_ON_ERROR),
+                                    'readiness_findings' => json_encode($attributes['readiness_findings'], JSON_THROW_ON_ERROR),
+                                    'readiness_checked_at' => $nowString,
+                                    'created_at' => $nowString,
+                                    'updated_at' => $nowString,
+                                ];
                                 $summary['created']++;
-                            } elseif ($demand->wasChanged()) {
+
+                                continue;
+                            }
+
+                            if ($this->demandChanged($demand, $attributes)) {
+                                $demand->fill($attributes);
+                                $demand->readiness_checked_at = $now;
+                                $demand->save();
                                 $summary['updated']++;
                             } else {
                                 $summary['skipped']++;
@@ -88,6 +312,32 @@ class GenerateSchedulingDemand
                         }
                     }
                 }
+            }
+
+            if ($rowsToInsert !== []) {
+                foreach (array_chunk($rowsToInsert, 1000) as $chunk) {
+                    SchedulingDemand::query()->insert($chunk);
+                }
+            }
+
+            $obsoleteComponentDemandIds = $existingDemands
+                ->filter(function (SchedulingDemand $demand) use ($validComponentIdsByGroup, $validComponentIdsByOffering): bool {
+                    $validIds = $validComponentIdsByGroup[(int) $demand->section_delivery_group_id]
+                        ?? $validComponentIdsByOffering[(int) $demand->term_offering_id]
+                        ?? [];
+
+                    return $validIds !== []
+                        && ! in_array((int) $demand->course_component_id, $validIds, true);
+                })
+                ->map(fn (SchedulingDemand $demand): int => (int) $demand->id)
+                ->values()
+                ->all();
+
+            if ($obsoleteComponentDemandIds !== []) {
+                SchedulingDemand::query()
+                    ->whereIn('id', $obsoleteComponentDemandIds)
+                    ->whereDoesntHave('sectionMeetings')
+                    ->delete();
             }
 
             return $summary;
@@ -99,17 +349,223 @@ class GenerateSchedulingDemand
      */
     private function offeringsForTerm(Term $term): EloquentCollection
     {
-        return TermOffering::query()
-            ->whereBelongsTo($term)
-            ->where('state', TermOffering::StatePendingScheduling)
-            ->with([
-                'term.calendarEvents',
-                'curriculumEntry.courseSpecification.course',
-                'curriculumEntry.courseSpecification.components',
-                'sections.deliveryGroups',
+        $rows = TermOffering::query()
+            ->select([
+                'term_offerings.*',
+                'ce.id as joined_entry_id',
+                'ce.course_specification_id as joined_spec_id',
+                'cs.course_id as joined_course_id',
+                'cs.state as joined_spec_state',
+                'cs.same_faculty_default as joined_spec_same_faculty_default',
+                'c.code as joined_course_code',
+                'cc.id as joined_component_id',
+                'cc.component_type as joined_component_type',
+                'cc.weekly_contact_hours as joined_component_weekly_contact_hours',
+                'cc.meeting_pattern as joined_component_meeting_pattern',
+                'cc.room_type_default as joined_component_room_type_default',
+                'cc.required_room_feature_keys as joined_component_required_room_feature_keys',
+                'cc.modality_restriction as joined_component_modality_restriction',
+                'cc.requires_consecutive_block as joined_component_requires_consecutive_block',
+                'cc.same_faculty as joined_component_same_faculty',
+                'cc.sequence as joined_component_sequence',
             ])
-            ->orderBy('id')
+            ->leftJoin('curriculum_entries as ce', 'ce.id', '=', 'term_offerings.curriculum_entry_id')
+            ->leftJoin('course_specifications as cs', 'cs.id', '=', 'ce.course_specification_id')
+            ->leftJoin('courses as c', 'c.id', '=', 'cs.course_id')
+            ->leftJoin('course_components as cc', 'cc.course_specification_id', '=', 'cs.id')
+            ->where('term_offerings.term_id', $term->id)
+            ->where('term_offerings.state', TermOffering::StatePendingScheduling)
+            ->orderBy('term_offerings.id')
+            ->orderBy('cc.sequence')
+            ->orderBy('cc.id')
             ->get();
+
+        if ($rows->isEmpty()) {
+            return new EloquentCollection;
+        }
+
+        $offeringsById = [];
+        $componentsBySpecId = [];
+
+        foreach ($rows as $row) {
+            $offeringId = (int) $row->id;
+
+            if (! isset($offeringsById[$offeringId])) {
+                $offeringsById[$offeringId] = $row;
+            }
+
+            if ($row->joined_spec_id !== null && $row->joined_component_id !== null) {
+                $specId = (int) $row->joined_spec_id;
+                $componentId = (int) $row->joined_component_id;
+
+                if (! isset($componentsBySpecId[$specId][$componentId])) {
+                    $featureKeys = $row->joined_component_required_room_feature_keys;
+                    if (is_string($featureKeys)) {
+                        $decodedKeys = json_decode($featureKeys, true);
+                        $featureKeys = is_array($decodedKeys) ? $decodedKeys : null;
+                    }
+
+                    $component = (new CourseComponent)->forceFill([
+                        'id' => $componentId,
+                        'course_specification_id' => $specId,
+                        'component_type' => $row->joined_component_type,
+                        'weekly_contact_hours' => $row->joined_component_weekly_contact_hours,
+                        'meeting_pattern' => $row->joined_component_meeting_pattern,
+                        'room_type_default' => $row->joined_component_room_type_default,
+                        'required_room_feature_keys' => $featureKeys,
+                        'modality_restriction' => $row->joined_component_modality_restriction,
+                        'requires_consecutive_block' => (bool) $row->joined_component_requires_consecutive_block,
+                        'same_faculty' => (bool) $row->joined_component_same_faculty,
+                        'sequence' => (int) $row->joined_component_sequence,
+                    ]);
+                    $component->exists = true;
+                    $componentsBySpecId[$specId][$componentId] = $component;
+                }
+            }
+        }
+
+        $offerings = new EloquentCollection(array_values($offeringsById));
+        $offeringIds = $offerings->modelKeys();
+
+        $sectionRows = Section::query()
+            ->select([
+                'sections.*',
+                'sdg.id as joined_group_id',
+                'sdg.name as joined_group_name',
+                'sdg.expected_count as joined_group_expected_count',
+                'sdg.modality as joined_group_modality',
+                'sdg.delivery_override as joined_group_delivery_override',
+                'sdg.state as joined_group_state',
+            ])
+            ->leftJoin('section_delivery_groups as sdg', 'sdg.section_id', '=', 'sections.id')
+            ->whereIn('sections.term_offering_id', $offeringIds)
+            ->orderBy('sections.id')
+            ->orderBy('sdg.id')
+            ->get();
+
+        $sectionsById = [];
+        $groupsBySectionId = [];
+
+        foreach ($sectionRows as $sectionRow) {
+            $sectionId = (int) $sectionRow->id;
+
+            if (! isset($sectionsById[$sectionId])) {
+                $sectionsById[$sectionId] = $sectionRow;
+            }
+
+            if ($sectionRow->joined_group_id !== null) {
+                $groupId = (int) $sectionRow->joined_group_id;
+                $rawOverride = $sectionRow->joined_group_delivery_override;
+                if (is_string($rawOverride)) {
+                    $decodedOverride = json_decode($rawOverride, true);
+                    $rawOverride = is_array($decodedOverride) ? $decodedOverride : null;
+                }
+
+                $group = (new SectionDeliveryGroup)->forceFill([
+                    'id' => $groupId,
+                    'section_id' => $sectionId,
+                    'name' => $sectionRow->joined_group_name,
+                    'expected_count' => (int) $sectionRow->joined_group_expected_count,
+                    'modality' => $sectionRow->joined_group_modality,
+                    'delivery_override' => $rawOverride,
+                    'state' => $sectionRow->joined_group_state,
+                ]);
+                $group->exists = true;
+                $groupsBySectionId[$sectionId][] = $group;
+            }
+        }
+
+        $sections = new EloquentCollection(array_values($sectionsById));
+
+        foreach ($sections as $section) {
+            $section->setRelation('deliveryGroups', new EloquentCollection(
+                $groupsBySectionId[(int) $section->id] ?? [],
+            ));
+        }
+
+        $sectionsByOfferingId = $sections->groupBy(fn (Section $section): int => (int) $section->term_offering_id);
+        $specsById = [];
+
+        foreach ($offerings as $offering) {
+            $offering->setRelation('sections', new EloquentCollection(
+                $sectionsByOfferingId->get((int) $offering->id, collect())->all(),
+            ));
+
+            if ($offering->joined_entry_id === null) {
+                $offering->setRelation('curriculumEntry', null);
+
+                continue;
+            }
+
+            $entry = (new CurriculumEntry)->forceFill([
+                'id' => (int) $offering->joined_entry_id,
+                'course_specification_id' => $offering->joined_spec_id !== null ? (int) $offering->joined_spec_id : null,
+            ]);
+            $entry->exists = true;
+
+            if ($offering->joined_spec_id !== null) {
+                $specId = (int) $offering->joined_spec_id;
+                $spec = (new CourseSpecification)->forceFill([
+                    'id' => $specId,
+                    'course_id' => $offering->joined_course_id !== null ? (int) $offering->joined_course_id : null,
+                    'state' => $offering->joined_spec_state,
+                    'same_faculty_default' => $offering->joined_spec_same_faculty_default !== null
+                        ? (bool) $offering->joined_spec_same_faculty_default
+                        : null,
+                ]);
+                $spec->exists = true;
+
+                if ($offering->joined_course_id !== null) {
+                    $course = (new Course)->forceFill([
+                        'id' => (int) $offering->joined_course_id,
+                        'code' => $offering->joined_course_code,
+                    ]);
+                    $course->exists = true;
+                    $spec->setRelation('course', $course);
+                } else {
+                    $spec->setRelation('course', null);
+                }
+
+                $spec->setRelation('components', new EloquentCollection(
+                    array_values($componentsBySpecId[$specId] ?? []),
+                ));
+                $specsById[$specId] = $spec;
+                $entry->setRelation('courseSpecification', $spec);
+            } else {
+                $entry->setRelation('courseSpecification', null);
+            }
+
+            $offering->setRelation('curriculumEntry', $entry);
+        }
+
+        $missingSectionSpecIds = $sections
+            ->pluck('course_specification_id')
+            ->filter(fn (mixed $id): bool => $id !== null && ! isset($specsById[(int) $id]))
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($missingSectionSpecIds !== []) {
+            $loadedSpecs = CourseSpecification::query()
+                ->whereIn('id', $missingSectionSpecIds)
+                ->with([
+                    'course',
+                    'components' => fn ($query) => $query->orderBy('sequence')->orderBy('id'),
+                ])
+                ->get();
+
+            foreach ($loadedSpecs as $loadedSpec) {
+                $specsById[(int) $loadedSpec->id] = $loadedSpec;
+            }
+        }
+
+        foreach ($sections as $section) {
+            $sectionSpecId = $section->course_specification_id !== null ? (int) $section->course_specification_id : null;
+            $section->setRelation('courseRevision', $sectionSpecId !== null ? ($specsById[$sectionSpecId] ?? null) : null);
+        }
+
+        return $offerings;
     }
 
     /**
@@ -117,6 +573,10 @@ class GenerateSchedulingDemand
      */
     private function sectionsForOffering(TermOffering $offering): EloquentCollection
     {
+        if ($offering->relationLoaded('sections')) {
+            return $offering->sections;
+        }
+
         return Section::query()
             ->whereBelongsTo($offering)
             ->orderBy('id')
@@ -128,6 +588,10 @@ class GenerateSchedulingDemand
      */
     private function deliveryGroupsForSection(Section $section): EloquentCollection
     {
+        if ($section->relationLoaded('deliveryGroups')) {
+            return $section->deliveryGroups;
+        }
+
         return SectionDeliveryGroup::query()
             ->whereBelongsTo($section)
             ->orderBy('id')
@@ -139,10 +603,20 @@ class GenerateSchedulingDemand
      */
     private function courseComponents(TermOffering $offering): EloquentCollection
     {
-        $specification = $offering->courseSpecification();
+        return $this->componentsForSpecification($offering->courseSpecification());
+    }
 
+    /**
+     * @return EloquentCollection<int, CourseComponent>
+     */
+    private function componentsForSpecification(?CourseSpecification $specification): EloquentCollection
+    {
         if (! $specification instanceof CourseSpecification) {
             return new EloquentCollection;
+        }
+
+        if ($specification->relationLoaded('components')) {
+            return $specification->components;
         }
 
         return CourseComponent::query()
@@ -153,6 +627,13 @@ class GenerateSchedulingDemand
     }
 
     /**
+     * @param  Collection<int, EloquentCollection<int, SchedulingCommitment>>  $commitmentsBySection
+     * @param  array<int, list<array{faculty_user_id:int<0, max>,qualification_id:int,term_load_override_id:int|null,max_allowed_units:string|null}>>  $facultyLoadOptionsByCourse
+     * @param  EloquentCollection<int, Room>  $activeRooms
+     * @param  Collection<string, EloquentCollection<int, Room>>  $activeRoomsByType
+     * @param  Collection<int, Room>  $activeRoomsById
+     * @param  list<array{id:int,source_type:string,scope_type:string,room_id:int|null,faculty_user_id:int|null,event_type:string,process_key:string|null,day_of_week:int,starts_at:string,ends_at:string}>  $blockingCalendarBlocks
+     * @param  Collection<int, array{day_of_week:int,starts_at:string,ends_at:string}>  $gridRows
      * @return array<string, mixed>
      */
     private function attributesForDemand(
@@ -162,40 +643,59 @@ class GenerateSchedulingDemand
         Section $section,
         SectionDeliveryGroup $group,
         CourseComponent $component,
+        ?SchedulingDemand $existingDemand,
+        Collection $commitmentsBySection,
+        array $facultyLoadOptionsByCourse,
+        EloquentCollection $activeRooms,
+        Collection $activeRoomsByType,
+        Collection $activeRoomsById,
+        int $schedulingWindowCount,
+        array $blockingCalendarBlocks,
+        Collection $gridRows,
+        int $slotMinutes,
     ): array {
-        $specification = CourseSpecification::query()->find($component->course_specification_id);
-        $course = $specification instanceof CourseSpecification
-            ? Course::query()->find($specification->course_id)
-            : null;
+        $specification = $section->courseRevision ?? $offering->courseSpecification();
+        $course = $specification?->course;
         $modality = filled($group->modality) ? (string) $group->modality : (string) $offering->modality;
         $meetingPattern = CourseComponent::parseMeetingPattern($component->meeting_pattern);
         $durationMinutes = $meetingPattern['duration_minutes']
             ?? max(1, (int) round((float) $component->weekly_contact_hours * 60));
         $meetingCount = $meetingPattern['count'] ?? 1;
-        $commitments = SchedulingCommitment::query()
-            ->where('term_id', $term->id)
-            ->where('section_id', $section->id)
-            ->lockForUpdate()
-            ->get();
-        $commitment = $commitments->count() === 1 ? $commitments->first() : null;
+        $sameFacultyDefault = $specification instanceof CourseSpecification ? $specification->same_faculty_default : null;
+        $sameFacultyRequired = (bool) ($offering->same_faculty_override ?? $sameFacultyDefault ?? $component->same_faculty);
+        $commitments = $commitmentsBySection
+            ->get((int) $section->id, collect())
+            ->filter(fn (SchedulingCommitment $commitment): bool => self::commitmentAppliesToDemand(
+                $commitment,
+                $existingDemand?->id !== null ? (int) $existingDemand->id : null,
+                (int) $component->id,
+            ))
+            ->values();
+        $mergedCommitments = $this->mergeSectionCommitments($commitments, $meetingCount, $sameFacultyRequired);
         $fixedInputs = $this->fixedInputs($group);
 
-        if ($commitment instanceof SchedulingCommitment) {
+        if ($commitments->isNotEmpty() && ! $mergedCommitments['has_conflict']) {
             $fixedInputs = [
-                'fixed_faculty_user_id' => $commitment->faculty_user_id !== null ? (int) $commitment->faculty_user_id : $fixedInputs['fixed_faculty_user_id'],
-                'fixed_room_id' => $commitment->room_id !== null ? (int) $commitment->room_id : $fixedInputs['fixed_room_id'],
-                'fixed_day_of_week' => $commitment->day_of_week !== null ? (int) $commitment->day_of_week : $fixedInputs['fixed_day_of_week'],
-                'fixed_start_time' => $this->timeString($commitment->starts_at),
+                'fixed_faculty_user_id' => $mergedCommitments['fixed_faculty_user_id'] ?? $fixedInputs['fixed_faculty_user_id'],
+                'fixed_room_id' => $mergedCommitments['fixed_room_id'] ?? $fixedInputs['fixed_room_id'],
+                'fixed_day_of_week' => $mergedCommitments['fixed_day_of_week'] ?? $fixedInputs['fixed_day_of_week'],
+                'fixed_start_time' => $mergedCommitments['fixed_start_time'] ?? $fixedInputs['fixed_start_time'],
             ];
         }
-        $roomTypeRequirement = $offering->room_type_override ?: $component->room_type_default;
+
+        $roomTypeRequirement = self::resolveRoomType($offering->room_type_override, $component);
+        $requiredFeatureKeys = $this->requiredRoomFeatureKeys($component);
         $facultyLoadOptions = $course instanceof Course
-            ? $this->facultyLoadOptions($term, $course)
+            ? ($facultyLoadOptionsByCourse[(int) $course->id] ?? [])
             : [];
-        $suitableRoomCount = $this->suitableRoomCount($modality, $roomTypeRequirement, (int) $group->expected_count);
-        $schedulingWindowCount = $this->schedulingWindowCount($term);
-        $blockingCalendarBlocks = $this->recurringBlockingCalendarBlocks($term);
-        $sameFacultyDefault = $specification instanceof CourseSpecification ? $specification->same_faculty_default : null;
+        $suitableRoomCount = $this->suitableRoomCount(
+            $modality,
+            $roomTypeRequirement,
+            (int) $group->expected_count,
+            $activeRooms,
+            $activeRoomsByType,
+            $requiredFeatureKeys,
+        );
 
         $snapshot = [
             'term_id' => (int) $term->id,
@@ -210,13 +710,13 @@ class GenerateSchedulingDemand
             'component_type' => $component->component_type,
             'weekly_contact_hours' => number_format((float) $component->weekly_contact_hours, 2, '.', ''),
             'meeting_pattern' => $component->meeting_pattern,
-            'scheduling_commitment_id' => $commitment?->id,
+            'scheduling_commitment_id' => $mergedCommitments['scheduling_commitment_id'],
             'expected_count' => (int) $group->expected_count,
             'section_capacity' => (int) $section->capacity,
             'offering_modality' => $offering->modality,
             'demand_modality' => $modality,
             'room_type_requirement' => $roomTypeRequirement,
-            'same_faculty_required' => (bool) ($offering->same_faculty_override ?? $sameFacultyDefault ?? $component->same_faculty),
+            'same_faculty_required' => $sameFacultyRequired,
             'eligible_faculty_count' => count($facultyLoadOptions),
             'faculty_load_options' => $facultyLoadOptions,
             'suitable_room_count' => $suitableRoomCount,
@@ -224,6 +724,14 @@ class GenerateSchedulingDemand
             'blocking_calendar_event_count' => count($blockingCalendarBlocks),
             'blocking_calendar_blocks' => $blockingCalendarBlocks,
         ];
+
+        if ($mergedCommitments['fixed_meeting_sequence'] !== null) {
+            $snapshot['fixed_meeting_sequence'] = $mergedCommitments['fixed_meeting_sequence'];
+        }
+
+        if ($mergedCommitments['fixed_meetings'] !== []) {
+            $snapshot['fixed_meetings'] = $mergedCommitments['fixed_meetings'];
+        }
 
         $findings = $this->findings(
             term: $term,
@@ -235,27 +743,34 @@ class GenerateSchedulingDemand
             course: $course,
             modality: $modality,
             roomTypeRequirement: is_string($roomTypeRequirement) ? $roomTypeRequirement : null,
+            requiredFeatureKeys: $requiredFeatureKeys,
             fixedInputs: $fixedInputs,
             facultyLoadOptions: $facultyLoadOptions,
             suitableRoomCount: $suitableRoomCount,
             schedulingWindowCount: $schedulingWindowCount,
             blockingCalendarBlocks: $blockingCalendarBlocks,
             durationMinutes: $durationMinutes,
+            activeRoomsById: $activeRoomsById,
+            gridRows: $gridRows,
+            slotMinutes: $slotMinutes,
         );
 
-        if ($commitments->count() > 1) {
-            $findings[] = $this->finding('multiple_section_commitments', 'blocking', 'section', $section->id, 'A Class Offering may have only one current exact scheduling commitment.');
-        } elseif ($commitment instanceof SchedulingCommitment) {
-            $commitmentStart = $this->minutesFromTime($this->timeString($commitment->starts_at));
-            $commitmentEnd = $this->minutesFromTime($this->timeString($commitment->ends_at));
+        if ($mergedCommitments['has_conflict']) {
+            $findings[] = $this->finding('multiple_section_commitments', 'blocking', 'section', $section->id, 'A Class Offering may have only non-conflicting scheduling commitments.');
+        } elseif ($commitments->isNotEmpty()) {
+            foreach ($mergedCommitments['entries'] as $entry) {
+                $hasAnyTimeField = $entry['fixed_day_of_week'] !== null
+                    || $entry['fixed_start_time'] !== null
+                    || $entry['fixed_end_time'] !== null;
+                $commitmentStart = $this->minutesFromTime($entry['fixed_start_time']);
+                $commitmentEnd = $this->minutesFromTime($entry['fixed_end_time']);
 
-            if ($commitment->day_of_week === null
-                || $commitmentStart === null
-                || $commitmentEnd === null
-                || ($commitment->faculty_user_id === null && $commitment->room_id === null)) {
-                $findings[] = $this->finding('incomplete_section_commitment', 'blocking', 'scheduling_commitment', $commitment->id, 'An exact Class Offering commitment requires a day, start, end, and at least one committed Faculty or room.');
-            } elseif (($commitmentEnd - $commitmentStart) !== $durationMinutes) {
-                $findings[] = $this->finding('section_commitment_duration_mismatch', 'blocking', 'scheduling_commitment', $commitment->id, 'The exact Class Offering commitment duration must equal one Meeting Pattern block.');
+                if (($entry['fixed_faculty_user_id'] === null && $entry['fixed_room_id'] === null && ! $hasAnyTimeField)
+                    || ($hasAnyTimeField && ($entry['fixed_day_of_week'] === null || $commitmentStart === null || $commitmentEnd === null))) {
+                    $findings[] = $this->finding('incomplete_section_commitment', 'blocking', 'scheduling_commitment', $entry['scheduling_commitment_id'], 'An exact Class Offering commitment requires a day, start, end, and at least one committed Faculty or room.');
+                } elseif ($hasAnyTimeField && ($commitmentEnd - $commitmentStart) !== $durationMinutes) {
+                    $findings[] = $this->finding('section_commitment_duration_mismatch', 'blocking', 'scheduling_commitment', $entry['scheduling_commitment_id'], 'The exact Class Offering commitment duration must equal one Meeting Pattern block.');
+                }
             }
         }
 
@@ -279,6 +794,34 @@ class GenerateSchedulingDemand
             'generated_by' => $actor->id,
             'readiness_checked_at' => now(),
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    private function demandChanged(SchedulingDemand $demand, array $attributes): bool
+    {
+        $scalarFields = [
+            'demand_key',
+            'required_duration_minutes',
+            'meeting_count',
+            'modality',
+            'fixed_faculty_user_id',
+            'fixed_room_id',
+            'fixed_day_of_week',
+            'fixed_start_time',
+            'validation_state',
+            'generated_by',
+        ];
+
+        foreach ($scalarFields as $field) {
+            if ($demand->getAttribute($field) != ($attributes[$field] ?? null)) {
+                return true;
+            }
+        }
+
+        return $demand->source_snapshot != $attributes['source_snapshot']
+            || $demand->readiness_findings != $attributes['readiness_findings'];
     }
 
     private function demandKey(TermOffering $offering, SectionDeliveryGroup $group, CourseComponent $component): string
@@ -312,43 +855,67 @@ class GenerateSchedulingDemand
     }
 
     /**
-     * @return list<array{faculty_user_id:int<0, max>,qualification_id:int,term_load_override_id:int|null,max_allowed_units:string|null}>
+     * @param  list<int>  $courseIds
+     * @return array<int, list<array{faculty_user_id:int<0, max>,qualification_id:int,term_load_override_id:int|null,max_allowed_units:string|null}>>
      */
-    private function facultyLoadOptions(Term $term, Course $course): array
+    private function precomputedFacultyLoadOptionsByCourse(Term $term, array $courseIds): array
     {
-        $qualifications = FacultyQualification::query()
-            ->whereBelongsTo($course)
-            ->where('is_active', true)
-            ->orderBy('faculty_user_id')
-            ->get();
-
-        if ($qualifications->isEmpty()) {
+        if ($courseIds === []) {
             return [];
         }
 
-        $overrides = FacultyTermLoadOverride::query()
-            ->whereBelongsTo($term)
-            ->where('is_active', true)
-            ->whereIn('faculty_user_id', $qualifications->pluck('faculty_user_id')->all())
-            ->get()
-            ->keyBy('faculty_user_id');
-
-        return $qualifications
-            ->map(function (FacultyQualification $qualification) use ($term, $overrides): array {
-                $override = $overrides->get($qualification->faculty_user_id);
-                $maxAllowedUnits = $override instanceof FacultyTermLoadOverride
-                    ? $override->allowedLoadUnits()
-                    : ($term->default_max_units !== null ? (float) $term->default_max_units : null);
-
-                return [
-                    'faculty_user_id' => (int) $qualification->faculty_user_id,
-                    'qualification_id' => (int) $qualification->id,
-                    'term_load_override_id' => $override instanceof FacultyTermLoadOverride ? (int) $override->id : null,
-                    'max_allowed_units' => $this->decimalString($maxAllowedUnits),
-                ];
+        $rows = FacultyQualification::query()
+            ->select([
+                'faculty_qualifications.*',
+                'ftlo.id as joined_override_id',
+                'ftlo.default_max_units_snapshot as joined_override_default_units',
+                'ftlo.approved_overload_units as joined_override_overload_units',
+            ])
+            ->leftJoin('faculty_term_load_overrides as ftlo', function ($join) use ($term): void {
+                $join->on('ftlo.faculty_user_id', '=', 'faculty_qualifications.faculty_user_id')
+                    ->where('ftlo.term_id', '=', $term->id)
+                    ->where('ftlo.is_active', '=', true);
             })
-            ->values()
-            ->all();
+            ->whereIn('faculty_qualifications.course_id', $courseIds)
+            ->where('faculty_qualifications.is_active', true)
+            ->orderBy('faculty_qualifications.faculty_user_id')
+            ->orderBy('faculty_qualifications.id')
+            ->orderBy('ftlo.id')
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return [];
+        }
+
+        $byCourseAndQual = [];
+
+        foreach ($rows as $row) {
+            $courseId = (int) $row->course_id;
+            $qualId = (int) $row->id;
+            $overrideId = $row->joined_override_id !== null ? (int) $row->joined_override_id : null;
+            $maxAllowedUnits = $overrideId !== null
+                ? ((float) $row->joined_override_default_units + (float) $row->joined_override_overload_units)
+                : ($term->default_max_units !== null ? (float) $term->default_max_units : null);
+
+            if ($overrideId !== null && $maxAllowedUnits <= 0.0) {
+                continue;
+            }
+
+            $byCourseAndQual[$courseId][$qualId] = [
+                'faculty_user_id' => (int) $row->faculty_user_id,
+                'qualification_id' => $qualId,
+                'term_load_override_id' => $overrideId,
+                'max_allowed_units' => $this->decimalString($maxAllowedUnits),
+            ];
+        }
+
+        $result = [];
+
+        foreach ($byCourseAndQual as $courseId => $options) {
+            $result[$courseId] = array_values($options);
+        }
+
+        return $result;
     }
 
     private function decimalString(?float $value): ?string
@@ -356,34 +923,69 @@ class GenerateSchedulingDemand
         return $value === null ? null : number_format($value, 2, '.', '');
     }
 
-    private function suitableRoomCount(string $modality, mixed $roomTypeRequirement, int $expectedCount): int
-    {
+    /**
+     * @param  EloquentCollection<int, Room>  $activeRooms
+     * @param  Collection<string, EloquentCollection<int, Room>>  $activeRoomsByType
+     * @param  list<string>  $requiredFeatureKeys
+     */
+    private function suitableRoomCount(
+        string $modality,
+        mixed $roomTypeRequirement,
+        int $expectedCount,
+        EloquentCollection $activeRooms,
+        Collection $activeRoomsByType,
+        array $requiredFeatureKeys = [],
+    ): int {
         if ($modality !== TermOffering::ModalityFaceToFace) {
             return 0;
         }
 
-        return Room::query()
-            ->where('is_active', true)
-            ->where('capacity', '>=', $expectedCount)
-            ->when(filled($roomTypeRequirement), fn ($query) => $query->where('room_type', $roomTypeRequirement))
+        $pool = filled($roomTypeRequirement)
+            ? $activeRoomsByType->get((string) $roomTypeRequirement, collect())
+            : $activeRooms;
+
+        return $pool
+            ->filter(fn (Room $room): bool => (int) $room->capacity >= $expectedCount
+                && $this->roomHasRequiredFeatures($room, $requiredFeatureKeys))
             ->count();
     }
 
-    private function schedulingWindowCount(Term $term): int
+    /**
+     * @return list<string>
+     */
+    private function requiredRoomFeatureKeys(CourseComponent $component): array
     {
-        $package = app(TermTeachingGrid::class)->activePackage($term);
+        return collect($component->required_room_feature_keys ?? [])
+            ->map(fn (mixed $key): string => mb_strtoupper(trim((string) $key)))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
 
-        if ($package) {
-            return app(TermCalendarPackageReadinessService::class)->for($package)['ready'] ? 1 : 0;
+    /**
+     * @param  list<string>  $requiredFeatureKeys
+     */
+    private function roomHasRequiredFeatures(Room $room, array $requiredFeatureKeys): bool
+    {
+        if ($requiredFeatureKeys === []) {
+            return true;
         }
 
-        return 0;
+        $roomFeatures = $room->features
+            ->pluck('feature_key')
+            ->map(fn (mixed $key): string => mb_strtoupper(trim((string) $key)))
+            ->filter()
+            ->unique()
+            ->all();
+
+        return array_diff($requiredFeatureKeys, $roomFeatures) === [];
     }
 
     /**
      * @return list<array{id:int,source_type:string,scope_type:string,room_id:int|null,faculty_user_id:int|null,event_type:string,process_key:string|null,day_of_week:int,starts_at:string,ends_at:string}>
      */
-    private function recurringBlockingCalendarBlocks(Term $term): array
+    private function recurringBlockingCalendarBlocks(Term $term, ?TermCalendarPackage $package): array
     {
         $legacyBlocks = CalendarEvent::query()
             ->whereBelongsTo($term)
@@ -411,7 +1013,6 @@ class GenerateSchedulingDemand
             ->values()
             ->all();
 
-        $package = app(TermTeachingGrid::class)->activePackage($term);
         $packageBlocks = [];
 
         foreach ($package?->teachingGridRows ?? [] as $row) {
@@ -439,9 +1040,12 @@ class GenerateSchedulingDemand
     }
 
     /**
+     * @param  list<string>  $requiredFeatureKeys
      * @param  array{fixed_faculty_user_id:int|null,fixed_room_id:int|null,fixed_day_of_week:int|null,fixed_start_time:string|null}  $fixedInputs
      * @param  list<array{faculty_user_id:int<0, max>,qualification_id:int,term_load_override_id:int|null,max_allowed_units:string|null}>  $facultyLoadOptions
      * @param  list<array{id:int,source_type:string,scope_type:string,room_id:int|null,faculty_user_id:int|null,event_type:string,process_key:string|null,day_of_week:int,starts_at:string,ends_at:string}>  $blockingCalendarBlocks
+     * @param  Collection<int, Room>  $activeRoomsById
+     * @param  Collection<int, array{day_of_week:int,starts_at:string,ends_at:string}>  $gridRows
      * @return list<array{key:string,severity:string,source_type:string,source_id:int|null,message:string}>
      */
     private function findings(
@@ -454,12 +1058,16 @@ class GenerateSchedulingDemand
         ?Course $course,
         string $modality,
         ?string $roomTypeRequirement,
+        array $requiredFeatureKeys,
         array $fixedInputs,
         array $facultyLoadOptions,
         int $suitableRoomCount,
         int $schedulingWindowCount,
         array $blockingCalendarBlocks,
         int $durationMinutes,
+        Collection $activeRoomsById,
+        Collection $gridRows,
+        int $slotMinutes,
     ): array {
         $findings = [];
 
@@ -514,7 +1122,7 @@ class GenerateSchedulingDemand
                 $findings[] = $this->finding('missing_suitable_room', 'blocking', 'room', null, 'No active room matches the required room type and expected delivery-group count.');
             }
 
-            if ($fixedInputs['fixed_room_id'] !== null && ! $this->fixedRoomIsSuitable($fixedInputs['fixed_room_id'], $roomTypeRequirement, (int) $group->expected_count)) {
+            if ($fixedInputs['fixed_room_id'] !== null && ! $this->fixedRoomIsSuitable($fixedInputs['fixed_room_id'], $roomTypeRequirement, (int) $group->expected_count, $activeRoomsById, $requiredFeatureKeys)) {
                 $findings[] = $this->finding('fixed_room_not_suitable', 'blocking', 'room', $fixedInputs['fixed_room_id'], 'The fixed room override is inactive, below expected count, or does not match the required room type.');
             }
         }
@@ -539,13 +1147,10 @@ class GenerateSchedulingDemand
 
         $fixedDay = $fixedInputs['fixed_day_of_week'];
         $fixedStart = $this->minutesFromTime($fixedInputs['fixed_start_time']);
-        $grid = app(TermTeachingGrid::class);
-        $rows = collect($grid->rows($term));
-        $dayRow = $rows->firstWhere('day_of_week', $fixedDay);
-        $schedulingDays = $rows->pluck('day_of_week')->all();
+        $dayRow = $gridRows->firstWhere('day_of_week', $fixedDay);
+        $schedulingDays = $gridRows->pluck('day_of_week')->all();
         $dayStart = $this->minutesFromTime($dayRow['starts_at'] ?? null);
         $dayEnd = $this->minutesFromTime($dayRow['ends_at'] ?? null);
-        $slotMinutes = $grid->slotMinutes($term);
 
         if ($fixedDay !== null
             && $fixedDay >= 1
@@ -591,14 +1196,28 @@ class GenerateSchedulingDemand
         ];
     }
 
-    private function fixedRoomIsSuitable(int $roomId, ?string $roomTypeRequirement, int $expectedCount): bool
-    {
-        return Room::query()
-            ->whereKey($roomId)
-            ->where('is_active', true)
-            ->where('capacity', '>=', $expectedCount)
-            ->when(filled($roomTypeRequirement), fn ($query) => $query->where('room_type', $roomTypeRequirement))
-            ->exists();
+    /**
+     * @param  Collection<int, Room>  $activeRoomsById
+     * @param  list<string>  $requiredFeatureKeys
+     */
+    private function fixedRoomIsSuitable(
+        int $roomId,
+        ?string $roomTypeRequirement,
+        int $expectedCount,
+        Collection $activeRoomsById,
+        array $requiredFeatureKeys = [],
+    ): bool {
+        $room = $activeRoomsById->get($roomId);
+
+        if (! $room instanceof Room || (int) $room->capacity < $expectedCount) {
+            return false;
+        }
+
+        if (filled($roomTypeRequirement) && (string) $room->room_type !== (string) $roomTypeRequirement) {
+            return false;
+        }
+
+        return $this->roomHasRequiredFeatures($room, $requiredFeatureKeys);
     }
 
     /**
@@ -671,6 +1290,227 @@ class GenerateSchedulingDemand
         }
 
         return ($hours * 60) + $minutes;
+    }
+
+    /**
+     * @param  Collection<int, SchedulingCommitment>  $commitments
+     * @return array{
+     *     scheduling_commitment_id:int|null,
+     *     fixed_faculty_user_id:int|null,
+     *     fixed_room_id:int|null,
+     *     fixed_day_of_week:int|null,
+     *     fixed_start_time:string|null,
+     *     fixed_end_time:string|null,
+     *     fixed_meeting_sequence:int|null,
+     *     fixed_meetings:list<array{
+     *         meeting_sequence:int,
+     *         scheduling_commitment_id:int|null,
+     *         fixed_faculty_user_id:int|null,
+     *         fixed_room_id:int|null,
+     *         fixed_day_of_week:int|null,
+     *         fixed_start_time:string|null,
+     *         fixed_end_time:string|null
+     *     }>,
+     *     entries:list<array{
+     *         scheduling_commitment_id:int|null,
+     *         fixed_faculty_user_id:int|null,
+     *         fixed_room_id:int|null,
+     *         fixed_day_of_week:int|null,
+     *         fixed_start_time:string|null,
+     *         fixed_end_time:string|null
+     *     }>,
+     *     has_conflict:bool
+     * }
+     */
+    private function mergeSectionCommitments(
+        Collection $commitments,
+        int $meetingCount = 1,
+        bool $sameFacultyRequired = false,
+    ): array {
+        if ($commitments->isEmpty()) {
+            return [
+                'scheduling_commitment_id' => null,
+                'fixed_faculty_user_id' => null,
+                'fixed_room_id' => null,
+                'fixed_day_of_week' => null,
+                'fixed_start_time' => null,
+                'fixed_end_time' => null,
+                'fixed_meeting_sequence' => null,
+                'fixed_meetings' => [],
+                'entries' => [],
+                'has_conflict' => false,
+            ];
+        }
+
+        $sorted = $commitments->sortBy('id')->values();
+        $unscoped = collect();
+        $bySequence = [];
+
+        foreach ($sorted as $commitment) {
+            $scope = self::parseCommitmentScope($commitment);
+            if ($scope['meeting_sequence'] !== null) {
+                $bySequence[(int) $scope['meeting_sequence']][] = $commitment;
+            } else {
+                $unscoped->push($commitment);
+            }
+        }
+
+        if ($bySequence === []) {
+            $facultyIds = $sorted->pluck('faculty_user_id')->filter(fn (mixed $v): bool => $v !== null)->map(fn (mixed $v): int => (int) $v)->unique()->values();
+            $roomIds = $sorted->pluck('room_id')->filter(fn (mixed $v): bool => $v !== null)->map(fn (mixed $v): int => (int) $v)->unique()->values();
+            $days = $sorted->pluck('day_of_week')->filter(fn (mixed $v): bool => $v !== null)->map(fn (mixed $v): int => (int) $v)->unique()->values();
+            $starts = $sorted->filter(fn (SchedulingCommitment $c): bool => $c->starts_at !== null && (string) $c->starts_at !== '')
+                ->map(fn (SchedulingCommitment $c): string => $this->timeString($c->starts_at))
+                ->unique()
+                ->values();
+            $ends = $sorted->filter(fn (SchedulingCommitment $c): bool => $c->ends_at !== null && (string) $c->ends_at !== '')
+                ->map(fn (SchedulingCommitment $c): string => $this->timeString($c->ends_at))
+                ->unique()
+                ->values();
+
+            $hasConflict = $facultyIds->count() > 1
+                || $roomIds->count() > 1
+                || $days->count() > 1
+                || $starts->count() > 1
+                || $ends->count() > 1;
+
+            $entry = [
+                'scheduling_commitment_id' => (int) $sorted->first()->id,
+                'fixed_faculty_user_id' => $facultyIds->count() === 1 ? (int) $facultyIds->first() : null,
+                'fixed_room_id' => $roomIds->count() === 1 ? (int) $roomIds->first() : null,
+                'fixed_day_of_week' => $days->count() === 1 ? (int) $days->first() : null,
+                'fixed_start_time' => $starts->count() === 1 ? (string) $starts->first() : null,
+                'fixed_end_time' => $ends->count() === 1 ? (string) $ends->first() : null,
+            ];
+
+            return [
+                ...$entry,
+                'fixed_meeting_sequence' => null,
+                'fixed_meetings' => [],
+                'entries' => [$entry],
+                'has_conflict' => $hasConflict,
+            ];
+        }
+
+        $unscopedFacultyIds = $unscoped->pluck('faculty_user_id')->filter(fn (mixed $v): bool => $v !== null)->map(fn (mixed $v): int => (int) $v)->unique()->values();
+        $unscopedRoomIds = $unscoped->pluck('room_id')->filter(fn (mixed $v): bool => $v !== null)->map(fn (mixed $v): int => (int) $v)->unique()->values();
+        $unscopedDays = $unscoped->pluck('day_of_week')->filter(fn (mixed $v): bool => $v !== null)->map(fn (mixed $v): int => (int) $v)->unique()->values();
+        $unscopedStarts = $unscoped->filter(fn (SchedulingCommitment $c): bool => $c->starts_at !== null && (string) $c->starts_at !== '')
+            ->map(fn (SchedulingCommitment $c): string => $this->timeString($c->starts_at))
+            ->unique()
+            ->values();
+        $unscopedEnds = $unscoped->filter(fn (SchedulingCommitment $c): bool => $c->ends_at !== null && (string) $c->ends_at !== '')
+            ->map(fn (SchedulingCommitment $c): string => $this->timeString($c->ends_at))
+            ->unique()
+            ->values();
+
+        $hasConflict = $unscopedFacultyIds->count() > 1
+            || $unscopedRoomIds->count() > 1
+            || $unscopedDays->count() > 1
+            || $unscopedStarts->count() > 1
+            || $unscopedEnds->count() > 1;
+
+        if ($unscopedDays->isNotEmpty() || $unscopedStarts->isNotEmpty() || $unscopedEnds->isNotEmpty()) {
+            foreach ($unscoped as $unscopedCommitment) {
+                $bySequence[1][] = $unscopedCommitment;
+            }
+        }
+
+        ksort($bySequence);
+        $defaultFacultyId = $unscopedFacultyIds->count() === 1 ? (int) $unscopedFacultyIds->first() : null;
+        $defaultRoomId = $unscopedRoomIds->count() === 1 ? (int) $unscopedRoomIds->first() : null;
+        $fixedMeetings = [];
+
+        foreach ($bySequence as $sequence => $sequenceCommitments) {
+            $seq = (int) $sequence;
+            if ($seq < 1 || $seq > max(1, $meetingCount)) {
+                $hasConflict = true;
+            }
+
+            $seqCollection = collect($sequenceCommitments)->sortBy('id')->values();
+            $fIds = $seqCollection->pluck('faculty_user_id')->filter(fn (mixed $v): bool => $v !== null)->map(fn (mixed $v): int => (int) $v)->unique()->values();
+            if ($defaultFacultyId !== null) {
+                $fIds = $fIds->push($defaultFacultyId)->unique()->values();
+            }
+            $rIds = $seqCollection->pluck('room_id')->filter(fn (mixed $v): bool => $v !== null)->map(fn (mixed $v): int => (int) $v)->unique()->values();
+            $dVals = $seqCollection->pluck('day_of_week')->filter(fn (mixed $v): bool => $v !== null)->map(fn (mixed $v): int => (int) $v)->unique()->values();
+            $sVals = $seqCollection->filter(fn (SchedulingCommitment $c): bool => $c->starts_at !== null && (string) $c->starts_at !== '')
+                ->map(fn (SchedulingCommitment $c): string => $this->timeString($c->starts_at))
+                ->unique()
+                ->values();
+            $eVals = $seqCollection->filter(fn (SchedulingCommitment $c): bool => $c->ends_at !== null && (string) $c->ends_at !== '')
+                ->map(fn (SchedulingCommitment $c): string => $this->timeString($c->ends_at))
+                ->unique()
+                ->values();
+
+            if ($fIds->count() > 1 || $rIds->count() > 1 || $dVals->count() > 1 || $sVals->count() > 1 || $eVals->count() > 1) {
+                $hasConflict = true;
+            }
+
+            $fixedMeetings[] = [
+                'meeting_sequence' => $seq,
+                'scheduling_commitment_id' => (int) $seqCollection->first()->id,
+                'fixed_faculty_user_id' => $fIds->count() === 1 ? (int) $fIds->first() : null,
+                'fixed_room_id' => $rIds->count() === 1 ? (int) $rIds->first() : $defaultRoomId,
+                'fixed_day_of_week' => $dVals->count() === 1 ? (int) $dVals->first() : null,
+                'fixed_start_time' => $sVals->count() === 1 ? (string) $sVals->first() : null,
+                'fixed_end_time' => $eVals->count() === 1 ? (string) $eVals->first() : null,
+            ];
+        }
+
+        if ($sameFacultyRequired) {
+            $allPinFaculty = collect($fixedMeetings)
+                ->pluck('fixed_faculty_user_id')
+                ->filter(fn (mixed $v): bool => $v !== null)
+                ->unique();
+            if ($allPinFaculty->count() > 1) {
+                $hasConflict = true;
+            }
+        }
+
+        foreach ($fixedMeetings as $index => $leftPin) {
+            foreach (array_slice($fixedMeetings, $index + 1) as $rightPin) {
+                if ($leftPin['fixed_day_of_week'] === null || $leftPin['fixed_day_of_week'] !== $rightPin['fixed_day_of_week']) {
+                    continue;
+                }
+
+                $lStart = $this->minutesFromTime($leftPin['fixed_start_time']);
+                $lEnd = $this->minutesFromTime($leftPin['fixed_end_time']);
+                $rStart = $this->minutesFromTime($rightPin['fixed_start_time']);
+                $rEnd = $this->minutesFromTime($rightPin['fixed_end_time']);
+
+                if ($lStart !== null && $lEnd !== null && $rStart !== null && $rEnd !== null && $lStart < $rEnd && $lEnd > $rStart) {
+                    $hasConflict = true;
+                }
+            }
+        }
+
+        $primary = $fixedMeetings[0];
+        $allFaculty = collect($fixedMeetings)->pluck('fixed_faculty_user_id')->filter(fn (mixed $v): bool => $v !== null)->unique()->values();
+        $allRooms = collect($fixedMeetings)->pluck('fixed_room_id')->filter(fn (mixed $v): bool => $v !== null)->unique()->values();
+
+        return [
+            'scheduling_commitment_id' => $primary['scheduling_commitment_id'],
+            'fixed_faculty_user_id' => $allFaculty->count() === 1 ? (int) $allFaculty->first() : $primary['fixed_faculty_user_id'],
+            'fixed_room_id' => $allRooms->count() === 1 ? (int) $allRooms->first() : $primary['fixed_room_id'],
+            'fixed_day_of_week' => $primary['fixed_day_of_week'],
+            'fixed_start_time' => $primary['fixed_start_time'],
+            'fixed_end_time' => $primary['fixed_end_time'],
+            'fixed_meeting_sequence' => $primary['meeting_sequence'],
+            'fixed_meetings' => $fixedMeetings,
+            'entries' => array_map(
+                fn (array $pin): array => [
+                    'scheduling_commitment_id' => $pin['scheduling_commitment_id'],
+                    'fixed_faculty_user_id' => $pin['fixed_faculty_user_id'],
+                    'fixed_room_id' => $pin['fixed_room_id'],
+                    'fixed_day_of_week' => $pin['fixed_day_of_week'],
+                    'fixed_start_time' => $pin['fixed_start_time'],
+                    'fixed_end_time' => $pin['fixed_end_time'],
+                ],
+                $fixedMeetings,
+            ),
+            'has_conflict' => $hasConflict,
+        ];
     }
 
     private function timeString(mixed $time): string

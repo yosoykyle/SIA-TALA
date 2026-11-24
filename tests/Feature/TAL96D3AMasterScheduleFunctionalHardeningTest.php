@@ -321,18 +321,17 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
         $tuesday->fill(['meeting_sequence' => 2, 'day_of_week' => 2])->save();
         $criteria = ['course_id' => $fixture['course']->id, 'class_id' => $fixture['section']->id, 'room_id' => $fixture['room']->id, 'day_of_week' => 2, 'modality' => TermOffering::ModalityFaceToFace, 'search' => $fixture['course']->code];
         $page = Livewire::actingAs($fixture['faculty'])->test(FacultySchedule::class)
-            ->set('tableSearch', $criteria['search']);
-        foreach (array_diff_key($criteria, ['search' => true]) as $field => $value) {
-            $page->filterTable($field, $value);
-        }
+            ->set('tableSearch', $criteria['search'])
+            ->filterTable('day_of_week', 2)
+            ->filterTable('modality', TermOffering::ModalityFaceToFace);
         $this->assertSame([$tuesday->id], $page->instance()->getFilteredTableQuery()->pluck('id')->all());
         $this->assertFalse($page->instance()->getTable()->isPaginated());
         $this->assertNotNull($page->instance()->getTable()->getContent());
-        $page->assertSee('Tuesday')->callTableAction('listView')->assertSet('scheduleView', 'list')->assertCanSeeTableRecords([$tuesday])->assertCanNotSeeTableRecords([$fixture['meeting'], $other['meeting']]);
+        $page->assertSee('Tuesday')->call('setScheduleView', 'list')->assertSet('scheduleView', 'list')->assertCanSeeTableRecords([$tuesday])->assertCanNotSeeTableRecords([$fixture['meeting'], $other['meeting']]);
         $this->assertTrue($page->instance()->getTable()->isPaginated());
         $this->assertNull($page->instance()->getTable()->getContent());
         $this->assertSame([$tuesday->id], $page->instance()->getFilteredTableQuery()->pluck('id')->all());
-        $page->callTableAction('weekView')->assertSet('scheduleView', 'week');
+        $page->call('setScheduleView', 'week')->assertSet('scheduleView', 'week');
         $this->assertSame([$tuesday->id], $page->instance()->getFilteredTableQuery()->pluck('id')->all());
         $this->assertStringContainsString('day_of_week=2', $page->instance()->printFilteredScheduleAction()->getUrl());
         parse_str(parse_url($page->instance()->printScheduleAction()->getUrl(), PHP_URL_QUERY), $fullPrintContext);
@@ -352,7 +351,7 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
         $this->assertStringContainsString('Location', $page->instance()->getMountedAction()->getModalContent()->render());
         $page->call('unmountAction');
         $page->call('mountAction', 'viewMeeting', [], ['table' => true, 'recordKey' => (string) $other['meeting']->id])->assertSet('mountedActions', []);
-        $page->filterTable('day_of_week', 7)->assertSee('No meetings match your filters')->assertSee('Clear filters and search');
+        $page->filterTable('day_of_week', 7)->assertSee('No classes match your filters')->assertSee('Clear filters');
         $page->call('clearScheduleFilters');
         $this->assertCount(2, $page->instance()->getFilteredTableQuery()->get());
 
@@ -387,11 +386,11 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
         $emptyTerm = Term::factory()->create();
 
         Livewire::actingAs($faculty)->test(FacultySchedule::class)
-            ->assertSee('Choose a Term to view your schedule')
-            ->assertDontSee('No official meetings assigned in this Term')
+            ->assertSee('Choose a term to view your schedule')
+            ->assertDontSee('No official meetings assigned in this term')
             ->assertDontSee('Search courses, classes or rooms')
             ->call('selectTerm', $emptyTerm->id)
-            ->assertSee('No official meetings assigned in this Term')
+            ->assertSee('No official meetings assigned in this term')
             ->assertDontSee('Weekly meetings');
 
         $fixture = $this->scheduleFixture();
@@ -400,10 +399,8 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
 
         Livewire::actingAs($fixture['faculty'])->test(FacultySchedule::class, ['termId' => $fixture['term']->id])
             ->filterTable('day_of_week', 2)
-            ->assertSeeHtml('<dt>Classes</dt><dd>1</dd>')
-            ->assertSeeHtml('<dt>Weekly meetings</dt><dd>2</dd>')
-            ->assertSeeHtml('<dt>Teaching days</dt><dd>2</dd>')
-            ->assertSee('Showing selected meetings:')
+            ->assertSeeInOrder(['Classes', '1', 'Weekly meetings', '2', 'Teaching days', '2'])
+            ->assertSee('Showing filtered classes:')
             ->assertSee('Tuesday');
     }
 
@@ -424,7 +421,7 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
 
         $page = Livewire::actingAs($fixture['faculty'])->test(FacultySchedule::class, ['termId' => $fixture['term']->id])->set('tableSearch', 'Applied Research');
         $this->assertEqualsCanonicalizing([$fixture['meeting']->id, $second->id], $page->instance()->getFilteredTableQuery()->pluck('id')->all());
-        $page->callTableAction('listView')->assertCanSeeTableRecords([$fixture['meeting'], $second])->assertCanNotSeeTableRecords([$wrongActor, $other['meeting']]);
+        $page->call('setScheduleView', 'list')->assertCanSeeTableRecords([$fixture['meeting'], $second])->assertCanNotSeeTableRecords([$wrongActor, $other['meeting']]);
         $output = app(BuildOfficialScheduleOutput::class)->forFaculty($fixture['faculty'], Request::create('/', 'GET', ['timetable_version' => $fixture['timetable']->id, 'scope' => 'filtered', 'search' => 'Applied Research']));
         $this->assertCount(2, $output['rows']);
         $this->assertStringContainsString('Search: Applied Research', $output['filter_description']);
@@ -457,12 +454,12 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
         $this->assertTrue(SectionMeeting::query()->activeOfficial()->whereKey($fixture['meeting']->id)->exists());
         $this->assertModelExists($other['meeting']);
         $this->assertModelExists($sameTermOtherFaculty);
-        Livewire::actingAs($fixture['faculty'])->test(MyAvailability::class, ['termId' => $fixture['term']->id])->assertSee('Official timetable review required.');
+        Livewire::actingAs($fixture['faculty'])->test(MyAvailability::class, ['termId' => $fixture['term']->id])->assertSee('Some current classes conflict with your updated availability');
         $record->execute($fixture['term'], $fixture['faculty'], $fixture['faculty'], FacultyAvailabilityDeclaration::DeclarationAvailable, [], 'Can teach after all');
-        Livewire::actingAs($fixture['faculty'])->test(MyAvailability::class, ['termId' => $fixture['term']->id])->assertDontSee('Official timetable review required.');
+        Livewire::actingAs($fixture['faculty'])->test(MyAvailability::class, ['termId' => $fixture['term']->id])->assertDontSee('Some current classes conflict with your updated availability');
         $record->execute($fixture['term'], $fixture['faculty'], $fixture['faculty'], FacultyAvailabilityDeclaration::DeclarationUnavailable, [], 'Cannot teach this Term again');
         $fixture['timetable']->update(['state' => PublishedTimetableVersion::StateSuperseded]);
-        Livewire::actingAs($fixture['faculty'])->test(MyAvailability::class, ['termId' => $fixture['term']->id])->assertDontSee('Official timetable review required.');
+        Livewire::actingAs($fixture['faculty'])->test(MyAvailability::class, ['termId' => $fixture['term']->id])->assertDontSee('Some current classes conflict with your updated availability');
         $this->assertDatabaseHas('activity_log', ['event' => 'faculty_availability_revision_required', 'subject_id' => $corrected->id]);
     }
 

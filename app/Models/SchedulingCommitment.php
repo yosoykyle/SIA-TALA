@@ -33,4 +33,10 @@ class SchedulingCommitment extends Model
     {
         return $this->belongsTo(Section::class, 'section_id');
     }
+
+    /** @return BelongsTo<User, $this> */
+    public function faculty(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'faculty_user_id');
+    }
 }

@@ -2,7 +2,7 @@
     {{-- Header --}}
     <x-slot:header>
         <x-mail::header :url="config('app.url')">
-            {{ config('institution.name', 'Servitech Institute Asia Inc.') }} (Powered by {{ config('app.name', 'TALA') }})
+            {{ config('institution.name', 'Servitech Institute Asia Inc.') }}
         </x-mail::header>
     </x-slot:header>
 
@@ -21,7 +21,7 @@
     {{-- Footer --}}
     <x-slot:footer>
         <x-mail::footer>
-            © {{ date('Y') }} {{ config('institution.name', 'Servitech Institute Asia Inc.') }} · Powered by {{ config('app.name', 'TALA') }}. @lang('All rights reserved.')
+            © {{ date('Y') }} {{ rtrim((string) config('institution.name', 'Servitech Institute Asia Inc.'), '.') }}. @lang('All rights reserved.')
         </x-mail::footer>
     </x-slot:footer>
 </x-mail::layout>

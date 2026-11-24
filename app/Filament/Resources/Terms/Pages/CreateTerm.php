@@ -60,7 +60,14 @@ class CreateTerm extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        return [...$data, 'label' => filled($data['label'] ?? null) ? $data['label'] : Term::typeOptions()[$data['type']], 'state' => Term::StateDraft, 'scheduling_slot_minutes' => 30, 'scheduling_days' => null];
+        return [
+            ...$data,
+            'label' => filled($data['label'] ?? null) ? $data['label'] : Term::typeOptions()[$data['type']],
+            'default_max_units' => $data['default_max_units'] ?? 24,
+            'state' => Term::StateDraft,
+            'scheduling_slot_minutes' => 30,
+            'scheduling_days' => null,
+        ];
     }
 
     protected function getRedirectUrl(): string

@@ -12,7 +12,7 @@
             <p class="tala-graduation-degree">{{ $recorded->degree_name }}</p>
             <p>{{ $recorded->conferred_on ? 'Graduated '.$recorded->conferred_on->format('M j, Y') : 'Graduation date not supplied' }}</p>
             @if ($recorded->honor_text)<p>{{ $recorded->honor_text }}</p>@endif
-            @if (auth()->user()?->hasRole(\App\Models\User::StaffRoleRegistrar))<div class="tala-graduation-status-action">{{ $this->getAction('correctGraduation') }}</div>@endif
+            @if ($this->canMutateCompletion())<div class="tala-graduation-status-action">{{ $this->getAction('correctGraduation') }}</div>@endif
         @else
             @foreach ($projection['blockers'] as $blocker)
                 <div class="tala-graduation-blocker"><h4>{{ $blocker['reason'] }}</h4><p>{{ $blocker['recovery'] }}</p></div>
@@ -20,10 +20,10 @@
             @if ($projection['blockers'] === [])<p>Record the school’s actual graduation result. Requirements are checked again before saving.</p>@endif
             <div class="tala-graduation-source"><div><p>Curriculum used for this review</p><strong>{{ $student->curriculumVersion?->name ?? 'No curriculum assigned' }}</strong></div>
                 @if ($projection['blockers'] !== [] && $student->curriculumVersion && \App\Filament\Resources\CurriculumVersions\CurriculumVersionResource::canView($student->curriculumVersion))
-                    {{ \Filament\Actions\Action::make('openCurriculum')->label('Open curriculum')->color('gray')->icon('heroicon-o-book-open')->url(\App\Filament\Resources\CurriculumVersions\CurriculumVersionResource::getUrl('review',['record'=>$student->curriculum_version_id])) }}
+                    {{ \Filament\Actions\Action::make('openCurriculum')->label('Open curriculum')->color('gray')->icon('heroicon-o-book-open')->url(\App\Filament\Resources\CurriculumVersions\CurriculumVersionResource::getUrl('review',['record'=>$student->curriculum_version_id, ...$this->oversightDrillParameters()])) }}
                 @endif
             </div>
-            @if ($projection['blockers'] === [] && auth()->user()?->hasRole(\App\Models\User::StaffRoleRegistrar))<div class="tala-graduation-status-action">{{ $this->getAction('recordGraduation') }}</div>@endif
+            @if ($projection['blockers'] === [] && $this->canMutateCompletion())<div class="tala-graduation-status-action">{{ $this->getAction('recordGraduation') }}</div>@endif
         @endif
     </section>
     <x-record-history heading="Graduation history" :paginator="$detail['history']" :has-entries="$detail['history']->isNotEmpty()" method="gotoGraduationHistoryPage">

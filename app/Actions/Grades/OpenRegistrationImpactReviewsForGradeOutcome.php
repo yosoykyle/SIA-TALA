@@ -3,11 +3,13 @@
 namespace App\Actions\Grades;
 
 use App\Actions\Enrollment\RecordRegistrationSourceImpactReview;
+use App\Actions\Enrollment\RegistrationAcademicEligibilityQuery;
 use App\Actions\Enrollment\RegistrationAcademicResultImpactQuery;
 use App\Models\Enrollment;
 use App\Models\GradeOutcomeEvent;
 use App\Models\GradeRosterRow;
 use App\Models\RegistrationCaseEvent;
+use App\Models\StudentProfile;
 use App\Models\User;
 
 class OpenRegistrationImpactReviewsForGradeOutcome
@@ -15,16 +17,32 @@ class OpenRegistrationImpactReviewsForGradeOutcome
     public function __construct(
         private readonly RecordRegistrationSourceImpactReview $impactReviews,
         private readonly RegistrationAcademicResultImpactQuery $impactQuery,
+        private readonly RegistrationAcademicEligibilityQuery $eligibility,
     ) {}
 
     public function execute(GradeRosterRow $row, GradeOutcomeEvent $event, User $actor): void
     {
-        $row->loadMissing('courseEnrollment.enrollment.term');
+        if ($this->isPassingOutcome($event)) {
+            return;
+        }
+
+        $row->loadMissing([
+            'courseEnrollment.enrollment.term',
+            'courseEnrollment.enrollment.studentProfile',
+            'courseEnrollment.termOffering.curriculumEntry.courseSpecification',
+        ]);
         $sourceEnrollment = $row->courseEnrollment?->enrollment;
         $credentialUserId = $sourceEnrollment?->credential_user_id;
         $sourceTermStart = $sourceEnrollment?->term?->starts_on;
+        $sourceCourseId = $row->courseEnrollment?->termOffering?->curriculumEntry?->courseSpecification?->course_id;
 
-        if ($credentialUserId === null || $sourceTermStart === null) {
+        if ($credentialUserId === null || $sourceTermStart === null || $sourceCourseId === null) {
+            return;
+        }
+
+        $studentProfile = $sourceEnrollment->studentProfile;
+        if ($studentProfile instanceof StudentProfile
+            && $this->eligibility->satisfiedCourseIds($studentProfile)->contains((int) $sourceCourseId)) {
             return;
         }
 
@@ -41,5 +59,14 @@ class OpenRegistrationImpactReviewsForGradeOutcome
                 'grade-outcome-event:'.$event->id,
                 'Review the changed released academic result against the current Registration Proposal.',
             ));
+    }
+
+    private function isPassingOutcome(GradeOutcomeEvent $event): bool
+    {
+        return in_array($event->new_category, [
+            GradeRosterRow::CategoryPassing,
+            GradeRosterRow::CategoryTransferCredit,
+        ], true)
+            || RegistrationAcademicEligibilityQuery::isPassingResult($event->result_code);
     }
 }

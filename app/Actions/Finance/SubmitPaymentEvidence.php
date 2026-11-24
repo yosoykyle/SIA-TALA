@@ -6,9 +6,12 @@ use App\Models\PaymentEvidenceVersion;
 use App\Models\TermAccount;
 use App\Models\User;
 use App\Support\DecimalMoney;
+use Filament\Actions\Action;
+use Filament\Notifications\Notification;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rules\File;
@@ -76,7 +79,7 @@ class SubmitPaymentEvidence
         $path = $file->store("registration-payment-evidence/{$account->id}", 'local');
 
         try {
-            return DB::transaction(function () use ($account, $actor, $file, $path, $claimedAmount, $channel, $paidAt, $paymentReference, $targetObligationIds, $resolvedSnapshot): PaymentEvidenceVersion {
+            $evidence = DB::transaction(function () use ($account, $actor, $file, $path, $claimedAmount, $channel, $paidAt, $paymentReference, $targetObligationIds, $resolvedSnapshot): PaymentEvidenceVersion {
                 $locked = TermAccount::query()->whereKey($account->id)->lockForUpdate()->firstOrFail();
                 $position = $this->projection->forAccount($locked);
                 $eligible = collect($position['obligations'])->filter(fn (array $row): bool => $row['is_due'] && $this->money->greaterThanZero($row['available_balance']));
@@ -127,6 +130,40 @@ class SubmitPaymentEvidence
             Storage::disk('local')->delete($path);
             throw $exception;
         }
+
+        $formattedAmount = 'PHP '.number_format((float) $this->money->normalize($claimedAmount), 2);
+        $actorName = (string) $actor->name;
+        DB::afterCommit(function () use ($formattedAmount, $actorName): void {
+            $accountingStaff = User::query()
+                ->where('status', User::StatusActive)
+                ->whereHas('roles', fn ($query) => $query->where('name', User::StaffRoleAccounting))
+                ->get();
+
+            if ($accountingStaff->isEmpty()) {
+                return;
+            }
+
+            $receiptsUrl = Route::has('filament.admin.resources.enrollments.index')
+                ? route('filament.admin.resources.enrollments.index', ['activeTab' => 'payment_proof'])
+                : null;
+
+            $notification = Notification::make()
+                ->title('New payment receipt submitted')
+                ->body("{$actorName} submitted a {$formattedAmount} payment receipt for verification.")
+                ->info();
+
+            if ($receiptsUrl !== null) {
+                $notification->actions([
+                    Action::make('reviewReceipts')
+                        ->label('Review receipts')
+                        ->url($receiptsUrl),
+                ]);
+            }
+
+            $notification->sendToDatabase($accountingStaff);
+        });
+
+        return $evidence;
     }
 
     private function hasValidFileMagicBytes(UploadedFile $file): bool

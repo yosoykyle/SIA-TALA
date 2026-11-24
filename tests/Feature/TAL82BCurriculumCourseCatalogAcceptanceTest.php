@@ -289,6 +289,7 @@ final class TAL82BCurriculumCourseCatalogAcceptanceTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $curriculum = CurriculumVersion::factory()->create(['state' => CurriculumVersion::StateDraft]);
         $specification = CourseSpecification::factory()->create(['state' => CourseSpecification::StateActive]);
+        CourseComponent::factory()->for($specification)->create();
         $entry = CurriculumEntry::factory()->for($curriculum)->for($specification)->create(['year_level' => '1']);
         $component = Livewire::test(ReviewCurriculumVersion::class, ['record' => $curriculum->getRouteKey()])
             ->assertSet('subjectEditorOpen', false)
@@ -303,18 +304,20 @@ final class TAL82BCurriculumCourseCatalogAcceptanceTest extends TestCase
         $this->assertSame(CourseSpecification::SchedulingRecurring, $firstNewRow['scheduling_treatment'] ?? null);
         $this->assertSame(1, collect($firstNewRow['components'] ?? [])->first()['sequence'] ?? null);
         $component->call('selectCurriculumSubject', $entry->id)
+            ->assertSet('subjectMode', 'edit')
             ->assertFormFieldDoesNotExist('new_subjects', form: 'subjectForm')
             ->assertFormFieldDoesNotExist('course_specification_ids', form: 'subjectForm')
             ->mountAction('viewSubjectDetails')->assertActionMounted('viewSubjectDetails');
         $this->assertTrue($component->instance()->getMountedAction()->getRecord()->is($specification));
         $component->unmountAction()
-            ->callAction('copySelectedSubject')
-            ->assertHasNoActionErrors()
-            ->assertSet('subjectMode', 'edit');
+            ->set('subjectData.title', 'Curriculum-specific draft title')
+            ->call('saveCurriculumSubject')
+            ->assertHasNoErrors();
         $adoptedDraftId = $entry->fresh()->course_specification_id;
         $this->assertNotSame($specification->id, $adoptedDraftId);
         $this->assertSame(CourseSpecification::StateDraft, CourseSpecification::query()->findOrFail($adoptedDraftId)->state);
-        $component->call('closeSubjectEditor')->assertSet('subjectEditorOpen', false);
+        $this->assertSame('Curriculum-specific draft title', CourseSpecification::query()->findOrFail($adoptedDraftId)->title);
+        $component->assertSet('subjectEditorOpen', false);
         $this->assertSame(CourseSpecification::StateActive, $specification->fresh()->state);
     }
 
@@ -378,10 +381,14 @@ final class TAL82BCurriculumCourseCatalogAcceptanceTest extends TestCase
         CourseComponent::factory()->for($source)->create();
         $component = Livewire::test(ViewCourse::class, ['record' => $source->course_id])
             ->assertActionHidden('editRevision')
-            ->callAction('reviseSubject')->assertHasNoActionErrors()->assertNoRedirect();
+            ->callAction('reviseSubject')
+            ->assertHasNoActionErrors()
+            ->assertActionMounted('editRevision')
+            ->assertNoRedirect();
         $draft = $source->course->specifications()->where('state', CourseSpecification::StateDraft)->sole();
         $component->assertSet('selectedRevisionId', $draft->id)
-            ->callAction('editRevision', data: ['title' => 'Updated draft title'])
+            ->fillForm(['title' => 'Updated draft title'])
+            ->callMountedAction()
             ->assertHasNoActionErrors()->assertNoRedirect();
         $this->assertSame('Updated draft title', $draft->fresh()->title);
         $this->assertSame('Existing title', $source->fresh()->title);

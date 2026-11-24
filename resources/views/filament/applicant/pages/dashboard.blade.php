@@ -196,6 +196,7 @@
             @if ($registrationCase)
                 <x-filament::section heading="Enrollment" :description="($registrationCase->term?->label ?? 'Exact Term').' · '.$registrationCase->case_reference" icon="heroicon-o-academic-cap">
                     <p>{{ $registrationCase->canonical_outcome === \App\Models\Enrollment::OutcomeOfficiallyEnrolled ? 'Your official enrollment is available.' : 'Review your subjects, schedule, charges, and next action in Enrollment.' }}</p>
+                    <x-enrollment-proposal-explanation :enrollment="$registrationCase" :proposal="$registrationCase->currentProposalVersion" audience="applicant" compact />
                     <x-filament::link :href="\App\Filament\Applicant\Pages\Enrollment::getUrl()">Open enrollment</x-filament::link>
                 </x-filament::section>
             @endif

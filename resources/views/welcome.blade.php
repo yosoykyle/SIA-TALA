@@ -54,7 +54,6 @@
         <section class="hero-section school-masthead" id="top" data-navbar-contrast-surface="dark" data-hero-motion aria-labelledby="hero-title">
             <div class="hero-ambient" aria-hidden="true">
                 <span class="hero-ambient__light hero-ambient__light--green"></span>
-                <span class="hero-ambient__light hero-ambient__light--blue"></span>
                 <span class="hero-ambient__light hero-ambient__light--gold"></span>
                 <span class="hero-ambient__light hero-ambient__light--crimson"></span>
                 <span class="hero-ambient__arc"></span>
@@ -325,6 +324,9 @@
                         <li class="program-row">
                             <x-filament::icon icon="heroicon-o-academic-cap" class="program-mark" aria-hidden="true" />
                             <h3>{{ $program->name }}</h3>
+                            @if (filled($program->description))
+                                <p class="program-summary">{{ $program->description }}</p>
+                            @endif
                             <dl class="program-facts">
                                 <div class="program-fact">
                                     <dt class="visually-hidden">Length</dt>
@@ -455,7 +457,6 @@
 
                 {{-- Visitor guidelines: owner-supplied reference content (Oct 16), placeholder until the school confirms hours, rules and its appointment process. --}}
                 <section class="visit-guidelines" aria-labelledby="visit-guidelines-title">
-                    {{-- Placeholder for the campus photo the school will supply; replace with an <img> of the same frame. --}}
                     <div class="visit-guidelines__media">
                         <img src="{{ asset('images/visit-computer-room-800.webp') }}" srcset="{{ asset('images/visit-computer-room-800.webp') }} 800w, {{ asset('images/visit-computer-room-1152.webp') }} 1152w" sizes="(min-width: 992px) 45vw, 100vw" width="1152" height="768" alt="Servitech Institute Asia computer room with two desktop computers beside tall windows" loading="lazy" decoding="async">
                     </div>
@@ -557,6 +558,9 @@
                             <div class="program-fact"><dt>Program length:&nbsp;</dt><dd>{{ $program->duration_years }} {{ Str::plural('year', $program->duration_years) }}</dd></div>
                             <div class="program-fact"><dt>Admission:&nbsp;</dt><dd>{{ $isAccepting ? 'Applications open' : 'Ask Admissions about applying' }}</dd></div>
                         </dl>
+                        @if (filled($program->description))
+                            <p class="program-modal-description">{{ $program->description }}</p>
+                        @endif
                         <p>Contact Admissions for course and qualification details and the requirements for your Student type.</p>
                         <div class="modal-action-list">
                             @if ($isAccepting && $applicantEntryReady)
@@ -609,19 +613,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close privacy notice"></button>
                 </div>
                 <div class="modal-body privacy-notice-copy">
-                    <h3 class="h5">Applicant accounts</h3>
-                    <p>TALA collects the information needed to create and secure an Applicant account: your email address, a protected password representation, your Privacy Notice acknowledgement, and security and email-verification events.</p>
-                    <h3 class="h5">How the information is used</h3>
-                    <ul>
-                        <li>To create one Applicant credential and prevent duplicate accounts.</li>
-                        <li>To verify email ownership, authorize workspace access, and support account recovery.</li>
-                        <li>To keep security and accountability evidence required for the account journey.</li>
-                    </ul>
-                    <p>Account creation does not create an Application or Student record. Authorized TALA users and services may access account information only for their permitted tasks. TALA does not display your password and does not ask for application documents during registration.</p>
-                    <h3 class="h5">Application status requests</h3>
-                    <p>Application updates, requirements and corrections are available only through your signed-in Applicant account. Access to private application records and evidence is checked against the account and the authorized school role.</p>
-                    <h3 class="h5">Questions and requests</h3>
-                    <p class="mb-0">Use the Support information on this page for privacy questions or requests. Applicable institutional and legal review still governs retention, correction, access, and lawful disposal.</p>
+                    @include('components.tala-privacy-notice-content')
                     <button type="button" class="btn btn-secondary-custom mt-3" data-bs-toggle="modal" data-bs-target="#supportModal">
                         <x-filament::icon icon="heroicon-o-lifebuoy" class="tala-public-icon" aria-hidden="true" />
                         <span>Contact Support</span>

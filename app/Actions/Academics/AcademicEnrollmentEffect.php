@@ -2,9 +2,15 @@
 
 namespace App\Actions\Academics;
 
+use App\Actions\Enrollment\RegistrationAcademicEligibilityQuery;
 use App\Models\AcademicDecision;
+use App\Models\CurriculumEntry;
+use App\Models\ProgramShiftCreditEntry;
+use App\Models\RegistrationCreditEvaluation;
+use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use Illuminate\Support\Collection;
 
 class AcademicEnrollmentEffect
 {
@@ -47,14 +53,22 @@ class AcademicEnrollmentEffect
             ];
         }
 
-        $results = $this->results->forStudent($student)
+        $attemptsByCourse = $this->results->forStudent($student)
             ->filter(fn (array $result): bool => $result['course_specification']?->course_id !== null)
-            ->sortBy([['term.starts_on', 'asc'], ['course_enrollment.id', 'asc']])
-            ->keyBy('course_specification.course_id');
-        $requiresAdvising = $results->contains(fn (array $result): bool => (! $result['outcome_complete']
-                && $result['term']?->ends_on !== null && $result['term']->ends_on->isPast())
-            || in_array($result['result'], ['INC', 'DRP', 'W'], true)
-            || (is_numeric($result['result']) && (float) $result['result'] > 4.00));
+            ->groupBy(fn (array $result): int => (int) $result['course_specification']->course_id);
+        $creditedCourseIds = $this->creditedCourseIds($student);
+
+        $requiresAdvising = $attemptsByCourse->contains(function (Collection $attempts, int $courseId) use ($creditedCourseIds): bool {
+            if ($creditedCourseIds->contains($courseId)
+                || $attempts->contains(fn (array $attempt): bool => RegistrationAcademicEligibilityQuery::isPassingResult($attempt['result'] ?? null))) {
+                return false;
+            }
+
+            return $attempts->contains(fn (array $result): bool => (! $result['outcome_complete']
+                    && $result['term']?->ends_on !== null && $result['term']->ends_on->isPast())
+                || in_array($result['result'], ['INC', 'DRP', 'W'], true)
+                || (is_numeric($result['result']) && (float) $result['result'] > 4.00));
+        });
 
         if ($requiresAdvising) {
             return [
@@ -70,5 +84,37 @@ class AcademicEnrollmentEffect
             'source' => 'Current released academic and lifecycle records',
             'reason' => 'No recorded academic or lifecycle authority blocks ordinary curriculum placement.',
         ];
+    }
+
+    /** @return Collection<int, int> */
+    private function creditedCourseIds(StudentProfile $student): Collection
+    {
+        $transferEntryIds = RegistrationCreditEvaluation::creditedEntryIdsForStudent($student);
+        $transferCourseIds = $transferEntryIds !== []
+            ? CurriculumEntry::query()
+                ->with('courseSpecification')
+                ->whereIn('id', $transferEntryIds)
+                ->get()
+                ->pluck('courseSpecification.course_id')
+            : collect();
+
+        $shiftCreditCourseIds = ProgramShiftCreditEntry::query()
+            ->with('curriculumEntry.courseSpecification')
+            ->where('treatment', ProgramShiftCreditEntry::TreatmentAccepted)
+            ->where('state', ProgramShiftCreditEntry::StateRecorded)
+            ->whereHas('curriculumEntry', fn ($query) => $query->where('curriculum_version_id', $student->curriculum_version_id))
+            ->whereHas('lifecycleChange', fn ($query) => $query
+                ->where('student_profile_id', $student->id)
+                ->where('state', StudentLifecycleChange::StateApplied))
+            ->get()
+            ->filter(fn (ProgramShiftCreditEntry $credit): bool => $credit->numeric_grade === null || (float) $credit->numeric_grade <= 4.00)
+            ->pluck('curriculumEntry.courseSpecification.course_id');
+
+        return $transferCourseIds
+            ->merge($shiftCreditCourseIds)
+            ->filter()
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values();
     }
 }

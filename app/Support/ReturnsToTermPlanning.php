@@ -57,7 +57,7 @@ trait ReturnsToTermPlanning
                 $breadcrumbs[$this->termPlanningReturnUrl($termId)] = match ($this->termPlanningReturnTab()) {
                     'overview' => 'Teaching calendar',
                     'classes' => 'Classes',
-                    'resources' => $this->resourceView === 'rooms' ? 'Rooms' : 'Faculty availability',
+                    'resources' => $this->resourceView === 'rooms' ? 'Rooms' : 'Faculty & rooms',
                     default => 'Timetable',
                 };
             }

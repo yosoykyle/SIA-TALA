@@ -104,8 +104,13 @@
                 @if ($examinationPeriod['status'] === 'Available')
                     <section class="student-academic-calendar">
                         <x-filament::icon icon="heroicon-o-calendar-days" />
-                        <div><h2>Exam dates</h2><p>{{ $examinationPeriod['opens_on']->format('M j, Y') }}–{{ $examinationPeriod['closes_on']->format('M j, Y') }}</p>
-                        <x-supporting-details summary="Calendar details" inset><p>{{ $examinationPeriod['authority_reference'] ?: 'Authority not recorded' }} · {{ $examinationPeriod['owner'] }}</p><p>{{ $examinationPeriod['message'] }}</p></x-supporting-details></div>
+                        <div>
+                            <h2>Exam period</h2>
+                            <p>{{ $examinationPeriod['opens_on']->format('M j, Y') }}–{{ $examinationPeriod['closes_on']->format('M j, Y') }}</p>
+                            @if (filled($examinationPeriod['message'] ?? null))
+                                <p class="student-academic-secondary">{{ $examinationPeriod['message'] }}</p>
+                            @endif
+                        </div>
                     </section>
                 @endif
             @elseif ($academicView === 'plan')
@@ -144,6 +149,12 @@
                         $planOpenIndex = $planOpenIndex === false ? 0 : $planOpenIndex;
                         $planCurrentLabels = $planYears->where('current', true)->pluck('label');
                     @endphp
+                    @php
+                        $returnEnrollmentTerm = $this->enrollmentTerm ?: (request()->integer('enrollmentTerm') ?: null);
+                        $planEnrollmentUrl = $returnEnrollmentTerm
+                            ? \App\Filament\Student\Pages\Enrollment::getUrl(['term' => $returnEnrollmentTerm], panel: 'student')
+                            : $enrollmentUrl;
+                    @endphp
                     <section class="student-plan-overview" aria-label="Program and study plan progress">
                         <div class="student-plan-overview-program">
                             <h2>{{ $studyContext['program_name'] ?? 'Program unavailable' }}</h2>
@@ -154,6 +165,11 @@
                                     @endforeach
                                 </ul>
                             @endif
+                            <p style="margin-block-start: .5rem;">
+                                <x-filament::link :href="$planEnrollmentUrl" :icon="$returnEnrollmentTerm ? 'heroicon-o-arrow-left' : 'heroicon-o-clipboard-document-check'">
+                                    {{ $returnEnrollmentTerm ? 'Return to enrollment' : 'View enrollment' }}
+                                </x-filament::link>
+                            </p>
                         </div>
                         <div class="student-plan-overview-progress">
                             <p><strong>{{ $planCompletedUnits }}</strong>@if ($planTotalUnits > 0) of <strong>{{ $planTotalUnits }}</strong>@endif units completed</p>

@@ -15,12 +15,20 @@ class AcademicReadinessService
         private readonly CourseSpecificationLifecycleService $courseSpecifications,
     ) {}
 
-    public function currentCurriculum(Program $program): ?CurriculumVersion
+    public function currentCurriculum(Program $program, ?int $academicYearId = null): ?CurriculumVersion
     {
         $program->loadMissing([
             'curriculumVersions.entries.courseSpecification.components',
             'curriculumVersions.entries.courseSpecification.course',
         ]);
+
+        if ($academicYearId !== null || $program->curriculumVersionBatches()->exists()) {
+            $batchCurriculum = $program->curriculumForAcademicYear($academicYearId);
+
+            if ($batchCurriculum instanceof CurriculumVersion) {
+                return $program->curriculumVersions->firstWhere('id', $batchCurriculum->id) ?? $batchCurriculum;
+            }
+        }
 
         return $program->curriculumVersions
             ->sort(function (CurriculumVersion $left, CurriculumVersion $right): int {
@@ -30,7 +38,42 @@ class AcademicReadinessService
                     return $stateComparison;
                 }
 
-                return $right->created_at <=> $left->created_at;
+                $createdComparison = $right->created_at <=> $left->created_at;
+
+                if ($createdComparison !== 0) {
+                    return $createdComparison;
+                }
+
+                return $right->id <=> $left->id;
+            })
+            ->first();
+    }
+
+    public function successorDraft(Program $program): ?CurriculumVersion
+    {
+        $program->loadMissing([
+            'curriculumVersions.entries.courseSpecification.components',
+            'curriculumVersions.entries.courseSpecification.course',
+        ]);
+
+        $hasActive = $program->curriculumVersions->contains(
+            fn (CurriculumVersion $version): bool => $version->state === CurriculumVersion::StateActive,
+        );
+
+        if (! $hasActive) {
+            return null;
+        }
+
+        return $program->curriculumVersions
+            ->filter(fn (CurriculumVersion $version): bool => $version->state === CurriculumVersion::StateDraft)
+            ->sort(function (CurriculumVersion $left, CurriculumVersion $right): int {
+                $createdComparison = $right->created_at <=> $left->created_at;
+
+                if ($createdComparison !== 0) {
+                    return $createdComparison;
+                }
+
+                return $right->id <=> $left->id;
             })
             ->first();
     }
@@ -53,7 +96,22 @@ class AcademicReadinessService
     }
 
     /**
-     * @return array{status:string, color:string, blocker:string, next_action:string, entries:int}
+     * @return array{
+     *     status:string,
+     *     color:string,
+     *     blocker:string,
+     *     next_action:string,
+     *     entries:int,
+     *     successor_draft:?array{
+     *         id:int,
+     *         name:string,
+     *         status:string,
+     *         color:string,
+     *         blocker:string,
+     *         next_action:string,
+     *         entries:int
+     *     }
+     * }
      */
     public function programReadiness(Program $program): array
     {
@@ -66,10 +124,56 @@ class AcademicReadinessService
                 'blocker' => 'No curriculum has been recorded for this program.',
                 'next_action' => 'Create a curriculum',
                 'entries' => 0,
+                'successor_draft' => null,
             ];
         }
 
+        $primary = $this->curriculumReadiness($curriculum);
+        $successor = $this->successorDraft($program);
+
+        return [
+            ...$primary,
+            'successor_draft' => $successor instanceof CurriculumVersion
+                ? [
+                    'id' => (int) $successor->id,
+                    'name' => $successor->name,
+                    ...$this->curriculumReadiness($successor),
+                ]
+                : null,
+        ];
+    }
+
+    /**
+     * @return array{status:string, color:string, blocker:string, next_action:string, entries:int}
+     */
+    public function curriculumReadiness(CurriculumVersion $curriculum): array
+    {
+        $curriculum->loadMissing([
+            'entries.courseSpecification.components',
+            'entries.courseSpecification.course',
+        ]);
+
         $entries = $curriculum->entries->count();
+
+        if ($curriculum->state === CurriculumVersion::StateActive) {
+            return [
+                'status' => 'Active',
+                'color' => 'success',
+                'blocker' => 'No curriculum blocker is recorded.',
+                'next_action' => 'Review curriculum',
+                'entries' => $entries,
+            ];
+        }
+
+        if ($curriculum->state !== CurriculumVersion::StateDraft) {
+            return [
+                'status' => 'No active curriculum',
+                'color' => 'warning',
+                'blocker' => 'Only historical curricula are recorded for this program.',
+                'next_action' => 'Create a curriculum',
+                'entries' => $entries,
+            ];
+        }
 
         if ($entries === 0) {
             return [
@@ -93,21 +197,13 @@ class AcademicReadinessService
             ];
         }
 
-        return $curriculum->state === CurriculumVersion::StateActive
-            ? [
-                'status' => 'Active',
-                'color' => 'success',
-                'blocker' => 'No curriculum blocker is recorded.',
-                'next_action' => 'Review curriculum',
-                'entries' => $entries,
-            ]
-            : [
-                'status' => 'Ready to activate',
-                'color' => 'info',
-                'blocker' => 'All subjects are complete.',
-                'next_action' => 'Activate curriculum',
-                'entries' => $entries,
-            ];
+        return [
+            'status' => 'Ready to activate',
+            'color' => 'info',
+            'blocker' => 'All subjects are complete.',
+            'next_action' => 'Activate curriculum',
+            'entries' => $entries,
+        ];
     }
 
     /**
@@ -162,11 +258,11 @@ class AcademicReadinessService
     private function statePriority(string $state): int
     {
         return match ($state) {
+            CurriculumVersion::StateActive => 1,
             CurriculumVersion::StateDraft => 2,
-            CurriculumVersion::StateActive => 3,
-            CurriculumVersion::StateSuperseded => 4,
-            CurriculumVersion::StateArchived => 5,
-            default => 6,
+            CurriculumVersion::StateSuperseded => 3,
+            CurriculumVersion::StateArchived => 4,
+            default => 5,
         };
     }
 }

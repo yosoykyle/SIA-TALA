@@ -26,6 +26,8 @@
     </section>
     @if ($proposal && $proposal->items->isNotEmpty())
         @include('filament.student.pages.enrollment-subjects', ['preparing' => false, 'subjectsHeading' => 'Confirmed subjects', 'showSummary' => false])
+    @elseif ($enrollment)
+        <x-enrollment-proposal-explanation :enrollment="$enrollment" :proposal="$proposal" :audience="$isStudent ? 'student' : 'applicant'" />
     @endif
     @if ($schedulePresentation && $schedulePresentation['meetings'] !== [])
         <details class="learner-disclosure"><summary>Reserved schedule</summary><x-enrollment-schedule :presentation="$schedulePresentation" :source-key="'proposal-'.$proposal->id" /></details>

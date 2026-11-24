@@ -1,6 +1,11 @@
 /* TALA public landing interactions. Requires the locally served Bootstrap 5.3 bundle. */
 
-document.addEventListener('DOMContentLoaded', () => {
+const initPublicLanding = () => {
+    if (document.documentElement.dataset.talaLandingInitialized === 'true') {
+        return;
+    }
+    document.documentElement.dataset.talaLandingInitialized = 'true';
+
     const colorScheme = window.matchMedia('(prefers-color-scheme: dark)');
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     const forcedColors = window.matchMedia('(forced-colors: active)');
@@ -148,6 +153,28 @@ document.addEventListener('DOMContentLoaded', () => {
         revealAnnouncements();
     }
 
+    const clearRequestedModalUrl = (requestedModal) => {
+        const currentUrl = new URL(window.location.href);
+        const hadModalParam = currentUrl.searchParams.has('modal');
+        const hadSupportHash = requestedModal === 'support' && currentUrl.hash === '#support';
+
+        if (!hadModalParam && !hadSupportHash) {
+            return;
+        }
+
+        currentUrl.searchParams.delete('modal');
+
+        if (hadSupportHash) {
+            currentUrl.hash = '';
+        }
+
+        window.history.replaceState(
+            window.history.state,
+            '',
+            `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`
+        );
+    };
+
     const revealRequestedModal = () => {
         const requestedModal = window.location.hash === '#support'
             ? 'support'
@@ -160,17 +187,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const modalElement = document.getElementById(`${requestedModal}Modal`);
 
         if (modalElement) {
+            clearRequestedModalUrl(requestedModal);
             window.bootstrap.Modal.getOrCreateInstance(modalElement).show();
 
             modalElement.addEventListener('hidden.bs.modal', () => {
-                const currentUrl = new URL(window.location.href);
-                currentUrl.searchParams.delete('modal');
-
-                if (requestedModal === 'support' && currentUrl.hash === '#support') {
-                    currentUrl.hash = '';
-                }
-
-                window.history.replaceState({}, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
+                clearRequestedModalUrl(requestedModal);
             }, { once: true });
         }
     };
@@ -187,7 +208,7 @@ document.addEventListener('DOMContentLoaded', () => {
             currentUrl.searchParams.delete('program');
         }
 
-        window.history.replaceState({}, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
+        window.history.replaceState(window.history.state, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
     };
 
     document.querySelectorAll('[data-program-detail-modal]').forEach((modalElement) => {
@@ -363,4 +384,10 @@ document.addEventListener('DOMContentLoaded', () => {
         document.documentElement.setAttribute('data-bs-theme', event.matches ? 'dark' : 'light');
         scheduleNavbarContrastUpdate();
     });
-});
+};
+
+if (document.readyState !== 'loading') {
+    initPublicLanding();
+} else {
+    document.addEventListener('DOMContentLoaded', initPublicLanding);
+}

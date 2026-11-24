@@ -67,6 +67,8 @@ class FacultyQualificationForm
                         ])->columns(2),
                         Section::make('Notes and recording details')
                             ->contained(false)
+                            ->collapsible()
+                            ->collapsed(fn (?FacultyQualification $record): bool => $record === null)
                             ->schema([
                                 TextEntry::make('recorder.name')
                                     ->label('Recorded by')
@@ -79,6 +81,7 @@ class FacultyQualificationForm
                                     ->placeholder('Unavailable')
                                     ->visible(fn (?FacultyQualification $record): bool => $record !== null),
                                 Textarea::make('notes')
+                                    ->label('Notes (optional)')
                                     ->rows(3)
                                     ->maxLength(2000)
                                     ->columnSpanFull(),

@@ -446,7 +446,7 @@ class Issue57RegistrarWorkflowRefinementTest extends TestCase
         $response = $this->actingAs($user)
             ->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleFaculty])
             ->get('/admin?application='.$application->id);
-        $response->assertRedirect('/admin/faculty-schedule');
+        $response->assertRedirect('/admin/faculty-overview');
     }
 
     public function test_staff_entry_multi_role_user_without_selected_context_is_blocked_by_panel_guard_middleware(): void

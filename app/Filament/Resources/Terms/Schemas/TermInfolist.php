@@ -24,18 +24,16 @@ class TermInfolist
                         'teachingWeekRows' => $activeCalendar ? app(TeachingWeekSummary::class)->rows($activeCalendar) : [],
                     ];
                 })->columnSpanFull(),
-            Section::make('Historical settings')
-                ->description('Earlier grid values. Current scheduling uses the active teaching calendar.')
+            Section::make('History')
+                ->description('Recorded calendar versions and earlier grid settings. Current scheduling uses the active teaching calendar.')
                 ->collapsible()->collapsed()->columnSpanFull()->schema([
+                    View::make('filament.admin.terms.history')
+                        ->viewData(fn (Term $record): array => [
+                            'calendarVersions' => $record->calendarPackages()->with('recorder')->latest('version')->get(),
+                        ]),
                     View::make('filament.admin.terms.history')
                         ->viewData(fn (Term $record): array => ['historyTerm' => $record]),
                 ]),
-            Section::make('Calendar history')->collapsible()->collapsed()->columnSpanFull()->schema([
-                View::make('filament.admin.terms.history')
-                    ->viewData(fn (Term $record): array => [
-                        'calendarVersions' => $record->calendarPackages()->with('recorder')->latest('version')->get(),
-                    ]),
-            ]),
         ]);
     }
 }

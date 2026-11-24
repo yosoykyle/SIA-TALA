@@ -9,7 +9,7 @@
             .tor-paper-heading h1 { font-size:20px; letter-spacing:.04em; }
             .tor-paper-status { text-align:center; margin:12px 0; font-weight:bold; }
             .tor-paper-identity { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px 24px; margin:20px 0; }
-            .tor-paper-identity dt { font-size:11px; color:#4b5563; margin-bottom:3px; }
+            .tor-paper-identity dt { font-size:11px; color:#52525b; margin-bottom:3px; }
             .tor-paper-identity dd { margin:0; font-weight:bold; }
             .tor-paper-year { margin-top:20px; }
             .tor-paper-year h2 { font-size:14px; margin:0 0 8px; }
@@ -18,11 +18,11 @@
             .tor-paper-numeric { text-align:right; font-variant-numeric:tabular-nums; }
             .tor-paper-certification { margin-top:24px; break-inside:avoid; }
             .tor-paper-signature { display:flex; justify-content:space-between; align-items:end; gap:24px; margin-top:36px; }
-            .tor-paper-seal { border:1px dashed #6b7280; width:30mm; height:25mm; display:grid; place-items:center; color:#4b5563; font-size:10px; text-align:center; }
-            .tor-paper-legend { font-size:10px; color:#374151; margin-top:20px; }
-            .tor-paper-footer { border-top:1px solid #6b7280; margin-top:12px; padding-top:5px; font-size:10px; overflow-wrap:anywhere; break-inside:avoid; }
+            .tor-paper-seal { border:1px dashed #71717a; width:30mm; height:25mm; display:grid; place-items:center; color:#52525b; font-size:10px; text-align:center; }
+            .tor-paper-legend { font-size:10px; color:#3f3f46; margin-top:20px; }
+            .tor-paper-footer { border-top:1px solid #71717a; margin-top:12px; padding-top:5px; font-size:10px; overflow-wrap:anywhere; break-inside:avoid; }
             .tor-paper-footer p { margin:0; }
-            .tor-paper-footer p + p { margin-top:2px; color:#374151; }
+            .tor-paper-footer p + p { margin-top:2px; color:#3f3f46; }
             @media screen and (max-width:600px) { .tor-paper-identity { grid-template-columns:1fr; } .tor-paper-year { overflow-x:auto; } }
             @media print {
                 .tor-paper-year :is(td, th) { padding:4px 6px; }
