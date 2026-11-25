@@ -3,12 +3,15 @@
 namespace Tests\Feature\Auth;
 
 use App\Actions\Authentication\TalaAppAuthentication;
+use App\Filament\Applicant\Pages\Auth\ApplicantEmailVerification;
 use App\Filament\Applicant\Pages\Auth\RegisterApplicant;
 use App\Filament\Pages\Auth\ContextualLogin;
+use App\Filament\Pages\Auth\EmailVerificationPrompt;
 use App\Filament\Pages\Auth\RequestPasswordReset;
 use App\Models\AdmissionCycle;
 use App\Models\Term;
 use App\Models\User;
+use Filament\Auth\Notifications\VerifyEmail;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\TextInput;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -478,6 +481,116 @@ class AuthRateLimitCountdownTest extends TestCase
         $this->travel(61)->seconds();
         $this->assertFalse($mountedLocked->instance()->isAuthRateLimited());
         $this->travelBack();
+
+        RateLimiter::clear($rateLimitKey);
+    }
+
+    public function test_email_verification_prompt_reuses_rate_limit_countdown_on_throttle_and_mount_then_recovers(): void
+    {
+        Notification::fake();
+
+        foreach (['admin' => User::StaffRoleFaculty, 'student' => 'student'] as $panelId => $role) {
+            $user = User::factory()->unverified()->create([
+                'status' => User::StatusActive,
+            ]);
+            $user->assignRole($role);
+
+            Filament::setCurrentPanel(Filament::getPanel($panelId));
+
+            $userKey = 'filament-resend-email-verification:'.$user->id;
+            $livewireKey = 'livewire-rate-limiter:'.sha1(EmailVerificationPrompt::class.'|resendNotification|'.request()->ip());
+            RateLimiter::clear($userKey);
+            RateLimiter::clear($livewireKey);
+
+            $prompt = Livewire::actingAs($user)
+                ->test(EmailVerificationPrompt::class)
+                ->assertSee('Resend verification email')
+                ->assertSee('Sign out')
+                ->assertDontSee('tala-auth-countdown', false);
+
+            $prompt->callAction('resendNotification')->assertNotified();
+            $prompt->callAction('resendNotification')->assertNotified();
+            Notification::assertSentToTimes($user, VerifyEmail::class, 2);
+
+            $prompt
+                ->callAction('resendNotification')
+                ->assertNotified()
+                ->assertSet('rateLimitContext', 'email_verification')
+                ->assertSee('tala-auth-countdown', false)
+                ->assertSee('Hold on a moment')
+                ->assertSee('Too many verification emails sent')
+                ->assertSee('Please wait until the timer finishes before requesting another verification email. You can still open the newest link already sent to your inbox.')
+                ->assertDontSee('Too many attempts')
+                ->assertSee('Sign out')
+                ->assertDontSee('Resend verification email');
+
+            $this->assertTrue($prompt->instance()->isAuthRateLimited());
+            $this->assertGreaterThan(0, $prompt->get('rateLimitRemainingSeconds'));
+
+            $mountedWhileLocked = Livewire::actingAs($user)
+                ->test(EmailVerificationPrompt::class)
+                ->assertSet('rateLimitContext', 'email_verification')
+                ->assertSee('tala-auth-countdown', false)
+                ->assertSee('Too many verification emails sent')
+                ->assertSee('Sign out')
+                ->assertDontSee('Resend verification email');
+
+            $this->assertTrue($mountedWhileLocked->instance()->isAuthRateLimited());
+
+            $mountedWhileLocked
+                ->call('clearAuthRateLimit')
+                ->assertSet('rateLimitRemainingSeconds', 0)
+                ->assertSet('rateLimitedUntil', null)
+                ->assertDontSee('Too many verification emails sent')
+                ->assertSee('Resend verification email');
+
+            RateLimiter::clear($userKey);
+            RateLimiter::clear($livewireKey);
+        }
+    }
+
+    public function test_applicant_email_verification_shows_rate_limit_countdown_when_throttled_and_recovers(): void
+    {
+        Notification::fake();
+
+        $applicant = User::factory()->unverified()->create([
+            'name' => null,
+            'first_name' => null,
+            'last_name' => null,
+            'status' => User::StatusActive,
+        ]);
+        $applicant->assignRole('applicant');
+
+        Filament::setCurrentPanel(Filament::getPanel('applicant'));
+
+        $rateLimitKey = 'applicant-email-verification-resend:'.$applicant->id;
+        RateLimiter::clear($rateLimitKey);
+
+        $component = Livewire::actingAs($applicant)
+            ->test(ApplicantEmailVerification::class)
+            ->assertSee('Resend verification link')
+            ->callAction('resendNotification');
+
+        Notification::assertSentToTimes($applicant, VerifyEmail::class, 1);
+
+        $component
+            ->callAction('resendNotification')
+            ->assertSet('rateLimitContext', 'email_verification')
+            ->assertSee('tala-auth-countdown', false)
+            ->assertSee('Too many verification emails sent')
+            ->assertSee('Please wait until the timer finishes before requesting another verification email. You can still open the newest link already sent to your inbox.')
+            ->assertDontSee('Too many attempts')
+            ->assertSee('Back to sign in')
+            ->assertSee('Contact support')
+            ->assertDontSee('Resend verification link');
+
+        $this->assertTrue($component->instance()->isAuthRateLimited());
+
+        $component
+            ->call('clearAuthRateLimit')
+            ->assertSet('rateLimitRemainingSeconds', 0)
+            ->assertDontSee('Too many verification emails sent')
+            ->assertSee('Resend verification link');
 
         RateLimiter::clear($rateLimitKey);
     }

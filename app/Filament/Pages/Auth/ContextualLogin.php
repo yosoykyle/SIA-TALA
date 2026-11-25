@@ -102,22 +102,31 @@ class ContextualLogin extends Login
             ->visible(fn (): bool => Filament::getCurrentOrDefaultPanel()->getId() !== 'admin');
     }
 
+    public function registerAction(): Action
+    {
+        return parent::registerAction()
+            ->visible(fn (): bool => $this->isApplicantRegistrationAvailable());
+    }
+
+    public function isApplicantRegistrationAvailable(): bool
+    {
+        try {
+            return app(ApplicantEntryReadinessService::class)->registrationIsAvailable();
+        } catch (QueryException $exception) {
+            report($exception);
+
+            return false;
+        }
+    }
+
     public function getSubheading(): string|Htmlable|null
     {
         if (filled($this->userUndertakingMultiFactorAuthentication)) {
             return parent::getSubheading();
         }
 
-        if (Filament::getCurrentOrDefaultPanel()->getId() === 'applicant') {
-            try {
-                $registrationAvailable = app(ApplicantEntryReadinessService::class)->registrationIsAvailable();
-            } catch (QueryException $exception) {
-                report($exception);
-                $registrationAvailable = false;
-            }
-            if (! $registrationAvailable) {
-                return new HtmlString(view('filament.components.admission-availability-link')->render());
-            }
+        if (Filament::getCurrentOrDefaultPanel()->getId() === 'applicant' && ! $this->isApplicantRegistrationAvailable()) {
+            return new HtmlString(view('filament.components.admission-availability-link')->render());
         }
 
         return 'Access your Servitech account. For students, applicants, and staff.';

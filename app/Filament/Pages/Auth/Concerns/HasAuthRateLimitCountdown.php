@@ -4,6 +4,7 @@ namespace App\Filament\Pages\Auth\Concerns;
 
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\View;
+use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 
@@ -89,8 +90,32 @@ trait HasAuthRateLimitCountdown
                 'totalSeconds' => $this->rateLimitTotalSeconds,
                 'context' => $this->rateLimitContext,
                 'showUseAnotherAccount' => $this->shouldShowRateLimitUseAnotherAccount(),
+                'footerHtml' => $this->getRateLimitCountdownFooterHtml(),
+                'mood' => $this->getRateLimitCountdownMood(),
+                'title' => $this->getRateLimitCountdownTitle(),
+                'summary' => $this->getRateLimitCountdownSummary(),
             ])
             ->visible(fn (): bool => $this->isAuthRateLimited());
+    }
+
+    protected function getRateLimitCountdownMood(): ?string
+    {
+        return null;
+    }
+
+    protected function getRateLimitCountdownTitle(): ?string
+    {
+        return null;
+    }
+
+    protected function getRateLimitCountdownSummary(): ?string
+    {
+        return null;
+    }
+
+    protected function getRateLimitCountdownFooterHtml(): ?Htmlable
+    {
+        return null;
     }
 
     protected function shouldShowRateLimitUseAnotherAccount(): bool

@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Actions\Applicants\ApplicantEntryReadinessService;
 use App\Actions\Authentication\TalaAppAuthentication;
 use App\Filament\Applicant\Pages\Application;
 use App\Filament\Applicant\Pages\ApplicationHistory;
@@ -36,6 +37,7 @@ use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Contracts\View\View;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Routing\Middleware\SubstituteBindings;
@@ -106,11 +108,25 @@ class ApplicantPanelProvider extends PanelProvider
             )
             ->renderHook(
                 PanelsRenderHook::SIMPLE_PAGE_START,
-                fn (array $scopes): View => view('filament.components.auth-back-link', [
-                    'showBackToSignIn' => in_array(RequestPasswordReset::class, $scopes, true)
-                        || in_array(ResetPassword::class, $scopes, true)
-                        || request()->routeIs('filament.*.auth.password-reset.*', 'filament.applicant.auth.register'),
-                ]),
+                function (array $scopes): View {
+                    $showRegisterBackLink = false;
+
+                    if (request()->routeIs('filament.applicant.auth.register')) {
+                        try {
+                            $showRegisterBackLink = app(ApplicantEntryReadinessService::class)->registrationIsAvailable();
+                        } catch (QueryException $exception) {
+                            report($exception);
+                            $showRegisterBackLink = false;
+                        }
+                    }
+
+                    return view('filament.components.auth-back-link', [
+                        'showBackToSignIn' => in_array(RequestPasswordReset::class, $scopes, true)
+                            || in_array(ResetPassword::class, $scopes, true)
+                            || request()->routeIs('filament.*.auth.password-reset.*')
+                            || $showRegisterBackLink,
+                    ]);
+                },
             )
             ->discoverResources(in: app_path('Filament/Applicant/Resources'), for: 'App\Filament\Applicant\Resources')
             ->discoverPages(in: app_path('Filament/Applicant/Pages'), for: 'App\Filament\Applicant\Pages')

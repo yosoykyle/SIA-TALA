@@ -209,12 +209,13 @@ class HumanCenteredSharedThemeTest extends TestCase
         $this->get('/')
             ->assertOk()
             ->assertSee("window.matchMedia('(prefers-color-scheme: dark)')", false)
-            ->assertSee("document.documentElement.setAttribute('data-bs-theme', theme)", false);
+            ->assertSee("root.setAttribute('data-bs-theme', theme)", false);
 
         $script = file_get_contents(public_path('landing/js/main.js'));
 
         $this->assertStringContainsString("colorScheme.addEventListener('change'", $script);
-        $this->assertStringContainsString("event.matches ? 'dark' : 'light'", $script);
+        $this->assertStringContainsString('applyTheme(event.matches', $script);
+        $this->assertStringContainsString("const theme = isDark ? 'dark' : 'light'", $script);
     }
 
     public function test_public_arrival_keeps_school_discovery_and_guarded_access_with_native_navigation(): void

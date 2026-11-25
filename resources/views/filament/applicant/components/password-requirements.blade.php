@@ -7,7 +7,7 @@
 @endphp
 
 <div
-    class="tala-password-checklist -mt-2 rounded-lg border border-gray-200/80 bg-gray-50/75 px-3 py-2 text-xs dark:border-white/10 dark:bg-white/[0.03]"
+    class="tala-password-checklist rounded-lg border border-gray-300/80 bg-gray-50 px-3 py-1.5 text-xs dark:border-white/15 dark:bg-white/[0.04]"
     data-tala-password-checklist
     x-data="{
         password: @js($initialPassword),

@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Actions\Applicants\AdmissionWindowService;
 use App\Actions\Applicants\ApplicantEntryReadinessService;
+use App\Actions\Authentication\WorkspaceContextResolver;
+use App\Actions\Finance\SchoolPaymentChannels;
 use App\Filament\Applicant\Pages\Application;
 use App\Models\AdmissionCycle;
 use App\Models\CurriculumVersion;
@@ -13,6 +15,7 @@ use App\Models\Program;
 use App\Models\PublicNotice;
 use App\Models\Term;
 use App\Models\User;
+use App\Support\AuthBannerMedia;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -22,8 +25,13 @@ use Illuminate\Http\Request;
 
 class PublicGatewayController extends Controller
 {
-    public function __invoke(Request $request, ApplicantEntryReadinessService $entry, AdmissionWindowService $windows): View
-    {
+    public function __invoke(
+        Request $request,
+        ApplicantEntryReadinessService $entry,
+        AdmissionWindowService $windows,
+        SchoolPaymentChannels $paymentChannels,
+        WorkspaceContextResolver $workspaces,
+    ): View {
         $data = [
             'officialReferences' => $entry->officialReferences(),
             'admissionsOpen' => false,
@@ -35,6 +43,15 @@ class PublicGatewayController extends Controller
             'programs' => collect(),
             'notices' => collect(),
             'faqEntries' => collect(),
+            'cashChannel' => null,
+            'registrarHours' => [
+                'label' => 'Registrar Office',
+                'days' => 'Monday to Friday',
+                'hours' => '7:00 AM – 5:00 PM',
+                'note' => 'Closed on holidays',
+            ],
+            'workspaceAction' => $this->resolveWorkspaceAction($request->user(), $workspaces),
+            'campusSlides' => AuthBannerMedia::slides('applicant.webp'),
             'unavailable' => [],
             'asOf' => now()->timezone('Asia/Manila')->format('M j, Y, g:i A'),
         ];
@@ -77,6 +94,13 @@ class PublicGatewayController extends Controller
                 report($exception);
                 $data['unavailable'][] = $key;
             }
+        }
+
+        try {
+            $data['cashChannel'] = $paymentChannels->forDisplay()['cashChannel'] ?? null;
+        } catch (QueryException $exception) {
+            report($exception);
+            $data['unavailable'][] = 'cashChannel';
         }
 
         $data['programDurations'] = $data['programs']->pluck('duration_years')->unique()->sort()->values();
@@ -166,5 +190,41 @@ class PublicGatewayController extends Controller
                         ->whereIn('state', [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded]))),
             )
             ->get();
+    }
+
+    /**
+     * Resolve the topbar/card workspace CTA for signed-in users.
+     *
+     * @return array{label: string, url: string}|null
+     */
+    private function resolveWorkspaceAction(mixed $user, WorkspaceContextResolver $workspaces): ?array
+    {
+        if (! $user instanceof User) {
+            return null;
+        }
+
+        try {
+            $available = $workspaces->availableContexts($user);
+            $selected = $workspaces->selected($user);
+
+            if ($selected !== null && isset($available[$selected]['destination'])) {
+                $url = $available[$selected]['destination'];
+            } elseif (count($available) === 1) {
+                $first = reset($available);
+                $url = is_array($first) ? $first['destination'] : route('public.sign-in');
+            } elseif (count($available) > 1) {
+                $url = route('workspace-chooser');
+            } else {
+                $url = route('public.sign-in');
+            }
+        } catch (QueryException $exception) {
+            report($exception);
+            $url = route('public.sign-in');
+        }
+
+        return [
+            'label' => 'Open workspace',
+            'url' => $url,
+        ];
     }
 }

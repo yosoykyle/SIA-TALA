@@ -3,6 +3,7 @@
     'totalSeconds' => null,
     'context' => null,
     'showUseAnotherAccount' => false,
+    'footerHtml' => null,
     'mood' => 'Hold on a moment',
     'title' => 'Too many attempts',
     'summary' => 'To protect accounts, please wait until the timer finishes before trying again.',
@@ -18,6 +19,9 @@
     $firstDigit = strlen($remainingText) > 1 ? substr($remainingText, 0, -1) : $remainingText;
     $secondDigit = strlen($remainingText) > 1 ? substr($remainingText, -1) : '';
     $progressScale = round(max(0, min(1, $remaining / $total)), 4);
+    $resolvedMood = filled($mood ?? null) ? (string) $mood : 'Hold on a moment';
+    $resolvedTitle = filled($title ?? null) ? (string) $title : 'Too many attempts';
+    $resolvedSummary = filled($summary ?? null) ? (string) $summary : 'To protect accounts, please wait until the timer finishes before trying again.';
     $cssVersion = is_file(public_path('css/tala-auth-countdown.css')) ? filemtime(public_path('css/tala-auth-countdown.css')) : '1';
     $jsVersion = is_file(public_path('js/tala-auth-countdown.js')) ? filemtime(public_path('js/tala-auth-countdown.js')) : '1';
     $scriptUrl = asset('js/tala-auth-countdown.js').'?v='.$jsVersion;
@@ -52,7 +56,7 @@
     }"
 >
     <div class="tala-auth-countdown__body">
-        <p class="tala-idle-mood">{{ $mood }}</p>
+        <p class="tala-idle-mood">{{ $resolvedMood }}</p>
         <div class="tala-idle-dial" aria-hidden="true">
             <span class="tala-countdown-charm tala-countdown-charm--spark">
                 <svg viewBox="0 0 24 24" focusable="false"><path d="M12 1 C 13 8, 16 11, 23 12 C 16 13, 13 16, 12 23 C 11 16, 8 13, 1 12 C 8 11, 11 8, 12 1 Z"/></svg>
@@ -78,23 +82,28 @@
             <div class="tala-auth-countdown-progress-fill" style="transform: scaleX({{ $progressScale }})"></div>
         </div>
         <div class="tala-idle-copy">
-            <h2 id="tala-auth-countdown-title">{{ $title }}</h2>
-            <p class="tala-idle-summary" id="tala-auth-countdown-summary">{{ $summary }}</p>
+            <h2 id="tala-auth-countdown-title">{{ $resolvedTitle }}</h2>
+            <p class="tala-idle-summary" id="tala-auth-countdown-summary">{{ $resolvedSummary }}</p>
             <p class="sr-only" aria-live="polite" data-auth-countdown-live>
                 Please wait {{ $remaining }} seconds before trying again.
             </p>
         </div>
     </div>
-    @if ($showUseAnotherAccount)
+    @if ($showUseAnotherAccount || filled($footerHtml))
         <div class="tala-auth-verify-card__actions tala-idle-actions">
-            <x-filament::button
-                type="button"
-                color="gray"
-                wire:click="useAnotherAccount"
-                data-rate-limit-use-another-account
-            >
-                Use another account
-            </x-filament::button>
+            @if ($showUseAnotherAccount)
+                <x-filament::button
+                    type="button"
+                    color="gray"
+                    wire:click="useAnotherAccount"
+                    data-rate-limit-use-another-account
+                >
+                    Use another account
+                </x-filament::button>
+            @endif
+            @if (filled($footerHtml))
+                {{ $footerHtml }}
+            @endif
         </div>
     @endif
 </section>
