@@ -6,6 +6,7 @@ use App\Actions\Finance\IndividualAssessmentSources;
 use App\Actions\Finance\TermAccountProjection;
 use App\Actions\Grades\GradeWindowService;
 use App\Actions\StudentLifecycle\LifecycleAccountingReview;
+use App\Actions\SystemAdministration\SystemHealthPresenter;
 use App\Filament\Resources\Enrollments\Tables\EnrollmentsTable;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
 use App\Models\AdmissionApplication;
@@ -13,10 +14,12 @@ use App\Models\Assessment;
 use App\Models\ClassOfferingTeachingAssignment;
 use App\Models\CourseDropRecord;
 use App\Models\Enrollment;
+use App\Models\FaqEntry;
 use App\Models\GradeRoster;
 use App\Models\IncCompletionSubmission;
 use App\Models\LateGradeAuthorization;
 use App\Models\PaymentEvidenceVersion;
+use App\Models\PublicNotice;
 use App\Models\RegistrationProposalVersion;
 use App\Models\TermAccount;
 use App\Models\TranscriptRequest;
@@ -26,6 +29,7 @@ use App\Queries\Admissions\AdmissionQueueCounts;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
+use Throwable;
 
 /**
  * Request-instance memoized sidebar badge counts across all panels and roles.
@@ -58,6 +62,15 @@ class NavigationBadgeCounts
 
     /** @var array<int, int> */
     private array $applicantActionMemo = [];
+
+    /** @var array{attention: int, total: int, staff: int, learners: int, active_staff: int, staff_mfa_enrolled: int, multi_role: int}|null */
+    private ?array $systemAdminUsersMemo = null;
+
+    /** @var array{notices_live: int, notices_draft: int, faqs_live: int, faqs_draft: int}|null */
+    private ?array $systemAdminPublicContentMemo = null;
+
+    /** @var array{attention: int}|null */
+    private ?array $systemAdminHealthMemo = null;
 
     /**
      * @return array{assessment: int, proof: int, student_changes: int, unique_total: int}
@@ -362,6 +375,125 @@ class NavigationBadgeCounts
             ->where('user_id', $user->id)
             ->where('application_state', AdmissionApplication::StateActionNeeded)
             ->count();
+    }
+
+    /**
+     * @return array{attention: int, total: int, staff: int, learners: int, active_staff: int, staff_mfa_enrolled: int, multi_role: int}
+     */
+    public function systemAdminUsers(): array
+    {
+        if ($this->systemAdminUsersMemo !== null) {
+            return $this->systemAdminUsersMemo;
+        }
+
+        $total = User::query()->count();
+
+        $attention = User::query()
+            ->whereIn('status', [
+                User::StatusInvitationPending,
+                User::StatusVerificationRequired,
+                User::StatusDisabled,
+            ])
+            ->count();
+
+        $staffRoles = User::staffRoleNames();
+
+        $staffQuery = User::query()
+            ->whereHas('roles', fn (Builder $query): Builder => $query->whereIn('name', $staffRoles));
+
+        $staff = (clone $staffQuery)->count();
+        $activeStaff = (clone $staffQuery)
+            ->where('status', User::StatusActive)
+            ->count();
+        $staffMfaEnrolled = (clone $staffQuery)
+            ->whereNotNull('two_factor_confirmed_at')
+            ->count();
+
+        $learners = User::query()
+            ->whereHas('roles', fn (Builder $query): Builder => $query->whereIn('name', ['student', 'applicant']))
+            ->count();
+
+        $multiRole = User::query()
+            ->has('roles', '>', 1)
+            ->count();
+
+        return $this->systemAdminUsersMemo = [
+            'attention' => $attention,
+            'total' => $total,
+            'staff' => $staff,
+            'learners' => $learners,
+            'active_staff' => $activeStaff,
+            'staff_mfa_enrolled' => $staffMfaEnrolled,
+            'multi_role' => $multiRole,
+        ];
+    }
+
+    /**
+     * @return array{notices_live: int, notices_draft: int, faqs_live: int, faqs_draft: int}
+     */
+    public function systemAdminPublicContent(): array
+    {
+        if ($this->systemAdminPublicContentMemo !== null) {
+            return $this->systemAdminPublicContentMemo;
+        }
+
+        return $this->systemAdminPublicContentMemo = [
+            'notices_live' => PublicNotice::query()->effective()->count(),
+            'notices_draft' => PublicNotice::query()
+                ->where('state', 'Draft')
+                ->where('ever_published', false)
+                ->count(),
+            'faqs_live' => FaqEntry::query()->effective()->count(),
+            'faqs_draft' => FaqEntry::query()
+                ->where('is_published', false)
+                ->where('ever_published', false)
+                ->count(),
+        ];
+    }
+
+    /**
+     * @return array{attention: int}
+     */
+    public function systemAdminHealth(): array
+    {
+        if ($this->systemAdminHealthMemo !== null) {
+            return $this->systemAdminHealthMemo;
+        }
+
+        try {
+            $capture = app(SystemHealthPresenter::class)->capture();
+        } catch (Throwable) {
+            return $this->systemAdminHealthMemo = ['attention' => 0];
+        }
+
+        $excludedKeys = [
+            'backup',
+            'restore',
+            'primary-host-backups',
+            'provider-dashboards',
+            'independent-provider',
+            'physical-custody',
+        ];
+
+        $sourceRows = isset($capture['cards']) && is_array($capture['cards'])
+            ? $capture['cards']
+            : ($capture['local_rows'] ?? $capture['rows'] ?? []);
+
+        $attention = collect($sourceRows)
+            ->reject(function (array $row, int|string $key) use ($excludedKeys): bool {
+                $rowKey = is_string($row['key'] ?? null) ? $row['key'] : (string) $key;
+
+                return (bool) ($row['is_external'] ?? false) || in_array($rowKey, $excludedKeys, true);
+            })
+            ->whereIn('status', [
+                SystemHealthPresenter::NeedsAttention,
+                SystemHealthPresenter::Unavailable,
+            ])
+            ->count();
+
+        return $this->systemAdminHealthMemo = [
+            'attention' => $attention,
+        ];
     }
 
     /**

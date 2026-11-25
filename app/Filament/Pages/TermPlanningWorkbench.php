@@ -324,6 +324,23 @@ class TermPlanningWorkbench extends Page
             ->all();
     }
 
+    protected function defaultCreateTermAcademicYearId(): ?int
+    {
+        if ($this->termId !== null) {
+            $currentAyId = Term::query()->whereKey($this->termId)->value('academic_year_id');
+            if ($currentAyId !== null && AcademicYear::query()->whereKey($currentAyId)->where('state', '!=', AcademicYear::StateClosed)->exists()) {
+                return (int) $currentAyId;
+            }
+        }
+
+        $fallback = AcademicYear::query()
+            ->where('state', '!=', AcademicYear::StateClosed)
+            ->latest('starts_on')
+            ->value('id');
+
+        return $fallback !== null ? (int) $fallback : null;
+    }
+
     public function createTermAction(): Action
     {
         return Action::make('createTerm')
@@ -334,8 +351,6 @@ class TermPlanningWorkbench extends Page
             ->modalDescription('Choose the academic year, term, and dates. New terms start in Draft.')
             ->modalSubmitActionLabel('Create term')
             ->modalWidth(Width::Large)
-            ->stickyModalHeader()
-            ->stickyModalFooter()
             ->visible(fn (): bool => (bool) auth()->user()?->can('create', Term::class))
             ->schema([
                 Select::make('academic_year_id')
@@ -349,21 +364,7 @@ class TermPlanningWorkbench extends Page
                     ->searchable()
                     ->preload()
                     ->live()
-                    ->default(function (): ?int {
-                        if ($this->termId !== null) {
-                            $currentAyId = Term::query()->whereKey($this->termId)->value('academic_year_id');
-                            if ($currentAyId !== null && AcademicYear::query()->whereKey($currentAyId)->where('state', '!=', AcademicYear::StateClosed)->exists()) {
-                                return (int) $currentAyId;
-                            }
-                        }
-
-                        $fallback = AcademicYear::query()
-                            ->where('state', '!=', AcademicYear::StateClosed)
-                            ->latest('starts_on')
-                            ->value('id');
-
-                        return $fallback !== null ? (int) $fallback : null;
-                    })
+                    ->default(fn (): ?int => $this->defaultCreateTermAcademicYearId())
                     ->createOptionAction(fn (Action $action): Action => $action->label('Add academic year')->modalHeading('Add academic year')->modalSubmitActionLabel('Create academic year'))
                     ->createOptionForm([
                         TextInput::make('label')->label('Academic year')->required()->maxLength(255)->unique('academic_years', 'label'),
@@ -371,15 +372,9 @@ class TermPlanningWorkbench extends Page
                             ->schema([
                                 DatePicker::make('starts_on')
                                     ->label('Academic year start')
-                                    ->native(false)
-                                    ->displayFormat('M j, Y')
-                                    ->suffixIcon(Heroicon::OutlinedCalendar)
                                     ->required(),
                                 DatePicker::make('ends_on')
                                     ->label('Academic year end')
-                                    ->native(false)
-                                    ->displayFormat('M j, Y')
-                                    ->suffixIcon(Heroicon::OutlinedCalendar)
                                     ->required()
                                     ->after('starts_on'),
                             ]),
@@ -406,9 +401,6 @@ class TermPlanningWorkbench extends Page
                     ->schema([
                         DatePicker::make('starts_on')
                             ->label('Start date')
-                            ->native(false)
-                            ->displayFormat('M j, Y')
-                            ->suffixIcon(Heroicon::OutlinedCalendar)
                             ->minDate(fn (Get $get): ?string => $this->academicYearDateBound($get('academic_year_id'), 'start'))
                             ->maxDate(fn (Get $get): ?string => $this->academicYearDateBound($get('academic_year_id'), 'end'))
                             ->helperText(fn (Get $get): ?string => $this->academicYearBoundsHelperText($get('academic_year_id')))
@@ -416,9 +408,6 @@ class TermPlanningWorkbench extends Page
                             ->rules([$this->academicYearBoundRule('start')]),
                         DatePicker::make('ends_on')
                             ->label('End date')
-                            ->native(false)
-                            ->displayFormat('M j, Y')
-                            ->suffixIcon(Heroicon::OutlinedCalendar)
                             ->minDate(fn (Get $get): ?string => $this->academicYearDateBound($get('academic_year_id'), 'start'))
                             ->maxDate(fn (Get $get): ?string => $this->academicYearDateBound($get('academic_year_id'), 'end'))
                             ->helperText('Must be on or after the term start date.')
@@ -668,8 +657,6 @@ class TermPlanningWorkbench extends Page
             ->modalSubmitActionLabel('Save changes')
             ->modalCancelActionLabel(fn (): string => auth()->user()?->hasRole(User::StaffRoleAcademicHead) || $this->isTermClosed() ? 'Close' : 'Cancel')
             ->modalWidth(Width::Large)
-            ->stickyModalHeader()
-            ->stickyModalFooter()
             ->visible(fn (): bool => $this->termId !== null)
             ->fillForm(function (): array {
                 $term = $this->selectedTerm();
@@ -758,9 +745,6 @@ class TermPlanningWorkbench extends Page
                                 ->validatedWhenNotDehydrated(false),
                             DatePicker::make('starts_on')
                                 ->label('Start date')
-                                ->native(false)
-                                ->displayFormat('M j, Y')
-                                ->suffixIcon(Heroicon::OutlinedCalendar)
                                 ->minDate(fn (Get $get): ?string => $this->academicYearDateBound($get('academic_year_id'), 'start'))
                                 ->maxDate(fn (Get $get): ?string => $this->academicYearDateBound($get('academic_year_id'), 'end'))
                                 ->helperText(fn (Get $get): ?string => $this->academicYearBoundsHelperText($get('academic_year_id')))
@@ -770,9 +754,6 @@ class TermPlanningWorkbench extends Page
                                 ->validatedWhenNotDehydrated(false),
                             DatePicker::make('ends_on')
                                 ->label('End date')
-                                ->native(false)
-                                ->displayFormat('M j, Y')
-                                ->suffixIcon(Heroicon::OutlinedCalendar)
                                 ->minDate(fn (Get $get): ?string => $this->academicYearDateBound($get('academic_year_id'), 'start'))
                                 ->maxDate(fn (Get $get): ?string => $this->academicYearDateBound($get('academic_year_id'), 'end'))
                                 ->helperText('Must be on or after the term start date.')
@@ -1434,15 +1415,9 @@ class TermPlanningWorkbench extends Page
                     Select::make('window_type')->label('Period')->options(TermCalendarWindow::typeOptions())->required()->distinct(),
                     DatePicker::make('opens_on')
                         ->label('Opens on')
-                        ->native(false)
-                        ->displayFormat('M j, Y')
-                        ->suffixIcon(Heroicon::OutlinedCalendar)
                         ->required(),
                     DatePicker::make('closes_on')
                         ->label('Closes on')
-                        ->native(false)
-                        ->displayFormat('M j, Y')
-                        ->suffixIcon(Heroicon::OutlinedCalendar)
                         ->required()
                         ->afterOrEqual('opens_on'),
                     TimePicker::make('cutoff_at')->label('Close time')->timezone('UTC')->seconds(false),

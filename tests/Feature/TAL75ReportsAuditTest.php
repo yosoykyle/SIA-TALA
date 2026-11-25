@@ -45,11 +45,11 @@ final class TAL75ReportsAuditTest extends TestCase
         $this->assertTrue(GovernanceAudit::canAccess());
         Livewire::test(GovernanceAudit::class)
             ->assertOk()
-            ->assertSee('Institutional Changes')
-            ->assertSee('System Events')
-            ->assertSee('Output and Export Access')
-            ->assertSee('Privacy and Retention Boundary')
-            ->assertActionDoesNotExist('exportCsv')
+            ->assertSee('Institutional changes')
+            ->assertSee('System events')
+            ->assertSee('Output access')
+            ->assertSee('Privacy & retention')
+            ->assertActionExists('exportCsv')
             ->assertActionDoesNotExist('selectReport');
     }
 

@@ -93,32 +93,32 @@ const results = {
             results.sys003.collapsibleToggled = (initialExpanded !== toggledExpanded);
         }
 
-        // Verify technical disclosure disclaimer
+        // Verify hosting backup note
         const pageContent = await page.content();
-        const hasDisclosure = pageContent.includes('planning target, not achieved evidence') || pageContent.includes('Not checked by TALA');
-        console.log('[SYS-003] Contains prospective target disclaimer:', hasDisclosure);
+        const hasDisclosure = pageContent.includes('Automated database backups and disaster recovery are managed at the hosting infrastructure level.');
+        console.log('[SYS-003] Contains hosting infrastructure backup note:', hasDisclosure);
         results.sys003.hasDisclosure = hasDisclosure;
 
         // C. Refresh action
-        const refreshBtn = await page.$('button:has-text("Refresh local evidence")');
+        const refreshBtn = await page.$('button:has-text("Refresh status")');
         if (refreshBtn) {
             await refreshBtn.click();
             await page.waitForTimeout(1000);
-            console.log('[SYS-003] Clicked "Refresh local evidence" successfully.');
+            console.log('[SYS-003] Clicked "Refresh status" successfully.');
             results.sys003.refreshActionWorked = true;
         }
 
-        // D. Send self-test email action & modal
-        const selfTestBtn = await page.$('button:has-text("Send self-test email")');
+        // D. Send test email action & modal
+        const selfTestBtn = await page.$('button:has-text("Send test email")');
         if (selfTestBtn) {
-            console.log('[SYS-003] Triggering "Send self-test email" action...');
+            console.log('[SYS-003] Triggering "Send test email" action...');
             await selfTestBtn.click();
             await page.waitForTimeout(600);
 
             // Check modal confirmation button
-            const confirmBtn = await page.$('.fi-modal button:has-text("Send self-test")') || await page.$('.fi-modal button[type="submit"]');
+            const confirmBtn = await page.$('.fi-modal button:has-text("Send test email")') || await page.$('.fi-modal button[type="submit"]');
             if (confirmBtn) {
-                console.log('[SYS-003] Modal opened. Clicking "Send self-test"...');
+                console.log('[SYS-003] Modal opened. Clicking "Send test email"...');
                 await confirmBtn.click();
                 await page.waitForTimeout(2000);
                 console.log('[SYS-003] Mail self-test executed.');
@@ -128,7 +128,7 @@ const results = {
             // Trigger again immediately to verify rate-limiting behavior
             await selfTestBtn.click();
             await page.waitForTimeout(600);
-            const confirmBtn2 = await page.$('.fi-modal button:has-text("Send self-test")') || await page.$('.fi-modal button[type="submit"]');
+            const confirmBtn2 = await page.$('.fi-modal button:has-text("Send test email")') || await page.$('.fi-modal button[type="submit"]');
             if (confirmBtn2) {
                 await confirmBtn2.click();
                 await page.waitForTimeout(1500);
@@ -182,7 +182,7 @@ const results = {
             const activeTabAfterHome = await page.$eval('[role="tab"][tabindex="0"]', el => el.textContent.trim());
             console.log('[SYS-004] Active tab after Home:', activeTabAfterHome);
 
-            results.sys004.rovingFocusPassed = (activeTabAfterRight !== 'Institutional Changes' && activeTabAfterHome === 'Institutional Changes');
+            results.sys004.rovingFocusPassed = (activeTabAfterRight !== 'Institutional changes' && activeTabAfterHome === 'Institutional changes');
         }
 
         // C. Slide-Over Detail View & Escape Key Focus Restoration
@@ -202,7 +202,7 @@ const results = {
             if (modal) {
                 // Verify safe allowlisted fields in modal
                 const modalText = await modal.innerText();
-                const hasSafeFields = modalText.includes('Reference ID') || modalText.includes('Date and time') || modalText.includes('Actor');
+                const hasSafeFields = modalText.includes('Reference ID') || modalText.includes('When') || modalText.includes('Who');
                 console.log('[SYS-004] Modal contains safe allowlisted fields:', hasSafeFields);
                 results.sys004.modalSafeFields = hasSafeFields;
 
@@ -218,8 +218,8 @@ const results = {
         }
 
         // D. Canonical Privacy Notice
-        console.log('[SYS-004] Testing Privacy and Retention Boundary tab...');
-        const privacyTab = await page.$('[role="tab"]:has-text("Privacy and Retention Boundary")');
+        console.log('[SYS-004] Testing Privacy & retention tab...');
+        const privacyTab = await page.$('[role="tab"]:has-text("Privacy & retention")');
         if (privacyTab) {
             await privacyTab.click();
             await page.waitForTimeout(1000);

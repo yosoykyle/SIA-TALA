@@ -46,8 +46,6 @@ trait HasClassPreparationActions
             ->modalSubmitActionLabel('Add student section')
             ->modalCancelActionLabel('Cancel')
             ->modalWidth(Width::TwoExtraLarge)
-            ->stickyModalHeader()
-            ->stickyModalFooter()
             ->visible(fn (): bool => $this->termId !== null
                 && (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar)
                 && ! $this->hasPublishedTimetable()

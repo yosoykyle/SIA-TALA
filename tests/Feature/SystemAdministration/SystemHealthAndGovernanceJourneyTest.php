@@ -3,20 +3,33 @@
 namespace Tests\Feature\SystemAdministration;
 
 use App\Actions\Finance\FinanceEvidenceService;
+use App\Actions\Integrations\SchedulingSolver\SchedulingSolverClient;
+use App\Actions\Integrations\SchedulingSolver\SchedulingSolverRequest;
+use App\Actions\Integrations\SchedulingSolver\SchedulingSolverResponse;
+use App\Actions\Integrations\SchedulingSolver\SchedulingSolverTransportException;
 use App\Actions\SystemAdministration\GovernanceEvidenceProjection;
 use App\Actions\SystemAdministration\OperationalEvidenceRecorder;
 use App\Actions\SystemAdministration\SystemHealthPresenter;
 use App\Filament\Pages\GovernanceAudit;
 use App\Filament\Pages\SystemHealth;
 use App\Mail\TestConnectionMail;
+use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
 use App\Models\CompletionReadinessVersion;
+use App\Models\CourseEnrollment;
+use App\Models\GradeOutcomeEvent;
+use App\Models\GradeRoster;
+use App\Models\GradeRosterRow;
 use App\Models\OperationalEvent;
 use App\Models\OutputAccessLog;
+use App\Models\PublicNotice;
 use App\Models\ScheduleGenerationRun;
+use App\Models\StaffAccessProfile;
+use App\Models\StudentProfile;
 use App\Models\SystemSetting;
 use App\Models\Term;
 use App\Models\User;
+use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Model;
@@ -93,31 +106,32 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
     }
 
     #[Test]
-    public function system_health_projects_only_canonical_statuses_and_keeps_external_facts_unknown(): void
+    public function system_health_projects_four_live_operational_cards_with_canonical_statuses(): void
     {
         Config::set('mail.default', 'array');
 
         $capture = app(SystemHealthPresenter::class)->capture();
         $rows = collect($capture['rows']);
 
+        $this->assertSame(['app_database', 'queue', 'mail', 'solver'], $rows->keys()->all());
+        $this->assertSame([], $capture['external_rows']);
         $this->assertSame([], $rows->pluck('status')->unique()->diff([
             SystemHealthPresenter::Available,
             SystemHealthPresenter::Attention,
             SystemHealthPresenter::Unavailable,
             SystemHealthPresenter::Unknown,
         ])->values()->all());
-        $this->assertSame(
-            [SystemHealthPresenter::NotRecentlyChecked],
-            $rows->only(['primary-host-backups', 'provider-dashboards', 'independent-provider', 'physical-custody'])->pluck('status')->unique()->values()->all(),
-        );
         $this->assertTrue($rows->every(fn (array $row): bool => filled($row['evidence']) && filled($row['as_of']) && filled($row['next_action'])));
 
         $this->actingAs($this->staff(User::StaffRoleSystemSuperAdmin));
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $html = Livewire::test(SystemHealth::class)->html();
 
-        $this->assertStringContainsString('Not checked by TALA', $html);
-        $this->assertStringContainsString('planning target, not achieved evidence', $html);
+        $this->assertStringContainsString('Automated database backups and disaster recovery are managed at the hosting infrastructure level.', $html);
+        $this->assertStringNotContainsString('Not checked by TALA', $html);
+        $this->assertStringNotContainsString('planning target, not achieved evidence', $html);
+        $this->assertStringNotContainsString('<details', $html);
+        $this->assertStringNotContainsString('—', $html);
     }
 
     #[Test]
@@ -132,13 +146,19 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
         ]);
         $presenter = app(SystemHealthPresenter::class);
 
-        $this->assertSame(SystemHealthPresenter::Attention, $presenter->capture()['rows']['mail']['status']);
+        $pendingMail = $presenter->capture()['rows']['mail'];
+        $this->assertSame(SystemHealthPresenter::Available, $pendingMail['status']);
+        $this->assertSame('Queued (waiting for worker)', $pendingMail['display_status']);
 
         $event->update(['status' => OperationalEvent::StatusProcessed]);
-        $this->assertSame(SystemHealthPresenter::Available, $presenter->capture()['rows']['mail']['status']);
+        $readyMail = $presenter->capture()['rows']['mail'];
+        $this->assertSame(SystemHealthPresenter::Available, $readyMail['status']);
+        $this->assertSame('Ready', $readyMail['display_status']);
 
         $event->update(['status' => OperationalEvent::StatusFailed]);
-        $this->assertSame(SystemHealthPresenter::Attention, $presenter->capture()['rows']['mail']['status']);
+        $failedMail = $presenter->capture()['rows']['mail'];
+        $this->assertSame(SystemHealthPresenter::Attention, $failedMail['status']);
+        $this->assertSame('Delivery failed', $failedMail['display_status']);
     }
 
     #[Test]
@@ -278,39 +298,240 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
     }
 
     #[Test]
-    public function backup_health_distinguishes_missing_current_overdue_and_failed_evidence(): void
+    public function queue_card_distinguishes_pending_vs_failed_sanitizes_failed_jobs_and_retries_safely(): void
     {
-        OperationalEvent::query()->where('integration', OperationalEvent::IntegrationBackup)->delete();
-        Config::set('tala_operations.backup_overdue_after_hours');
+        Config::set('queue.default', 'database');
+        DB::table('jobs')->delete();
+        DB::table('failed_jobs')->delete();
+
         $presenter = app(SystemHealthPresenter::class);
 
-        $this->assertSame(SystemHealthPresenter::Unknown, $presenter->capture()['rows']['backup']['status']);
+        DB::table('jobs')->insert([
+            'queue' => 'default',
+            'payload' => json_encode(['displayName' => 'App\\Mail\\TestConnectionMail'], JSON_THROW_ON_ERROR),
+            'attempts' => 0,
+            'reserved_at' => null,
+            'available_at' => time(),
+            'created_at' => time(),
+        ]);
 
-        app(OperationalEvidenceRecorder::class)->record(
-            OperationalEvidenceRecorder::TypeBackup,
-            json_encode($this->backupEvidence('backup-current-health', now()->subHours(2)), JSON_THROW_ON_ERROR),
-        );
-        $this->assertSame(SystemHealthPresenter::Available, $presenter->capture()['rows']['backup']['status']);
+        $pendingQueue = $presenter->capture()['rows']['queue'];
+        $this->assertSame(SystemHealthPresenter::Available, $pendingQueue['status']);
+        $this->assertSame('Queued (waiting for worker)', $pendingQueue['display_status']);
+        $this->assertSame(1, $pendingQueue['pending_count']);
+        $this->assertSame(0, $pendingQueue['failed_count']);
 
-        Config::set('tala_operations.backup_overdue_after_hours', 1);
-        $this->assertSame(SystemHealthPresenter::Attention, $presenter->capture()['rows']['backup']['status']);
-        $this->assertStringContainsString('older than', $presenter->capture()['rows']['backup']['evidence']);
+        $admin = $this->staff(User::StaffRoleSystemSuperAdmin);
+        $this->actingAs($admin);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
 
-        $failed = [
-            ...$this->backupEvidence('backup-failed-health', now()->subMinute()),
-            'outcome' => 'FAILED',
-            'integrity_result' => 'FAILED',
-            'manifest_result' => 'FAILED',
-        ];
-        app(OperationalEvidenceRecorder::class)->record(
-            OperationalEvidenceRecorder::TypeBackup,
-            json_encode($failed, JSON_THROW_ON_ERROR),
-        );
+        Livewire::test(SystemHealth::class)
+            ->assertSee('Queued (waiting for worker)', false)
+            ->assertDontSee('Retry failed jobs');
 
-        $capture = $presenter->capture()['rows']['backup'];
-        $this->assertSame(SystemHealthPresenter::Attention, $capture['status']);
-        $this->assertStringContainsString('failed or requires reconciliation', $capture['evidence']);
-        $this->assertStringContainsString('preceding successful generation remains recorded', $capture['evidence']);
+        $failedJobUuid = (string) str()->uuid();
+        DB::table('failed_jobs')->insert([
+            'uuid' => $failedJobUuid,
+            'connection' => 'database',
+            'queue' => 'mail',
+            'payload' => json_encode([
+                'displayName' => 'App\\Mail\\ScheduleReleasedMail',
+                'data' => ['command' => serialize((object) ['secret' => 'secret-serialized-payload-must-not-render'])],
+            ], JSON_THROW_ON_ERROR),
+            'exception' => "Symfony\\Component\\Mailer\\Exception\\TransportException: Connection refused for user@example.test in /var/www/app/Mail/Test.php:42\n#0 stack trace",
+            'failed_at' => now(),
+        ]);
+
+        $failedQueue = $presenter->capture()['rows']['queue'];
+        $this->assertSame(SystemHealthPresenter::NeedsAttention, $failedQueue['status']);
+        $this->assertSame('Needs attention', $failedQueue['display_status']);
+        $this->assertSame(1, $failedQueue['failed_count']);
+
+        $component = Livewire::test(SystemHealth::class)
+            ->assertSee('Needs attention')
+            ->assertSee('1 failed and 1 pending queued job(s) require attention.')
+            ->assertSee('Retry failed jobs');
+
+        $component
+            ->mountAction('inspectFailedJobs')
+            ->assertActionMounted('inspectFailedJobs');
+
+        $modalHtml = $component->instance()->getMountedAction()->getModalContent()->render();
+        $this->assertStringContainsString('ScheduleReleasedMail', $modalHtml);
+        $this->assertStringContainsString('TransportException: Connection refused', $modalHtml);
+        $this->assertStringNotContainsString('secret-serialized-payload-must-not-render', $modalHtml);
+        $this->assertStringNotContainsString('user@example.test', $modalHtml);
+        $this->assertStringNotContainsString('/var/www/app/Mail/Test.php', $modalHtml);
+
+        Livewire::test(SystemHealth::class)
+            ->callAction('retryFailedJobs')
+            ->assertNotified('Failed jobs queued for retry');
+
+        $this->assertSame(0, DB::table('failed_jobs')->count());
+        $this->assertDatabaseHas('activity_log', [
+            'event' => 'failed_jobs_retried',
+            'causer_id' => $admin->getKey(),
+        ]);
+    }
+
+    #[Test]
+    public function solver_probe_is_rate_limited_and_records_safe_operational_event(): void
+    {
+        $admin = $this->staff(User::StaffRoleSystemSuperAdmin);
+        $key = 'tala:system-health:solver-probe:'.$admin->getKey();
+        RateLimiter::clear($key);
+
+        app()->instance(SchedulingSolverClient::class, new class implements SchedulingSolverClient
+        {
+            public int $probeCalls = 0;
+
+            public function solve(SchedulingSolverRequest $request): SchedulingSolverResponse
+            {
+                throw new RuntimeException('solve must not be called by health check');
+            }
+
+            public function probe(): array
+            {
+                $this->probeCalls++;
+
+                return ['status' => 200, 'body' => '{"status":"ok"}'];
+            }
+        });
+
+        $this->actingAs($admin);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $component = Livewire::test(SystemHealth::class);
+        $component->callAction('checkSolver')->assertNotified('Scheduling solver is online');
+        $component->callAction('checkSolver')->assertNotified('Solver check is throttled');
+
+        $this->assertSame(1, app(SchedulingSolverClient::class)->probeCalls);
+
+        $event = OperationalEvent::query()
+            ->where('event_type', 'solver_health_probe')
+            ->where('user_id', $admin->getKey())
+            ->sole();
+
+        $this->assertSame(OperationalEvent::StatusProcessed, $event->status);
+        $this->assertNull($event->payload);
+        $this->assertNull($event->diagnostics);
+        $component->assertSee('Online');
+    }
+
+    #[Test]
+    public function failed_solver_probe_stores_only_safe_diagnostics_and_renders_troubleshooting_steps(): void
+    {
+        $admin = $this->staff(User::StaffRoleSystemSuperAdmin);
+        $key = 'tala:system-health:solver-probe:'.$admin->getKey();
+        RateLimiter::clear($key);
+
+        app()->instance(SchedulingSolverClient::class, new class implements SchedulingSolverClient
+        {
+            public function solve(SchedulingSolverRequest $request): SchedulingSolverResponse
+            {
+                throw new RuntimeException('solve must not be called by health check');
+            }
+
+            public function probe(): array
+            {
+                throw SchedulingSolverTransportException::permanent(
+                    SchedulingSolverTransportException::ClassificationClientError,
+                    'raw-solver-url-secret-must-not-render',
+                    403,
+                );
+            }
+        });
+
+        $this->actingAs($admin);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $component = Livewire::test(SystemHealth::class)
+            ->callAction('checkSolver')
+            ->assertNotified('Scheduling solver is unreachable')
+            ->assertSee('Error reason: Solver endpoint rejected authentication or access (HTTP 403).')
+            ->assertSee('Verify the Cloud Run IAM invoker role and service-account credentials.')
+            ->assertSee('Confirm the Google Cloud project billing and Cloud Run service are active in Google Cloud Console.')
+            ->assertDontSee('raw-solver-url-secret-must-not-render')
+            ->assertDontSee('<details', false);
+
+        $event = OperationalEvent::query()
+            ->where('event_type', 'solver_health_probe')
+            ->where('user_id', $admin->getKey())
+            ->sole();
+
+        $this->assertSame(OperationalEvent::StatusFailed, $event->status);
+        $this->assertSame(SchedulingSolverTransportException::ClassificationClientError, data_get($event->diagnostics, 'classification'));
+        $this->assertSame(403, data_get($event->diagnostics, 'status_code'));
+        $this->assertNull($event->payload);
+        $this->assertStringNotContainsString('raw-solver-url-secret-must-not-render', $component->html());
+    }
+
+    #[Test]
+    public function failed_mail_self_test_surfaces_sanitized_category_and_troubleshooting_steps(): void
+    {
+        $admin = $this->staff(User::StaffRoleSystemSuperAdmin);
+        RateLimiter::clear('tala:system-health:mail-self-test:'.$admin->getKey());
+
+        Mail::shouldReceive('to')
+            ->once()
+            ->with($admin->email)
+            ->andThrow(new RuntimeException('535 Authentication failed for secret-smtp-user@example.test'));
+
+        $this->actingAs($admin);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Livewire::test(SystemHealth::class)
+            ->callAction('sendTestEmail')
+            ->assertNotified('Mail self-test failed')
+            ->assertSee('Authentication failed')
+            ->assertSee('Error reason: Mail server rejected SMTP authentication credentials.')
+            ->assertSee('Verify MAIL_USERNAME and MAIL_PASSWORD (or provider app password) on the host.')
+            ->assertDontSee('secret-smtp-user@example.test');
+    }
+
+    #[Test]
+    public function system_health_exposes_read_only_solver_runs_and_reports_modal(): void
+    {
+        $admin = $this->staff(User::StaffRoleSystemSuperAdmin);
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $registrar->forceFill([
+            'first_name' => 'Rosa',
+            'middle_name' => null,
+            'last_name' => 'Registrar',
+        ])->save();
+
+        $term = Term::query()->first() ?? Term::factory()->create(['label' => 'AY 2026-2027 Term 1']);
+        ScheduleGenerationRun::factory()->create([
+            'term_id' => $term->id,
+            'requested_by' => $registrar->id,
+            'status' => ScheduleGenerationRun::StatusFailed,
+            'runtime_ms' => 2450,
+            'input_snapshot' => ['sensitive_input' => 'must-not-render-snapshot'],
+            'diagnostics' => [
+                'solver_dispatch' => [
+                    'failure' => [
+                        'classification' => SchedulingSolverTransportException::ClassificationTimeout,
+                        'status_code' => 504,
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->actingAs($admin);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $component = Livewire::test(SystemHealth::class)
+            ->assertSee('Last run')
+            ->assertSee('Solver runs & reports', false)
+            ->mountAction('solverRunsReports')
+            ->assertActionMounted('solverRunsReports');
+
+        $modalHtml = $component->instance()->getMountedAction()->getModalContent()->render();
+        $this->assertStringContainsString((string) $term->label, $modalHtml);
+        $this->assertStringContainsString($registrar->name, $modalHtml);
+        $this->assertStringContainsString('2.45 s', $modalHtml);
+        $this->assertStringContainsString('Timeout (HTTP 504)', $modalHtml);
+        $this->assertStringNotContainsString('must-not-render-snapshot', $modalHtml);
     }
 
     #[Test]
@@ -432,7 +653,7 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
         $component = Livewire::test(GovernanceAudit::class);
 
         $this->assertSame(array_keys(GovernanceEvidenceProjection::tabs()), array_keys($component->get('tabs')));
-        $component->assertSee('Institutional Changes')->assertSee('Updated');
+        $component->assertSee('Institutional changes')->assertSee('Updated');
         $this->assertSafeGovernanceHtml($component->html());
 
         $component->call('setActiveTab', GovernanceEvidenceProjection::SystemEvents)->assertSee('Safe Fixture Event')->assertSee('Login Failed');
@@ -479,7 +700,7 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
         Livewire::test(GovernanceAudit::class)
             ->call('setActiveTab', GovernanceEvidenceProjection::OutputAccess)
             ->assertSee('Certificate Of Registration')
-            ->assertSee('Recorded');
+            ->assertSee('An authorized output or export access was recorded.');
     }
 
     #[Test]
@@ -541,15 +762,14 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
     }
 
     #[Test]
-    public function explicit_allowlist_excludes_unknown_operational_and_activity_events(): void
+    public function three_source_projection_includes_all_domain_activity_and_routes_auth_and_operational_events_to_system_events(): void
     {
         $admin = $this->staff(User::StaffRoleSystemSuperAdmin);
 
-        // Unknown activity and operational events
         DB::table('activity_log')->insert([
             'log_name' => 'default',
-            'description' => 'unknown activity',
-            'event' => 'uncataloged_custom_activity',
+            'description' => 'domain change',
+            'event' => 'curriculum_version_draft_created',
             'causer_type' => User::class,
             'causer_id' => $admin->getKey(),
             'properties' => '{}',
@@ -557,14 +777,25 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $unknownOperational = OperationalEvent::factory()->create([
-            'event_domain' => OperationalEvent::DomainOperations,
-            'event_type' => 'uncataloged_operational_event',
+        DB::table('activity_log')->insert([
+            'log_name' => 'authentication',
+            'description' => 'login event',
+            'event' => 'login',
+            'causer_type' => User::class,
+            'causer_id' => $admin->getKey(),
+            'properties' => '{}',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $solverProbe = OperationalEvent::factory()->create([
+            'event_domain' => OperationalEvent::DomainIntegration,
+            'integration' => OperationalEvent::IntegrationSchedulingSolver,
+            'event_type' => 'solver_health_probe',
             'user_id' => $admin->getKey(),
             'occurred_at' => now(),
         ]);
 
-        // Known allowlisted operational events
         $knownMailSelfTest = OperationalEvent::factory()->create([
             'event_domain' => OperationalEvent::DomainNotifications,
             'event_type' => 'mail_self_test_accepted',
@@ -581,17 +812,14 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
 
         $projection = app(GovernanceEvidenceProjection::class);
 
-        // Verify Institutional Changes excludes unknown activity
         $institutionalPage = $projection->paginate(GovernanceEvidenceProjection::InstitutionalChanges, 1, 50, null, []);
         $institutionalTypes = collect($institutionalPage->items())->pluck('type')->all();
-        $this->assertNotContains('Uncataloged Custom Activity', $institutionalTypes);
+        $this->assertContains('Curriculum Version Draft Created', $institutionalTypes);
+        $this->assertNotContains('Login', $institutionalTypes);
 
-        // Verify System Events excludes unknown operational events
         $systemEventsPage = $projection->paginate(GovernanceEvidenceProjection::SystemEvents, 1, 50, null, []);
         $systemEventReferences = collect($systemEventsPage->items())->pluck('reference_id')->all();
-        $this->assertNotContains('operational:'.$unknownOperational->getKey(), $systemEventReferences);
-
-        // Verify System Events includes known operational events
+        $this->assertContains('operational:'.$solverProbe->getKey(), $systemEventReferences);
         $this->assertContains('operational:'.$knownMailSelfTest->getKey(), $systemEventReferences);
         $this->assertContains('operational:'.$knownBackup->getKey(), $systemEventReferences);
     }
@@ -762,13 +990,13 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
     {
         $projection = app(GovernanceEvidenceProjection::class);
 
-        // 1. Operational events: explicit allowlist vs arbitrary solver_%
-        $unsupportedSolverEvent = OperationalEvent::query()->create([
+        // 1. Operational events: solver probes and dispatches appear in System events
+        $probeEvent = OperationalEvent::query()->create([
             'event_domain' => OperationalEvent::DomainIntegration,
             'integration' => OperationalEvent::IntegrationSchedulingSolver,
             'channel' => 'http',
             'direction' => OperationalEvent::DirectionOutbound,
-            'event_type' => 'solver_arbitrary_unsupported_probe',
+            'event_type' => 'solver_health_probe',
             'status' => OperationalEvent::StatusProcessed,
             'occurred_at' => now(),
         ]);
@@ -784,10 +1012,10 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
         ]);
 
         $systemEvents = $projection->query(GovernanceEvidenceProjection::SystemEvents)->get();
-        $this->assertFalse($systemEvents->contains('reference_id', "operational:{$unsupportedSolverEvent->id}"));
+        $this->assertTrue($systemEvents->contains('reference_id', "operational:{$probeEvent->id}"));
         $this->assertTrue($systemEvents->contains('reference_id', "operational:{$supportedSolverEvent->id}"));
 
-        // 2. payment_evidence_accessed excluded from institutional changes
+        // 2. Read-only access events excluded from institutional changes
         $admin = $this->staff(User::StaffRoleSystemSuperAdmin);
         $paymentLog = activity()
             ->causedBy($admin)
@@ -795,9 +1023,16 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
             ->log('Payment evidence was viewed');
         assert($paymentLog instanceof Model);
 
+        $admissionReadLog = activity()
+            ->causedBy($admin)
+            ->event('admission_evidence_accessed')
+            ->log('Admission evidence was viewed');
+        assert($admissionReadLog instanceof Model);
+
         $institutionalChanges = $projection->query(GovernanceEvidenceProjection::InstitutionalChanges)->get();
         $this->assertFalse($institutionalChanges->contains('type', 'payment_evidence_accessed'));
         $this->assertFalse($institutionalChanges->contains('reference_id', "activity:{$paymentLog->getKey()}"));
+        $this->assertFalse($institutionalChanges->contains('reference_id', "activity:{$admissionReadLog->getKey()}"));
 
         $paginated = $projection->paginate(GovernanceEvidenceProjection::InstitutionalChanges, 1, 50, null, []);
         $items = collect($paginated->items());
@@ -1211,6 +1446,331 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
         BrowserQualificationEnvironment::disableHealthCaptureFailure();
         $this->assertFalse(BrowserQualificationEnvironment::isHealthCaptureFailureEnabled());
         $this->assertTrue(Schema::hasTable('jobs'));
+    }
+
+    #[Test]
+    public function system_health_presents_four_live_cards_and_technical_details_slide_over(): void
+    {
+        Config::set('mail.default', 'array');
+
+        $presenter = app(SystemHealthPresenter::class);
+        $capture = $presenter->capture();
+        $summary = $presenter->summary($capture);
+
+        $this->assertArrayHasKey('local_rows', $capture);
+        $this->assertArrayHasKey('external_rows', $capture);
+        $this->assertArrayHasKey('captured_at_display', $capture);
+        $this->assertCount(4, $capture['local_rows']);
+        $this->assertCount(0, $capture['external_rows']);
+        $this->assertCount(4, $capture['rows']);
+        $this->assertSame(4, $summary['local_total']);
+        $this->assertSame(0, $summary['external_count']);
+        $this->assertSame($capture['captured_at_display'], $summary['captured_at_display']);
+        $this->assertSame('Runtime, DB & storage', $capture['local_rows']['app_database']['evidence_source_label']);
+        $this->assertSame('Job queue', $capture['local_rows']['queue']['evidence_source_label']);
+        $this->assertSame('Mail configuration & logs', $capture['local_rows']['mail']['evidence_source_label']);
+        $this->assertSame('Scheduling solver', $capture['local_rows']['solver']['evidence_source_label']);
+
+        $this->actingAs($this->staff(User::StaffRoleSystemSuperAdmin));
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $component = Livewire::test(SystemHealth::class)
+            ->assertOk()
+            ->assertSee('Last checked')
+            ->assertSee($capture['captured_at_display'])
+            ->assertSee('App & Database')
+            ->assertSee('Job Queue')
+            ->assertSee('Mail / SMTP')
+            ->assertSee('Scheduling Solver')
+            ->assertSee('Technical details')
+            ->assertSee('Inspect failed jobs')
+            ->assertSee('Send test email')
+            ->assertSee('Check solver')
+            ->assertSee('Automated database backups and disaster recovery are managed at the hosting infrastructure level.')
+            ->assertDontSee('Not checked by TALA')
+            ->assertDontSee('Prospective RPO target')
+            ->assertDontSee('PDO connection check');
+
+        $component
+            ->mountAction('viewTechnicalDetails')
+            ->assertActionMounted('viewTechnicalDetails');
+
+        $modalSchema = $component->instance()->getSchema('mountedActionSchema0');
+        $this->assertNotNull($modalSchema);
+        $modalHtml = $modalSchema->toHtml();
+        $this->assertStringContainsString('PDO connection check', $modalHtml);
+        $this->assertStringContainsString('DB driver: mysql', $modalHtml);
+    }
+
+    #[Test]
+    public function governance_audit_supports_actor_deep_link_institutional_ids_and_allowlisted_csv_export(): void
+    {
+        $admin = $this->staff(User::StaffRoleSystemSuperAdmin);
+        $targetRegistrar = $this->staff(User::StaffRoleRegistrar);
+        $otherRegistrar = $this->staff(User::StaffRoleRegistrar);
+        $student = $this->staff('student');
+        $applicant = $this->staff('applicant');
+
+        $admin->forceFill([
+            'first_name' => 'Miguel',
+            'middle_name' => null,
+            'last_name' => 'Serrano',
+        ])->save();
+        $targetRegistrar->forceFill([
+            'first_name' => 'Target',
+            'middle_name' => null,
+            'last_name' => 'Registrar',
+        ])->save();
+        $otherRegistrar->forceFill([
+            'first_name' => 'Other',
+            'middle_name' => null,
+            'last_name' => 'Registrar',
+        ])->save();
+
+        StaffAccessProfile::query()->create([
+            'user_id' => $targetRegistrar->getKey(),
+            'staff_identifier' => 'REG-2026-009',
+            'first_name' => 'Target',
+            'last_name' => 'Registrar',
+        ]);
+        StudentProfile::factory()->create([
+            'user_id' => $student->getKey(),
+            'student_number' => 'DIT-1A-042',
+        ]);
+        AdmissionApplication::factory()->create([
+            'user_id' => $applicant->getKey(),
+            'application_reference' => 'APP-2026-0777',
+            'application_state' => AdmissionApplication::StateSubmitted,
+        ]);
+
+        // Action performed by target user on a PublicNotice
+        $noticeActivityId = DB::table('activity_log')->insertGetId([
+            'log_name' => 'default',
+            'description' => 'must-not-leak-notice-description',
+            'event' => 'published',
+            'subject_type' => PublicNotice::class,
+            'subject_id' => 42,
+            'causer_type' => User::class,
+            'causer_id' => $targetRegistrar->getKey(),
+            'properties' => json_encode(['token' => 'csv-secret-must-not-leak'], JSON_THROW_ON_ERROR),
+            'created_at' => now()->subMinutes(4),
+            'updated_at' => now()->subMinutes(4),
+        ]);
+
+        // Action performed by admin affecting target user
+        $affectedActivityId = DB::table('activity_log')->insertGetId([
+            'log_name' => 'default',
+            'description' => 'must-not-leak-affected-description',
+            'event' => 'user_updated',
+            'subject_type' => User::class,
+            'subject_id' => $targetRegistrar->getKey(),
+            'causer_type' => User::class,
+            'causer_id' => $admin->getKey(),
+            'properties' => json_encode(['password' => 'csv-password-must-not-leak'], JSON_THROW_ON_ERROR),
+            'created_at' => now()->subMinutes(3),
+            'updated_at' => now()->subMinutes(3),
+        ]);
+
+        // Unrelated action by other user
+        $unrelatedActivityId = DB::table('activity_log')->insertGetId([
+            'log_name' => 'default',
+            'description' => 'unrelated',
+            'event' => 'created',
+            'subject_type' => User::class,
+            'subject_id' => $otherRegistrar->getKey(),
+            'causer_type' => User::class,
+            'causer_id' => $otherRegistrar->getKey(),
+            'properties' => '{}',
+            'created_at' => now()->subMinutes(2),
+            'updated_at' => now()->subMinutes(2),
+        ]);
+
+        $projection = app(GovernanceEvidenceProjection::class);
+        $actorOptions = $projection->actorOptions();
+        $this->assertStringContainsString('Staff ID REG-2026-009', $actorOptions[$targetRegistrar->getKey()]);
+        $this->assertStringContainsString('Student No. DIT-1A-042', $actorOptions[$student->getKey()]);
+        $this->assertStringContainsString('App Ref APP-2026-0777', $actorOptions[$applicant->getKey()]);
+
+        $this->actingAs($admin);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $component = Livewire::withQueryParams(['actor' => (string) $targetRegistrar->getKey()])
+            ->test(GovernanceAudit::class)
+            ->assertOk()
+            ->assertSet('actor', (string) $targetRegistrar->getKey())
+            ->assertSet('tableFilters.actor.value', (string) $targetRegistrar->getKey())
+            ->assertDontSee('Showing activity for')
+            ->assertDontSee('Filtered user')
+            ->assertDontSee("User #{$targetRegistrar->getKey()}")
+            ->assertSee($targetRegistrar->name)
+            ->assertSee('Staff ID REG-2026-009')
+            ->assertSee('Public Notice #42')
+            ->assertSee('System Administrator')
+            ->assertSee('Registrar');
+
+        $scopedKeys = array_keys($component->instance()->getTableRecords()->items());
+        $this->assertContains("activity:{$noticeActivityId}", $scopedKeys);
+        $this->assertContains("activity:{$affectedActivityId}", $scopedKeys);
+        $this->assertNotContains("activity:{$unrelatedActivityId}", $scopedKeys);
+
+        $response = $component->instance()->exportCsv();
+        ob_start();
+        $response->sendContent();
+        $csv = (string) ob_get_clean();
+
+        $lines = preg_split('/\r\n|\n|\r/', trim($csv)) ?: [];
+        $this->assertSame(
+            ['Timestamp', 'Category', 'Event', 'Actor', 'Actor role', 'Affected record', 'Activity summary', 'Reference ID'],
+            str_getcsv((string) ($lines[0] ?? ''), ',', '"', '\\'),
+        );
+        $this->assertStringContainsString("activity:{$noticeActivityId}", $csv);
+        $this->assertStringContainsString("activity:{$affectedActivityId}", $csv);
+        $this->assertStringNotContainsString("activity:{$unrelatedActivityId}", $csv);
+        $this->assertStringContainsString('Public Notice #42', $csv);
+        $this->assertStringContainsString('System Administrator', $csv);
+        $this->assertStringNotContainsString('csv-secret-must-not-leak', $csv);
+        $this->assertStringNotContainsString('csv-password-must-not-leak', $csv);
+        $this->assertStringNotContainsString('must-not-leak-notice-description', $csv);
+
+        $component
+            ->call('removeTableFilter', 'actor')
+            ->assertSet('actor', null)
+            ->assertSee($otherRegistrar->name);
+
+        $clearedKeys = array_keys($component->instance()->getTableRecords()->items());
+        $this->assertContains("activity:{$unrelatedActivityId}", $clearedKeys);
+
+        $component
+            ->call('setActiveTab', GovernanceEvidenceProjection::PrivacyRetention)
+            ->assertActionDisabled('exportCsv');
+    }
+
+    #[Test]
+    public function governance_humanizes_uppercase_and_compact_event_types_without_splitting_letters(): void
+    {
+        $this->assertSame('Initial release', GovernanceEvidenceProjection::humanizeEventType('INITIALRELEASE'));
+        $this->assertSame('Initial release', GovernanceEvidenceProjection::humanizeEventType('INITIAL_RELEASE'));
+        $this->assertSame('Grade correction', GovernanceEvidenceProjection::humanizeEventType('GRADECORRECTION'));
+        $this->assertSame('Posted correction', GovernanceEvidenceProjection::humanizeEventType('POSTED_CORRECTION'));
+        $this->assertSame('Leave of absence', GovernanceEvidenceProjection::humanizeEventType('LEAVE_OF_ABSENCE'));
+        $this->assertSame('TOR', GovernanceEvidenceProjection::humanizeEventType('TOR'));
+        $this->assertNotSame('I N I T I A L R E L E A S E', GovernanceEvidenceProjection::humanizeEventType('INITIALRELEASE'));
+
+        $roster = GradeRoster::factory()->create();
+        $courseEnrollment = CourseEnrollment::factory()->create([
+            'term_offering_id' => $roster->term_offering_id,
+            'section_id' => $roster->section_id,
+        ]);
+        $gradeRow = GradeRosterRow::factory()->create([
+            'grade_roster_id' => $roster->id,
+            'course_enrollment_id' => $courseEnrollment->id,
+        ]);
+        $gradeEvent = GradeOutcomeEvent::factory()->create([
+            'grade_roster_row_id' => $gradeRow->id,
+            'event_type' => GradeOutcomeEvent::TypeInitialRelease,
+        ]);
+
+        $projection = app(GovernanceEvidenceProjection::class);
+        $projected = $projection->find(GovernanceEvidenceProjection::InstitutionalChanges, "grade_outcome:{$gradeEvent->getKey()}");
+
+        $this->assertNotNull($projected);
+        $this->assertSame('Initial release', $projected['type']);
+        $this->assertSame('Initial release', $projection->typeOptions(GovernanceEvidenceProjection::InstitutionalChanges)[GradeOutcomeEvent::TypeInitialRelease] ?? null);
+    }
+
+    #[Test]
+    public function successful_refresh_sends_toast_without_redundant_capture_banner(): void
+    {
+        $this->actingAs($this->staff(User::StaffRoleSystemSuperAdmin));
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $component = Livewire::test(SystemHealth::class)
+            ->assertOk()
+            ->assertSee('Monitor live application, queue, mail transport, and scheduling solver status.')
+            ->assertDontSee('Current capture.');
+
+        $component
+            ->callAction('refreshLocalEvidence')
+            ->assertSet('captureStale', false)
+            ->assertSet('captureNotice', null)
+            ->assertNotified('System status refreshed')
+            ->assertDontSee('Current capture.');
+
+        $summary = app(SystemHealthPresenter::class)->summary($component->get('capture'));
+        $component
+            ->assertSee($summary['headline'])
+            ->assertSee($summary['breakdown']);
+    }
+
+    #[Test]
+    public function governance_audit_supports_category_filter_context_bar_and_event_detail_modal(): void
+    {
+        $admin = $this->staff(User::StaffRoleSystemSuperAdmin);
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+
+        $noticeActivityId = DB::table('activity_log')->insertGetId([
+            'log_name' => 'default',
+            'description' => 'must-not-leak-raw-description',
+            'event' => 'published',
+            'subject_type' => PublicNotice::class,
+            'subject_id' => 88,
+            'causer_type' => User::class,
+            'causer_id' => $registrar->getKey(),
+            'properties' => json_encode(['token' => 'detail-secret-must-not-leak'], JSON_THROW_ON_ERROR),
+            'created_at' => now()->subMinutes(5),
+            'updated_at' => now()->subMinutes(5),
+        ]);
+
+        $roster = GradeRoster::factory()->create();
+        $courseEnrollment = CourseEnrollment::factory()->create([
+            'term_offering_id' => $roster->term_offering_id,
+            'section_id' => $roster->section_id,
+        ]);
+        $gradeRow = GradeRosterRow::factory()->create([
+            'grade_roster_id' => $roster->id,
+            'course_enrollment_id' => $courseEnrollment->id,
+        ]);
+        $gradeEvent = GradeOutcomeEvent::factory()->create([
+            'grade_roster_row_id' => $gradeRow->id,
+            'event_type' => GradeOutcomeEvent::TypeInitialRelease,
+        ]);
+
+        $projection = app(GovernanceEvidenceProjection::class);
+        $sources = $projection->sourceOptions(GovernanceEvidenceProjection::InstitutionalChanges);
+        $this->assertArrayHasKey('Institutional change', $sources);
+        $this->assertArrayHasKey('Grade outcome', $sources);
+
+        $this->actingAs($admin);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $component = Livewire::test(GovernanceAudit::class)
+            ->assertOk()
+            ->assertSee('Read-only institutional audit trail across access, academic, finance, system, and output events.')
+            ->assertSee('Records academic, curriculum, admissions, enrollment, grade, finance, content, and access changes across TALA.')
+            ->assertSee('Institutional change')
+            ->assertSee('Grade outcome');
+
+        $component->set('tableFilters.source.value', 'Grade outcome');
+
+        $filteredKeys = array_keys($component->instance()->getTableRecords()->items());
+        $this->assertContains("grade_outcome:{$gradeEvent->getKey()}", $filteredKeys);
+        $this->assertNotContains("activity:{$noticeActivityId}", $filteredKeys);
+
+        $component->set('tableFilters.source.value', null);
+
+        $component
+            ->mountAction(TestAction::make('viewDetails')->table("activity:{$noticeActivityId}"))
+            ->assertActionMounted(TestAction::make('viewDetails')->table("activity:{$noticeActivityId}"))
+            ->assertMountedActionModalSee("activity:{$noticeActivityId}")
+            ->assertMountedActionModalSee('Public Notice #88')
+            ->assertMountedActionModalSee('Passwords, tokens, MFA secrets, and raw payloads are never recorded.')
+            ->assertMountedActionModalDontSee('detail-secret-must-not-leak')
+            ->assertMountedActionModalDontSee('must-not-leak-raw-description');
+
+        $component->set('tableFilters.source.value', 'Institutional change');
+        $component
+            ->call('setActiveTab', GovernanceEvidenceProjection::SystemEvents)
+            ->assertSet('tableFilters.source.value', null);
     }
 
     private function staff(string $role): User

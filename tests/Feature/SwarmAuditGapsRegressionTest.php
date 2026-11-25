@@ -17,6 +17,7 @@ use App\Actions\Scheduling\ScheduleSolverDispatchLifecycleService;
 use App\Filament\Components\LiveDatabaseNotifications;
 use App\Filament\Pages\SchoolResources;
 use App\Filament\Pages\TermCalendar;
+use App\Filament\Pages\TermOverview;
 use App\Models\AcademicYear;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
@@ -32,11 +33,13 @@ use App\Models\CurriculumVersion;
 use App\Models\CurriculumVersionBatch;
 use App\Models\OperationalEvent;
 use App\Models\Program;
+use App\Models\PublishedTimetableVersion;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
+use App\Models\SectionMeeting;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermCohort;
@@ -522,6 +525,174 @@ class SwarmAuditGapsRegressionTest extends TestCase
         $withApp = AdmissionCycle::factory()->create(['state' => AdmissionCycle::StateDraft]);
         AdmissionApplication::factory()->create(['admission_cycle_id' => $withApp->id, 'term_id' => $withApp->term_id]);
         $this->assertFalse($policy->delete($registrar, $withApp->fresh()));
+    }
+
+    public function test_school_resources_edit_room_saves_and_guards_official_meetings_without_schema_type_error(): void
+    {
+        $registrar = $this->registrar();
+        $room = Room::factory()->create([
+            'code' => 'CHEM01',
+            'name' => 'Chemistry',
+            'room_type' => Room::TypeLaboratory,
+            'capacity' => 35,
+            'is_active' => true,
+        ]);
+
+        // 1. Valid save through SchoolResources::editRoom must succeed without throwing a Schema TypeError.
+        Livewire::actingAs($registrar)
+            ->test(SchoolResources::class)
+            ->callTableAction('editRoom', $room, data: [
+                'code' => 'CHEM01',
+                'name' => 'Chemistry Lab Updated',
+                'building' => 'Science Wing',
+                'room_type' => Room::TypeLaboratory,
+                'capacity' => 40,
+                'is_active' => true,
+                'features' => [
+                    ['feature_key' => 'AIR_CONDITIONED'],
+                ],
+                'notes' => 'Updated via modal',
+            ])
+            ->assertHasNoTableActionErrors();
+
+        $room->refresh();
+        $this->assertSame('Chemistry Lab Updated', $room->name);
+        $this->assertSame(40, (int) $room->capacity);
+        $this->assertTrue($room->features()->where('feature_key', 'AIR_CONDITIONED')->exists());
+
+        // 2. When assigned to an active official meeting, guardRoomEdit receives the mounted Schema and blocks unsafe edits.
+        $term = Term::factory()->create(['state' => Term::StateActive]);
+        $package = TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive]);
+        $program = Program::factory()->create(['is_active' => true]);
+        $curriculum = CurriculumVersion::factory()->for($program)->create(['state' => CurriculumVersion::StateActive]);
+        $course = Course::factory()->create(['code' => 'CHEM101']);
+        $spec = CourseSpecification::factory()->for($course)->create(['state' => CourseSpecification::StateActive]);
+        $component = CourseComponent::factory()->for($spec, 'courseSpecification')->create([
+            'component_type' => CourseComponent::TypeLaboratory,
+            'room_type_default' => Room::TypeLaboratory,
+            'required_room_feature_keys' => ['AIR_CONDITIONED'],
+        ]);
+        $entry = CurriculumEntry::factory()->for($curriculum)->for($spec, 'courseSpecification')->create(['term_type' => $term->type]);
+        $offering = TermOffering::factory()->for($term)->for($entry)->create(['state' => TermOffering::StateScheduled]);
+        $section = Section::factory()->for($offering, 'termOffering')->create([
+            'term_calendar_package_id' => $package->id,
+            'capacity' => 35,
+            'state' => Section::StateOpen,
+        ]);
+        $deliveryGroup = SectionDeliveryGroup::factory()->for($section)->create(['expected_count' => 35]);
+        $demand = SchedulingDemand::factory()->create([
+            'term_offering_id' => $offering->id,
+            'course_component_id' => $component->id,
+            'section_delivery_group_id' => $deliveryGroup->id,
+            'source_snapshot' => [
+                'room_type_requirement' => Room::TypeLaboratory,
+                'required_room_feature_keys' => ['AIR_CONDITIONED'],
+            ],
+        ]);
+        $run = ScheduleGenerationRun::factory()->create([
+            'term_id' => $term->id,
+            'status' => ScheduleGenerationRun::StatusPublished,
+        ]);
+        $version = PublishedTimetableVersion::query()->create([
+            'term_id' => $term->id,
+            'schedule_run_id' => $run->id,
+            'version' => 1,
+            'state' => PublishedTimetableVersion::StatePublished,
+            'source_versions' => [],
+            'impact_summary' => [],
+            'content_hash' => hash('sha256', 'room-guard-v1-'.$term->id),
+            'published_by' => $registrar->id,
+            'published_at' => now(),
+        ]);
+        SectionMeeting::query()->create([
+            'schedule_run_id' => $run->id,
+            'published_timetable_version_id' => $version->id,
+            'scheduling_demand_id' => $demand->id,
+            'meeting_sequence' => 1,
+            'faculty_user_id' => $registrar->id,
+            'room_id' => $room->id,
+            'day_of_week' => 1,
+            'starts_at' => '08:00:00',
+            'ends_at' => '11:00:00',
+            'modality' => TermOffering::ModalityFaceToFace,
+            'state' => SectionMeeting::StateActive,
+            'published_at' => now(),
+        ]);
+
+        Livewire::actingAs($registrar)
+            ->test(SchoolResources::class)
+            ->callTableAction('editRoom', $room, data: [
+                'code' => 'CHEM01',
+                'name' => 'Chemistry Lab Updated',
+                'building' => 'Science Wing',
+                'room_type' => Room::TypeLectureRoom,
+                'capacity' => 20,
+                'is_active' => false,
+                'features' => [],
+            ])
+            ->assertHasTableActionErrors(['is_active', 'room_type', 'capacity', 'features']);
+
+        $room->refresh();
+        $this->assertTrue((bool) $room->is_active);
+        $this->assertSame(Room::TypeLaboratory, $room->room_type);
+        $this->assertSame(40, (int) $room->capacity);
+    }
+
+    public function test_term_overview_opens_on_academic_years_and_drills_down_into_scoped_terms(): void
+    {
+        $registrar = $this->registrar();
+        $ay1 = AcademicYear::factory()->create([
+            'label' => 'AY 2028-2029',
+            'starts_on' => '2028-08-01',
+            'ends_on' => '2029-05-31',
+            'state' => AcademicYear::StateActive,
+        ]);
+        $ay2 = AcademicYear::factory()->create([
+            'label' => 'AY 2029-2030',
+            'starts_on' => '2029-08-01',
+            'ends_on' => '2030-05-31',
+            'state' => AcademicYear::StateDraft,
+        ]);
+        $termInAy1 = Term::factory()->for($ay1)->create([
+            'label' => 'First Semester 2028',
+            'starts_on' => '2028-08-10',
+            'ends_on' => '2028-12-15',
+            'state' => Term::StateActive,
+        ]);
+        $termInAy2 = Term::factory()->for($ay2)->create([
+            'label' => 'First Semester 2029',
+            'starts_on' => '2029-08-10',
+            'ends_on' => '2029-12-15',
+            'state' => Term::StateDraft,
+        ]);
+
+        // Root lands on Academic Years (no segmented Terms | Academic years switcher).
+        Livewire::actingAs($registrar)
+            ->test(TermOverview::class)
+            ->assertOk()
+            ->assertSee('AY 2028-2029')
+            ->assertSee('AY 2029-2030')
+            ->assertDontSee('Term Planning directory view')
+            ->assertSeeHtml('href="'.e(TermOverview::getUrl(['academicYearId' => $ay1->id])).'"');
+
+        // Drilling into AY 2028-2029 scopes the Terms table strictly to AY 2028-2029.
+        Livewire::withQueryParams(['academicYearId' => $ay1->id])
+            ->actingAs($registrar)
+            ->test(TermOverview::class)
+            ->assertOk()
+            ->assertSee('AY 2028-2029')
+            ->assertSee('First Semester 2028')
+            ->assertDontSee('First Semester 2029')
+            ->assertSeeHtml('href="'.e(TermCalendar::getUrl(['termId' => $termInAy1->id])).'"')
+            ->call('backToAcademicYears')
+            ->assertSet('academicYearId', null)
+            ->assertSee('AY 2029-2030');
+
+        // Invalid academicYearId returns 404.
+        Livewire::withQueryParams(['academicYearId' => 999999])
+            ->actingAs($registrar)
+            ->test(TermOverview::class)
+            ->assertStatus(404);
     }
 
     private function registrar(): User

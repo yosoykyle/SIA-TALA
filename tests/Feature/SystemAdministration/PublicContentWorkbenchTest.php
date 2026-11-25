@@ -7,6 +7,8 @@ use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Actions\PublicContent\ManagePublicContent;
 use App\Filament\Clusters\PublicContent;
 use App\Filament\Resources\FaqEntries\FaqEntryResource;
+use App\Filament\Resources\FaqEntries\Pages\EditFaqEntry;
+use App\Filament\Resources\FaqEntries\Pages\ListFaqEntries;
 use App\Filament\Resources\PublicNotices\Pages\CreatePublicNotice;
 use App\Filament\Resources\PublicNotices\Pages\ListPublicNotices;
 use App\Filament\Resources\PublicNotices\PublicNoticeResource;
@@ -16,8 +18,10 @@ use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
+use Filament\Tables\Enums\FiltersLayout;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Livewire\Livewire;
+use Spatie\Activitylog\Models\Activity;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -61,24 +65,75 @@ class PublicContentWorkbenchTest extends TestCase
 
     public function test_native_notice_producer_saves_draft_previews_and_publishes_explicitly(): void
     {
-        Livewire::test(CreatePublicNotice::class)->fillForm([
-            'title' => 'Synthetic support notice', 'message' => 'Test fixture only.', 'display_order' => 1,
-            'visible_until' => now()->addDay()->format('Y-m-d H:i:s'),
-        ])->call('create')->assertHasNoFormErrors();
+        Livewire::test(CreatePublicNotice::class)
+            ->assertFormFieldIsHidden('link_label')
+            ->fillForm([
+                'title' => 'Synthetic support notice',
+                'message' => 'Test fixture only.',
+                'visible_until' => now()->addDay()->format('Y-m-d H:i:s'),
+                'link_url' => 'https://example.test/advisory',
+            ])
+            ->assertFormFieldIsVisible('link_label')
+            ->fillForm([
+                'link_label' => 'Read advisory',
+            ])
+            ->call('create')
+            ->assertHasNoFormErrors();
 
         $notice = PublicNotice::query()->sole();
         $this->assertFalse($notice->isPublished());
+        $this->assertSame(1, $notice->display_order);
+        $this->assertSame('Announcements', PublicNoticeResource::getNavigationLabel());
+        $this->assertSame('Announcement', PublicNoticeResource::getModelLabel());
+        $this->assertSame('Announcements', PublicNoticeResource::getPluralModelLabel());
+        $this->assertSame('FAQs', FaqEntryResource::getNavigationLabel());
+        $this->assertSame('FAQ', FaqEntryResource::getModelLabel());
+        $this->assertSame('FAQs', FaqEntryResource::getPluralModelLabel());
+
         $workbench = Livewire::test(ListPublicNotices::class)
-            ->assertSee('Notices')->assertSee('FAQ')
-            ->assertActionExists(TestAction::make('moveUp')->table($notice))
-            ->assertActionExists(TestAction::make('moveDown')->table($notice))
+            ->assertSee('Announcements')
+            ->assertSee('Add announcement')
+            ->assertSee('Preview')
+            ->assertSee('Edit')
+            ->assertSee('Publish')
+            ->assertSee('Live on landing page')
+            ->assertSee('Scheduled')
+            ->assertSee('Drafts')
+            ->assertSee('Total')
+            ->assertActionExists(TestAction::make('preview')->table($notice))
+            ->assertActionExists(TestAction::make('edit')->table($notice))
+            ->assertActionExists(TestAction::make('publish')->table($notice))
+            ->assertActionExists(TestAction::make('delete')->table($notice))
             ->mountAction(TestAction::make('preview')->table($notice))
             ->assertActionMounted(TestAction::make('preview')->table($notice));
+        $this->assertSame(FiltersLayout::Dropdown, $workbench->instance()->getTable()->getFiltersLayout());
         $this->assertStringContainsString('Test fixture only.', $workbench->instance()->getMountedAction()->getModalContent()->render());
         Livewire::test(ListPublicNotices::class)
             ->callAction(TestAction::make('publish')->table($notice), data: ['revision' => $notice->revision])
             ->assertNotified();
         $this->assertTrue($notice->fresh()->isPublished());
+    }
+
+    public function test_public_content_cluster_suppresses_duplicate_top_tabs_and_faq_list_shows_kpis_and_add_cta(): void
+    {
+        $this->assertFalse(PublicContent::shouldRegisterSubNavigation());
+
+        $faq = FaqEntry::factory()->published()->create(['category' => FaqEntry::CategoryGeneral, 'sort_order' => 1]);
+
+        $faqList = Livewire::test(ListFaqEntries::class)
+            ->assertSee('FAQs')
+            ->assertSee('Add FAQ')
+            ->assertSee('Preview')
+            ->assertSee('Prepare update')
+            ->assertSee('Unpublish')
+            ->assertSee('Live on landing page')
+            ->assertSee('Categories')
+            ->assertSee('Drafts')
+            ->assertSee('Total')
+            ->assertActionExists(TestAction::make('preview')->table($faq))
+            ->assertActionExists(TestAction::make('edit')->table($faq))
+            ->assertActionExists(TestAction::make('unpublish')->table($faq));
+        $this->assertSame(FiltersLayout::Dropdown, $faqList->instance()->getTable()->getFiltersLayout());
     }
 
     public function test_legacy_faq_links_redirect_to_the_authorized_canonical_cluster(): void
@@ -103,5 +158,98 @@ class PublicContentWorkbenchTest extends TestCase
         $this->assertSame(2, $two->fresh()->sort_order);
         $this->assertSame(1, $one->fresh()->sort_order);
         $this->assertSame(2, FaqEntry::query()->effective()->where('category', FaqEntry::CategoryTechnicalSupport)->count());
+    }
+
+    public function test_drag_and_drop_reorder_table_persists_order_and_audits_notices_and_faqs(): void
+    {
+        $firstNotice = PublicNotice::factory()->create(['display_order' => 1]);
+        $secondNotice = PublicNotice::factory()->create(['display_order' => 2]);
+
+        Livewire::test(ListPublicNotices::class)
+            ->call('reorderTable', [$secondNotice->id, $firstNotice->id]);
+
+        $this->assertSame(1, $secondNotice->fresh()->display_order);
+        $this->assertSame(2, $firstNotice->fresh()->display_order);
+
+        $firstFaq = FaqEntry::factory()->create(['category' => FaqEntry::CategoryGeneral, 'sort_order' => 1]);
+        $secondFaq = FaqEntry::factory()->create(['category' => FaqEntry::CategoryGeneral, 'sort_order' => 2]);
+
+        Livewire::test(ListFaqEntries::class)
+            ->call('reorderTable', [$secondFaq->id, $firstFaq->id]);
+
+        $this->assertSame(1, $secondFaq->fresh()->sort_order);
+        $this->assertSame(2, $firstFaq->fresh()->sort_order);
+        $this->assertSame(2, Activity::query()->where('log_name', 'public_content')->where('event', 'reordered')->count());
+    }
+
+    public function test_create_announcement_publish_footer_action_publishes_directly(): void
+    {
+        Livewire::test(CreatePublicNotice::class)
+            ->assertActionExists('preview')
+            ->fillForm([
+                'title' => 'Direct publish announcement',
+                'message' => 'Published directly from the create form.',
+            ])
+            ->callAction('publish')
+            ->assertNotified('Published to public landing page');
+
+        $notice = PublicNotice::query()->where('title', 'Direct publish announcement')->sole();
+        $this->assertTrue($notice->isPublished());
+        $this->assertSame(1, $notice->display_order);
+    }
+
+    public function test_drag_and_drop_reorder_works_for_published_notices_and_faqs_while_keeping_wording_immutable(): void
+    {
+        $firstNotice = PublicNotice::factory()->create([
+            'state' => 'Published',
+            'ever_published' => true,
+            'published_at' => now(),
+            'display_order' => 1,
+        ]);
+        $secondNotice = PublicNotice::factory()->create([
+            'state' => 'Published',
+            'ever_published' => true,
+            'published_at' => now(),
+            'display_order' => 2,
+        ]);
+
+        Livewire::test(ListPublicNotices::class)
+            ->call('reorderTable', [$secondNotice->id, $firstNotice->id])
+            ->assertNotified('Display order updated');
+
+        $this->assertSame(1, $secondNotice->fresh()->display_order);
+        $this->assertSame(2, $firstNotice->fresh()->display_order);
+
+        $firstFaq = FaqEntry::factory()->published()->create(['category' => FaqEntry::CategoryGeneral, 'sort_order' => 1]);
+        $secondFaq = FaqEntry::factory()->published()->create(['category' => FaqEntry::CategoryGeneral, 'sort_order' => 2]);
+
+        Livewire::test(ListFaqEntries::class)
+            ->call('reorderTable', [$secondFaq->id, $firstFaq->id])
+            ->assertNotified('Display order updated');
+
+        $this->assertSame(1, $secondFaq->fresh()->sort_order);
+        $this->assertSame(2, $firstFaq->fresh()->sort_order);
+
+        $this->expectException(\LogicException::class);
+        $firstFaq->fresh()->update(['question' => 'Attempted direct edit']);
+    }
+
+    public function test_edit_faq_save_as_draft_redirects_back_to_index_table(): void
+    {
+        $draft = FaqEntry::factory()->create([
+            'question' => 'Initial draft question?',
+            'answer' => 'Initial draft answer.',
+            'category' => FaqEntry::CategoryGeneral,
+        ]);
+
+        Livewire::test(EditFaqEntry::class, ['record' => $draft->getRouteKey()])
+            ->fillForm([
+                'question' => 'Updated draft question?',
+                'answer' => 'Updated draft answer.',
+                'category' => FaqEntry::CategoryGeneral,
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors()
+            ->assertRedirect(FaqEntryResource::getUrl());
     }
 }

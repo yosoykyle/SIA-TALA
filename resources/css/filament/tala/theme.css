@@ -2305,6 +2305,25 @@ dialog::backdrop,
     container-type: inline-size;
 }
 
+/* Non-sticky centered modals let dropdowns and pickers escape cleanly without clipping or inner scroll traps. */
+.fi-body .fi-modal:not(.fi-modal-slide-over, .fi-width-screen, .fi-modal-has-sticky-header, .fi-modal-has-sticky-footer) > .fi-modal-window-ctn {
+    overflow-y: auto;
+}
+
+.fi-body .fi-modal:not(.fi-modal-slide-over, .fi-width-screen, .fi-modal-has-sticky-header, .fi-modal-has-sticky-footer) > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal) {
+    max-block-size: none;
+    overflow: visible;
+}
+
+.fi-body .fi-modal:not(.fi-modal-slide-over, .fi-width-screen, .fi-modal-has-sticky-header, .fi-modal-has-sticky-footer) > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal) > .fi-modal-content {
+    overflow: visible;
+    container-type: normal;
+}
+
+.fi-body .fi-modal > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal) :is(.fi-select-input .fi-dropdown-panel, .fi-fo-date-time-picker-panel) {
+    z-index: 30;
+}
+
 .fi-body .fi-modal > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal):not(.fi-modal-window-has-content) > .fi-modal-content {
     display: none;
 }

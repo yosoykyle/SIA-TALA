@@ -45,7 +45,7 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
     }
 
     #[Url]
-    public string $overviewTab = 'terms';
+    public ?int $academicYearId = null;
 
     protected static ?string $cluster = TermPlanningCluster::class;
 
@@ -69,45 +69,107 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
     {
         parent::mount();
 
-        if (! in_array($this->overviewTab, ['terms', 'academic-years'], true)) {
-            $this->overviewTab = 'terms';
+        if ($this->academicYearId === null) {
+            $legacyFilterYearId = request()->input('tableFilters.academic_year_id.value');
+            if (is_numeric($legacyFilterYearId) && (int) $legacyFilterYearId > 0) {
+                $this->academicYearId = (int) $legacyFilterYearId;
+                unset($this->tableFilters['academic_year_id']);
+            }
+        }
+
+        if ($this->academicYearId !== null && ! AcademicYear::query()->whereKey($this->academicYearId)->exists()) {
+            abort(404);
         }
     }
 
-    public function chooseOverviewTab(string $tab): void
+    public function viewAcademicYearTerms(int $academicYearId): void
     {
-        if (! in_array($tab, ['terms', 'academic-years'], true)) {
-            $tab = 'terms';
-        }
+        abort_unless(AcademicYear::query()->whereKey($academicYearId)->exists(), 404);
 
-        $this->overviewTab = $tab;
+        $this->academicYearId = $academicYearId;
         $this->tableColumns = [];
         $this->cachedDefaultTableColumnState = null;
         $this->resetTableSearch();
         $this->resetTableColumnSearches();
         $this->resetTableFiltersForm();
         $this->resetTable();
+        $this->resetPage();
     }
 
-    public function viewAcademicYearTerms(int $academicYearId): void
+    public function backToAcademicYears(): void
     {
-        $this->chooseOverviewTab('terms');
-        $this->tableFilters['academic_year_id'] = ['value' => (string) $academicYearId];
+        $this->academicYearId = null;
+        $this->tableColumns = [];
+        $this->cachedDefaultTableColumnState = null;
+        $this->resetTableSearch();
+        $this->resetTableColumnSearches();
+        $this->resetTableFiltersForm();
+        $this->resetTable();
         $this->resetPage();
+    }
+
+    public function selectedAcademicYear(): ?AcademicYear
+    {
+        if ($this->academicYearId === null) {
+            return null;
+        }
+
+        return AcademicYear::query()
+            ->withCount('terms')
+            ->find($this->academicYearId);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function getViewData(): array
+    {
+        return [
+            ...parent::getViewData(),
+            'selectedAcademicYear' => $this->selectedAcademicYear(),
+        ];
+    }
+
+    protected function defaultCreateTermAcademicYearId(): ?int
+    {
+        if ($this->academicYearId !== null) {
+            $year = AcademicYear::query()
+                ->whereKey($this->academicYearId)
+                ->whereNotIn('state', [AcademicYear::StateClosed, AcademicYear::StateArchived])
+                ->value('id');
+
+            if ($year !== null) {
+                return (int) $year;
+            }
+        }
+
+        return parent::defaultCreateTermAcademicYearId();
+    }
+
+    private function canCreateTermInSelectedAcademicYear(): bool
+    {
+        if (! auth()->user()?->can('create', Term::class)) {
+            return false;
+        }
+
+        $year = $this->selectedAcademicYear();
+
+        return $year instanceof AcademicYear
+            && ! in_array($year->state, [AcademicYear::StateClosed, AcademicYear::StateArchived], true);
     }
 
     public function getTableColumnsSessionKey(): string
     {
-        return $this->nativeTableColumnsSessionKey().'_'.$this->overviewTab;
+        return $this->nativeTableColumnsSessionKey().'_'.($this->academicYearId !== null ? 'terms' : 'academic_years');
     }
 
     public function table(Table $table): Table
     {
-        if ($this->overviewTab === 'academic-years') {
-            return $this->academicYearsTable($table);
+        if ($this->academicYearId !== null) {
+            return $this->termsTable($table);
         }
 
-        return $this->termsTable($table);
+        return $this->academicYearsTable($table);
     }
 
     private function termsTable(Table $table): Table
@@ -115,6 +177,7 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
         return $table
             ->query(
                 Term::query()
+                    ->where('academic_year_id', $this->academicYearId)
                     ->with([
                         'academicYear',
                         'calendarPackages',
@@ -128,11 +191,9 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
                 TextColumn::make('label')
                     ->label('Term')
                     ->state(fn (Term $record): string => filled($record->label) ? $record->label : $record->typeLabel())
-                    ->description(fn (Term $record): ?string => $record->academicYear?->label)
                     ->searchable(query: fn (Builder $query, string $search): Builder => $query->where(fn (Builder $identity): Builder => $identity
                         ->where('label', 'like', '%'.$search.'%')
-                        ->orWhere('type', 'like', '%'.$search.'%')
-                        ->orWhereHas('academicYear', fn (Builder $year): Builder => $year->where('label', 'like', '%'.$search.'%'))))
+                        ->orWhere('type', 'like', '%'.$search.'%')))
                     ->sortable()
                     ->weight('bold'),
                 TextColumn::make('starts_on')
@@ -155,12 +216,6 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
                     ->wrap(),
             ])
             ->filters([
-                SelectFilter::make('academic_year_id')
-                    ->label('Academic year')
-                    ->options(fn (): array => AcademicYear::query()
-                        ->orderByDesc('starts_on')
-                        ->pluck('label', 'id')
-                        ->all()),
                 SelectFilter::make('state')
                     ->label('Status')
                     ->options(Term::stateOptions()),
@@ -173,7 +228,9 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
             ->stackedOnMobile()
             ->recordUrl(fn (Term $record): string => TermCalendar::getUrl(['termId' => $record->id]))
             ->toolbarActions([
-                $this->createTermAction()->size('sm'),
+                $this->createTermAction()
+                    ->size('sm')
+                    ->visible(fn (): bool => $this->canCreateTermInSelectedAcademicYear()),
             ])
             ->recordActions([
                 Action::make('open')
@@ -185,21 +242,28 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
                     ->iconPosition(IconPosition::After)
                     ->url(fn (Term $record): string => TermCalendar::getUrl(['termId' => $record->id])),
             ])
-            ->searchPlaceholder('Search term or academic year')
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with('academicYear'))
+            ->searchPlaceholder('Search term')
             ->defaultPaginationPageOption(10)
             ->paginated([10, 25, 50])
             ->emptyState(view('filament.partials.collection-empty-state'))
             ->emptyStateHeading('No terms recorded')
-            ->emptyStateDescription(fn (): string => auth()->user()?->can('create', Term::class)
-                ? 'Create your first term and its dates, then configure its calendar, classes, faculty, rooms, and timetable.'
-                : 'Ask the Registrar to create a term before planning begins.')
+            ->emptyStateDescription(function (): string {
+                $year = $this->selectedAcademicYear();
+
+                if ($year instanceof AcademicYear && in_array($year->state, [AcademicYear::StateClosed, AcademicYear::StateArchived], true)) {
+                    return 'This academic year is closed. Choose another academic year to add new terms.';
+                }
+
+                return auth()->user()?->can('create', Term::class)
+                    ? 'Create the first term under this academic year and set its dates, then configure its calendar, classes, faculty, rooms, and timetable.'
+                    : 'Ask the Registrar to create a term under this academic year before planning begins.';
+            })
             ->emptyStateActions([
                 Action::make('emptyCreateTerm')
                     ->label('New term')
                     ->icon(Heroicon::OutlinedPlus)
                     ->color('primary')
-                    ->visible(fn (): bool => (bool) auth()->user()?->can('create', Term::class))
+                    ->visible(fn (): bool => $this->canCreateTermInSelectedAcademicYear())
                     ->action(fn () => $this->mountAction('createTerm')),
             ]);
     }
@@ -272,21 +336,19 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
             ->columnManager(false)
             ->extraAttributes(['class' => 'tala-data-table'])
             ->stackedOnMobile()
-            ->recordUrl(fn (AcademicYear $record): string => self::getUrl([
-                'overviewTab' => 'terms',
-                'tableFilters' => ['academic_year_id' => ['value' => (string) $record->id]],
-            ]))
+            ->recordUrl(fn (AcademicYear $record): string => self::getUrl(['academicYearId' => $record->id]))
             ->toolbarActions([
                 $this->createAcademicYearAction()->size('sm'),
             ])
             ->recordActions([
                 Action::make('viewTerms')
                     ->label('View terms')
-                    ->icon(Heroicon::OutlinedCalendarDays)
+                    ->icon(Heroicon::OutlinedArrowRight)
+                    ->iconPosition(IconPosition::After)
                     ->button()
                     ->size('sm')
                     ->color('gray')
-                    ->action(fn (AcademicYear $record) => $this->viewAcademicYearTerms((int) $record->id)),
+                    ->url(fn (AcademicYear $record): string => self::getUrl(['academicYearId' => $record->id])),
                 Action::make('editAcademicYear')
                     ->label('Edit')
                     ->icon(Heroicon::OutlinedPencilSquare)
@@ -298,8 +360,6 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
                     ->modalSubmitActionLabel('Save changes')
                     ->modalCancelActionLabel('Cancel')
                     ->modalWidth(Width::Large)
-                    ->stickyModalHeader()
-                    ->stickyModalFooter()
                     ->visible(fn (AcademicYear $record): bool => (bool) auth()->user()?->can('update', $record))
                     ->fillForm(fn (AcademicYear $record): array => [
                         'label' => $record->label,
@@ -307,136 +367,9 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
                         'ends_on' => $record->ends_on?->toDateString(),
                         'state' => $record->state,
                     ])
-                    ->schema(function (AcademicYear $record): array {
-                        $termBounds = $this->academicYearTermDateBounds($record);
-                        $minTermStart = $termBounds['min_start'];
-                        $maxTermEnd = $termBounds['max_end'];
-                        $dateHelper = $minTermStart !== null && $maxTermEnd !== null
-                            ? sprintf(
-                                'Existing terms span %s – %s. Academic year dates must cover all existing terms.',
-                                CarbonImmutable::parse($minTermStart)->format('M j, Y'),
-                                CarbonImmutable::parse($maxTermEnd)->format('M j, Y'),
-                            )
-                            : null;
-
-                        return [
-                            TextInput::make('label')
-                                ->label('Academic year')
-                                ->placeholder('e.g., AY 2026–2027')
-                                ->required()
-                                ->maxLength(255)
-                                ->rule(Rule::unique((new AcademicYear)->getTable(), 'label')->ignore($record->id)),
-                            Grid::make(['default' => 1, 'sm' => 2])->schema([
-                                DatePicker::make('starts_on')
-                                    ->label('Start date')
-                                    ->native(false)
-                                    ->displayFormat('M j, Y')
-                                    ->suffixIcon(Heroicon::OutlinedCalendar)
-                                    ->maxDate($minTermStart)
-                                    ->helperText($dateHelper)
-                                    ->required()
-                                    ->rules([
-                                        function () use ($minTermStart): Closure {
-                                            return function (string $attribute, mixed $value, Closure $fail) use ($minTermStart): void {
-                                                if ($minTermStart === null || blank($value)) {
-                                                    return;
-                                                }
-                                                if (CarbonImmutable::parse((string) $value)->gt(CarbonImmutable::parse($minTermStart))) {
-                                                    $fail('The start date cannot be after the earliest existing term ('.CarbonImmutable::parse($minTermStart)->format('M j, Y').').');
-                                                }
-                                            };
-                                        },
-                                    ]),
-                                DatePicker::make('ends_on')
-                                    ->label('End date')
-                                    ->native(false)
-                                    ->displayFormat('M j, Y')
-                                    ->suffixIcon(Heroicon::OutlinedCalendar)
-                                    ->minDate($maxTermEnd)
-                                    ->required()
-                                    ->after('starts_on')
-                                    ->rules([
-                                        function () use ($maxTermEnd): Closure {
-                                            return function (string $attribute, mixed $value, Closure $fail) use ($maxTermEnd): void {
-                                                if ($maxTermEnd === null || blank($value)) {
-                                                    return;
-                                                }
-                                                if (CarbonImmutable::parse((string) $value)->lt(CarbonImmutable::parse($maxTermEnd))) {
-                                                    $fail('The end date cannot be before the latest existing term ('.CarbonImmutable::parse($maxTermEnd)->format('M j, Y').').');
-                                                }
-                                            };
-                                        },
-                                    ]),
-                            ]),
-                            Select::make('state')
-                                ->label('Status')
-                                ->options(AcademicYear::stateOptions())
-                                ->required(),
-                        ];
-                    })
+                    ->schema(fn (AcademicYear $record): array => $this->editAcademicYearFormSchema($record))
                     ->action(function (AcademicYear $record, array $data): void {
-                        $actor = auth()->user();
-                        abort_unless($actor instanceof User, 403);
-                        Gate::forUser($actor)->authorize('update', $record);
-
-                        try {
-                            DB::transaction(function () use ($record, $data): void {
-                                $locked = AcademicYear::query()->whereKey($record->id)->lockForUpdate()->firstOrFail();
-                                $newStart = CarbonImmutable::parse((string) $data['starts_on'])->startOfDay();
-                                $newEnd = CarbonImmutable::parse((string) $data['ends_on'])->startOfDay();
-
-                                $outsideTerm = $locked->terms()
-                                    ->where(function (Builder $query) use ($newStart, $newEnd): void {
-                                        $query->whereDate('starts_on', '<', $newStart->toDateString())
-                                            ->orWhereDate('ends_on', '>', $newEnd->toDateString());
-                                    })
-                                    ->first();
-
-                                if ($outsideTerm instanceof Term) {
-                                    throw ValidationException::withMessages([
-                                        'starts_on' => sprintf(
-                                            'Cannot change dates because %s (%s – %s) would fall outside this academic year.',
-                                            $outsideTerm->typeLabel(),
-                                            $outsideTerm->starts_on->format('M j, Y'),
-                                            $outsideTerm->ends_on->format('M j, Y'),
-                                        ),
-                                    ]);
-                                }
-
-                                $newState = (string) $data['state'];
-                                $isClosingOrDeactivating = in_array($newState, [AcademicYear::StateClosed, AcademicYear::StateArchived], true)
-                                    || ($newState !== AcademicYear::StateActive && $newState !== $locked->state);
-
-                                if ($isClosingOrDeactivating
-                                    && $locked->terms()->whereIn('state', [Term::StateActive, Term::StateDraft])->exists()) {
-                                    throw ValidationException::withMessages([
-                                        'state' => 'Cannot close or deactivate this academic year while active or draft terms still exist under it. Close or remove those terms first.',
-                                    ]);
-                                }
-
-                                $locked->update([
-                                    'label' => trim((string) $data['label']),
-                                    'starts_on' => $newStart->toDateString(),
-                                    'ends_on' => $newEnd->toDateString(),
-                                    'state' => $newState,
-                                ]);
-                            }, attempts: 3);
-                        } catch (ValidationException $exception) {
-                            $message = collect($exception->errors())->flatten()->first();
-                            Notification::make()
-                                ->title('Cannot update academic year')
-                                ->body(is_string($message) ? $message : 'Review the academic year dates and try again.')
-                                ->danger()
-                                ->persistent()
-                                ->send();
-
-                            throw $exception;
-                        }
-
-                        Notification::make()
-                            ->title('Academic year updated')
-                            ->success()
-                            ->send();
+                        $this->persistAcademicYearUpdate($record, $data);
                     }),
                 Action::make('deleteAcademicYear')
                     ->label('Delete')
@@ -523,6 +456,183 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
             ]);
     }
 
+    public function editSelectedAcademicYearAction(): Action
+    {
+        return Action::make('editSelectedAcademicYear')
+            ->label('Edit academic year')
+            ->icon(Heroicon::OutlinedPencilSquare)
+            ->color('gray')
+            ->size('sm')
+            ->modalHeading('Edit academic year')
+            ->modalDescription('Update the academic year label, status, or dates. Dates must cover all existing terms under this academic year.')
+            ->modalSubmitActionLabel('Save changes')
+            ->modalCancelActionLabel('Cancel')
+            ->modalWidth(Width::Large)
+            ->visible(function (): bool {
+                $year = $this->selectedAcademicYear();
+
+                return $year instanceof AcademicYear && (bool) auth()->user()?->can('update', $year);
+            })
+            ->fillForm(function (): array {
+                $year = $this->selectedAcademicYear();
+
+                return $year instanceof AcademicYear
+                    ? [
+                        'label' => $year->label,
+                        'starts_on' => $year->starts_on?->toDateString(),
+                        'ends_on' => $year->ends_on?->toDateString(),
+                        'state' => $year->state,
+                    ]
+                    : [];
+            })
+            ->schema(function (): array {
+                $year = $this->selectedAcademicYear();
+
+                return $year instanceof AcademicYear ? $this->editAcademicYearFormSchema($year) : [];
+            })
+            ->action(function (array $data): void {
+                $year = $this->selectedAcademicYear();
+                abort_unless($year instanceof AcademicYear, 404);
+
+                $this->persistAcademicYearUpdate($year, $data);
+            });
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function editAcademicYearFormSchema(AcademicYear $record): array
+    {
+        $termBounds = $this->academicYearTermDateBounds($record);
+        $minTermStart = $termBounds['min_start'];
+        $maxTermEnd = $termBounds['max_end'];
+        $dateHelper = $minTermStart !== null && $maxTermEnd !== null
+            ? sprintf(
+                'Existing terms span %s – %s. Academic year dates must cover all existing terms.',
+                CarbonImmutable::parse($minTermStart)->format('M j, Y'),
+                CarbonImmutable::parse($maxTermEnd)->format('M j, Y'),
+            )
+            : null;
+
+        return [
+            TextInput::make('label')
+                ->label('Academic year')
+                ->placeholder('e.g., AY 2026–2027')
+                ->required()
+                ->maxLength(255)
+                ->rule(Rule::unique((new AcademicYear)->getTable(), 'label')->ignore($record->id)),
+            Grid::make(['default' => 1, 'sm' => 2])->schema([
+                DatePicker::make('starts_on')
+                    ->label('Start date')
+                    ->maxDate($minTermStart)
+                    ->helperText($dateHelper)
+                    ->required()
+                    ->rules([
+                        function () use ($minTermStart): Closure {
+                            return function (string $attribute, mixed $value, Closure $fail) use ($minTermStart): void {
+                                if ($minTermStart === null || blank($value)) {
+                                    return;
+                                }
+                                if (CarbonImmutable::parse((string) $value)->gt(CarbonImmutable::parse($minTermStart))) {
+                                    $fail('The start date cannot be after the earliest existing term ('.CarbonImmutable::parse($minTermStart)->format('M j, Y').').');
+                                }
+                            };
+                        },
+                    ]),
+                DatePicker::make('ends_on')
+                    ->label('End date')
+                    ->minDate($maxTermEnd)
+                    ->required()
+                    ->after('starts_on')
+                    ->rules([
+                        function () use ($maxTermEnd): Closure {
+                            return function (string $attribute, mixed $value, Closure $fail) use ($maxTermEnd): void {
+                                if ($maxTermEnd === null || blank($value)) {
+                                    return;
+                                }
+                                if (CarbonImmutable::parse((string) $value)->lt(CarbonImmutable::parse($maxTermEnd))) {
+                                    $fail('The end date cannot be before the latest existing term ('.CarbonImmutable::parse($maxTermEnd)->format('M j, Y').').');
+                                }
+                            };
+                        },
+                    ]),
+            ]),
+            Select::make('state')
+                ->label('Status')
+                ->options(AcademicYear::stateOptions())
+                ->required(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function persistAcademicYearUpdate(AcademicYear $record, array $data): void
+    {
+        $actor = auth()->user();
+        abort_unless($actor instanceof User, 403);
+        Gate::forUser($actor)->authorize('update', $record);
+
+        try {
+            DB::transaction(function () use ($record, $data): void {
+                $locked = AcademicYear::query()->whereKey($record->id)->lockForUpdate()->firstOrFail();
+                $newStart = CarbonImmutable::parse((string) $data['starts_on'])->startOfDay();
+                $newEnd = CarbonImmutable::parse((string) $data['ends_on'])->startOfDay();
+
+                $outsideTerm = $locked->terms()
+                    ->where(function (Builder $query) use ($newStart, $newEnd): void {
+                        $query->whereDate('starts_on', '<', $newStart->toDateString())
+                            ->orWhereDate('ends_on', '>', $newEnd->toDateString());
+                    })
+                    ->first();
+
+                if ($outsideTerm instanceof Term) {
+                    throw ValidationException::withMessages([
+                        'starts_on' => sprintf(
+                            'Cannot change dates because %s (%s – %s) would fall outside this academic year.',
+                            $outsideTerm->typeLabel(),
+                            $outsideTerm->starts_on->format('M j, Y'),
+                            $outsideTerm->ends_on->format('M j, Y'),
+                        ),
+                    ]);
+                }
+
+                $newState = (string) $data['state'];
+                $isClosingOrDeactivating = in_array($newState, [AcademicYear::StateClosed, AcademicYear::StateArchived], true)
+                    || ($newState !== AcademicYear::StateActive && $newState !== $locked->state);
+
+                if ($isClosingOrDeactivating
+                    && $locked->terms()->whereIn('state', [Term::StateActive, Term::StateDraft])->exists()) {
+                    throw ValidationException::withMessages([
+                        'state' => 'Cannot close or deactivate this academic year while active or draft terms still exist under it. Close or remove those terms first.',
+                    ]);
+                }
+
+                $locked->update([
+                    'label' => trim((string) $data['label']),
+                    'starts_on' => $newStart->toDateString(),
+                    'ends_on' => $newEnd->toDateString(),
+                    'state' => $newState,
+                ]);
+            }, attempts: 3);
+        } catch (ValidationException $exception) {
+            $message = collect($exception->errors())->flatten()->first();
+            Notification::make()
+                ->title('Cannot update academic year')
+                ->body(is_string($message) ? $message : 'Review the academic year dates and try again.')
+                ->danger()
+                ->persistent()
+                ->send();
+
+            throw $exception;
+        }
+
+        Notification::make()
+            ->title('Academic year updated')
+            ->success()
+            ->send();
+    }
+
     public function createAcademicYearAction(): Action
     {
         return Action::make('createAcademicYear')
@@ -534,8 +644,6 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
             ->modalSubmitActionLabel('Create academic year')
             ->modalCancelActionLabel('Cancel')
             ->modalWidth(Width::Large)
-            ->stickyModalHeader()
-            ->stickyModalFooter()
             ->visible(fn (): bool => (bool) auth()->user()?->can('create', AcademicYear::class))
             ->schema([
                 TextInput::make('label')
@@ -547,15 +655,9 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
                 Grid::make(['default' => 1, 'sm' => 2])->schema([
                     DatePicker::make('starts_on')
                         ->label('Start date')
-                        ->native(false)
-                        ->displayFormat('M j, Y')
-                        ->suffixIcon(Heroicon::OutlinedCalendar)
                         ->required(),
                     DatePicker::make('ends_on')
                         ->label('End date')
-                        ->native(false)
-                        ->displayFormat('M j, Y')
-                        ->suffixIcon(Heroicon::OutlinedCalendar)
                         ->required()
                         ->after('starts_on'),
                 ]),

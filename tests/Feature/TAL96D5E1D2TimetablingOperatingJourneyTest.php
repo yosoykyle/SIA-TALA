@@ -55,6 +55,11 @@ final class TAL96D5E1D2TimetablingOperatingJourneyTest extends TestCase
         $this->actingAs($registrar)
             ->get(TermOverview::getUrl())
             ->assertOk()
+            ->assertSee($term->academicYear->label);
+
+        $this->actingAs($registrar)
+            ->get(TermOverview::getUrl(['academicYearId' => $term->academic_year_id]))
+            ->assertOk()
             ->assertSee('Selected Operating Term');
 
         $this->actingAs($registrar)

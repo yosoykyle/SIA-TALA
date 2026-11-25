@@ -305,6 +305,10 @@ final class Issue93GuidedPlanningAndProgramsCurriculaTest extends TestCase
 
         $expectedCalendarUrl = TermCalendar::getUrl(['termId' => $term->id]);
         Livewire::test(TermOverview::class)
+            ->assertSeeHtml('href="'.e(TermOverview::getUrl(['academicYearId' => $term->academic_year_id])).'"')
+            ->assertDontSee($ulidCode);
+
+        Livewire::withQueryParams(['academicYearId' => $term->academic_year_id])->test(TermOverview::class)
             ->assertSeeHtml('href="'.e($expectedCalendarUrl).'"')
             ->assertDontSee($ulidCode);
 

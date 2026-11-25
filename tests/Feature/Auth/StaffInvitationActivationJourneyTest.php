@@ -154,6 +154,46 @@ class StaffInvitationActivationJourneyTest extends TestCase
         ]);
     }
 
+    public function test_streamlined_invite_accepts_optional_reason_and_authority_and_supports_correct_email_and_cancel(): void
+    {
+        Notification::fake();
+        $actor = $this->administrator();
+        $service = app(StaffInvitationService::class);
+
+        $result = $service->invite($actor, [
+            'email' => 'typo.faculty@example.test',
+            'first_name' => 'Grace',
+            'last_name' => 'Hopper',
+            'roles' => [User::StaffRoleFaculty],
+        ]);
+
+        $invitedUser = $result->invitation->user->refresh();
+        $this->assertNull($result->invitation->authority);
+        $this->assertNull($result->invitation->reason);
+        $this->assertSame('typo.faculty@example.test', $invitedUser->email);
+
+        $correctedInvitation = $service->correctPendingEmailAndResend($invitedUser, 'grace.hopper@example.test', $actor);
+
+        $this->assertSame('grace.hopper@example.test', $invitedUser->fresh()->email);
+        $this->assertSame($correctedInvitation->id, $result->invitation->fresh()->superseded_by_id);
+        $this->assertDatabaseHas('activity_log', [
+            'log_name' => 'user_access',
+            'event' => 'staff_invitation_email_corrected',
+            'subject_id' => $invitedUser->id,
+        ]);
+
+        $cancelledUserId = $invitedUser->id;
+        $service->cancelPendingInvitation($invitedUser->fresh(), $actor, 'Invitation no longer needed.');
+
+        $this->assertDatabaseMissing('users', ['id' => $cancelledUserId]);
+        $this->assertDatabaseMissing('staff_invitations', ['user_id' => $cancelledUserId]);
+        $this->assertDatabaseMissing('staff_access_profiles', ['user_id' => $cancelledUserId]);
+        $this->assertDatabaseHas('activity_log', [
+            'log_name' => 'user_access',
+            'event' => 'staff_invitation_cancelled',
+        ]);
+    }
+
     private function administrator(): User
     {
         $user = User::factory()->create();

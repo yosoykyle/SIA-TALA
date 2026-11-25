@@ -131,46 +131,35 @@ const ledger = {};
         console.log('[SYS-003] All badges adhere to canonical 4-status vocabulary:', validBadges);
         ledger.sys003_canonical_badges = validBadges ? 'PASS' : 'FAIL';
 
-        // 1B. Collapsible section toggle
-        const collapseBtn = await page.$('.fi-section-collapse-btn, .fi-section-header');
-        if (collapseBtn) {
-            const sectionEl = await page.$('.fi-section.fi-collapsible');
-            const wasCollapsed = await sectionEl.evaluate(el => el.classList.contains('fi-collapsed'));
-            await collapseBtn.click();
-            await page.waitForTimeout(600);
-            const isNowCollapsed = await sectionEl.evaluate(el => el.classList.contains('fi-collapsed'));
-            console.log(`[SYS-003] Collapsible RPO/RTO targets section: collapsed was ${wasCollapsed} -> now ${isNowCollapsed}`);
-            ledger.sys003_collapsible_toggle = (wasCollapsed !== isNowCollapsed) ? 'PASS' : 'FAIL';
-        } else {
-            ledger.sys003_collapsible_toggle = 'FAIL';
-        }
+        // 1B. Hosting backup boundary note (replaces legacy collapsible disclosure)
+        const healthHtml = await page.content();
+        const hasDisclosure = healthHtml.includes('Automated database backups and disaster recovery are managed at the hosting infrastructure level.');
+        ledger.sys003_collapsible_toggle = hasDisclosure ? 'PASS' : 'FAIL';
 
         // 1C. Technical disclosure copy
-        const healthHtml = await page.content();
-        const hasDisclosure = healthHtml.includes('planning target, not achieved evidence');
-        console.log('[SYS-003] Contains prospective technical disclosure disclaimer:', hasDisclosure);
+        console.log('[SYS-003] Contains hosting infrastructure backup note:', hasDisclosure);
         ledger.sys003_technical_disclosure = hasDisclosure ? 'PASS' : 'FAIL';
 
-        // 1D. Refresh local evidence action
-        const refreshBtn = await page.$('button:has-text("Refresh local evidence")');
+        // 1D. Refresh status action
+        const refreshBtn = await page.$('button:has-text("Refresh status")');
         if (refreshBtn) {
             await refreshBtn.click();
             await page.waitForTimeout(1000);
-            console.log('[SYS-003] Clicked "Refresh local evidence" action successfully.');
+            console.log('[SYS-003] Clicked "Refresh status" action successfully.');
             ledger.sys003_refresh_evidence = 'PASS';
         }
 
         // 1E. Mail self-test & rate limiting
-        console.log('[SYS-003] Testing Send self-test email action and rate-limiting modal...');
+        console.log('[SYS-003] Testing Send test email action and rate-limiting modal...');
         const adminId = runArtisan("echo App\\Models\\User::where('email', 'admin@example.test')->value('id');");
         runArtisan(`Illuminate\\Support\\Facades\\RateLimiter::clear('tala:system-health:mail-self-test:${adminId}');`);
 
         const countBefore = getMailEventCount();
-        const selfTestBtn = await page.waitForSelector('button:has-text("Send self-test email")', { state: 'visible' });
+        const selfTestBtn = await page.waitForSelector('button:has-text("Send test email")', { state: 'visible' });
         await selfTestBtn.click({ force: true });
         await page.waitForTimeout(800);
 
-        const submit1 = await page.waitForSelector('.fi-modal-window button:has-text("Send self-test")', { state: 'visible', timeout: 5000 });
+        const submit1 = await page.waitForSelector('.fi-modal-window button:has-text("Send test email")', { state: 'visible', timeout: 5000 });
         await submit1.click({ force: true });
         await page.waitForTimeout(2500);
 
@@ -204,10 +193,10 @@ const ledger = {};
         })));
         console.log('[SYS-004] Rendered Tabs:', tabs.map(t => t.name));
         const expectedTabs = [
-            'Institutional Changes',
-            'System Events',
-            'Output and Export Access',
-            'Privacy and Retention Boundary'
+            'Institutional changes',
+            'System events',
+            'Output access',
+            'Privacy & retention'
         ];
         const tabsMatch = tabs.length === 4 && tabs.every((t, i) => t.name === expectedTabs[i]);
         console.log('[SYS-004] Exact 4 canonical tabs present:', tabsMatch);
@@ -230,32 +219,32 @@ const ledger = {};
         await page.waitForTimeout(300);
         const activeAfterHome = await page.$eval('[role="tab"][tabindex="0"]', el => el.textContent.trim());
 
-        const rovingPassed = (activeAfterRight === 'System Events' && activeAfterEnd === 'Privacy and Retention Boundary' && activeAfterHome === 'Institutional Changes');
+        const rovingPassed = (activeAfterRight === 'System events' && activeAfterEnd === 'Privacy & retention' && activeAfterHome === 'Institutional changes');
         console.log(`[SYS-004] Roving focus: Right->"${activeAfterRight}", End->"${activeAfterEnd}", Home->"${activeAfterHome}" -> ${rovingPassed ? 'PASS' : 'FAIL'}`);
         ledger.sys004_roving_focus = rovingPassed ? 'PASS' : 'FAIL';
 
         // 2B.1 Physical keyboard Enter / Space tab activation
         console.log('[SYS-004] Testing physical keyboard Enter and Space tab activation...');
-        await page.keyboard.press('ArrowRight'); // Focuses System Events
+        await page.keyboard.press('ArrowRight'); // Focuses System events
         await page.waitForTimeout(200);
-        await page.keyboard.press('Enter'); // Activates System Events
+        await page.keyboard.press('Enter'); // Activates System events
         await page.waitForFunction(() => {
             const btn = document.getElementById('tab-system-events');
             return btn && btn.getAttribute('aria-selected') === 'true';
         }, { timeout: 8000 });
         const systemEventsActive = await page.$eval('#tab-system-events', el => el.getAttribute('aria-selected') === 'true');
 
-        await page.keyboard.press('ArrowRight'); // Focuses Output and Export Access
+        await page.keyboard.press('ArrowRight'); // Focuses Output access
         await page.waitForTimeout(200);
-        await page.keyboard.press('Space'); // Activates Output and Export Access
+        await page.keyboard.press('Space'); // Activates Output access
         await page.waitForFunction(() => {
             const btn = document.getElementById('tab-output-access');
             return btn && btn.getAttribute('aria-selected') === 'true';
         }, { timeout: 8000 });
         const outputAccessActive = await page.$eval('#tab-output-access', el => el.getAttribute('aria-selected') === 'true');
-        await page.keyboard.press('Home'); // Focuses Institutional Changes
+        await page.keyboard.press('Home'); // Focuses Institutional changes
         await page.waitForTimeout(200);
-        await page.keyboard.press('Enter'); // Re-activates Institutional Changes
+        await page.keyboard.press('Enter'); // Re-activates Institutional changes
         await page.waitForFunction(() => {
             const btn = document.getElementById('tab-institutional-changes');
             return btn && btn.getAttribute('aria-selected') === 'true';
@@ -274,7 +263,7 @@ const ledger = {};
         console.log('[SYS-004] Slide-over modal open (attached):', hasDialog);
 
         const modalContent = dialog ? await dialog.innerText() : '';
-        const hasAllowlistedFields = modalContent.includes('Reference ID') && modalContent.includes('Date and time') && modalContent.includes('Actor');
+        const hasAllowlistedFields = modalContent.includes('Reference ID') && modalContent.includes('When') && modalContent.includes('Who');
         console.log('[SYS-004] Modal presents allowlisted safe fields:', hasAllowlistedFields);
 
         await page.keyboard.press('Escape');
@@ -286,7 +275,7 @@ const ledger = {};
         ledger.sys004_slide_over = (hasDialog && hasAllowlistedFields && closedCleanly) ? 'PASS' : 'FAIL';
 
         // 2D. Canonical Privacy Notice on Privacy tab & WAI-ARIA Click Synchronization
-        console.log('[SYS-004] Testing Privacy and Retention Boundary tab...');
+        console.log('[SYS-004] Testing Privacy & retention tab...');
         await page.click('#tab-privacy-retention');
         await page.waitForFunction(() => {
             const btn = document.getElementById('tab-privacy-retention');

@@ -235,6 +235,11 @@ final class Issue93RegistrarTermPlanningUiTest extends TestCase
 
         Livewire::test(TermOverview::class)
             ->assertOk()
+            ->assertSee($year->label)
+            ->assertSeeHtml('href="'.e(TermOverview::getUrl(['academicYearId' => $year->id])).'"');
+
+        Livewire::withQueryParams(['academicYearId' => $year->id])->test(TermOverview::class)
+            ->assertOk()
             ->assertSee('First Semester Draft 2032')
             ->assertSee('Second Semester Active 2032')
             ->assertSeeHtml('href="'.e(TermCalendar::getUrl(['termId' => $draftTerm->id])).'"');

@@ -1,8 +1,8 @@
 ---
 version: 1
 slug: "reg-e01"
-primary_target: "REG-E01"
-related_targets: ["REG-E02", "REG-E03", "REG-E04", "STU-001", "STU-002", "STU-004", "STU-006", "ACC-001", "ACC-002", "ACC-003", "ACC-004", "ACC-005", "ACC-006", "ACC-007", "OUT-006", "OUT-007"]
+primary_target: "app/Filament/Resources/Enrollments/EnrollmentResource.php"
+related_targets: ["REG-E01", "REG-E02", "REG-E03", "REG-E04", "STU-001", "STU-002", "STU-004", "STU-006", "ACC-001", "ACC-002", "ACC-003", "ACC-004", "ACC-005", "ACC-006", "ACC-007", "OUT-006", "OUT-007"]
 ---
 
 # Surface Brief: REG-E01 — Connected Enrollment, Accounts & COR

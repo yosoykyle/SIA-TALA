@@ -295,8 +295,8 @@ class HumanCenteredSharedThemeTest extends TestCase
     {
         $this->assertNull(PublicNoticeResource::getNavigationGroup());
         $this->assertNull(FaqEntryResource::getNavigationGroup());
-        $this->assertSame('Notices', PublicNoticeResource::getNavigationLabel());
-        $this->assertSame('FAQ', FaqEntryResource::getNavigationLabel());
+        $this->assertSame('Announcements', PublicNoticeResource::getNavigationLabel());
+        $this->assertSame('FAQs', FaqEntryResource::getNavigationLabel());
     }
 
     public function test_native_action_modals_connect_their_existing_heading_to_the_dialog(): void

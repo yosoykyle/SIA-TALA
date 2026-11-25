@@ -896,6 +896,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                                 ->label('Student section')
                                 ->options($cohortOptions)
                                 ->searchable()
+                                ->position('top')
                                 ->required()
                                 ->distinct()
                                 ->live()
@@ -1123,6 +1124,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                             ->label('Student section')
                             ->options(fn (): array => $this->cohortSelectOptions())
                             ->searchable()
+                            ->position('top')
                             ->required()
                             ->distinct()
                             ->live()
@@ -1644,8 +1646,6 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
             ->modalSubmitActionLabel('Save changes')
             ->modalCancelActionLabel('Cancel')
             ->modalWidth(Width::TwoExtraLarge)
-            ->stickyModalHeader()
-            ->stickyModalFooter()
             ->visible(fn (TermCohort $record): bool => $this->canModifyUnlinkedCohort($record))
             ->fillForm(fn (TermCohort $record): array => [
                 'curriculum_version_id' => $record->curriculum_version_id,

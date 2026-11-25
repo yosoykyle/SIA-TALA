@@ -165,16 +165,19 @@ class TAL93J2eFaqEntryAcceptanceTest extends TestCase
             ]);
     }
 
-    public function test_faq_order_is_explicit_and_does_not_rewrite_published_versions_through_dragging(): void
+    public function test_faq_order_uses_audited_inline_drag_handles_without_manual_sort_input(): void
     {
         $form = file_get_contents(app_path('Filament/Resources/FaqEntries/Schemas/FaqEntryForm.php'));
         $table = file_get_contents(app_path('Filament/Resources/FaqEntries/Tables/FaqEntriesTable.php'));
+        $listPage = file_get_contents(app_path('Filament/Resources/FaqEntries/Pages/ListFaqEntries.php'));
 
         $this->assertIsString($form);
         $this->assertIsString($table);
-        $this->assertStringContainsString("TextInput::make('sort_order')", $form);
+        $this->assertIsString($listPage);
+        $this->assertStringNotContainsString("TextInput::make('sort_order')", $form);
         $this->assertStringNotContainsString('->reorderable(', $table);
-        $this->assertStringContainsString("TextColumn::make('sort_order')", $table);
+        $this->assertStringContainsString("ViewColumn::make('drag_handle')", $table);
+        $this->assertStringContainsString('reorderFaqs(', $listPage);
     }
 
     public function test_public_landing_renders_only_published_entries_in_order(): void

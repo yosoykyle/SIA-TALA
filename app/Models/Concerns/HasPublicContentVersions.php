@@ -13,7 +13,8 @@ trait HasPublicContentVersions
         static::updating(function (self $record): void {
             $original = $record->newInstance();
             $original->setRawAttributes($record->getRawOriginal());
-            if ($original->wasPublished() && $record->isDirty(static::contentFields())) {
+            $immutableFields = array_values(array_diff(static::contentFields(), ['display_order', 'sort_order']));
+            if ($original->wasPublished() && $record->isDirty($immutableFields)) {
                 throw new LogicException('Published content is immutable. Save a successor draft.');
             }
         });

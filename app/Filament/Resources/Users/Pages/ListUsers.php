@@ -2,22 +2,30 @@
 
 namespace App\Filament\Resources\Users\Pages;
 
-use App\Actions\SystemAdministration\StaffInvitationService;
 use App\Filament\Resources\Users\UserResource;
 use App\Models\User;
-use Filament\Actions\Action;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\TextInput;
-use Filament\Notifications\Notification;
+use App\Support\NavigationBadgeCounts;
 use Filament\Resources\Pages\ListRecords;
-use Filament\Schemas\Components\Grid;
-use Filament\Support\Enums\Width;
-use Filament\Support\Icons\Heroicon;
+use Filament\Schemas\Components\EmbeddedTable;
+use Filament\Schemas\Components\RenderHook;
+use Filament\Schemas\Components\View as SchemaView;
+use Filament\Schemas\Schema;
+use Filament\View\PanelsRenderHook;
+use Illuminate\Database\Eloquent\Builder;
+use Livewire\Attributes\Url;
 
 class ListUsers extends ListRecords
 {
     protected static string $resource = UserResource::class;
+
+    #[Url(as: 'queue', history: true)]
+    public string $queue = 'all';
+
+    public function updatedQueue(): void
+    {
+        $this->queue = $this->normalizedQueue();
+        $this->resetPage();
+    }
 
     /** @return array<string|int, string> */
     public function getBreadcrumbs(): array
@@ -25,46 +33,63 @@ class ListUsers extends ListRecords
         return [];
     }
 
+    public function getSubheading(): ?string
+    {
+        return match ($this->normalizedQueue()) {
+            'attention' => 'Accounts waiting for invitation activation, email or MFA verification, or reactivation.',
+            'staff' => 'Accounts with assigned institutional staff roles.',
+            'multi-role' => 'Accounts assigned to two or more institutional roles or workspaces.',
+            'learners' => 'Registered applicant and student accounts.',
+            default => 'Manage staff invitations, workspace access, MFA readiness, and account lifecycle.',
+        };
+    }
+
+    public function content(Schema $schema): Schema
+    {
+        return $schema->components([
+            SchemaView::make('filament.admin.users.summary-strip')
+                ->key('users-summary-strip')
+                ->viewData(fn (): array => [
+                    'metrics' => app(NavigationBadgeCounts::class)->systemAdminUsers(),
+                    'activeQueue' => $this->normalizedQueue(),
+                ]),
+            RenderHook::make(PanelsRenderHook::RESOURCE_PAGES_LIST_RECORDS_TABLE_BEFORE),
+            EmbeddedTable::make(),
+            RenderHook::make(PanelsRenderHook::RESOURCE_PAGES_LIST_RECORDS_TABLE_AFTER),
+        ]);
+    }
+
+    protected function getTableQuery(): ?Builder
+    {
+        $query = parent::getTableQuery();
+
+        if (! $query instanceof Builder) {
+            return null;
+        }
+
+        return match ($this->normalizedQueue()) {
+            'attention' => $query->whereIn('status', [
+                User::StatusInvitationPending,
+                User::StatusVerificationRequired,
+                User::StatusDisabled,
+            ]),
+            'staff' => $query->whereHas('roles', fn (Builder $roles): Builder => $roles->whereIn('name', User::staffRoleNames())),
+            'multi-role' => $query->has('roles', '>', 1),
+            'learners' => $query->whereHas('roles', fn (Builder $roles): Builder => $roles->whereIn('name', ['student', 'applicant'])),
+            default => $query,
+        };
+    }
+
     protected function getHeaderActions(): array
     {
-        return [
-            Action::make('inviteStaff')
-                ->label('Invite Staff')
-                ->icon(Heroicon::OutlinedEnvelope)
-                ->modalWidth(Width::FourExtraLarge)
-                ->stickyModalHeader()
-                ->stickyModalFooter()
-                ->schema([
-                    Grid::make(['default' => 1, 'md' => 2])->schema([
-                        TextInput::make('email')->email()->required()->maxLength(255),
-                        TextInput::make('staff_identifier')->label('Staff identifier')->maxLength(100),
-                        TextInput::make('first_name')->label('First name')->required()->maxLength(100),
-                        TextInput::make('middle_name')->label('Middle name')->maxLength(100),
-                        TextInput::make('last_name')->label('Last name')->required()->maxLength(100),
-                        TextInput::make('suffix')->maxLength(40),
-                    ]),
-                    Select::make('roles')
-                        ->label('Fixed Staff roles')
-                        ->options(User::staffRoleOptions())
-                        ->multiple()
-                        ->required(),
-                    Textarea::make('reason')->required()->minLength(10)->columnSpanFull(),
-                    Grid::make(['default' => 1, 'md' => 2])->schema([
-                        TextInput::make('authority')->label('Approval memo or reference')->placeholder('e.g., Memo 2026-014 or approving office')->required()->maxLength(255),
-                        TextInput::make('evidence_reference')->label('Evidence reference')->maxLength(255),
-                    ]),
-                ])
-                ->action(function (array $data): void {
-                    $actor = auth()->user();
-                    abort_unless($actor instanceof User, 403);
-                    app(StaffInvitationService::class)->invite($actor, $data);
+        return [];
+    }
 
-                    Notification::make()
-                        ->title('Staff invitation created')
-                        ->body('Access is recorded. If delivery fails, use Resend invitation from the account row.')
-                        ->success()
-                        ->send();
-                }),
-        ];
+    public function normalizedQueue(): string
+    {
+        return match ($this->queue) {
+            'attention', 'staff', 'multi-role', 'learners' => $this->queue,
+            default => 'all',
+        };
     }
 }

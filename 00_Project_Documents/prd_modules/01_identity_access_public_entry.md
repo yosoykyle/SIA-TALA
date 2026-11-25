@@ -173,8 +173,8 @@ The existing audit facility may carry this evidence. No parallel audit engine is
 |---|---|---|---|---|---|---|---|
 | Public entry available/unavailable | Publish or close the current admissions-entry source | Registrar through Clinic 2 | Clinic 2 cycle authority | Current cycle and publication readiness | Public gateway derives whether **Apply** is available | Later cycle publication supersedes the projection; existing sign-in is never removed | Public sees availability; existing Applicants retain sign-in |
 | `VerificationRequired` | Create Applicant account | Public applicant | Self-registration while entry is open | Unique normalized email, privacy acknowledgement and valid password | One credential account and pending verification evidence | Verification links are single-purpose; a later resend supersedes the prior pending link | Account holder sees verification guidance; System Administrator sees safe state only |
-| Pending sign-in email change | Request a replacement address, then verify it | Applicant/Student-only account holder; System Administrator initiates for Staff-capable accounts | Current-password confirmation; recorded authority for a Staff change | New address valid/unique; current account/source; one current pending change | Existing account remains active on its verified address; verification makes the replacement address effective | Expiry, cancellation or failed dispatch preserves the existing address. A successor request invalidates its predecessor; verification rechecks uniqueness | New address receives verification; existing address receives a security alert; account holder sees pending status and recovery |
-| `InvitationPending` | Invite new Staff or resend invitation | System Administrator | Fixed-role assignment plus recorded reason and authority | No duplicate account; final-administrator and self-escalation protections | One account, Staff access profile, role assignment evidence, and expiring activation link | Resend invalidates the previous link; activation supersedes pending invitation | Invited person sees activation; administrator sees pending/expired state |
+| Pending sign-in email change | Request a replacement address, then verify it | Applicant/Student-only account holder; System Administrator may initiate for Staff, Student, or Applicant accounts | Current-password confirmation; recorded reason for administrator-initiated changes | New address valid/unique; current account/source; one current pending change | Existing account remains active on its verified address; verification makes the replacement address effective | Expiry, cancellation or failed dispatch preserves the existing address. A successor request invalidates its predecessor; verification rechecks uniqueness | New address receives verification; existing address receives a security alert; account holder sees pending status and recovery |
+| `InvitationPending` | Invite new Staff, resend, correct pending email, or cancel unactivated invitation | System Administrator | Fixed-role assignment plus optional note/authority | No duplicate account; final-administrator and self-escalation protections; cancel/correct restricted to never-activated pending accounts | One account, Staff access profile, role assignment evidence, and expiring activation link | Resend or email correction invalidates the previous link; cancellation removes the unactivated pending account and audits the cancellation | Invited person sees activation; administrator sees pending/expired state and recovery controls |
 | `Active` | Verify email, complete activation, or reactivate | Account holder or System Administrator | Valid signed link, or recorded reactivation authority | Account not disabled; Staff-capable account must complete MFA before Staff access | Authorized workspace contexts become usable | Activation/verification evidence is retained; reactivation does not erase prior disablement | Chooser shows only authorized contexts; single-role users route directly |
 | MFA enrollment/challenge required | Enter a Staff-capable context | Staff account holder | Existing Staff role | Password-authenticated session; valid TOTP or unused recovery code | Staff workspace access or continued enrollment requirement | Recovery codes are single-use; reset supersedes the prior factor only after external identity verification | Staff sees security action; administrator sees bounded reset evidence, never secrets |
 | Access assignment changed | Add or revoke a fixed Staff role | System Administrator | Recorded reason, authority, and optional evidence | Cannot remove the final active System Administrator or self-escalate without authority | Role assignment history and refreshed workspace projection | Later authorized change supersedes current access, but history is immutable | Affected account sees added/removed context; other roles gain no authority |
@@ -188,9 +188,9 @@ The existing audit facility may carry this evidence. No parallel audit engine is
 
 **Announcements** communicate time-sensitive school notices, dates, and changes on the Public Gateway. The product record is **PublicNotice**. **FAQs** answer recurring questions about eligibility, application steps, documents, sign-in, and where to get help. System Administrator maintains both from approved information; Program availability and application dates come from their owning sources.
 
-**PublicNotice** contains a required title of 1–160 characters, required plain-text short message of 1–500 characters, publication state, optional visible-from and visible-until in Asia/Manila, a positive display order unique within its effective published group, and an optional HTTPS link whose label is at most 80 characters and URL at most 2,048 characters. When both dates exist, visible-from cannot follow visible-until.
+**PublicNotice** (**Announcements**) contains a required title of 1–120 characters, required plain-text short message of 1–500 characters, publication state, optional visible-from and visible-until in Asia/Manila, an auto-assigned positive display order managed via inline drag-and-drop and keyboard reordering (unique within its effective published group), and an optional HTTPS link whose URL is at most 2,048 characters with a conditional label of at most 60 characters shown and required when a URL is entered. When both dates exist, visible-from cannot follow visible-until.
 
-**PublicFaq** contains a required question of 1–160 characters, required plain-text answer of 1–3,000 characters, optional topic label of 1–120 characters when supplied, publication state, and one positive display order unique among published FAQs. A topic is descriptive text on the entry. The public page presents FAQs in display order. Draft entries become visible through **Publish**; **Unpublish** removes them from public view while retaining publication history.
+**PublicFaq** (**FAQs**) contains a required question of 1–120 characters, required plain-text answer of 1–2,000 characters, required category label, publication state, and an auto-assigned positive display order managed via inline drag-and-drop and keyboard reordering (unique among published FAQs). The public page presents FAQs in display order. Create/edit forms support **Publish** directly, **Save as draft**, **Preview**, and **Cancel**; **Unpublish** removes items from public view while retaining publication history.
 
 ## 5. Readiness and Setup Contract
 
@@ -241,15 +241,15 @@ A disabled account with a correct password sees only that access is disabled and
 
 ### 6.3 System Administrator to activated Staff
 
-1. System Administrator selects **Invite Staff**.
-2. The form collects verified institutional access facts: email, name parts, optional Staff identifier, one or more fixed Staff roles, required reason, required authority, and optional evidence reference.
+1. System Administrator selects **Invite staff**.
+2. The form collects institutional email, first and last name, one or more fixed Staff roles, optional Staff ID, and an optional concise note.
 3. TALA prevents self-escalation that bypasses authorization and prevents removal of the final active System Administrator.
 4. For a new email, TALA creates one **InvitationPending** account and sends a single-use 60-minute activation link.
 5. For an existing verified active account, TALA reuses the account, does not reset its password, records the Staff-role change, and requires MFA enrollment before Staff workspace use.
 6. The administrator never enters or sees the Staff password.
 7. New-account activation proves email ownership, sets a compliant password, records activation, and continues to authenticator-app MFA enrollment.
 8. TALA shows recovery codes once and requires confirmation that the Staff member stored them.
-9. Expired invitations remain **InvitationPending**; **Resend invitation** invalidates the prior link and issues a new one.
+9. Expired or typo'd unactivated invitations remain **InvitationPending** until resent, corrected (**Correct email & resend**), or removed (**Cancel invitation** with audit evidence); **Resend invitation** invalidates the prior link and issues a new one.
 
 ### 6.4 Staff MFA and lost-factor recovery
 
@@ -281,8 +281,8 @@ Clinic 4 owns the transaction:
 - Any eligible account may request password recovery—via a generic non-disclosing request from public **Sign in**, or via verified-email confirmation while signed in from **Profile** (`/<panel>/account-profile`) or MFA `Current password` prompts (dispatching only to the account's currently verified sign-in email without bypassing security checks).
 - An emailed password-recovery link may be completed even if opened inside the same signed-in browser session: completing recovery updates the password, invalidates all sessions, clears the active browser session, and requires fresh sign-in (plus MFA where applicable).
 - Completed password recovery invalidates all applicable sessions, and a self-service **Profile** password change invalidates all other applicable sessions while keeping the acting session authenticated.
-- Applicant/Student-only users may request a sign-in email change. The old address remains live until the new address is verified; the old address receives an alert.
-- Staff-capable email changes are initiated by System Administrator with recorded authority. The same safe pending-verification transition applies.
+- Applicant/Student-only users may request a self-service sign-in email change from **Profile**. The old address remains live until the new address is verified; the old address receives an alert.
+- System Administrator may also initiate a verified sign-in email replacement for any active Staff, Student, or Applicant account with administrator current-password confirmation and a recorded reason. The same safe pending-verification transition and old-address security alert apply.
 - Sensitive email, password, MFA setup/disablement/recovery-code regeneration, Staff access, disablement, and Staff MFA-reset actions require per-submission `Current password` confirmation where the acting user has a password-authenticated session. On **Profile**, `Change password` groups `Current password` visibly above `New password` and `Confirm new password` with zero hidden-field layout shift below account identity/email, `Cancel` discards unsaved edits and validation state in place without leaving **Profile**, and empty/no-op, partial, or same-as-current password submissions fail inline validation rather than reporting a false save.
 - Regenerating MFA recovery codes on **Profile** confirms with per-submission `Current password` (and offers **Forgot your password?**) without requiring an authenticator code, while presenting role-specific lost-authenticator guidance (Staff contact a System Administrator for MFA reset; Applicant/Student accounts may turn off optional MFA with `Current password` or a recovery code).
 - Email-based password recovery never bypasses `Current password` inline, never reveals or regenerates MFA recovery codes, and never bypasses or resets MFA.
@@ -385,7 +385,7 @@ Clinic 1 capability coverage, hierarchy, states and responsive/accessibility out
 | Account detail | System Administrator | Review one account and take a safe access action | State-dependent action |
 | Invite Staff | System Administrator | Provision fixed Staff contexts without a password | Send invitation |
 | Change Staff access | System Administrator | Assign/revoke fixed roles with evidence | Save access change |
-| Public Content | System Administrator | Maintain bounded notices and FAQ | Add notice / Add FAQ |
+| Public Content | System Administrator | Maintain bounded announcements and FAQs | Add announcement / Add FAQ |
 | Branded failure pages | Public/signed-in | Explain inaccessible, expired, throttled, or failed requests | One safe recovery action |
 
 ### 10.1 Users & Access table
@@ -414,13 +414,24 @@ Native filters:
 - Created date range
 - Last-sign-in date range
 
+Sidebar queues:
+
+- All accounts
+- Needs attention
+- Staff accounts
+- Multi-role
+- Learners
+
 Row actions:
 
 - View account
 - Resend invitation or verification
+- Correct email & resend (unactivated pending invitations)
+- Cancel invitation (unactivated pending invitations)
+- Change sign-in email (active Staff, Student, or Applicant accounts with administrator current-password confirmation)
 - Send recovery link
-- Change Staff access
-- Disable
+- Edit role & details (Change Staff access)
+- Disable (hidden on signed-in administrator's own row)
 - Reactivate
 - Reset Staff MFA
 

@@ -661,6 +661,11 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
 
         Livewire::actingAs($registrar)
             ->test(TermOverview::class)
+            ->assertSeeHtml('href="'.e(TermOverview::getUrl(['academicYearId' => $first->academic_year_id])).'"');
+
+        Livewire::withQueryParams(['academicYearId' => $first->academic_year_id])
+            ->actingAs($registrar)
+            ->test(TermOverview::class)
             ->assertSeeHtml('href="'.e(TermCalendar::getUrl(['termId' => $first->id])).'"');
 
         Livewire::actingAs($registrar)
@@ -677,7 +682,13 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
             'state' => TermCalendarPackage::StateActive,
         ]);
 
-        Livewire::actingAs($registrar)
+        Livewire::withQueryParams([])
+            ->actingAs($registrar)
+            ->test(TermOverview::class)
+            ->assertSeeHtml('href="'.e(TermOverview::getUrl(['academicYearId' => $second->academic_year_id])).'"');
+
+        Livewire::withQueryParams(['academicYearId' => $second->academic_year_id])
+            ->actingAs($registrar)
             ->test(TermOverview::class)
             ->assertSeeHtml('href="'.e(TermCalendar::getUrl(['termId' => $second->id])).'"');
 

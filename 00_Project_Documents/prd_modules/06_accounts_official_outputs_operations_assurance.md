@@ -419,26 +419,25 @@ Audit covers Fee Plan creation/publication/supersession; Assessment creation/sup
 
 #### System Health
 
-System Health is a read-only, evidence-first System Administrator page. It may show:
+System Health is an evidence-first System Administrator page structured as a compact operational status summary banner (`Last checked` in `Asia/Manila`, inline status breakdown, and `Refresh status` action firing a toast confirmation; an inline warning banner appears only when a capture is stale) above a 4-card live operational grid (`items-start` without vertical stretching):
 
-- SMTP configured state, last locally recorded success/failure, and queued/failed counts;
-- solver local configuration and last accepted/failure result;
-Further health UI beyond mail and solver is deferred. Existing queue, application/database/storage and backup history remains preserved; no new demonstration or operational controls are required.
+1. **App & Database** — Live PHP and Laravel version, read-only database connectivity (`Available` / `Unavailable`), private local storage writability check, and a `Technical details` slide-over modal.
+2. **Job Queue** — Separates `Pending` and `Failed` counts (`0 failed` with pending jobs displays `Queued (waiting for worker)` instead of an error state; `failed > 0` displays `Needs attention`), with an `Inspect failed jobs` modal (job class, queue, `Asia/Manila` timestamp, and sanitized first-line exception summary — zero raw payload or PII) and a `Retry failed jobs` action (visible when `failed > 0`, running `queue:retry all`, logging `activity()`, and notifying).
+3. **Mail / SMTP** — Distinguishes `Ready`, `Queued (waiting for worker)`, and `Delivery failed`, surfaces sanitized transport error categories without exposing secrets or recipient PII, and provides a rate-limited (`1/60s`) self-only `Send test email` action directly on the card.
+4. **Scheduling Solver** — Displays solver driver/mode, latest run, and probe status, with a rate-limited (`1/30s`) `Check solver` action calling `SchedulingSolverClient::probe()` (`GET /health`) without generating a timetable, recording safe allowlisted diagnostics (`classification`, `status_code`, `driver`) to render plain-English **Error reason + Troubleshooting steps** on failure (including HTTP 403 IAM/GCP billing and HTTP 429 quota guidance), plus a read-only **`Solver runs & reports`** slide-over (`schedule_runs` operational history).
 
-Every row shows the plain user label `Available`, `Needs attention`, `Unavailable`, or `Not recently checked`, together with the evidence source, as-of time, responsible owner, and safe next step. Existing internal status values may remain implementation detail, but routine copy must not expose architecture terminology. A missing or unknown result never appears healthy. Provider dashboard status, primary-host backup state, independent backup-provider state, and any physical-copy/custody state say that no recent approved evidence is available unless verified external evidence is deliberately imported through a later approved authority. The precise evidence boundary remains available under technical details.
-
-The page does not execute provider controls, shell commands, restores, test payments, solver runs, or arbitrary email. A bounded test email may target only the authenticated administrator's own address and remains diagnostic evidence, not a service guarantee.
+Below the four cards, System Health displays one calm boundary note: *"Automated database backups and disaster recovery are managed at the hosting infrastructure level."* Every card uses plain status labels (`Available`, `Needs attention`, `Unavailable`, or `Not recently checked`) and never exposes provider controls, shell commands, restores, browser SQL dumps, test payments, timetable generation, or arbitrary-recipient email.
 
 #### Governance & Audit
 
-One read-only page covers four evidence groups:
+One read-only page covers four tabs backed by a 3-source audit projection (`activity_log` plus minimal unlogged domain fallbacks, `authentication` + `operational_events`, and `output_access_logs`), with a compact tab-context guide above the table explaining what each tab tracks:
 
-1. Institutional Changes
-2. System Events
-3. Output and Export Access
-4. Privacy and Retention Boundary
+1. `Institutional changes`
+2. `System events`
+3. `Output access`
+4. `Privacy & retention`
 
-The page supports authorized search and fixed filters over safe audit fields. It is not a compliance attestation, policy editor, incident-response suite, or report designer.
+The evidence table presents five minimal columns (`When` in `Asia/Manila`, `Event` paired with its domain `Category`, `Who` with real name, role, and institutional identifier, `Target`, and `Summary`), with dropdown filters (`Category`, `Actor`, `Event type`, `Date range`), search, a structured 2-column `View detail` slide-over (`Reference ID`, `Category`, `Status`, `When`, `Who`, `Role`, `Target`, and full `Summary`), and allowlisted `Export CSV`. Deep-links (`?actor=`) bind directly into the native `Actor` filter. It is not a compliance attestation, policy editor, incident-response suite, or report designer.
 
 #### Retention boundary
 
@@ -490,8 +489,8 @@ System Administrator has **System Health** and **Governance & Audit**. Students 
 | Approved Coverage form | Accounting records only an externally approved Term Account effect | Current Assessment/obligations, category/source, authority/date, exact amount, effective date, safe description, impact preview | `Apply` only after current non-excess reconciliation; successor/reversal from history; no eligibility, application, renewal, disbursement, or accommodation workflow |
 | Enrollment payment requirement | Applicant/Student completes Clinic 4 finance checkpoint | Required now, state, assessment basis/source, account ref, **"How to pay"** channels (multi-account `Bank Transfer`, multi-account `E-Wallets`, and `Cash (Campus Cashier)`), walk-in guidance, submitted receipt evidence, next action | `Submit receipt` primary CTA (shown and enabled only when a digital channel is active; omitted when onsite-only); private upload fields (`Bank Transfer`, `E-Wallets` with account selection when multiple active accounts exist); shared `<x-document-viewer>` (`<x-payment-proof-viewer>`) view/download/replace submission; no finance navigation duplication |
 | Student Finance | Student understands the current payment task and can retrieve retained records; alumni read their records | Current due/no-due, next dated payment, **"How to pay"** channels (multi-account `Bank Transfer`, multi-account `E-Wallets`, `Cash (Campus Cashier)`), walk-in guidance, relevant review/recovery and recent activity; prior authority/history secondary | Current account by default; `Submit receipt` primary CTA (only when at least one digital channel is enabled; absent when onsite-only); SOA/ack. Past statements and payments appears only when older owned accounts exist: choose a term, then open its statement and payment records. Show `Submitted receipts` (`<x-document-viewer>` preview) and fee assistance only when recorded; keep earlier statements secondary. Historical reading keeps the current payment context unchanged. Alumni read-only |
-| System Health | System Administrator distinguishes current evidence, action-needed evidence, and facts not recently checked | Plain service summary, evidence time/source, responsible owner, safe next step, then technical details | Status/filter/search; local refresh; optional self-test email only |
-| Governance & Audit | Authorized System Administrator investigates high-value evidence | Selected tab, filters, newest events, plain records-procedure guidance, then technical details | Actor/type/date/search; read-only detail; no manual attestation or compliance verdict |
+| System Health | System Administrator reviews live local runtime, queue, mail, and solver health | 4-card live operational grid (`App & Database`, `Job Queue`, `Mail / SMTP`, `Scheduling Solver`), `Last checked` (`Asia/Manila`), and 1-line hosting backup/DR note | `Refresh status`, `Technical details`, `Inspect failed jobs`, `Retry failed jobs`, `Send test email` (`1/60s` self-only), and `Check solver` (`1/30s` `GET /health` probe) |
+| Governance & Audit | Authorized System Administrator investigates high-value evidence | Single-line tabs (`Institutional changes`, `System events`, `Output access`, `Privacy & retention`), 5-column table (`When`, `Event`, `Who`, `Target`, `Summary`), and plain records-procedure guidance | Dropdown `Actor` (with `?actor=` deep-link binding), `Event type`, `Date range`, search, `View detail` slide-over, `Export CSV`; read-only, no compliance verdict |
 | Account Statement | Owner/authorized role reads or prints account position | Identity/context, charge/activity tables, obligations, totals, disclaimer | Authenticated browser output; print/save-as-PDF and access log |
 | Payment Acknowledgment | Owner/authorized role reads or prints verified posting | Posting summary, verification basis, account effect, state, disclaimer | Authenticated browser output; print/save-as-PDF and access log |
 

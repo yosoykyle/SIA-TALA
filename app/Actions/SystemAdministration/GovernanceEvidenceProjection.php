@@ -4,7 +4,6 @@ namespace App\Actions\SystemAdministration;
 
 use App\Models\AcademicYear;
 use App\Models\AdmissionCycle;
-use App\Models\CalendarEvent;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumVersion;
 use App\Models\FaqEntry;
@@ -14,10 +13,14 @@ use App\Models\PublicNotice;
 use App\Models\SystemSetting;
 use App\Models\Term;
 use App\Models\User;
+use App\Support\DisplayDateTime;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Throwable;
 
 class GovernanceEvidenceProjection
 {
@@ -33,67 +36,57 @@ class GovernanceEvidenceProjection
     public static function tabs(): array
     {
         return [
-            self::InstitutionalChanges => 'Institutional Changes',
-            self::SystemEvents => 'System Events',
-            self::OutputAccess => 'Output and Export Access',
-            self::PrivacyRetention => 'Privacy and Retention Boundary',
+            self::InstitutionalChanges => 'Institutional changes',
+            self::SystemEvents => 'System events',
+            self::OutputAccess => 'Output access',
+            self::PrivacyRetention => 'Privacy & retention',
         ];
     }
 
     /**
-     * @param  array<string, array<string, mixed>>  $filters
+     * @param  array<string, mixed>  $filters
      */
     public function paginate(string $tab, int $page, int $perPage, ?string $search, array $filters): LengthAwarePaginator
     {
-        $query = DB::query()->fromSub($this->query($tab), 'governance_evidence');
-        $actorId = $filters['actor']['value'] ?? null;
-        $type = $filters['type']['value'] ?? null;
-        $from = $filters['date']['from'] ?? null;
-        $until = $filters['date']['until'] ?? null;
-
-        $query
-            ->when(filled($actorId), fn (Builder $builder): Builder => $builder->where('actor_id', (int) $actorId))
-            ->when(filled($type), fn (Builder $builder): Builder => $builder->where('type', (string) $type))
-            ->when(filled($from), fn (Builder $builder): Builder => $builder->whereDate('occurred_at', '>=', (string) $from))
-            ->when(filled($until), fn (Builder $builder): Builder => $builder->whereDate('occurred_at', '<=', (string) $until));
-
-        $safeSearch = Str::of((string) $search)->trim()->limit(100, '')->toString();
-        if ($safeSearch !== '') {
-            $query->where(function (Builder $builder) use ($safeSearch): void {
-                $builder
-                    ->where('actor', 'like', "%{$safeSearch}%")
-                    ->orWhere('actor_role', 'like', "%{$safeSearch}%")
-                    ->orWhere('affected_record', 'like', "%{$safeSearch}%")
-                    ->orWhere('type', 'like', "%{$safeSearch}%")
-                    ->orWhere('source', 'like', "%{$safeSearch}%")
-                    ->orWhere('summary', 'like', "%{$safeSearch}%");
-            });
-        }
+        $query = $this->filteredQuery($tab, $search, $filters);
 
         $total = (clone $query)->count();
-        $rows = $query
+        $rawRows = $query
             ->orderByDesc('occurred_at')
             ->orderByDesc('sort_id')
             ->forPage($page, $perPage)
-            ->get()
-            ->mapWithKeys(function (object $row): array {
-                $record = [
-                    'reference_id' => (string) $row->reference_id,
-                    'occurred_at' => (string) $row->occurred_at,
-                    'actor' => (string) $row->actor,
-                    'actor_id' => $row->actor_id === null ? null : (int) $row->actor_id,
-                    'actor_role' => (string) ($row->actor_role ?? 'System'),
-                    'affected_record' => (string) ($row->affected_record ?? 'None recorded'),
-                    'type' => Str::headline((string) $row->type),
-                    'source' => (string) $row->source,
-                    'status' => (string) $row->status,
-                    'summary' => (string) $row->summary,
-                ];
+            ->get();
 
-                return [$record['reference_id'] => $record];
-            });
+        $users = $this->loadUsersForRows($rawRows);
+
+        $rows = $rawRows->mapWithKeys(function (object $row) use ($users): array {
+            $record = $this->formatRow($row, $users);
+
+            return [$record['reference_id'] => $record];
+        });
 
         return new LengthAwarePaginator($rows, $total, $perPage, $page);
+    }
+
+    /**
+     * Return safe allowlisted rows matching the active tab, search, and filters for CSV export.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function exportRows(string $tab, ?string $search, array $filters, int $limit = 5000): Collection
+    {
+        $rawRows = $this->filteredQuery($tab, $search, $filters)
+            ->orderByDesc('occurred_at')
+            ->orderByDesc('sort_id')
+            ->limit($limit)
+            ->get();
+
+        $users = $this->loadUsersForRows($rawRows);
+
+        return $rawRows
+            ->map(fn (object $row): array => $this->formatRow($row, $users))
+            ->values();
     }
 
     /**
@@ -115,18 +108,421 @@ class GovernanceEvidenceProjection
             return null;
         }
 
+        $users = $this->loadUsersForRows(collect([$row]));
+
+        return $this->formatRow($row, $users);
+    }
+
+    /**
+     * @param  array<string, mixed>  $filters
+     */
+    private function filteredQuery(string $tab, ?string $search, array $filters): Builder
+    {
+        $query = DB::query()->fromSub($this->query($tab), 'governance_evidence');
+        $actorId = $filters['actor']['value'] ?? ($filters['scoped_user_id'] ?? null);
+        $source = $filters['source']['value'] ?? null;
+        $type = $filters['type']['value'] ?? null;
+        $from = $filters['date']['from'] ?? null;
+        $until = $filters['date']['until'] ?? null;
+
+        $query
+            ->when(
+                filled($actorId),
+                fn (Builder $builder): Builder => $builder->where(function (Builder $scoped) use ($actorId): void {
+                    $id = (int) $actorId;
+                    $scoped
+                        ->where('actor_id', $id)
+                        ->orWhere('affected_record', 'User #'.$id);
+                }),
+            )
+            ->when(filled($source), fn (Builder $builder): Builder => $builder->where('source', (string) $source))
+            ->when(filled($type), fn (Builder $builder): Builder => $builder->where('type', (string) $type))
+            ->when(filled($from), fn (Builder $builder): Builder => $builder->whereDate('occurred_at', '>=', (string) $from))
+            ->when(filled($until), fn (Builder $builder): Builder => $builder->whereDate('occurred_at', '<=', (string) $until));
+
+        $safeSearch = Str::of((string) $search)->trim()->limit(100, '')->toString();
+        if ($safeSearch !== '') {
+            $matchingUserIds = User::query()
+                ->where(function ($userQuery) use ($safeSearch): void {
+                    $userQuery
+                        ->where('name', 'like', "%{$safeSearch}%")
+                        ->orWhereHas('staffAccessProfile', fn ($q) => $q->where('staff_identifier', 'like', "%{$safeSearch}%"))
+                        ->orWhereHas('studentProfile', fn ($q) => $q->where('student_number', 'like', "%{$safeSearch}%"))
+                        ->orWhereHas('admissionApplications', fn ($q) => $q->where('application_reference', 'like', "%{$safeSearch}%"));
+                })
+                ->limit(100)
+                ->pluck('id')
+                ->all();
+
+            $matchingUserTargets = array_map(
+                static fn (int $id): string => 'User #'.$id,
+                $matchingUserIds,
+            );
+
+            $query->where(function (Builder $builder) use ($safeSearch, $matchingUserIds, $matchingUserTargets): void {
+                $builder
+                    ->where('actor', 'like', "%{$safeSearch}%")
+                    ->orWhere('actor_role', 'like', "%{$safeSearch}%")
+                    ->orWhere('affected_record', 'like', "%{$safeSearch}%")
+                    ->orWhere('type', 'like', "%{$safeSearch}%")
+                    ->orWhere('source', 'like', "%{$safeSearch}%")
+                    ->orWhere('summary', 'like', "%{$safeSearch}%");
+
+                if ($matchingUserIds !== []) {
+                    $builder
+                        ->orWhereIn('actor_id', $matchingUserIds)
+                        ->orWhereIn('affected_record', $matchingUserTargets);
+                }
+            });
+        }
+
+        return $query;
+    }
+
+    /**
+     * Batch-load User models for actors and User targets to avoid N+1 queries and never expose raw User #IDs.
+     *
+     * @param  Collection<int, object>  $rows
+     * @return Collection<int, User>
+     */
+    private function loadUsersForRows(Collection $rows): Collection
+    {
+        $userIds = collect();
+
+        foreach ($rows as $row) {
+            if ($row->actor_id !== null) {
+                $userIds->push((int) $row->actor_id);
+            }
+
+            if (is_string($row->affected_record ?? null) && preg_match('/^User #(\d+)$/', trim($row->affected_record), $matches) === 1) {
+                $userIds->push((int) $matches[1]);
+            }
+        }
+
+        $ids = $userIds->unique()->filter(static fn (int $id): bool => $id > 0)->values()->all();
+
+        if ($ids === []) {
+            return collect();
+        }
+
+        return User::query()
+            ->whereIn('id', $ids)
+            ->with([
+                'roles',
+                'staffAccessProfile',
+                'studentProfile',
+                'currentAdmissionApplication',
+                'currentApplicantIntake',
+            ])
+            ->get()
+            ->keyBy('id');
+    }
+
+    /**
+     * @param  Collection<int, User>  $users
+     * @return array<string, mixed>
+     */
+    private function formatRow(object $row, Collection $users): array
+    {
+        $rawRole = (string) ($row->actor_role ?? 'System');
+        $actorId = $row->actor_id === null ? null : (int) $row->actor_id;
+        $actorUser = $actorId !== null ? $users->get($actorId) : null;
+
+        if ($actorUser instanceof User) {
+            $identity = $this->formatUserIdentity($actorUser, $rawRole);
+            $actorName = $identity['name'];
+            $actorRoleDisplay = $identity['role'];
+            $actorIdentifier = $identity['identifier'];
+            $actorMeta = $identity['meta'];
+            $actorLabel = $identity['label'];
+        } else {
+            $actorName = (string) $row->actor;
+            $actorRoleDisplay = self::formatRoleLabel($rawRole);
+            $actorIdentifier = null;
+            $actorMeta = $actorId !== null && $actorRoleDisplay !== 'System' ? $actorRoleDisplay : null;
+            $actorLabel = $actorMeta !== null ? "{$actorName} ({$actorMeta})" : $actorName;
+        }
+
+        $affectedRecord = $this->resolveAffectedRecord($row->affected_record ?? null, $users);
+        $rawType = (string) $row->type;
+        $humanType = self::humanizeEventType($rawType);
+        $summary = (string) $row->summary;
+
+        if ($summary === '' || $summary === '__HUMANIZE_SUMMARY__') {
+            $summary = $this->fallbackSummary($humanType, $affectedRecord);
+        }
+
         return [
             'reference_id' => (string) $row->reference_id,
             'occurred_at' => (string) $row->occurred_at,
-            'actor' => (string) $row->actor,
-            'actor_id' => $row->actor_id === null ? null : (int) $row->actor_id,
-            'actor_role' => (string) ($row->actor_role ?? 'System'),
-            'affected_record' => (string) ($row->affected_record ?? 'None recorded'),
-            'type' => Str::headline((string) $row->type),
+            'occurred_at_display' => self::formatOccurredAt($row->occurred_at),
+            'occurred_date_display' => self::formatOccurredDate($row->occurred_at),
+            'occurred_time_display' => self::formatOccurredTime($row->occurred_at),
+            'actor' => $actorName,
+            'actor_id' => $actorId,
+            'actor_role' => $rawRole,
+            'actor_role_display' => $actorRoleDisplay,
+            'actor_identifier' => $actorIdentifier,
+            'actor_meta' => $actorMeta,
+            'actor_label' => $actorLabel,
+            'affected_record' => $affectedRecord,
+            'type' => $humanType,
             'source' => (string) $row->source,
             'status' => (string) $row->status,
-            'summary' => (string) $row->summary,
+            'summary' => $summary,
         ];
+    }
+
+    /**
+     * Format a User across all 7 roles with real name, role label, and institutional ID.
+     *
+     * @return array{name: string, role: string, identifier: ?string, meta: string, label: string}
+     */
+    public function formatUserIdentity(User $user, ?string $fallbackRole = null): array
+    {
+        $roleNames = $user->roles->pluck('name')->values()->all();
+        $primaryRoleName = $this->primaryRoleName($roleNames);
+        $roleLabel = $primaryRoleName !== null
+            ? self::formatRoleLabel($primaryRoleName)
+            : self::formatRoleLabel($fallbackRole ?? 'Unattributed');
+
+        $name = filled($user->name)
+            ? (string) $user->name
+            : ($primaryRoleName === 'applicant' ? 'Applicant account' : 'Account');
+
+        $identifier = $this->resolveInstitutionalIdentifier($user, $primaryRoleName);
+        $meta = $identifier !== null ? "{$roleLabel} · {$identifier}" : $roleLabel;
+
+        return [
+            'name' => $name,
+            'role' => $roleLabel,
+            'identifier' => $identifier,
+            'meta' => $meta,
+            'label' => "{$name} ({$meta})",
+        ];
+    }
+
+    /** @param list<string> $roleNames */
+    private function primaryRoleName(array $roleNames): ?string
+    {
+        if ($roleNames === []) {
+            return null;
+        }
+
+        $priority = [
+            User::StaffRoleSystemSuperAdmin,
+            User::StaffRoleRegistrar,
+            User::StaffRoleAccounting,
+            User::StaffRoleAcademicHead,
+            User::StaffRoleFaculty,
+            'student',
+            'applicant',
+        ];
+
+        foreach ($priority as $candidate) {
+            if (in_array($candidate, $roleNames, true)) {
+                return $candidate;
+            }
+        }
+
+        return $roleNames[0];
+    }
+
+    private function resolveInstitutionalIdentifier(User $user, ?string $primaryRole): ?string
+    {
+        $isStaff = $primaryRole !== null && in_array($primaryRole, User::staffRoleNames(), true);
+
+        if ($isStaff && filled($user->staffAccessProfile?->staff_identifier)) {
+            return 'Staff ID '.$user->staffAccessProfile->staff_identifier;
+        }
+
+        if ($primaryRole === 'student' && filled($user->studentProfile?->student_number)) {
+            return 'Student No. '.$user->studentProfile->student_number;
+        }
+
+        if (filled($user->staffAccessProfile?->staff_identifier)) {
+            return 'Staff ID '.$user->staffAccessProfile->staff_identifier;
+        }
+
+        if (filled($user->studentProfile?->student_number)) {
+            return 'Student No. '.$user->studentProfile->student_number;
+        }
+
+        $appRef = $user->currentAdmissionApplication?->application_reference
+            ?? $user->currentApplicantIntake?->application_reference;
+
+        if (filled($appRef)) {
+            return 'App Ref '.$appRef;
+        }
+
+        return null;
+    }
+
+    /** @param Collection<int, User> $users */
+    private function resolveAffectedRecord(mixed $value, Collection $users): string
+    {
+        if (is_string($value) && preg_match('/^User #(\d+)$/', trim($value), $matches) === 1) {
+            $targetUser = $users->get((int) $matches[1]);
+
+            if ($targetUser instanceof User) {
+                return $this->formatUserIdentity($targetUser)['label'];
+            }
+
+            return 'User account';
+        }
+
+        return self::formatAffectedRecord($value);
+    }
+
+    private function fallbackSummary(string $humanType, string $affectedRecord): string
+    {
+        if ($affectedRecord !== '' && $affectedRecord !== 'None') {
+            return "{$humanType} recorded for {$affectedRecord}.";
+        }
+
+        return "{$humanType} recorded.";
+    }
+
+    public static function formatOccurredAt(mixed $value): string
+    {
+        if (! is_string($value) || trim($value) === '') {
+            return 'Not recorded';
+        }
+
+        try {
+            return DisplayDateTime::format(CarbonImmutable::parse($value), 'M j, Y g:i A', 'Not recorded');
+        } catch (Throwable) {
+            return 'Not recorded';
+        }
+    }
+
+    public static function formatOccurredDate(mixed $value): string
+    {
+        if (! is_string($value) || trim($value) === '') {
+            return 'Not recorded';
+        }
+
+        try {
+            return DisplayDateTime::format(CarbonImmutable::parse($value), 'M j, Y', 'Not recorded');
+        } catch (Throwable) {
+            return 'Not recorded';
+        }
+    }
+
+    public static function formatOccurredTime(mixed $value): ?string
+    {
+        if (! is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        try {
+            return DisplayDateTime::format(CarbonImmutable::parse($value), 'g:i A', '');
+        } catch (Throwable) {
+            return null;
+        }
+    }
+
+    public static function formatRoleLabel(string $role): string
+    {
+        $normalized = trim($role);
+
+        if ($normalized === '') {
+            return 'System';
+        }
+
+        return match (strtolower($normalized)) {
+            'system-super-admin', 'system administrator' => 'System Administrator',
+            'registrar' => 'Registrar',
+            'accounting' => 'Accounting',
+            'academic-head', 'academic head' => 'Academic Head',
+            'faculty' => 'Faculty',
+            'student' => 'Student',
+            'applicant' => 'Applicant',
+            'system' => 'System',
+            'unattributed' => 'Unattributed',
+            default => Str::headline($normalized),
+        };
+    }
+
+    public static function formatAffectedRecord(mixed $value): string
+    {
+        if (! is_string($value)) {
+            return 'None';
+        }
+
+        $trimmed = trim($value);
+
+        if ($trimmed === '' || in_array(strtolower($trimmed), ['none', 'none recorded'], true)) {
+            return 'None';
+        }
+
+        if (preg_match('/^([A-Za-z0-9_\\\\]+)\s+#(\d+)$/', $trimmed, $matches) === 1) {
+            $subject = class_basename($matches[1]);
+            $label = match ($subject) {
+                'FaqEntry', 'faq_entry' => 'FAQ Entry',
+                'PublicNotice', 'public_notice' => 'Public Notice',
+                default => Str::headline($subject),
+            };
+
+            return "{$label} #{$matches[2]}";
+        }
+
+        if (str_starts_with($trimmed, 'Integration: ')) {
+            $integration = trim(substr($trimmed, strlen('Integration: ')));
+
+            if ($integration === '') {
+                return 'System integration';
+            }
+
+            $label = $integration === strtoupper($integration)
+                ? Str::of($integration)->lower()->headline()->toString()
+                : Str::headline($integration);
+
+            return $label.' integration';
+        }
+
+        return $trimmed;
+    }
+
+    public static function humanizeEventType(string $type): string
+    {
+        $trimmed = trim($type);
+
+        if ($trimmed === '') {
+            return 'Recorded';
+        }
+
+        if ($trimmed === strtoupper($trimmed) && preg_match('/[A-Z]/', $trimmed) === 1) {
+            $compact = strtoupper((string) preg_replace('/[^A-Za-z0-9]/', '', $trimmed));
+
+            $knownCompact = match ($compact) {
+                'TOR' => 'TOR',
+                'COR' => 'COR',
+                'INITIALRELEASE' => 'Initial release',
+                'PENDINGREPLACEMENT' => 'Pending replacement',
+                'INCRESOLUTION' => 'INC resolution',
+                'POSTEDCORRECTION' => 'Posted correction',
+                'GRADECORRECTION' => 'Grade correction',
+                'LIFECYCLEOUTCOME' => 'Lifecycle outcome',
+                'SUBJECTDROP' => 'Subject drop',
+                'WITHDRAWAL' => 'Withdrawal',
+                'LEAVEOFABSENCE' => 'Leave of absence',
+                'TRANSFEROUT' => 'Transfer out',
+                'REACTIVATION' => 'Reactivation',
+                'INACTIVATION' => 'Inactivation',
+                'PROGRAMSHIFT' => 'Program shift',
+                'COMPLETION' => 'Completion',
+                default => null,
+            };
+
+            if ($knownCompact !== null) {
+                return $knownCompact;
+            }
+
+            return Str::of($trimmed)->lower()->headline()->toString();
+        }
+
+        return Str::headline($trimmed);
     }
 
     /** @return array<int, string> */
@@ -134,9 +530,36 @@ class GovernanceEvidenceProjection
     {
         return User::query()
             ->whereHas('roles')
+            ->with([
+                'roles',
+                'staffAccessProfile',
+                'studentProfile',
+                'currentAdmissionApplication',
+                'currentApplicantIntake',
+            ])
             ->orderBy('name')
-            ->pluck('name', 'id')
-            ->map(fn (?string $name): string => filled($name) ? (string) $name : 'Staff account')
+            ->get()
+            ->mapWithKeys(fn (User $user): array => [
+                $user->getKey() => $this->formatUserIdentity($user)['label'],
+            ])
+            ->all();
+    }
+
+    /** @return array<string, string> */
+    public function sourceOptions(string $tab): array
+    {
+        $sources = DB::query()
+            ->fromSub($this->query($tab), 'evidence')
+            ->whereNotNull('source')
+            ->distinct()
+            ->orderBy('source')
+            ->pluck('source');
+
+        return $sources
+            ->filter(fn (mixed $source): bool => is_string($source) && $source !== '')
+            ->unique()
+            ->sort()
+            ->mapWithKeys(fn (string $source): array => [$source => $source])
             ->all();
     }
 
@@ -154,7 +577,7 @@ class GovernanceEvidenceProjection
             ->filter(fn (mixed $type): bool => is_string($type) && $type !== '')
             ->unique()
             ->sort()
-            ->mapWithKeys(fn (string $type): array => [$type => Str::headline($type)])
+            ->mapWithKeys(fn (string $type): array => [$type => self::humanizeEventType($type)])
             ->all();
     }
 
@@ -206,16 +629,25 @@ class GovernanceEvidenceProjection
 
     private function institutionalChangesQuery(): Builder
     {
+        $excludedEvents = array_merge(self::authenticationEventsList(), self::readOnlyAccessEvents());
+
         $activity = DB::table('activity_log as activity')
             ->leftJoin('users as actor_user', 'actor_user.id', '=', 'activity.causer_id')
             ->where(function (Builder $query): void {
-                $query->whereIn('activity.event', self::specificInstitutionalActivityEvents())
+                $query->whereNull('activity.log_name')
+                    ->orWhere('activity.log_name', '!=', 'authentication');
+            })
+            ->whereNotNull('activity.event')
+            ->where('activity.event', '!=', '')
+            ->whereNotIn('activity.event', $excludedEvents)
+            ->where(function (Builder $query): void {
+                $query->whereNotIn('activity.event', self::institutionalGenericEvents())
                     ->orWhere(function (Builder $genericQuery): void {
                         $genericQuery->whereIn('activity.event', self::institutionalGenericEvents())
                             ->whereIn('activity.subject_type', self::supportedInstitutionalGenericSubjects());
                     });
             })
-            ->selectRaw("activity.id AS sort_id, CONCAT('activity:', activity.id) AS reference_id, activity.created_at AS occurred_at, activity.causer_id AS actor_id, ".self::actorSql('actor_user', 'activity.causer_id').' AS actor, '.self::actorRoleResolutionSql('actor_user', 'activity.causer_id')." AS actor_role, CASE WHEN activity.subject_type IS NOT NULL AND activity.subject_id IS NOT NULL THEN CONCAT(REPLACE(activity.subject_type, 'App\\\\Models\\\\', ''), ' #', activity.subject_id) ELSE 'Institutional configuration' END AS affected_record, COALESCE(activity.event, 'recorded') AS type, 'Institutional change' AS source, 'Recorded' AS status, CASE WHEN activity.event = 'user_created' THEN 'User account created.' WHEN activity.event = 'user_updated' THEN 'User account updated.' WHEN activity.event = 'user_status_changed' THEN 'User account status changed.' WHEN activity.event = 'staff_access_changed' THEN 'Staff access privileges modified.' WHEN activity.event IN ('staff_access_disabled', 'staff_account_disabled') THEN 'Staff access disabled.' WHEN activity.event IN ('staff_access_enabled', 'staff_account_reactivated') THEN 'Staff access enabled.' WHEN activity.event = 'staff_invited' THEN 'Staff invitation created.' WHEN activity.event = 'staff_invitation_activated' THEN 'Staff invitation accepted and activated.' WHEN activity.event = 'staff_email_changed' THEN 'Staff email change recorded.' WHEN activity.event = 'hold_created' THEN 'Student hold placed.' WHEN activity.event = 'hold_waived' THEN 'Student hold waived.' WHEN activity.event = 'hold_resolved' THEN 'Student hold resolved.' WHEN activity.event = 'hold_expired' THEN 'Student hold expired.' WHEN activity.event = 'curriculum_workbench_row_created' THEN 'Curriculum workbench row created.' WHEN activity.event = 'curriculum_workbench_placement_updated' THEN 'Curriculum workbench placement updated.' WHEN activity.event = 'curriculum_workbench_specification_updated' THEN 'Curriculum workbench specification updated.' WHEN activity.event = 'curriculum_approval_recorded' THEN 'Curriculum version approval recorded.' WHEN activity.event = 'curriculum_activated' THEN 'Curriculum version activated.' WHEN activity.event = 'course_specification_draft_copied' THEN 'Course specification draft copied.' WHEN activity.event = 'course_specification_activated' THEN 'Course specification activated.' WHEN activity.event = 'financial_accommodation_transitioned' THEN 'Financial accommodation transition recorded.' WHEN activity.event = 'graduation_snapshot_generated' THEN 'Graduation eligibility snapshot generated.' WHEN activity.event = 'graduation_review_batch_closed' THEN 'Graduation review batch closed.' WHEN activity.event = 'graduation_review_batch_created' THEN 'Graduation review batch created.' WHEN activity.event = 'graduation_review_member_added' THEN 'Graduation review candidate added.' WHEN activity.event = 'graduation_review_member_removed' THEN 'Graduation review candidate removed.' WHEN activity.event = 'graduation_snapshot_visibility_changed' THEN 'Graduation snapshot visibility changed.' WHEN activity.event = 'admission_assisted_draft_saved' THEN 'Assisted admission draft saved.' WHEN activity.event = 'admission_assisted_draft_discarded' THEN 'Assisted admission draft discarded.' WHEN activity.event = 'candidate_accepted' THEN 'Admission candidate accepted.' WHEN activity.event = 'candidate_rejected' THEN 'Admission candidate rejected.' WHEN activity.event = 'candidate_correction' THEN 'Admission candidate correction recorded.' WHEN activity.event = 'schedule_generation_run_published' THEN 'Class schedule generation run published.' WHEN activity.event = 'schedule_revision_published' THEN 'Timetable revision published.' WHEN activity.event = 'faculty_availability_revision_required' THEN 'Faculty availability revision requested.' WHEN activity.event = 'accounting_adjustment_posted' THEN 'Accounting adjustment posted.' WHEN activity.event = 'academic_standing_confirmed' THEN 'Academic standing confirmed.' WHEN activity.event = 'finance_cleared' THEN 'Student finance cleared.' WHEN activity.event = 'payment_confirmed' THEN 'Payment confirmed.' WHEN activity.event = 'applicant_intake_submitted' THEN 'Applicant intake submitted.' WHEN activity.event = 'applicant_intake_withdrawn' THEN 'Applicant intake withdrawn.' WHEN activity.event = 'applicant_intake_reviewed' THEN 'Applicant intake reviewed.' WHEN activity.event = 'applicant_evidence_verified' THEN 'Applicant requirement evidence verified.' WHEN activity.event = 'enrollment_edit_blocked' THEN 'Enrollment modification blocked.' WHEN activity.event = 'student_lifecycle_change_recorded' THEN 'Student lifecycle status change recorded.' WHEN activity.event = 'program_shift_applied' THEN 'Program shift applied.' WHEN activity.event = 'program_shift_cancelled' THEN 'Program shift cancelled.' WHEN activity.event = 'published' THEN 'Public content published.' WHEN activity.event = 'unpublished' THEN 'Public content unpublished.' WHEN activity.event = 'reordered' THEN 'Public content display order updated.' WHEN activity.event = 'created' THEN 'Institutional record created.' WHEN activity.event = 'updated' THEN 'Institutional record updated.' WHEN activity.event = 'deleted' THEN 'Institutional record deleted.' ELSE 'An institutional change was recorded.' END AS summary");
+            ->selectRaw("activity.id AS sort_id, CONCAT('activity:', activity.id) AS reference_id, activity.created_at AS occurred_at, activity.causer_id AS actor_id, ".self::actorSql('actor_user', 'activity.causer_id').' AS actor, '.self::actorRoleResolutionSql('actor_user', 'activity.causer_id')." AS actor_role, CASE WHEN activity.subject_type IS NOT NULL AND activity.subject_id IS NOT NULL THEN CONCAT(REPLACE(activity.subject_type, 'App\\\\Models\\\\', ''), ' #', activity.subject_id) ELSE 'Institutional configuration' END AS affected_record, activity.event AS type, 'Institutional change' AS source, 'Recorded' AS status, CASE WHEN activity.event = 'staff_access_changed' THEN 'Staff access privileges modified.' WHEN activity.event IN ('staff_access_disabled', 'staff_account_disabled') THEN 'Staff access disabled.' WHEN activity.event IN ('staff_access_enabled', 'staff_account_reactivated') THEN 'Staff access enabled.' WHEN activity.event = 'staff_invited' THEN 'Staff invitation created.' WHEN activity.event = 'staff_invitation_activated' THEN 'Staff invitation accepted and activated.' WHEN activity.event = 'hold_created' THEN 'Student hold placed.' WHEN activity.event = 'hold_waived' THEN 'Student hold waived.' WHEN activity.event = 'hold_resolved' THEN 'Student hold resolved.' WHEN activity.event = 'hold_expired' THEN 'Student hold expired.' WHEN activity.event = 'failed_jobs_retried' THEN 'Failed queue jobs re-queued by administrator.' WHEN activity.event = 'published' THEN 'Public content published.' WHEN activity.event = 'unpublished' THEN 'Public content unpublished.' WHEN activity.event = 'reordered' THEN 'Public content display order updated.' WHEN activity.event = 'created' THEN 'Institutional record created.' WHEN activity.event = 'updated' THEN 'Institutional record updated.' WHEN activity.event = 'deleted' THEN 'Institutional record deleted.' ELSE '__HUMANIZE_SUMMARY__' END AS summary");
 
         $admissionCycles = DB::table('admission_cycle_events as ace')
             ->leftJoin('users as u', 'u.id', '=', 'ace.actor_id')
@@ -304,13 +736,19 @@ class GovernanceEvidenceProjection
     {
         $authentication = DB::table('activity_log as activity')
             ->leftJoin('users as actor_user', 'actor_user.id', '=', 'activity.causer_id')
-            ->whereIn('activity.event', $this->authenticationEvents())
-            ->selectRaw("activity.id AS sort_id, CONCAT('authentication:', activity.id) AS reference_id, activity.created_at AS occurred_at, activity.causer_id AS actor_id, ".self::actorSql('actor_user', 'activity.causer_id').' AS actor, '.self::actorRoleResolutionSql('actor_user', 'activity.causer_id')." AS actor_role, CASE WHEN activity.subject_type IS NOT NULL AND activity.subject_id IS NOT NULL THEN CONCAT(REPLACE(activity.subject_type, 'App\\\\Models\\\\', ''), ' #', activity.subject_id) ELSE 'Authentication boundary' END AS affected_record, activity.event AS type, 'Authentication' AS source, CASE WHEN activity.event = 'login_failed' THEN 'Attention' ELSE 'Recorded' END AS status, CASE WHEN activity.event = 'login' THEN 'User authenticated successfully.' WHEN activity.event = 'login_failed' THEN 'Authentication attempt failed.' WHEN activity.event = 'logout' THEN 'User signed out.' WHEN activity.event = 'password_changed' THEN 'User password was changed.' WHEN activity.event = 'password_recovery_completed' THEN 'Password recovery completed.' WHEN activity.event = 'mfa_enabled' THEN 'Multi-factor authentication enabled.' WHEN activity.event = 'mfa_disabled' THEN 'Multi-factor authentication disabled.' WHEN activity.event = 'mfa_challenge_succeeded' THEN 'MFA challenge verified successfully.' WHEN activity.event = 'mfa_recovery_code_used' THEN 'MFA recovery code used for sign-in.' WHEN activity.event = 'mfa_recovery_codes_regenerated' THEN 'MFA recovery codes regenerated.' WHEN activity.event = 'email_verified' THEN 'User email address verified.' WHEN activity.event = 'staff_mfa_reset' THEN 'Staff MFA reset by administrator.' WHEN activity.event = 'sign_in_email_changed' THEN 'Sign-in email address changed.' WHEN activity.event = 'staff_email_changed' THEN 'Staff email address change recorded.' ELSE 'An authentication event was recorded.' END AS summary");
+            ->where(function (Builder $query): void {
+                $query->where('activity.log_name', 'authentication')
+                    ->orWhereIn('activity.event', self::authenticationEventsList());
+            })
+            ->whereNotNull('activity.event')
+            ->where('activity.event', '!=', '')
+            ->selectRaw("activity.id AS sort_id, CONCAT('authentication:', activity.id) AS reference_id, activity.created_at AS occurred_at, activity.causer_id AS actor_id, ".self::actorSql('actor_user', 'activity.causer_id').' AS actor, '.self::actorRoleResolutionSql('actor_user', 'activity.causer_id')." AS actor_role, CASE WHEN activity.subject_type IS NOT NULL AND activity.subject_id IS NOT NULL THEN CONCAT(REPLACE(activity.subject_type, 'App\\\\Models\\\\', ''), ' #', activity.subject_id) ELSE 'Authentication boundary' END AS affected_record, activity.event AS type, 'Authentication' AS source, CASE WHEN activity.event = 'login_failed' THEN 'Attention' ELSE 'Recorded' END AS status, CASE WHEN activity.event = 'login' THEN 'User authenticated successfully.' WHEN activity.event = 'login_failed' THEN 'Authentication attempt failed.' WHEN activity.event = 'logout' THEN 'User signed out.' WHEN activity.event = 'password_changed' THEN 'User password was changed.' WHEN activity.event = 'password_recovery_completed' THEN 'Password recovery completed.' WHEN activity.event = 'mfa_enabled' THEN 'Multi-factor authentication enabled.' WHEN activity.event = 'mfa_disabled' THEN 'Multi-factor authentication disabled.' WHEN activity.event = 'mfa_challenge_succeeded' THEN 'MFA challenge verified successfully.' WHEN activity.event = 'mfa_recovery_code_used' THEN 'MFA recovery code used for sign-in.' WHEN activity.event = 'mfa_recovery_codes_regenerated' THEN 'MFA recovery codes regenerated.' WHEN activity.event = 'email_verified' THEN 'User email address verified.' WHEN activity.event = 'staff_mfa_reset' THEN 'Staff MFA reset by administrator.' WHEN activity.event = 'sign_in_email_changed' THEN 'Sign-in email address changed.' WHEN activity.event = 'staff_email_changed' THEN 'Staff email address change recorded.' ELSE '__HUMANIZE_SUMMARY__' END AS summary");
 
         $operational = DB::table('operational_events as event')
             ->leftJoin('users as actor_user', 'actor_user.id', '=', 'event.user_id')
-            ->whereIn('event.event_type', self::systemOperationalEvents())
-            ->selectRaw("event.id AS sort_id, CONCAT('operational:', event.id) AS reference_id, event.occurred_at AS occurred_at, event.user_id AS actor_id, ".self::actorSql('actor_user', 'event.user_id').' AS actor, '.self::actorRoleResolutionSql('actor_user', 'event.user_id')." AS actor_role, CASE WHEN event.related_record_type IS NOT NULL AND event.related_record_id IS NOT NULL THEN CONCAT(REPLACE(event.related_record_type, 'App\\\\Models\\\\', ''), ' #', event.related_record_id) ELSE CONCAT('Integration: ', COALESCE(event.integration, 'system')) END AS affected_record, event.event_type AS type, 'Operational event' AS source, CASE WHEN UPPER(event.status) IN ('PROCESSED', 'SUCCESS', 'COMPLETED') THEN 'Recorded' WHEN UPPER(event.status) IN ('FAILED', 'REVIEW_REQUIRED', 'ERROR') THEN 'Attention' ELSE 'Pending' END AS status, CASE WHEN event.event_type = 'mail_self_test_accepted' THEN 'Self-test diagnostic email accepted by local transport.' WHEN event.event_type = 'mail_self_test_failed' THEN 'Self-test diagnostic email failed local transport dispatch.' WHEN event.event_type = 'test_email_sent' THEN 'Diagnostic test email dispatched successfully.' WHEN event.event_type = 'test_email_failed' THEN 'Diagnostic test email dispatch failed.' WHEN event.event_type = 'backup_evidence_recorded' THEN 'Local database backup evidence recorded.' WHEN event.event_type = 'restore_evidence_recorded' THEN 'Local database restore verification evidence recorded.' WHEN event.event_type = 'backup_completed' THEN 'Backup process completed.' WHEN event.event_type = 'restore_completed' THEN 'Restore verification process completed.' WHEN event.event_type = 'solver_dispatch_attempt' THEN 'Timetable solver dispatch attempt recorded.' WHEN event.event_type = 'integration_failure' THEN 'External service integration failure recorded.' WHEN event.event_type = 'safe_fixture_event' THEN 'Safe qualification fixture event recorded.' WHEN event.event_type = 'schedule_revision_pending' THEN 'Timetable revision dispatch pending.' WHEN event.event_type = 'schedule_revision_processed' THEN 'Timetable revision processed successfully.' WHEN event.event_type = 'schedule_revision_failed' THEN 'Timetable revision processing failed.' WHEN event.event_type = 'staff_mfa_reset_email' THEN 'Staff MFA reset notification email dispatched.' WHEN event.event_type = 'admission_application_submitted' THEN 'Admission application intake submitted.' WHEN event.event_type = 'admission_application_resubmitted' THEN 'Admission application resubmitted with corrections.' WHEN event.event_type = 'admission_correction_requested' THEN 'Admission application correction requested.' WHEN event.event_type = 'admission_application_admitted' THEN 'Admission applicant accepted and admitted.' WHEN event.event_type = 'admission_application_not_admitted' THEN 'Admission application not accepted.' WHEN event.event_type = 'admission_ready_for_enrollment' THEN 'Admission candidate cleared for enrollment.' WHEN event.event_type = 'admission_application_withdrawn' THEN 'Admission application withdrawn.' WHEN event.event_type = 'lifecycle_accounting_review' THEN 'Student lifecycle accounting review recorded.' WHEN event.event_type LIKE '%_email' THEN 'Transactional notification email dispatched.' ELSE 'A classified operational event was recorded.' END AS summary");
+            ->whereNotNull('event.event_type')
+            ->where('event.event_type', '!=', '')
+            ->selectRaw("event.id AS sort_id, CONCAT('operational:', event.id) AS reference_id, event.occurred_at AS occurred_at, event.user_id AS actor_id, ".self::actorSql('actor_user', 'event.user_id').' AS actor, '.self::actorRoleResolutionSql('actor_user', 'event.user_id')." AS actor_role, CASE WHEN event.related_record_type IS NOT NULL AND event.related_record_id IS NOT NULL THEN CONCAT(REPLACE(event.related_record_type, 'App\\\\Models\\\\', ''), ' #', event.related_record_id) ELSE CONCAT('Integration: ', COALESCE(event.integration, 'system')) END AS affected_record, event.event_type AS type, 'Operational event' AS source, CASE WHEN UPPER(event.status) IN ('PROCESSED', 'SUCCESS', 'COMPLETED') THEN 'Recorded' WHEN UPPER(event.status) IN ('FAILED', 'REVIEW_REQUIRED', 'ERROR') THEN 'Attention' ELSE 'Pending' END AS status, CASE WHEN event.event_type = 'mail_self_test_accepted' THEN 'Self-test diagnostic email accepted by local transport.' WHEN event.event_type = 'mail_self_test_failed' THEN 'Self-test diagnostic email failed local transport dispatch.' WHEN event.event_type = 'solver_health_probe' AND UPPER(event.status) IN ('PROCESSED', 'SUCCESS', 'COMPLETED') THEN 'Scheduling solver health probe succeeded.' WHEN event.event_type = 'solver_health_probe' THEN 'Scheduling solver health probe failed.' WHEN event.event_type = 'solver_dispatch_attempt' THEN 'Timetable solver dispatch attempt recorded.' WHEN event.event_type = 'integration_failure' THEN 'External service integration failure recorded.' WHEN event.event_type = 'backup_evidence_recorded' THEN 'Local database backup evidence recorded.' WHEN event.event_type = 'restore_evidence_recorded' THEN 'Local database restore verification evidence recorded.' WHEN event.event_type = 'schedule_revision_pending' THEN 'Timetable revision dispatch pending.' WHEN event.event_type = 'schedule_revision_processed' THEN 'Timetable revision processed successfully.' WHEN event.event_type = 'schedule_revision_failed' THEN 'Timetable revision processing failed.' WHEN event.event_type = 'admission_application_submitted' THEN 'Admission application intake submitted.' WHEN event.event_type LIKE '%_email' THEN 'Transactional notification email dispatched.' ELSE '__HUMANIZE_SUMMARY__' END AS summary");
 
         return DB::query()->fromSub($authentication->unionAll($operational), 'evidence');
     }
@@ -336,7 +774,6 @@ class GovernanceEvidenceProjection
     public static function supportedInstitutionalGenericSubjects(): array
     {
         return [
-            CalendarEvent::class,
             FaqEntry::class,
             PublicNotice::class,
             SystemSetting::class,
@@ -351,24 +788,20 @@ class GovernanceEvidenceProjection
         ];
     }
 
-    /** @return list<string> */
+    /**
+     * Retained for account access-history widgets (e.g. UserInfolist).
+     *
+     * @return list<string>
+     */
     public static function specificInstitutionalActivityEvents(): array
     {
         return [
             'staff_access_changed',
-            'staff_access_disabled',
             'staff_account_disabled',
-            'staff_access_enabled',
             'staff_account_reactivated',
             'staff_invited',
             'staff_invitation_activated',
             'staff_email_changed',
-            'user_created',
-            'user_updated',
-            'user_status_changed',
-            'candidate_accepted',
-            'candidate_rejected',
-            'candidate_correction',
             'hold_created',
             'hold_waived',
             'hold_resolved',
@@ -376,103 +809,32 @@ class GovernanceEvidenceProjection
             'curriculum_workbench_row_created',
             'curriculum_workbench_placement_updated',
             'curriculum_workbench_specification_updated',
-            'curriculum_approval_recorded',
             'curriculum_activated',
             'course_specification_draft_copied',
             'course_specification_activated',
             'financial_accommodation_transitioned',
             'graduation_snapshot_generated',
-            'graduation_review_batch_closed',
-            'graduation_review_batch_created',
-            'graduation_review_member_added',
-            'graduation_review_member_removed',
-            'graduation_snapshot_visibility_changed',
             'admission_assisted_draft_saved',
             'admission_assisted_draft_discarded',
             'published',
             'unpublished',
             'reordered',
-            'schedule_generation_run_published',
-            'schedule_revision_published',
-            'faculty_availability_revision_required',
-            'accounting_adjustment_posted',
-            'academic_standing_confirmed',
-            'finance_cleared',
-            'payment_confirmed',
-            'applicant_intake_submitted',
-            'applicant_intake_withdrawn',
-            'applicant_intake_reviewed',
-            'applicant_evidence_verified',
-            'enrollment_edit_blocked',
-            'student_lifecycle_change_recorded',
-            'program_shift_applied',
-            'program_shift_cancelled',
+            'failed_jobs_retried',
         ];
     }
 
     /** @return list<string> */
-    public static function institutionalActivityEvents(): array
-    {
-        return array_merge(self::institutionalGenericEvents(), self::specificInstitutionalActivityEvents());
-    }
-
-    /** @return list<string> */
-    public static function systemOperationalEvents(): array
+    public static function readOnlyAccessEvents(): array
     {
         return [
-            'backup_evidence_recorded',
-            'restore_evidence_recorded',
-            'backup_completed',
-            'restore_completed',
-            'solver_dispatch_attempt',
-            'integration_failure',
-            'safe_fixture_event',
-            'schedule_revision_pending',
-            'schedule_revision_processed',
-            'schedule_revision_failed',
-            'mail_self_test_accepted',
-            'mail_self_test_failed',
-            'test_email_sent',
-            'test_email_failed',
-            'staff_invitation_email',
-            'staff_mfa_reset_email',
-            'schedule_revision_email',
-            'schedule_released_email',
-            'faculty_availability_requested_email',
-            'payment_posted_email',
-            'applicant_action_required_email',
-            'applicant_approved_email',
-            'admission_application_submitted',
-            'admission_application_resubmitted',
-            'admission_correction_requested',
-            'admission_application_admitted',
-            'admission_application_not_admitted',
-            'admission_ready_for_enrollment',
-            'admission_application_withdrawn',
-            'official_enrollment_email',
-            'lifecycle_accounting_review',
-            'enrollment_window_email',
-            'registration_proposal_email',
-            'registration_payment_action_email',
-            'registration_case_expiry_email',
-            'registration_adjustment_email',
-            'course_drop_email',
-            'academic_record_updated_email',
-            'grade_submission_required_email',
-            'grade_roster_returned_email',
-            'grade_roster_released_email',
-            'inc_released_email',
-            'inc_deadline_amended_email',
-            'inc_resolved_email',
-            'grade_correction_released_email',
-            'academic_progress_lifecycle_email',
-            'completion_requires_action_email',
-            'conferral_recorded_email',
+            'payment_evidence_accessed',
+            'admission_evidence_accessed',
+            'output_accessed',
         ];
     }
 
     /** @return list<string> */
-    private function authenticationEvents(): array
+    private static function authenticationEventsList(): array
     {
         return [
             'email_verified',
