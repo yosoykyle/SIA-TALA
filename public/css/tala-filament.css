@@ -1915,6 +1915,16 @@ table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
     .fi-body .fi-modal-window .fi-fo-repeater-item-content {
         padding: var(--tala-card-pad-compact);
     }
+
+    /* Prevent modal sections and repeaters from clipping open dropdown or date/time panels behind sticky bars. */
+    .fi-body .fi-modal-window :is(.fi-section, .fi-section-content-ctn, .fi-fo-repeater, .fi-fo-repeater-item, .fi-fo-repeater-item-content) {
+        overflow: visible;
+    }
+
+    .fi-body .fi-modal-window :is(.fi-select-input .fi-dropdown-panel, .fi-fo-date-time-picker-panel) {
+        z-index: 30;
+    }
+
     .fi-body select.fi-select-input {
         -webkit-appearance: none;
         appearance: none;

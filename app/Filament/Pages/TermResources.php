@@ -1114,15 +1114,11 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                                         ->required(),
                                     TimePicker::make('starts_at')
                                         ->label('From')
-                                        ->native(false)
-                                        ->displayFormat('g:i A')
                                         ->timezone((string) config('app.timezone'))
                                         ->seconds(false)
                                         ->required(),
                                     TimePicker::make('ends_at')
                                         ->label('To')
-                                        ->native(false)
-                                        ->displayFormat('g:i A')
                                         ->timezone((string) config('app.timezone'))
                                         ->seconds(false)
                                         ->after('starts_at')

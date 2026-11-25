@@ -449,14 +449,10 @@ class TermCalendar extends TermPlanningWorkbench implements HasTable
                                 : (filled($state['exception_type'] ?? null) ? ($this->datedExceptionTypeOptions((string) $state['exception_type'])[(string) $state['exception_type']] ?? (string) $state['exception_type']) : null))
                             ->schema([
                                 DatePicker::make('starts_on')
-                                    ->native(false)
-                                    ->displayFormat('M j, Y')
-                                    ->suffixIcon(Heroicon::OutlinedCalendar)
+                                    ->label('Start date')
                                     ->required(),
                                 DatePicker::make('ends_on')
-                                    ->native(false)
-                                    ->displayFormat('M j, Y')
-                                    ->suffixIcon(Heroicon::OutlinedCalendar)
+                                    ->label('End date')
                                     ->required()
                                     ->afterOrEqual('starts_on'),
                                 Select::make('exception_type')

@@ -37,9 +37,7 @@ class RoomForm
                             ->maxLength(255),
                         Select::make('room_type')
                             ->options(Room::typeOptions())
-                            ->required()
-                            ->searchable()
-                            ->native(false),
+                            ->required(),
                         TextInput::make('capacity')
                             ->required()
                             ->integer()
@@ -56,7 +54,7 @@ class RoomForm
                         ->description('Record available equipment. For computers, only availability is recorded.')
                         ->schema([
                             Repeater::make('features')->label('Equipment')->relationship()
-                                ->schema([RoomEquipment::select('feature_key')->label('Equipment')->required()])
+                                ->schema([RoomEquipment::select('feature_key')->label('Equipment')->position('top')->required()])
                                 ->defaultItems(0)->deleteAction(fn (Action $action): Action => $action->label('Discard unsaved equipment')->visible(fn (array $arguments): bool => ! str_starts_with((string) ($arguments['item'] ?? ''), 'record-')))->reorderable(false)->addActionLabel('Add equipment')->columnSpanFull()
                                 ->helperText('Existing equipment can be corrected. Only unsaved additions can be removed.'),
                         ]),

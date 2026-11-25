@@ -276,8 +276,8 @@ final class SchoolResources extends Page implements HasTable
                     ->modalSubmitActionLabel('Save room')
                     ->schema(fn (Schema $schema): Schema => RoomForm::configure($schema))
                     ->visible(fn (Room $record): bool => ! $this->isReadOnly() && RoomResource::canEdit($record))
-                    ->before(function (Room $record, array $data, Schema $schema): void {
-                        $this->guardRoomEdit($record, $data, $schema);
+                    ->before(function (Room $record, array $data, Action $action): void {
+                        $this->guardRoomEdit($record, $data, $this->getMountedActionSchema(mountedAction: $action));
                     })
                     ->after(function (): void {
                         $actor = auth()->user();
@@ -1215,7 +1215,7 @@ final class SchoolResources extends Page implements HasTable
     /**
      * @param  array<string, mixed>  $data
      */
-    private function guardRoomEdit(Room $record, array $data, Schema $schema): void
+    private function guardRoomEdit(Room $record, array $data, ?Schema $schema = null): void
     {
         $officialMeetings = $this->activeOfficialRoomMeetings($record);
         if ($officialMeetings->isEmpty()) {
@@ -1253,7 +1253,7 @@ final class SchoolResources extends Page implements HasTable
 
         $rawFeatures = array_key_exists('features', $data)
             ? $data['features']
-            : ($schema->getRawState()['features'] ?? null);
+            : ($schema?->getRawState()['features'] ?? null);
 
         if (is_array($rawFeatures)) {
             $submittedFeatureKeys = collect($rawFeatures)
@@ -1321,9 +1321,11 @@ final class SchoolResources extends Page implements HasTable
             ->persistent()
             ->send();
 
+        $statePath = $schema?->getStatePath();
+
         throw ValidationException::withMessages(
             collect($errors)
-                ->mapWithKeys(fn (string $message, string $field): array => [$schema->getStatePath().'.'.$field => $message])
+                ->mapWithKeys(fn (string $message, string $field): array => [filled($statePath) ? $statePath.'.'.$field : $field => $message])
                 ->all(),
         );
     }
