@@ -11,6 +11,7 @@ use App\Models\AdmissionRequirement;
 use App\Models\ApplicationCorrectionRequest;
 use App\Models\PreliminaryEvidenceReview;
 use App\Models\Program;
+use App\Queries\Admissions\AdmissionDeadlineStatus;
 use App\Queries\Admissions\AdmissionQueueCounts;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
 use Carbon\Carbon;
@@ -19,6 +20,7 @@ use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Notifications\Notification;
+use Filament\Support\Enums\Size;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Filters\Filter;
@@ -89,27 +91,21 @@ class AdmissionApplicationsTable
                 TextColumn::make('application_state')
                     ->label('State')
                     ->badge()
-                    ->formatStateUsing(fn (string $state): string => str($state)->headline()->toString())
-                    ->color(fn (string $state): string => match ($state) {
-                        AdmissionApplication::StateAdmitted => 'success',
-                        AdmissionApplication::StateNotAdmitted => 'danger',
-                        AdmissionApplication::StateWithdrawn => 'gray',
-                        AdmissionApplication::StateActionNeeded => 'warning',
-                        default => 'info',
-                    })
+                    ->formatStateUsing(fn (string $state, AdmissionApplication $record): string => str(self::displayState($record))->headline()->toString())
+                    ->color(fn (string $state, AdmissionApplication $record): string|array => AdmissionApplication::stateColor(self::displayState($record)))
                     ->visibleFrom('md'),
                 TextColumn::make('owner_next_action')
-                    ->label('Owner / next action')
+                    ->label('Next action')
                     ->state(fn (AdmissionApplication $record): string => match ($record->application_state) {
-                        AdmissionApplication::StateDraft => 'Applicant — complete the draft',
-                        AdmissionApplication::StateActionNeeded => 'Applicant — respond to correction',
-                        AdmissionApplication::StateSubmitted => 'Registrar — '.app(ReadyApplicantProjectionQuery::class)->submittedNextAction($record),
+                        AdmissionApplication::StateDraft => 'Complete the draft',
+                        AdmissionApplication::StateActionNeeded => 'Respond to correction',
+                        AdmissionApplication::StateSubmitted => app(ReadyApplicantProjectionQuery::class)->submittedNextAction($record),
                         AdmissionApplication::StateAdmitted => app(ReadyApplicantProjectionQuery::class)->forApplication($record)['ready']
-                            ? app(ReadyApplicantProjectionQuery::class)->responsibleParty($record).' — '.app(ReadyApplicantProjectionQuery::class)->enrollmentNextAction($record)
-                            : 'Applicant / Registrar — complete external checks and clearance',
+                            ? app(ReadyApplicantProjectionQuery::class)->enrollmentNextAction($record)
+                            : 'Complete external checks and clearance',
                         AdmissionApplication::StateNotAdmitted,
-                        AdmissionApplication::StateWithdrawn => 'No active task — Registrar retains history',
-                        default => 'Registrar — review application',
+                        AdmissionApplication::StateWithdrawn => 'No active task',
+                        default => 'Review application',
                     })
                     ->description(function (AdmissionApplication $record): ?string {
                         if ($record->application_state === AdmissionApplication::StateActionNeeded) {
@@ -131,11 +127,11 @@ class AdmissionApplicationsTable
                         return null;
                     })
                     ->formatStateUsing(fn (string $state): string => match ($state) {
-                        'Registrar — Start review of the current submitted application.' => 'Registrar — start review',
-                        'Registrar — Review the current required preliminary copies.' => 'Registrar — review preliminary copies',
-                        'Registrar — Resolve the current private identity warning.' => 'Registrar — resolve identity warning',
-                        'Registrar — Record the admission decision using the current reviewed evidence.' => 'Registrar — record admission decision',
-                        'Applicant / Registrar — complete external checks and clearance' => 'Applicant / Registrar — complete checks and clearance',
+                        'Start review of the current submitted application.' => 'Start review',
+                        'Review the current required preliminary copies.' => 'Review preliminary copies',
+                        'Resolve the current private identity warning.' => 'Resolve identity warning',
+                        'Record the admission decision using the current reviewed evidence.' => 'Record admission decision',
+                        'Complete external checks and clearance' => 'Complete checks and clearance',
                         default => $state,
                     })
                     ->wrap()
@@ -210,8 +206,8 @@ class AdmissionApplicationsTable
             ->filtersLayout(FiltersLayout::Dropdown)
             ->filtersFormColumns(2)
             ->deferFilters(false)
-            ->filtersTriggerAction(fn (Action $action): Action => $action->button()->label('Filter applications')->tooltip('Narrow the selected application queue'))
-            ->toggleColumnsTriggerAction(fn (Action $action): Action => $action->button()->label('Columns')->tooltip('Choose supporting application facts'))
+            ->filtersTriggerAction(fn (Action $action): Action => $action->iconButton()->label('Filter applications')->tooltip('Filter applications'))
+            ->columnManagerTriggerAction(fn (Action $action): Action => $action->iconButton()->label('Columns')->tooltip('Columns'))
             ->filters([
                 SelectFilter::make('admission_cycle_id')
                     ->label('Admission cycle')
@@ -318,7 +314,13 @@ class AdmissionApplicationsTable
                         Notification::make()->success()->title('Review started')->send();
                         $livewire->redirect(ViewAdmissionApplication::getUrl(['record' => $record, 'queue' => $livewire->activeTab]));
                     }),
-                ViewAction::make()->label('Open')->button()->color('gray')->icon('heroicon-o-arrow-top-right-on-square')
+                ViewAction::make()
+                    ->label('Open')
+                    ->button()
+                    ->size(Size::Medium)
+                    ->color('gray')
+                    ->icon('heroicon-o-arrow-top-right-on-square')
+                    ->extraAttributes(['class' => 'justify-center whitespace-nowrap'])
                     ->hidden(fn (AdmissionApplication $record): bool => self::awaitsReviewStart($record))
                     ->url(fn (AdmissionApplication $record, ListAdmissionApplications $livewire): string => ViewAdmissionApplication::getUrl(['record' => $record, 'queue' => $livewire->activeTab])),
             ])
@@ -388,6 +390,32 @@ class AdmissionApplicationsTable
     private static function isReadyForEnrollmentQueue(mixed $livewire): bool
     {
         return $livewire instanceof ListAdmissionApplications && $livewire->activeTab === AdmissionQueueCounts::ReadyForEnrollment;
+    }
+
+    /**
+     * Resolves derived Expired/Closed display states only when a deadline could apply, avoiding extra queries per row.
+     */
+    private static function displayState(AdmissionApplication $record): string
+    {
+        $cycle = $record->admissionCycle;
+        $hasDeadline = $cycle?->period_ends_at?->isPast()
+            || ($record->application_state === AdmissionApplication::StateAdmitted
+                && ($record->requirements_due_at !== null
+                    || $record->payment_due_at !== null
+                    || $cycle?->requirements_due_at !== null
+                    || $cycle?->payment_due_at !== null));
+
+        if ($hasDeadline) {
+            $deadlineStatus = app(AdmissionDeadlineStatus::class)->for($record)['status'];
+            if ($deadlineStatus === AdmissionDeadlineStatus::Expired) {
+                return 'Expired';
+            }
+            if ($deadlineStatus === AdmissionDeadlineStatus::Closed) {
+                return 'Closed';
+            }
+        }
+
+        return (string) $record->application_state;
     }
 
     /**

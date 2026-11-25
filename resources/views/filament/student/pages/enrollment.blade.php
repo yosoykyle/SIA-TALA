@@ -20,11 +20,27 @@
             : (is_array($resolvedHowToPayDisplay)
                 ? (bool) ($resolvedHowToPayDisplay['hasEnabledDigitalChannels'] ?? ! empty($resolvedHowToPayDisplay['electronicChannels'] ?? []))
                 : collect($paymentChannels ?? [])->contains(fn ($channel): bool => is_array($channel) && in_array($channel['key'] ?? null, ['bank_transfer', 'e_wallets', 'gcash'], true)));
+        $showProgressStepper = $enrollment !== null
+            && ! $terminal
+            && ! (! $confirmed && ($irregularReview['is_irregular'] ?? false) && ! $proposal);
+        $enrollmentStepIndex = match (true) {
+            $official => 3,
+            $confirmed => 2,
+            $canConfirm => 1,
+            default => 0,
+        };
     @endphp
     <div class="learner-enrollment student-registration">
         <div wire:loading class="flex items-center gap-2 text-sm" style="color: var(--tala-muted);" role="status">
             <x-filament::loading-indicator class="h-4 w-4" /> Updating enrollment details…
         </div>
+        @if ($showProgressStepper)
+            <ol class="tala-irregular-progress" aria-label="Enrollment progress">
+                @foreach (['Prepare subjects', 'Confirm subjects', 'Pay fees', 'Officially enrolled'] as $index => $stepLabel)
+                    <li @class(['is-done' => $official || $index < $enrollmentStepIndex]) @if (! $official && $index === $enrollmentStepIndex) aria-current="step" @endif>{{ $stepLabel }}</li>
+                @endforeach
+            </ol>
+        @endif
         @if ($isStudent && $enrollment !== null && ($academicGuidance['needs_attention'] ?? false))
             @include('filament.student.pages.academic-guidance', [
                 'effect' => $academicGuidance,
@@ -105,10 +121,10 @@
                             <h2 id="enrollment-task-heading">Complete your enrollment payment</h2>
                             @if ($hasElectronicChannels)
                                 <p>Your subjects are confirmed. Pay {{ $money($paymentRequirement['balance'] ?? null) }} through a school payment channel below or onsite at the Campus Cashier.</p>
-                                <p>If you paid by bank transfer or e-wallet, submit your receipt for Accounting review. Onsite Cashier payments are recorded directly: no receipt upload needed. The Registrar completes official enrollment after your payment and records are checked.</p>
+                                <p>Once Accounting verifies your receipt (or records your onsite Cashier payment), your enrollment becomes official automatically and your COR will be ready immediately. Onsite Cashier payments are recorded directly: no receipt upload needed.</p>
                             @else
                                 <p>Your subjects are confirmed. Pay {{ $money($paymentRequirement['balance'] ?? null) }} onsite at the Campus Cashier below: electronic transfer channels are currently unavailable.</p>
-                                <p>Onsite Cashier payments are recorded directly: no receipt upload needed. The Registrar completes official enrollment after your payment and records are checked.</p>
+                                <p>Once Accounting records your onsite Cashier payment (no receipt upload needed), your enrollment becomes official automatically and your COR will be ready immediately.</p>
                             @endif
                         @endif
                         @if (($readiness['shortages'] ?? []) !== [])

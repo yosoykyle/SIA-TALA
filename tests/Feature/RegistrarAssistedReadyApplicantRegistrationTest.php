@@ -404,7 +404,7 @@ class RegistrarAssistedReadyApplicantRegistrationTest extends TestCase
         $this->assertArrayNotHasKey($application->id, $options);
 
         $this->assertFalse($component->instance()->readyApplicantListData()['applications']->contains('id', $application->id));
-        $this->assertSame(EnrollmentResource::getUrl('index', ['tab' => 'ready_applicants']), $component->instance()->getAction('readyApplicants')->getUrl());
+        $this->assertNull($component->instance()->getAction('readyApplicants', isMounting: false));
 
         // 3. Directly accessing the case on ViewEnrollment succeeds
         Livewire::actingAs($registrar)
@@ -860,6 +860,26 @@ class RegistrarAssistedReadyApplicantRegistrationTest extends TestCase
         $this->assertSame([$appWithoutCase->id], $component->instance()->readyApplicantListData()['applications']->pluck('id')->all());
     }
 
+    public function test_registrar_workbench_start_enrollment_excludes_ready_applicant_button(): void
+    {
+        $registrar = $this->createRegistrar();
+        $term = $this->createTermWithOpenEnrollmentWindow();
+        $application = $this->createReadyApplicant($term);
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Livewire::actingAs($registrar)
+            ->test(ListEnrollments::class)
+            ->assertSuccessful()
+            ->assertSee('Start enrollment')
+            ->assertSee('Continuing student')
+            ->assertSee('Approved late enrollment')
+            ->assertDontSee('Ready applicant')
+            ->assertActionDoesNotExist('readyApplicants')
+            ->set('activeTab', 'ready_applicants')
+            ->assertSee($application->application_reference);
+    }
+
     public function test_existing_case_is_accessible_when_window_closed_while_new_intake_fails_closed(): void
     {
         $registrar = $this->createRegistrar();
@@ -964,7 +984,7 @@ class RegistrarAssistedReadyApplicantRegistrationTest extends TestCase
         Livewire::actingAs($accountingUser)
             ->test(ListEnrollments::class)
             ->assertActionHidden('startReadyApplicantRegistration')
-            ->assertActionHidden('readyApplicants')
+            ->assertActionDoesNotExist('readyApplicants')
             ->assertActionHidden('startContinuingEnrollment')
             ->call('mountAction', 'startContinuingEnrollment')
             ->assertActionNotMounted('startContinuingEnrollment')
@@ -1170,6 +1190,17 @@ class RegistrarAssistedReadyApplicantRegistrationTest extends TestCase
             ->assertActionVisible('openEnrollment');
         $steps = collect($after->instance()->processEvaluation())->keyBy('key');
         $this->assertSame('done', $steps['readiness']['state']);
+        $this->assertSame('upcoming', $steps['payment']['state']);
+        $this->assertSame('openEnrollment', $steps['readiness']['action']);
+        $this->assertSame('Open enrollment', $steps['readiness']['action_label']);
+        $this->assertSame('Payment verification', $steps['payment']['label']);
+        $this->assertNull($steps['payment']['action']);
+
+        $proposal = RegistrationProposalVersion::factory()->create(['enrollment_id' => $enrollment->id, 'state' => RegistrationProposalVersion::StateConfirmed]);
+        $enrollment->update(['current_proposal_version_id' => $proposal->id]);
+        $steps = collect(Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])->instance()->processEvaluation())->keyBy('key');
+        $this->assertSame('done', $steps['readiness']['state']);
+        $this->assertSame('openEnrollment', $steps['readiness']['action']);
         $this->assertSame('current', $steps['payment']['state']);
     }
 

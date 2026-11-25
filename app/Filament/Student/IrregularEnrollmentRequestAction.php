@@ -65,7 +65,9 @@ class IrregularEnrollmentRequestAction
                         Textarea::make('student_remarks')->label('Additional remarks (optional)')->rows(2)->maxLength(1000),
                         FileUpload::make('supporting_documents')
                             ->label('Supporting documents')
-                            ->helperText('Returnees: LOA letter or medical certificate. Shiftees: shifting approval letter. Not needed for failed, dropped or INC subjects. PDF, JPEG or PNG; up to 10 MiB each.')
+                            ->helperText(fn (): string => self::hasAlreadyAppliedShift($case())
+                                ? 'Returnees: LOA letter or medical certificate. Not needed for Registrar-applied program shifts, failed, dropped or INC subjects. PDF, JPEG or PNG; up to 10 MiB each.'
+                                : 'Returnees: LOA letter or medical certificate. Shiftees: shifting approval letter. Not needed for failed, dropped or INC subjects. PDF, JPEG or PNG; up to 10 MiB each.')
                             ->disk('local')
                             ->directory('irregular-requests')
                             ->visibility('private')
@@ -73,7 +75,7 @@ class IrregularEnrollmentRequestAction
                             ->maxSize(10240)
                             ->maxFiles(3)
                             ->multiple()
-                            ->visible(fn (): bool => self::needsDocuments($case())),
+                            ->visible(fn (): bool => self::needsSupportingDocuments($case())),
                         Checkbox::make('confirm_reason')
                             ->label('I confirm that the information above is correct and I understand that I will be enrolled as irregular for this term.')
                             ->accepted()
@@ -180,9 +182,24 @@ class IrregularEnrollmentRequestAction
             : null;
     }
 
-    private static function needsDocuments(?Enrollment $case): bool
+    private static function hasAlreadyAppliedShift(?Enrollment $case): bool
     {
-        return collect(self::review($case)['reasons'])->contains(fn (array $reason): bool => in_array($reason['code'], [IrregularStudentReasons::ReasonReturnee, IrregularStudentReasons::ReasonShiftee], true));
+        $student = $case?->studentProfile;
+
+        return $student !== null
+            && app(IrregularStudentReasons::class)->activeUnenrolledShift($student) !== null;
+    }
+
+    private static function needsSupportingDocuments(?Enrollment $case): bool
+    {
+        $reasons = collect(self::review($case)['reasons']);
+
+        if ($reasons->contains('code', IrregularStudentReasons::ReasonReturnee)) {
+            return true;
+        }
+
+        return $reasons->contains('code', IrregularStudentReasons::ReasonShiftee)
+            && ! self::hasAlreadyAppliedShift($case);
     }
 
     /**

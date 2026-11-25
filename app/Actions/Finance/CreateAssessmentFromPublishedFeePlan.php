@@ -2,6 +2,8 @@
 
 namespace App\Actions\Finance;
 
+use App\Actions\Enrollment\AttemptAutoOfficialEnrollment;
+use App\Actions\Enrollment\AutoFinalizationTrigger;
 use App\Actions\Enrollment\IssueRegistrationProposal;
 use App\Actions\Enrollment\RegistrationNotificationLedger;
 use App\Actions\Enrollment\RegistrationPlacementValidator;
@@ -225,9 +227,30 @@ class CreateAssessmentFromPublishedFeePlan
         $assessment = $assessment->load(['lines', 'obligations', 'termAccount']);
         $this->notifyIfActionRequired($assessment);
         $proposal = $enrollment->currentProposalVersion;
+        $requirement = $this->paymentRequirement->forEnrollment($enrollment);
         if ($proposal?->purpose === RegistrationProposalVersion::PurposeInitial && $proposal->state === RegistrationProposalVersion::StateDraft
-            && $this->paymentRequirement->forEnrollment($enrollment)['state'] !== 'Unavailable') {
+            && $requirement['state'] !== 'Unavailable') {
             $this->issuer->issuePrepared($proposal);
+        }
+
+        if ($enrollment->canonical_outcome === Enrollment::OutcomeInProgress
+            && $requirement['state'] === 'Cleared'
+            && $requirement['satisfaction_basis'] === 'NoPaymentRequired') {
+            $enrollmentId = (int) $enrollment->id;
+            $zeroDueAuthority = (string) (data_get($assessment->source_snapshot, 'no_payment_required_authority_reference') ?? $assessment->authority_reference ?? 'assessment:'.$assessment->id);
+
+            DB::afterCommit(function () use ($enrollmentId, $actor, $zeroDueAuthority): void {
+                app(AttemptAutoOfficialEnrollment::class)->attempt(
+                    $enrollmentId,
+                    new AutoFinalizationTrigger(
+                        triggerType: AutoFinalizationTrigger::TypeZeroDueAssessmentCreated,
+                        triggerReference: $zeroDueAuthority,
+                        clearedByUserId: $actor->id,
+                        paymentId: null,
+                        paymentSummary: 'No enrollment payment required under recorded institutional authority.',
+                    ),
+                );
+            });
         }
 
         return $assessment;

@@ -28,6 +28,8 @@ class OfficialEnrollmentMail extends Mailable implements ShouldQueue
         public string $recipientName,
         public string $termLabel,
         public string $corUrl,
+        public ?string $paymentSummary = null,
+        public bool $autoFinalized = false,
     ) {
         $this->afterCommit();
     }

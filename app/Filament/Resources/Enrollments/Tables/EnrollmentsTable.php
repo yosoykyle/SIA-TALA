@@ -384,9 +384,9 @@ class EnrollmentsTable
             'Prepare subjects' => 'Prepare subjects for learner confirmation.',
             'Waiting for learner' => 'Subjects issued for confirmation.',
             'Placement required' => 'Assign available classes from the published schedule.',
-            'Payment or fee review' => 'Accounting reviews the required fees and payment.',
-            'Source review required' => 'Review the changed enrollment requirements.',
-            'Ready to finalize' => 'Review and make enrollment official.',
+            'Payment or fee review' => 'Accounting reviews the required fees and payment; auto-enrolls once cleared.',
+            'Source review required' => 'Review the changed enrollment requirements or paid-blocked issue.',
+            'Ready to finalize' => 'Review and finalize using the manual fallback.',
             'Officially enrolled' => 'View subjects and registration.',
             default => 'View enrollment history and available actions.',
         };

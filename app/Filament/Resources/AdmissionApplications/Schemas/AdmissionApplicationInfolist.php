@@ -76,6 +76,7 @@ class AdmissionApplicationInfolist
                     ->tabs([
                         Tab::make('Applicant details')
                             ->icon('heroicon-o-user')
+                            ->dense()
                             ->schema([
                                 Group::make([
                                     TextEntry::make('application_reference')
@@ -88,6 +89,7 @@ class AdmissionApplicationInfolist
                                 ])
                                     ->key('applicant')
                                     ->columns(['default' => 1, 'sm' => 2])
+                                    ->dense()
                                     ->extraAttributes(['class' => 'tala-applicant-identity']),
                                 Section::make('Personal Information')
                                     ->schema([
@@ -107,7 +109,8 @@ class AdmissionApplicationInfolist
                                                 $record->current_province,
                                             ])->filter()->implode(', ')),
                                     ])
-                                    ->columns(['default' => 1, 'md' => 2])
+                                    ->columns(['default' => 1, 'sm' => 2, 'lg' => 3])
+                                    ->dense()
                                     ->contained(false)
                                     ->compact(),
                                 Section::make('Educational Information')
@@ -117,11 +120,10 @@ class AdmissionApplicationInfolist
                                             ->formatStateUsing(fn (string $state, AdmissionApplication $record): string => AdmissionApplication::admissionQualificationOptions((string) $record->application_path)[$state]
                                                 ?? str($state)->lower()->headline()->toString()),
                                         TextEntry::make('prior_school_completion_year')->label('Graduation year')->placeholder('Not provided'),
-                                        TextEntry::make('lrn_availability')->label('LRN availability')->placeholder('Not recorded')
-                                            ->formatStateUsing(fn (string $state): string => str($state)->headline()->toString()),
-                                        TextEntry::make('lrn')->label('LRN')->placeholder('No identifier provided'),
+                                        TextEntry::make('lrn')->label('LRN')->placeholder('Not provided'),
                                     ])
-                                    ->columns(['default' => 1, 'md' => 2])
+                                    ->columns(['default' => 1, 'sm' => 2])
+                                    ->dense()
                                     ->contained(false)
                                     ->compact(),
                                 Section::make('Application Choice')
@@ -131,7 +133,8 @@ class AdmissionApplicationInfolist
                                         TextEntry::make('program.name')->label('Program'),
                                         TextEntry::make('application_path')->label('Student type')->formatStateUsing(fn (string $state): string => AdmissionCycle::studentTypeLabel($state)),
                                     ])
-                                    ->columns(['default' => 1, 'md' => 2])
+                                    ->columns(['default' => 1, 'sm' => 2])
+                                    ->dense()
                                     ->contained(false)
                                     ->compact(),
                                 Section::make('Emergency Contact')
@@ -140,10 +143,12 @@ class AdmissionApplicationInfolist
                                         TextEntry::make('guardian_relationship')->label('Relationship')->placeholder('Not provided'),
                                         TextEntry::make('guardian_mobile')->label('Contact mobile')->placeholder('Not provided'),
                                     ])
-                                    ->columns(['default' => 1, 'md' => 2])
+                                    ->columns(['default' => 1, 'sm' => 2, 'lg' => 3])
+                                    ->dense()
                                     ->contained(false)
                                     ->compact(),
                                 Section::make('Preliminary evidence')
+                                    ->dense()
                                     ->contained(false)
                                     ->compact()
                                     ->schema([

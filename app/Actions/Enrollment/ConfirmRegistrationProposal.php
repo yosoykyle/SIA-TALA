@@ -69,8 +69,29 @@ class ConfirmRegistrationProposal
             $locked->update(['state' => RegistrationProposalVersion::StateConfirmed]);
 
             $assessment = $enrollment->termAccount?->assessments()->where('state', Assessment::StateActive)->latest('version')->first();
-            if ($assessment !== null && app(EnrollmentPaymentRequirementProjection::class)->forEnrollment($enrollment)['state'] === 'ActionNeeded') {
+            $requirement = app(EnrollmentPaymentRequirementProjection::class)->forEnrollment($enrollment);
+            if ($assessment !== null && $requirement['state'] === 'ActionNeeded') {
                 app(RegistrationNotificationLedger::class)->recordPaymentActionRequired($assessment);
+            }
+
+            if ($locked->purpose === RegistrationProposalVersion::PurposeInitial
+                && $enrollment->canonical_outcome === Enrollment::OutcomeInProgress) {
+                $enrollmentId = (int) $enrollment->id;
+                $proposalId = (int) $locked->id;
+                $actorId = $assistedBy?->id ?? $learner->id;
+
+                DB::afterCommit(function () use ($enrollmentId, $proposalId, $actorId): void {
+                    app(AttemptAutoOfficialEnrollment::class)->attempt(
+                        $enrollmentId,
+                        new AutoFinalizationTrigger(
+                            triggerType: AutoFinalizationTrigger::TypeProposalConfirmed,
+                            triggerReference: 'proposal:'.$proposalId,
+                            clearedByUserId: $actorId,
+                            paymentId: null,
+                            paymentSummary: null,
+                        ),
+                    );
+                });
             }
 
             return $locked->refresh()->load('confirmation');

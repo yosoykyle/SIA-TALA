@@ -30,9 +30,11 @@ use App\Actions\Finance\CreateAssessmentFromPublishedFeePlan;
 use App\Actions\Finance\CreateFeePlanDraft;
 use App\Actions\Finance\CreateSuccessorFeePlan;
 use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
+use App\Actions\Finance\PaymentConfirmationService;
 use App\Actions\Finance\PublishFeePlan;
 use App\Actions\Finance\RecordApprovedCoverage;
 use App\Actions\Finance\RecordAuthorizedIndividualAssessment;
+use App\Actions\Finance\RevalidateAssessmentEffects;
 use App\Actions\Finance\ReviewPaymentEvidence;
 use App\Actions\Finance\SchoolPaymentChannels;
 use App\Actions\Finance\SubmitPaymentEvidence;
@@ -268,11 +270,12 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         );
         $this->assertSame('Cleared', app(EnrollmentPaymentRequirementProjection::class)->forEnrollment($case->fresh())['state']);
 
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-        $finalization = Livewire::actingAs($registrar)->test(RegistrarEnrollment::class, ['record' => $case->id])
-            ->mountAction('finalizeOfficialEnrollment')->assertMountedActionModalDontSee('Registrar note');
-        $finalization->callMountedAction()->assertHasNoActionErrors()->assertNotified('Official enrollment finalized');
+        // Accounting verification post-commit triggers automatic official enrollment + COR issuance.
         $official = $case->fresh();
+        $this->assertSame(Enrollment::OutcomeOfficiallyEnrolled, $official->canonical_outcome);
+        $this->assertSame(Enrollment::FinalizationModeAutomatic, $official->finalization_mode);
+        $this->assertNull($official->finalized_by);
+        $this->assertNull($official->currentCorVersion->issued_by);
         $again = app(FinalizeOfficialEnrollment::class)->execute($official, $registrar);
 
         $this->assertTrue($official->is($again));
@@ -501,7 +504,11 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             ->assertDontSee('Current enrollment clearance')->assertDontSee('Official class registrations');
 
         $proposal = app(PrepareRegistrationProposal::class)->execute($case->fresh(), $registrar, [$section->id], $case->fresh()->lock_version);
-        $this->reserveAndAssessNoPaymentProposal($proposal, $registrar);
+        app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
+        $accounting = $this->staff(User::StaffRoleAccounting);
+        $plan = $this->createFeePlanDraft($application->program, $term, [['code' => 'ENROLLMENT', 'label' => 'Enrollment fee', 'amount' => '1000.00']], $accounting);
+        $this->publishFeePlan($plan, $accounting, 'SYN-HEAD-INSPECT-PLAN');
+        app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
         app(IssueRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
         $item = $proposal->fresh()->items()->sole();
         $deadline = $item->reservation->deadline->timezone('Asia/Manila')->format('j M Y, g:i A');
@@ -523,13 +530,14 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('/(?<![\d.])0\.00(?!\d)/', $enrollmentText);
 
         app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);
+        $item->reservation->update(['status' => EnrollmentSeatReservation::StatusReleased]);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $reserve = Livewire::actingAs($registrar)->test(RegistrarEnrollment::class, ['record' => $case->id])
             ->assertSee('Reserve seats');
         $this->assertFalse($reserve->instance()->getAction('placeProposal')->shouldOpenModal());
         $reserve->callAction('placeProposal')->assertHasNoActionErrors()->assertNotified('Seats reserved');
         Livewire::actingAs($head)->test(RegistrarEnrollment::class, ['record' => $case->id])
-            ->assertSee('Awaiting finalization')->assertSee('Confirmed proposed subjects')
+            ->assertSee('Accounting review pending')->assertSee('Confirmed proposed subjects')
             ->assertSee('Self Service')->assertDontSee('Official class registrations')->assertDontSee('PHP')
             ->assertActionHidden('finalizeOfficialEnrollment');
         $this->assertSame(Enrollment::OutcomeInProgress, $case->fresh()->canonical_outcome);
@@ -685,7 +693,8 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $proposalBefore = $case->currentProposalVersion->fresh()->getAttributes();
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $page = Livewire::actingAs($registrar)->test(RegistrarEnrollment::class, ['record' => $case->id])
-            ->assertSee('Review enrollment requirements')->assertSee($task)
+            ->assertSee('Paid · Auto-enrollment blocked')
+            ->assertSee('Resolve blocker to complete official enrollment')->assertSee($task)
             ->assertDontSee('State, owner, and next action')->assertDontSee('Five finalization checkpoints')
             ->assertDontSee('Current source review required')->assertDontSee('Case actions and recovery')
             ->assertActionHidden('finalizeOfficialEnrollment');
@@ -733,7 +742,6 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
         app(IssueRegistrationProposal::class)->execute($proposal, $registrar);
         app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);
-        app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
         $official = app(FinalizeOfficialEnrollment::class)->execute($case->fresh(), $registrar);
         $output = app(BuildCorOutput::class)->forEnrollment($official, $application->user);
 
@@ -1266,7 +1274,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $application->user);
         $this->recordApprovedTransferEvaluation($case);
         $proposal = app(PrepareRegistrationProposal::class)->execute($case, $registrar, [$section->id], $case->lock_version);
-        $this->reserveAndAssessNoPaymentProposal($proposal, $registrar);
+        $this->reserveAndAssessPaidProposal($proposal, $registrar);
         app(IssueRegistrationProposal::class)->execute($proposal, $registrar);
         app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);
         app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
@@ -1822,7 +1830,6 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             'SYN-ASSISTED-CONFIRMATION-001',
         );
         $this->assertSame('SYN-ASSISTED-CONFIRMATION-001', $proposal->confirmation()->sole()->assisted_evidence_reference);
-        app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
 
         $official = app(FinalizeOfficialEnrollment::class)->execute($case->fresh(), $registrar);
         $again = app(FinalizeOfficialEnrollment::class)->execute($official, $registrar);
@@ -2042,7 +2049,11 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         ]);
         $second = app(PrepareRegistrationProposal::class)->execute($case->fresh(), $registrar, [$replacement->id], $case->fresh()->lock_version);
         $this->assertNotSame($first->id, $second->id);
-        $this->reserveAndAssessNoPaymentProposal($second, $registrar);
+        app(PlaceRegistrationProposal::class)->execute($second->fresh(), $registrar);
+        $accounting = $this->staff(User::StaffRoleAccounting);
+        $paidPlan = $this->createFeePlanDraft($application->program, $term, [['code' => 'ENROLLMENT', 'label' => 'Enrollment fee', 'amount' => '1000.00']], $accounting);
+        $this->publishFeePlan($paidPlan, $accounting, 'SYN-ASSISTED-CONFIRM-PLAN');
+        app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
         app(IssueRegistrationProposal::class)->execute($second->fresh(), $registrar);
 
         $component->setActionData(['evidence_reference' => 'SYN-REVIEWED-FIRST-VERSION'])
@@ -2071,7 +2082,21 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
     public function test_finalization_rejects_a_stale_dialog_proposal_and_accepts_the_reviewed_current_proposal_idempotently(): void
     {
         [$case, $application, $section, $registrar] = $this->caseReadyForFinalization();
+        $accounting = $this->staff(User::StaffRoleAccounting);
         $reviewedProposalId = $case->current_proposal_version_id;
+        $previousObligationId = $case->termAccount->assessments()
+            ->where('state', Assessment::StateActive)
+            ->latest('version')
+            ->firstOrFail()
+            ->obligations()
+            ->firstOrFail()
+            ->id;
+        $publishedPlan = FeePlan::query()
+            ->where('program_id', $application->program_id)
+            ->where('term_id', $case->term_id)
+            ->where('state', FeePlan::StatePublished)
+            ->latest('version')
+            ->firstOrFail();
         $replacement = Section::factory()->for($section->termOffering, 'termOffering')->create([
             'state' => Section::StateOpen, 'capacity' => 2,
         ]);
@@ -2083,10 +2108,29 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             $case->fresh(), $registrar, [$replacement->id], $case->fresh()->lock_version,
         );
         app(PlaceRegistrationProposal::class)->execute($successor->fresh(), $registrar);
-        app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $this->staff(User::StaffRoleAccounting));
+        $successorPlan = app(CreateSuccessorFeePlan::class)->execute($publishedPlan, $accounting);
+        $this->updateFeePlanDraft($successorPlan, [['code' => 'ENROLLMENT', 'label' => 'Enrollment fee', 'amount' => '1500.00']], $accounting);
+        $this->publishFeePlan($successorPlan->fresh(), $accounting, 'SYN-STALE-DIALOG-SUCCESSOR-PLAN');
+        $successorAssessment = app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
+        app(RevalidateAssessmentEffects::class)->execute(
+            $successorAssessment,
+            $accounting,
+            [$previousObligationId => $successorAssessment->obligations()->firstOrFail()->id],
+            'REVAL-STALE-DIALOG',
+        );
         app(IssueRegistrationProposal::class)->execute($successor->fresh(), $registrar);
         app(ConfirmRegistrationProposal::class)->execute($successor->fresh(), $application->user);
-        app(PlaceRegistrationProposal::class)->execute($successor->fresh(), $registrar);
+        $reservation = $successor->items()->sole()->reservation;
+        $reservation->update(['deadline' => now()->subMinute()]);
+        app(PaymentConfirmationService::class)->confirmManualPayment(
+            enrollmentId: $case->id,
+            amount: '500.00',
+            channel: 'cash',
+            paymentReference: 'CASH-STALE-DIALOG-'.$case->id,
+            actor: $accounting,
+            orNumber: 'OR-STALE-DIALOG-'.$case->id,
+        );
+        $reservation->update(['deadline' => now()->addDay()]);
         $this->assertTrue(app(RegistrationReadinessQuery::class)->for($case->fresh())['ready']);
         $before = $case->fresh()->getAttributes();
 
@@ -2132,7 +2176,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             $case->fresh(),
             $accounting,
             'SYN-SUPERSEDED-ASSESSMENT-001',
-            [['code' => 'AUTH', 'label' => 'Superseded obligation', 'amount' => '0.00']],
+            [['code' => 'AUTH', 'label' => 'Superseded obligation', 'amount' => '1000.00']],
         );
 
         app(IssueRegistrationProposal::class)->execute($first, $registrar);
@@ -2177,7 +2221,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $application->user);
         $this->recordApprovedTransferEvaluation($case);
         $proposal = app(PrepareRegistrationProposal::class)->execute($case, $registrar, [$section->id], $case->lock_version);
-        $this->reserveAndAssessNoPaymentProposal($proposal, $registrar);
+        $this->reserveAndAssessPaidProposal($proposal, $registrar);
         app(IssueRegistrationProposal::class)->execute($proposal, $registrar);
         app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);
         app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
@@ -2262,7 +2306,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             [$replacement->id],
             $case->fresh()->lock_version,
         );
-        $this->reserveAndAssessNoPaymentProposal($successor, $registrar);
+        $this->reserveAndAssessPaidProposal($successor, $registrar);
         app(IssueRegistrationProposal::class)->execute($successor, $registrar);
         app(ConfirmRegistrationProposal::class)->execute($successor->fresh(), $application->user);
         app(PlaceRegistrationProposal::class)->execute($successor->fresh(), $registrar);
@@ -3483,16 +3527,37 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         [$application, $term] = $this->readyApplicant();
         [$section] = $this->publishedOffering($application, $term);
         $registrar = $this->staff(User::StaffRoleRegistrar);
+        $accounting = $this->staff(User::StaffRoleAccounting);
         $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $application->user);
         $this->recordApprovedTransferEvaluation($case);
         $proposal = app(PrepareRegistrationProposal::class)->execute($case, $registrar, [$section->id], $case->lock_version);
-        $this->reserveAndAssessNoPaymentProposal($proposal, $registrar);
+        app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
+        $plan = $this->createFeePlanDraft($application->program, $term, [['code' => 'ENROLLMENT', 'label' => 'Enrollment fee', 'amount' => '1000.00']], $accounting);
+        $this->publishFeePlan($plan, $accounting, 'SYN-PAID-BLOCKED-WAITING');
+        app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
         app(IssueRegistrationProposal::class)->execute($proposal, $registrar);
         app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);
+
+        // Open a non-placement impact review blocker so payment clears without auto-finalizing.
+        app(RecordRegistrationSourceImpactReview::class)->open(
+            $case->fresh(),
+            $registrar,
+            RecordRegistrationSourceImpactReview::SourceAcademicResult,
+            'released-result:WAITING-BLOCK',
+            'Academic source changed before finalization.',
+        );
+        app(PaymentConfirmationService::class)->confirmManualPayment(
+            enrollmentId: $case->id,
+            amount: '1000.00',
+            channel: 'cash',
+            paymentReference: 'CASH-WAITING-BLOCK',
+            actor: $accounting,
+            orNumber: 'OR-WAITING-BLOCK',
+        );
         Filament::setCurrentPanel(Filament::getPanel('applicant'));
 
         Livewire::actingAs($application->user->fresh())->test(ApplicantEnrollment::class)
-            ->assertSee('Your part is complete')->assertSee('Registrar')
+            ->assertSee('Your payment is cleared — Registrar review needed')->assertSee('Registrar')
             ->assertDontSee('Submit receipt')->assertDontSee('Pay online')->assertDontSee('Official enrollment');
         $this->assertSame(Enrollment::OutcomeInProgress, $case->fresh()->canonical_outcome);
     }
@@ -3503,10 +3568,14 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         [$application, $term] = $this->readyApplicant();
         [$section] = $this->publishedOffering($application, $term);
         $registrar = $this->staff(User::StaffRoleRegistrar);
+        $accounting = $this->staff(User::StaffRoleAccounting);
         $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $application->user);
         $this->recordApprovedTransferEvaluation($case);
         $proposal = app(PrepareRegistrationProposal::class)->execute($case, $registrar, [$section->id], $case->lock_version);
-        $this->reserveAndAssessNoPaymentProposal($proposal, $registrar);
+        app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
+        $plan = $this->createFeePlanDraft($application->program, $term, [['code' => 'ENROLLMENT', 'label' => 'Enrollment fee', 'amount' => '1000.00']], $accounting);
+        $this->publishFeePlan($plan, $accounting, 'SYN-PLACEMENT-RECOVERY-'.$placement);
+        app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
         app(IssueRegistrationProposal::class)->execute($proposal, $registrar);
         app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);
 
@@ -3516,6 +3585,15 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             'released' => $reservation->update(['status' => EnrollmentSeatReservation::StatusReleased]),
             'missing' => $reservation->delete(),
         };
+
+        app(PaymentConfirmationService::class)->confirmManualPayment(
+            enrollmentId: $case->id,
+            amount: '1000.00',
+            channel: 'cash',
+            paymentReference: 'CASH-RECOV-'.$placement,
+            actor: $accounting,
+            orNumber: 'OR-RECOV-'.$placement,
+        );
 
         Filament::setCurrentPanel(Filament::getPanel('applicant'));
 
@@ -3579,7 +3657,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $proposal = app(PrepareRegistrationProposal::class)->execute($case, $registrar, [$section->id], $case->lock_version);
         app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
         $plan = $this->createFeePlanDraft($application->program, $term, [
-            ['code' => 'ENROLLMENT', 'label' => 'Authorized enrollment requirement', 'amount' => $context === 'payment' ? '1000.00' : '0.00'],
+            ['code' => 'ENROLLMENT', 'label' => 'Authorized enrollment requirement', 'amount' => '1000.00'],
         ], $accounting);
         $this->publishFeePlan($plan, $accounting, 'SYN-QUEUE-FEE-AUTHORITY');
         $assessment = app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
@@ -3589,6 +3667,18 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             $proposal->items()->firstOrFail()->reservation->update(['deadline' => now()->subMinute()]);
         } elseif ($context === 'unavailable') {
             $assessment->update(['state' => Assessment::StateSuperseded]);
+        } elseif ($context === 'ready') {
+            $reservation = $proposal->items()->firstOrFail()->reservation;
+            $reservation->update(['deadline' => now()->subMinute()]);
+            app(PaymentConfirmationService::class)->confirmManualPayment(
+                enrollmentId: $case->id,
+                amount: '1000.00',
+                channel: 'cash',
+                paymentReference: 'CASH-QUEUE-READY',
+                actor: $accounting,
+                orNumber: 'OR-QUEUE-READY',
+            );
+            $reservation->update(['deadline' => now()->addDay()]);
         }
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
@@ -3630,7 +3720,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         } catch (CannotUpdateLockedPropertyException) {
             $page->assertSet('reviewedProposalId', $proposal->id);
         }
-        $page->callMountedAction()->assertNotified('Subjects confirmed');
+        $page->callMountedAction()->assertNotified('Officially enrolled');
         $this->assertNotNull($proposal->fresh()->confirmation);
     }
 
@@ -3848,12 +3938,15 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->publishFeePlan($plan, $accounting, 'Synthetic no-payment authority');
         app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
         app(IssueRegistrationProposal::class)->execute($proposal, $registrar);
-        app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);
-        app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
         if ($invalidRecipientEmail) {
             $application->user->update(['email' => 'invalid-recipient']);
         }
-        $official = app(FinalizeOfficialEnrollment::class)->execute($case->fresh(), $registrar);
+        app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);
+        $official = $case->fresh()->load(['studentProfile.user', 'courseEnrollments.section', 'currentCorVersion']);
+        if ($official->canonical_outcome !== Enrollment::OutcomeOfficiallyEnrolled) {
+            app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
+            $official = app(FinalizeOfficialEnrollment::class)->execute($case->fresh(), $registrar);
+        }
 
         return [$official, $application, $term, $section, $timetable, $registrar];
     }
@@ -3910,14 +4003,24 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $plan = $this->createFeePlanDraft(
             $application->program,
             $term,
-            [['code' => 'NO-PAYMENT', 'label' => 'Explicit no-payment authority', 'amount' => '0.00']],
+            [['code' => 'ENROLLMENT', 'label' => 'Enrollment fee', 'amount' => '1000.00']],
             $accounting,
         );
         $this->publishFeePlan($plan, $accounting, 'Synthetic exact-Term authority');
         app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
         app(IssueRegistrationProposal::class)->execute($proposal, $registrar);
         app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);
-        app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
+        $reservation = $proposal->items()->firstOrFail()->reservation;
+        $reservation->update(['deadline' => now()->subMinute()]);
+        app(PaymentConfirmationService::class)->confirmManualPayment(
+            enrollmentId: $case->id,
+            amount: '1000.00',
+            channel: 'cash',
+            paymentReference: 'CASH-READY-FALLBACK-'.$case->id,
+            actor: $accounting,
+            orNumber: 'OR-READY-FALLBACK-'.$case->id,
+        );
+        $reservation->update(['deadline' => now()->addDay()]);
 
         return [$case->fresh(), $application, $section, $registrar];
     }
@@ -3928,14 +4031,29 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $profile->user->update(['status' => User::StatusActive]);
         $profile->user->assignRole('student');
         $registrar = $this->staff(User::StaffRoleRegistrar);
+        $accounting = $this->staff(User::StaffRoleAccounting);
         $term = Term::factory()->create(['state' => Term::StateActive]);
         $this->openTermCalendarPackage($term);
         [$section] = $this->publishedOfferingForProgram($profile->program, $term, $profile->curriculumVersion);
         $case = app(StartRegistrationCase::class)->forContinuingStudent($profile, $term, $profile->user);
         $proposal = $case->currentProposalVersion;
-        $this->reserveAndAssessNoPaymentProposal($proposal, $registrar);
+        app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
+        $plan = $this->createFeePlanDraft($profile->program, $term, [['code' => 'ENROLLMENT', 'label' => 'Enrollment fee', 'amount' => '1000.00']], $accounting);
+        $this->publishFeePlan($plan, $accounting, 'SYN-INACTIVE-LEARNER-PLAN');
+        app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
         app(IssueRegistrationProposal::class)->execute($proposal, $registrar);
         app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $profile->user);
+        $reservation = $proposal->items()->sole()->reservation;
+        $reservation->update(['deadline' => now()->subMinute()]);
+        app(PaymentConfirmationService::class)->confirmManualPayment(
+            enrollmentId: $case->id,
+            amount: '1000.00',
+            channel: 'cash',
+            paymentReference: 'CASH-INACTIVE-'.$case->id,
+            actor: $accounting,
+            orNumber: 'OR-INACTIVE-'.$case->id,
+        );
+        $reservation->update(['deadline' => now()->addDay()]);
         $profile->user->update(['status' => User::StatusInactive]);
 
         try {
@@ -4124,6 +4242,22 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         }
         $plan = $this->createFeePlanDraft($case->admissionApplication?->program ?? $case->studentProfile->program, $case->term, $charges, $accounting);
         $this->publishFeePlan($plan, $accounting, 'SYN-NO-PAYMENT-PLAN');
+        app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
+    }
+
+    private function reserveAndAssessPaidProposal(RegistrationProposalVersion $proposal, User $registrar, string $amount = '1000.00'): void
+    {
+        app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
+        $case = $proposal->enrollment->fresh();
+        $accounting = $this->staff(User::StaffRoleAccounting);
+        $charges = [['code' => 'ENROLLMENT', 'label' => 'Enrollment fee', 'amount' => $amount]];
+        if ($case->selection_basis === Enrollment::SelectionIndividuallyAdvised) {
+            $this->recordIndividualAssessment($case, $accounting, 'SYN-PAID-ASSESSMENT', $charges);
+
+            return;
+        }
+        $plan = $this->createFeePlanDraft($case->admissionApplication?->program ?? $case->studentProfile->program, $case->term, $charges, $accounting);
+        $this->publishFeePlan($plan, $accounting, 'SYN-PAID-PLAN');
         app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
     }
 

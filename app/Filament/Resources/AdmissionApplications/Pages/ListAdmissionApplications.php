@@ -150,6 +150,14 @@ class ListAdmissionApplications extends ListRecords
         return collect(AdmissionQueueCounts::labels())->mapWithKeys(fn (string $label, string $queue): array => [
             $queue => Tab::make($label)
                 ->badge(fn (): ?int => $queues->count($queue) ?: null)
+                ->badgeColor(match ($queue) {
+                    AdmissionQueueCounts::NeedsReview => AdmissionApplication::stateColor(AdmissionApplication::StateSubmitted),
+                    AdmissionQueueCounts::WaitingForApplicant => AdmissionApplication::stateColor(AdmissionApplication::StateActionNeeded),
+                    AdmissionQueueCounts::RegistrarClearance => 'warning',
+                    AdmissionQueueCounts::ReadyForEnrollment => AdmissionApplication::stateColor(AdmissionApplication::StateAdmitted),
+                    AdmissionQueueCounts::Expired => AdmissionApplication::stateColor('Expired'),
+                    default => 'gray',
+                })
                 ->modifyQueryUsing(fn (Builder $query): Builder => $queues->scope($query, $queue)),
         ])->all();
     }

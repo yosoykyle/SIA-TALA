@@ -1287,7 +1287,13 @@ class AdminPanelProvider extends PanelProvider
 
             return $child->badge(
                 fn (): ?string => ($count = $badgeCounts->admissions()[$queue]) > 0 ? (string) $count : null,
-                in_array($queue, AdmissionQueueCounts::registrarActionQueues(), true) ? 'warning' : 'gray',
+                match ($queue) {
+                    AdmissionQueueCounts::NeedsReview => AdmissionApplication::stateColor(AdmissionApplication::StateSubmitted),
+                    AdmissionQueueCounts::WaitingForApplicant => AdmissionApplication::stateColor(AdmissionApplication::StateActionNeeded),
+                    AdmissionQueueCounts::RegistrarClearance => 'warning',
+                    AdmissionQueueCounts::ReadyForEnrollment => AdmissionApplication::stateColor(AdmissionApplication::StateAdmitted),
+                    default => 'gray',
+                },
             );
         })->values()->all();
 

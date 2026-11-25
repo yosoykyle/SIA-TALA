@@ -40,10 +40,7 @@ class RegistrationSelectionBasisResolver
         }
 
         return $effect['effect'] === AcademicDecision::EffectAdvisingRequired
-            || StudentLifecycleChange::query()->where('student_profile_id', $studentProfile->id)
-                ->where('type', StudentLifecycleChange::TypeProgramShift)->where('state', StudentLifecycleChange::StateApplied)
-                ->where('target_curriculum_version_id', $studentProfile->curriculum_version_id)
-                ->when($term, fn ($query) => $query->where('term_id', $term->id))->exists()
+            || $this->irregularReasons->activeUnenrolledShift($studentProfile) instanceof StudentLifecycleChange
             || ($this->decidedByRecords($effect) && $this->irregularReasons->isReturnee($studentProfile))
             ? Enrollment::SelectionIndividuallyAdvised
             : Enrollment::SelectionStandardCurriculum;

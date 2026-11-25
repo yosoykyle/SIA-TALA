@@ -96,6 +96,44 @@ final class EnrollmentRecordPresentationTest extends TestCase
         $page->assertSeeHtml(e(EnrollmentResource::getUrl('view', ['record' => $case, 'queue' => 'all_cases'])));
     }
 
+    public function test_ready_to_prepare_omits_duplicate_status_badge_and_inlines_student_type_beside_name(): void
+    {
+        $registrar = User::factory()->create(['status' => User::StatusActive]);
+        $registrar->assignRole(User::StaffRoleRegistrar);
+        $profile = StudentProfile::factory()->create(['first_name' => 'Prepare', 'middle_name' => null, 'last_name' => 'Learner']);
+        $case = Enrollment::factory()->for($profile)->create([
+            'canonical_outcome' => Enrollment::OutcomeInProgress,
+            'status' => 'in_progress',
+            'officially_enrolled_at' => null,
+            'current_proposal_version_id' => null,
+        ]);
+
+        $prepareHtml = Livewire::actingAs($registrar)->test(ListEnrollments::class)
+            ->set('activeTab', 'ready_to_prepare')
+            ->searchTable('Prepare Learner')
+            ->assertCanSeeTableRecords([$case])
+            ->assertSee('Prepare subjects')
+            ->assertSeeHtml('registrar-enrollment-person-head')
+            ->assertSeeHtml('tala-student-type-badge')
+            ->html();
+
+        $this->assertMatchesRegularExpression('/<div class="registrar-enrollment-person-head">\s*<h2>Prepare Learner<\/h2>[\s\S]*?tala-student-type-badge/s', $prepareHtml);
+        $this->assertSame(1, preg_match('/<div class="registrar-enrollment-status">([\s\S]*?)<\/div>/', $prepareHtml, $prepareStatus));
+        $this->assertStringNotContainsString('fi-badge', $prepareStatus[1]);
+        $this->assertStringContainsString('Prepare subjects', $prepareStatus[1]);
+
+        $lookupHtml = Livewire::actingAs($registrar)->test(ListEnrollments::class)
+            ->set('activeTab', 'all_cases')
+            ->searchTable('Prepare Learner')
+            ->assertCanSeeTableRecords([$case])
+            ->assertSee('Open record')
+            ->html();
+
+        $this->assertSame(1, preg_match('/<div class="registrar-enrollment-status">([\s\S]*?)<\/div>/', $lookupHtml, $lookupStatus));
+        $this->assertStringContainsString('fi-badge', $lookupStatus[1]);
+        $this->assertStringContainsString('Prepare subjects', $lookupStatus[1]);
+    }
+
     /** @return array{User, Enrollment, StudentProfile} */
     private function fixture(): array
     {

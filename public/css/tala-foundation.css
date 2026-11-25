@@ -1944,13 +1944,175 @@ html:not(.dark) :is(.tala-access-card h1, .tala-auth-main .fi-simple-header-head
 }
 
 /* #99 Scope 11: irregular status reasons, shared by Registrar and Student Hub. */
-.tala-irregular-reasons{display:grid;gap:.5rem;}
-.tala-irregular-reasons__list{display:grid;gap:.5rem;margin:0;padding:0;list-style:none;}
-.tala-irregular-reasons__item{padding:.5rem .75rem;border-inline-start:3px solid var(--warning-500,#f59e0b);background:var(--tala-surface-sunken);border-radius:.375rem;}
-.tala-irregular-reasons__item--failed{border-inline-start-color:var(--danger-600,#dc2626);}
-.tala-irregular-reasons__label{font-size:.875rem;}
-.tala-irregular-reasons__details{font-size:.875rem;color:var(--tala-muted);}
-.tala-irregular-review__actions{display:flex;flex-wrap:wrap;gap:.5rem;}
+.registrar-irregular-request {
+    display: grid;
+    gap: 0.875rem;
+    padding: 1.125rem 1.25rem;
+    border: 1px solid var(--tala-status-warning-border);
+    border-radius: var(--tala-card-radius);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--warning-500, #f59e0b) 6%, var(--tala-surface)) 0%, var(--tala-surface) 100%);
+    box-shadow: var(--tala-material-raised);
+}
+.registrar-irregular-request:has(.tala-irregular-reasons__status--danger) {
+    border-color: var(--tala-status-danger-border);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--tala-status-danger-fg) 6%, var(--tala-surface)) 0%, var(--tala-surface) 100%);
+}
+.registrar-irregular-request > h2 {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: var(--tala-weight-heading);
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+    color: var(--tala-text);
+}
+.registrar-irregular-request > p {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--tala-muted);
+}
+.registrar-irregular-request > p strong {
+    color: var(--tala-text);
+}
+.tala-irregular-reasons {
+    display: grid;
+    gap: 0.75rem;
+    min-inline-size: 0;
+}
+.tala-irregular-reasons__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 0.75rem;
+}
+.tala-irregular-reasons__status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4375rem;
+    margin: 0;
+    padding: 0.375rem 0.75rem;
+    border: 1px solid transparent;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 700;
+    line-height: 1.3;
+    letter-spacing: -0.005em;
+    max-inline-size: 100%;
+    overflow-wrap: anywhere;
+}
+.tala-irregular-reasons__status-icon {
+    inline-size: 1rem;
+    block-size: 1rem;
+    flex: none;
+}
+.tala-irregular-reasons__status--irregular {
+    background: var(--tala-status-warning-bg);
+    border-color: var(--tala-status-warning-border);
+    color: var(--tala-status-warning-fg);
+}
+.tala-irregular-reasons__status--danger {
+    background: var(--tala-status-danger-bg);
+    border-color: var(--tala-status-danger-border);
+    color: var(--tala-status-danger-fg);
+}
+.tala-irregular-reasons__status--regular {
+    background: var(--tala-status-success-bg);
+    border-color: var(--tala-status-success-border);
+    color: var(--tala-status-success-fg);
+}
+.tala-irregular-reasons__count {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.125rem 0.5rem;
+    border: 1px solid var(--tala-edge);
+    border-radius: 9999px;
+    background: var(--tala-surface-sunken);
+    color: var(--tala-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.3;
+    font-variant-numeric: tabular-nums;
+}
+.tala-irregular-reasons__list {
+    display: grid;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.tala-irregular-reasons__item {
+    display: grid;
+    gap: 0.25rem;
+    padding: 0.625rem 0.875rem;
+    border: 1px solid var(--tala-edge);
+    border-inline-start: 3px solid var(--tala-status-warning-icon);
+    border-radius: calc(var(--tala-card-radius) - 0.125rem);
+    background: var(--tala-surface-sunken);
+}
+.tala-irregular-reasons__item--primary {
+    border-color: var(--tala-edge-strong);
+    background: color-mix(in srgb, var(--tala-surface-sunken) 72%, var(--tala-surface));
+}
+.tala-irregular-reasons__item--failed {
+    border-inline-start-color: var(--tala-status-danger-fg);
+}
+.tala-irregular-reasons__item--returnee,
+.tala-irregular-reasons__item--shiftee {
+    border-inline-start-color: var(--info-600, #0284c7);
+}
+.dark .tala-irregular-reasons__item--returnee,
+.dark .tala-irregular-reasons__item--shiftee {
+    border-inline-start-color: var(--info-400, #38bdf8);
+}
+.tala-irregular-reasons__item-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.5rem;
+}
+.tala-irregular-reasons__tier {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    line-height: 1.3;
+    text-transform: uppercase;
+    color: var(--tala-muted);
+}
+.tala-irregular-reasons__item--primary .tala-irregular-reasons__tier {
+    color: var(--tala-status-warning-fg);
+}
+.tala-irregular-reasons__item--primary.tala-irregular-reasons__item--failed .tala-irregular-reasons__tier {
+    color: var(--tala-status-danger-fg);
+}
+.tala-irregular-reasons__title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--tala-text);
+}
+.tala-irregular-reasons__details,
+.tala-irregular-reasons__note {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--tala-muted);
+    overflow-wrap: anywhere;
+}
+.tala-irregular-review__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+@media (forced-colors: active) {
+    .registrar-irregular-request,
+    .tala-irregular-reasons__status,
+    .tala-irregular-reasons__item {
+        background: Canvas;
+        color: CanvasText;
+        border-color: CanvasText;
+    }
+}
 
 /* Review application: one compact row per submitted copy (name · result · view/download). */
 .tala-copy-review-row{padding-block:.5rem;border-block-end:1px solid var(--tala-edge,rgb(0 0 0 / .08));row-gap:.5rem;}

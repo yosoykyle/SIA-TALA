@@ -77,6 +77,12 @@ class RegistrationProposalVersion extends Model
         return $this->hasOne(RegistrationProposalConfirmation::class);
     }
 
+    /** @return BelongsTo<User, $this> */
+    public function preparer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'prepared_by');
+    }
+
     protected static function booted(): void
     {
         static::updating(function (RegistrationProposalVersion $proposal): void {

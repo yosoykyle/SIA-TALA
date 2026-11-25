@@ -75,9 +75,10 @@ class IrregularStudentReasons
     {
         $effect = $this->effects->forStudent($student, $term);
         $decision = $this->activeDecision($student, $term);
+        $activeShift = $this->activeUnenrolledShift($student);
         $reasons = collect()
             ->merge($this->returneeReasons($student))
-            ->merge($this->shifteeReasons($student))
+            ->merge($this->shifteeReasons($student, $activeShift))
             ->merge($this->resultReasons($student));
 
         if ($decision?->effect === AcademicDecision::EffectAdvisingRequired && $reasons->isEmpty()) {
@@ -87,7 +88,15 @@ class IrregularStudentReasons
         $reasons = $reasons
             ->sortBy(fn (array $reason): int => array_search($reason['code'], self::Priority, true))
             ->values();
-        $keptRegular = $decision?->effect === AcademicDecision::EffectAllowed && $reasons->isNotEmpty();
+        $decisionPredatesShift = $activeShift instanceof StudentLifecycleChange
+            && $decision instanceof AcademicDecision
+            && $decision->effect === AcademicDecision::EffectAllowed
+            && $decision->recorded_at !== null
+            && $activeShift->created_at !== null
+            && $decision->recorded_at->lt($activeShift->created_at);
+        $keptRegular = $decision?->effect === AcademicDecision::EffectAllowed
+            && ! $decisionPredatesShift
+            && $reasons->isNotEmpty();
         $isIrregular = ! $keptRegular
             && $effect['effect'] !== AcademicDecision::EffectBlocked
             && ($effect['effect'] === AcademicDecision::EffectAdvisingRequired || $reasons->contains(
@@ -111,8 +120,15 @@ class IrregularStudentReasons
      */
     public function needsReview(StudentProfile $student): bool
     {
-        return $student->lifecycle_status === StudentProfile::LifecycleActive
-            && $this->activeDecision($student, null) === null
+        if ($student->lifecycle_status !== StudentProfile::LifecycleActive) {
+            return false;
+        }
+
+        if ($this->activeUnenrolledShift($student) instanceof StudentLifecycleChange) {
+            return false;
+        }
+
+        return $this->activeDecision($student, null) === null
             && $this->forStudent($student)['is_irregular'];
     }
 
@@ -328,28 +344,59 @@ class IrregularStudentReasons
         return collect([$this->reason(self::ReasonReturnee, 'Returnee', $details, [])]);
     }
 
-    /** @return Collection<int, array{code: string, label: string, details: string, subjects: list<string>}> */
-    private function shifteeReasons(StudentProfile $student): Collection
+    /**
+     * Returns the student's latest applied Program Shift matching their current curriculum when
+     * they have not yet officially enrolled since that shift.
+     */
+    public function activeUnenrolledShift(StudentProfile $student): ?StudentLifecycleChange
     {
+        if ($student->curriculum_version_id === null) {
+            return null;
+        }
+
         $shift = StudentLifecycleChange::query()
-            ->with(['targetProgram', 'targetCurriculumVersion'])
+            ->with(['targetProgram', 'targetCurriculumVersion', 'term'])
             ->where('student_profile_id', $student->id)
             ->where('type', StudentLifecycleChange::TypeProgramShift)
             ->where('state', StudentLifecycleChange::StateApplied)
             ->where('target_curriculum_version_id', $student->curriculum_version_id)
             ->latest('effective_on')
+            ->latest('id')
             ->first();
 
         if (! $shift instanceof StudentLifecycleChange) {
-            return collect();
+            return null;
         }
 
         $enrolledSinceShift = Enrollment::query()
             ->where('student_profile_id', $student->id)
             ->whereNotNull('officially_enrolled_at')
-            ->whereHas('term', fn ($query) => $query->whereDate('starts_on', '>=', $shift->effective_on ?? $shift->created_at))
+            ->where(function ($query) use ($shift): void {
+                $query->where('term_id', $shift->term_id);
+
+                $shiftTermStartsOn = $shift->term?->starts_on?->toDateString();
+                if ($shiftTermStartsOn !== null) {
+                    $query->orWhere(function ($laterTermQuery) use ($shift, $shiftTermStartsOn): void {
+                        $laterTermQuery
+                            ->whereHas('term', fn ($termQuery) => $termQuery->whereDate('starts_on', '>=', $shiftTermStartsOn))
+                            ->when(
+                                $shift->created_at !== null,
+                                fn ($timeQuery) => $timeQuery->where('officially_enrolled_at', '>=', $shift->created_at),
+                            );
+                    });
+                }
+            })
             ->exists();
-        if ($enrolledSinceShift) {
+
+        return $enrolledSinceShift ? null : $shift;
+    }
+
+    /** @return Collection<int, array{code: string, label: string, details: string, subjects: list<string>}> */
+    private function shifteeReasons(StudentProfile $student, ?StudentLifecycleChange $shift = null): Collection
+    {
+        $shift ??= $this->activeUnenrolledShift($student);
+
+        if (! $shift instanceof StudentLifecycleChange) {
             return collect();
         }
 

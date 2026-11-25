@@ -294,7 +294,10 @@ final class StudentLifecycleChangeTest extends TestCase
         ]);
         $this->window($futureTerm, 'program_shift');
         $targetProgram = Program::factory()->create();
-        $targetCurriculum = CurriculumVersion::factory()->create(['program_id' => $targetProgram->id]);
+        $targetCurriculum = CurriculumVersion::factory()->create([
+            'program_id' => $targetProgram->id,
+            'state' => CurriculumVersion::StateActive,
+        ]);
         $targetEntry = CurriculumEntry::factory()->create(['curriculum_version_id' => $targetCurriculum->id]);
         $registrar = $this->registrar();
         $ledgerCount = LedgerEntry::query()->count();
@@ -370,7 +373,10 @@ final class StudentLifecycleChangeTest extends TestCase
         $this->window($futureTerm, 'program_shift');
         $this->window($fixture['term'], 'program_shift');
         $targetProgram = Program::factory()->create();
-        $targetCurriculum = CurriculumVersion::factory()->create(['program_id' => $targetProgram->id]);
+        $targetCurriculum = CurriculumVersion::factory()->create([
+            'program_id' => $targetProgram->id,
+            'state' => CurriculumVersion::StateActive,
+        ]);
         $targetEntry = CurriculumEntry::factory()->create(['curriculum_version_id' => $targetCurriculum->id]);
         $otherCurriculum = CurriculumVersion::factory()->create();
         $outsideEntry = CurriculumEntry::factory()->create(['curriculum_version_id' => $otherCurriculum->id]);
@@ -443,7 +449,10 @@ final class StudentLifecycleChangeTest extends TestCase
         ]);
         $this->window($futureTerm, 'program_shift');
         $targetProgram = Program::factory()->create();
-        $targetCurriculum = CurriculumVersion::factory()->create(['program_id' => $targetProgram->id]);
+        $targetCurriculum = CurriculumVersion::factory()->create([
+            'program_id' => $targetProgram->id,
+            'state' => CurriculumVersion::StateActive,
+        ]);
         $targetEntry = CurriculumEntry::factory()->create(['curriculum_version_id' => $targetCurriculum->id]);
         $registrar = $this->registrar();
         $originalProgramId = $fixture['profile']->program_id;
@@ -1131,7 +1140,7 @@ final class StudentLifecycleChangeTest extends TestCase
     {
         $term = Term::factory()->create(['starts_on' => today()->addMonth(), 'ends_on' => today()->addMonths(5)]);
         $this->window($term, 'program_shift');
-        $curriculum = CurriculumVersion::factory()->create();
+        $curriculum = CurriculumVersion::factory()->create(['state' => CurriculumVersion::StateActive]);
 
         return [...$this->baseData($fixture, StudentLifecycleChange::TypeProgramShift),
             'term_id' => $term->id, 'enrollment_id' => null,

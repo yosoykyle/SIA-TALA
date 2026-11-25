@@ -129,6 +129,7 @@
 .registrar-start-panel>p,.registrar-records-entry p{color:var(--tala-muted);font-size:1rem;line-height:1.6;margin-block-start:.5rem;}
 .registrar-start-actions{display:grid;gap:1rem;margin-block-start:1.5rem;}
 .registrar-start-actions .fi-btn{inline-size:100%;min-block-size:2.75rem;justify-content:flex-start;}
+.registrar-progress-panel .registrar-work-list{flex:1;display:flex;flex-direction:column;justify-content:center;margin-block-start:0;padding-block:.5rem;}
 .registrar-progress-panel .registrar-work-row{min-block-size:3.5rem;}
 .registrar-progress-panel .registrar-work-icon{color:var(--tala-muted);}
 /* Accounting composes the shared record workspace; its selection and hover styles remain shared. */
@@ -2310,3 +2311,31 @@ button.tala-cashier-calendar__day:focus-visible{outline:3px solid var(--tala-foc
 .student-plan-legend{display:flex;flex-wrap:wrap;gap:.375rem 1rem;margin:0 0 var(--tala-card-gap,12px);padding:0;list-style:none;font-size:.8125rem;}
 .student-plan-legend>li{display:inline-flex;align-items:center;gap:.25rem;}
 .student-plan-legend .fi-icon{inline-size:1rem;block-size:1rem;}
+/* Registrar Enrollment continuation card & breakdown modal. */
+.registrar-continuation-card .tala-workspace-feature__action .fi-btn{inline-size:100%;justify-content:center;}
+.registrar-continuation-card__summary{margin:0;color:var(--tala-muted);font-size:var(--tala-type-caption);line-height:1.4;font-variant-numeric:tabular-nums;}
+.registrar-continuation-table-wrap{inline-size:100%;overflow-x:auto;border:1px solid var(--tala-edge);border-radius:.5rem;background:var(--tala-surface-sunken);}
+.registrar-continuation-table-wrap:focus-visible,.registrar-continuation-breakdown__table-wrap:focus-visible{outline:3px solid var(--tala-focus);outline-offset:2px;}
+.registrar-continuation-table{inline-size:100%;border-collapse:collapse;font-size:.8125rem;line-height:1.4;}
+.registrar-continuation-table :is(th,td){padding:.375rem .625rem;border-block-end:1px solid var(--tala-edge);text-align:start;vertical-align:middle;}
+.registrar-continuation-table tbody tr:last-child :is(th,td){border-block-end:0;}
+.registrar-continuation-table thead th{font-size:.75rem;font-weight:600;color:var(--tala-muted);white-space:nowrap;}
+.registrar-continuation-table tbody th{font-weight:500;color:var(--tala-text);white-space:nowrap;}
+.registrar-continuation-table .is-num{text-align:end;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.registrar-continuation-breakdown{display:grid;gap:1rem;min-inline-size:0;}
+.registrar-continuation-breakdown__metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(10rem,1fr));gap:.75rem 1.25rem;margin:0;padding:.875rem 1rem;}
+.registrar-continuation-breakdown__metrics dt{font-size:.75rem;color:var(--tala-muted);}
+.registrar-continuation-breakdown__metrics dd{margin:.125rem 0 0;font-size:1.375rem;font-weight:600;line-height:1.2;font-variant-numeric:tabular-nums;}
+.registrar-continuation-breakdown__caption{margin:0;font-size:.8125rem;color:var(--tala-muted);font-variant-numeric:tabular-nums;}
+.registrar-continuation-breakdown__table-wrap{max-block-size:26rem;overflow:auto;border:1px solid var(--tala-edge);border-radius:.5rem;background:var(--tala-surface);}
+.registrar-continuation-breakdown__table{inline-size:100%;border-collapse:collapse;}
+.registrar-continuation-breakdown__table thead{position:sticky;inset-block-start:0;z-index:1;background:var(--tala-surface-sunken);}
+.registrar-continuation-breakdown__table thead th{box-shadow:inset 0 -1px 0 var(--tala-edge);}
+.registrar-continuation-breakdown__name{display:block;font-weight:600;color:var(--tala-text);}
+.registrar-continuation-breakdown__empty{padding:1.5rem 1rem;border:1px solid var(--tala-edge);border-radius:.5rem;background:var(--tala-surface-sunken);}
+.registrar-continuation-breakdown__empty h3{margin:0;font-size:1rem;font-weight:600;}
+.registrar-continuation-breakdown__empty p{margin:.375rem 0 0;font-size:.875rem;color:var(--tala-muted);}
+@media(forced-colors:active){
+    .registrar-continuation-table-wrap,.registrar-continuation-breakdown__table-wrap,.registrar-continuation-breakdown__empty{border:1px solid CanvasText;background:Canvas;color:CanvasText;}
+    .registrar-continuation-breakdown__table thead{background:Canvas;}
+}

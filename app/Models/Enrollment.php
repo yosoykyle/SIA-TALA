@@ -35,6 +35,10 @@ class Enrollment extends Model
 
     public const OutcomeOfficiallyEnrolled = 'OfficiallyEnrolled';
 
+    public const FinalizationModeManual = 'manual';
+
+    public const FinalizationModeAutomatic = 'automatic';
+
     public function statusLabel(): string
     {
         return str($this->canonical_outcome === self::OutcomeInProgress ? $this->status : $this->canonical_outcome)
@@ -82,6 +86,7 @@ class Enrollment extends Model
         'registered_at',
         'officially_enrolled_at',
         'finalized_by',
+        'finalization_mode',
         'cancelled_at',
         'dropped_at',
         'withdrawn_at',

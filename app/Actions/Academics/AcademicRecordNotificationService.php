@@ -178,8 +178,12 @@ class AcademicRecordNotificationService
                     ->whereIn('related_record_id', $rostersNeedingSubmission)));
     }
 
-    public function recordLifecycleAfterCommit(StudentLifecycleChange $change): ?OperationalEvent
+    public function recordLifecycleAfterCommit(StudentLifecycleChange $change, bool $suppressNotification = false): ?OperationalEvent
     {
+        if ($suppressNotification) {
+            return null;
+        }
+
         $change->loadMissing('studentProfile.user');
         $recipient = $change->studentProfile?->user;
         $actionPath = $change->state === StudentLifecycleChange::StateApplied

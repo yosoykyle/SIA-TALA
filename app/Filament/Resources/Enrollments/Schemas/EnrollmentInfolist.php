@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Enrollments\Schemas;
 
+use App\Actions\Academics\IrregularStudentReasons;
 use App\Actions\Enrollment\RegistrationPlacementValidator;
 use App\Actions\Enrollment\RegistrationReadinessQuery;
 use App\Actions\Enrollment\RegistrationShortageProjection;
@@ -282,15 +283,22 @@ class EnrollmentInfolist
                     TextEntry::make('finance_as_of')->label('As of')->state(fn (Enrollment $record): string => self::asOf(self::finance($record)['as_of'])),
                 ])
                 ->columns(4),
-            Section::make('Registrar finalization')
-                ->description('Only one atomic Registrar action creates Official Enrollment and the first immutable COR.')
+            Section::make('Official finalization')
+                ->description('System auto-finalizes once Registrar-approved load, confirmation, placement, and Accounting clearance are ready; Registrar retains manual fallback for recovered exceptions.')
                 ->schema([
                     TextEntry::make('finalization_state')
                         ->label('Finalization checkpoint')
-                        ->state(fn (Enrollment $record): string => $record->canonical_outcome === Enrollment::OutcomeOfficiallyEnrolled ? 'Verified' : (self::readiness($record)['ready'] ? 'Ready for Registrar' : 'Action required'))
+                        ->state(fn (Enrollment $record): string => $record->canonical_outcome === Enrollment::OutcomeOfficiallyEnrolled ? 'Verified' : (self::readiness($record)['ready'] ? 'Ready for manual fallback' : 'Action required'))
                         ->badge()
                         ->color(fn (string $state): string => $state === 'Verified' ? 'success' : 'warning'),
-                    TextEntry::make('finalizer.name')->label('Finalized by')->placeholder('Not finalized'),
+                    TextEntry::make('finalized_by_display')
+                        ->label('Finalized by')
+                        ->state(fn (Enrollment $record): ?string => match (true) {
+                            $record->canonical_outcome !== Enrollment::OutcomeOfficiallyEnrolled => null,
+                            $record->finalization_mode === Enrollment::FinalizationModeAutomatic && $record->finalized_by === null => 'System (Auto-finalized)',
+                            default => $record->finalizer?->getFilamentName(),
+                        })
+                        ->placeholder('Not finalized'),
                     TextEntry::make('officially_enrolled_at')->label('Finalized at')->dateTime('M j, Y g:i A')->placeholder('Not finalized'),
                     TextEntry::make('finalization_recovery')
                         ->label('Recovery')
@@ -359,17 +367,43 @@ class EnrollmentInfolist
             }
         }
 
-        return ['case' => $case, 'evaluation' => $evaluation];
+        $irregularReview = $case->studentProfile !== null
+            ? app(IrregularStudentReasons::class)->forStudent($case->studentProfile, $case->term)
+            : null;
+
+        return ['case' => $case, 'evaluation' => $evaluation, 'irregularReview' => $irregularReview];
     }
 
     /** @return array<string, mixed> */
     private static function official(Enrollment $case): array
     {
-        $case->loadMissing(['credentialUser', 'term.academicYear', 'studentProfile.program', 'studentProfile.user', 'currentCorVersion', 'corVersions']);
+        $case->loadMissing([
+            'credentialUser', 'term.academicYear', 'studentProfile.program', 'studentProfile.user',
+            'currentCorVersion.proposalVersion.preparer', 'corVersions', 'finalizer',
+        ]);
         $subjects = $case->courseEnrollments()->where('is_current', true)->where('status', CourseEnrollment::StatusActive)
             ->with(['proposalItem', 'termOffering.curriculumEntry.courseSpecification.course', 'section'])->get();
 
-        return ['case' => $case, 'subjects' => $subjects, 'schedule' => app(RegistrationSchedulePresentation::class)->currentForEnrollment($case)];
+        $cor = $case->currentCorVersion;
+        $clearedByUserId = data_get($cor?->snapshot, 'finance_satisfaction.cleared_by_user_id');
+        $clearedByName = $clearedByUserId !== null
+            ? User::query()->find((int) $clearedByUserId)?->getFilamentName()
+            : null;
+        $loadApprovedBy = $cor?->proposalVersion?->preparer?->getFilamentName();
+        $provenance = [
+            'is_automatic' => $case->finalization_mode === Enrollment::FinalizationModeAutomatic,
+            'load_approved_by' => $loadApprovedBy,
+            'fee_cleared_by' => $clearedByName,
+            'cor_reference' => $cor !== null ? "COR-{$case->id}-{$cor->version}" : null,
+            'finalized_by' => $case->finalizer?->getFilamentName(),
+        ];
+
+        return [
+            'case' => $case,
+            'subjects' => $subjects,
+            'schedule' => app(RegistrationSchedulePresentation::class)->currentForEnrollment($case),
+            'provenance' => $provenance,
+        ];
     }
 
     /** @return array<string, mixed> */
@@ -538,9 +572,9 @@ class EnrollmentInfolist
             'Prepare proposal' => 'Prepare and issue the current source-derived proposal.',
             'Waiting for learner' => 'The student confirms the exact issued proposal, or the Registrar records bounded assisted-confirmation evidence.',
             'Placement and shortage review' => 'Resolve the named prerequisite, class, capacity, conflict, or timetable-source blocker.',
-            'Finance pending' => 'Accounting resolves the current assessment and payment or coverage requirement.',
+            'Finance pending' => 'Accounting resolves the current assessment and payment or coverage requirement; official enrollment auto-finalizes once cleared.',
             'Source review required' => 'Resolve the current finalization blockers before retrying.',
-            'Ready to finalize' => 'Registrar revalidates all five checkpoints and finalizes atomically.',
+            'Ready to finalize' => 'All readiness checks pass. Use the Registrar manual fallback to finalize official enrollment.',
             'Officially enrolled' => 'Current official registrations and immutable COR are available.',
             default => 'Review preserved history and the authorized same-case recovery path.',
         };

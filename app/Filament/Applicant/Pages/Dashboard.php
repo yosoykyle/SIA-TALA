@@ -172,7 +172,8 @@ class Dashboard extends BaseDashboard implements HasTable
                 TextColumn::make('application_state')
                     ->label('State')
                     ->badge()
-                    ->formatStateUsing(fn (string $state): string => str($state)->headline()->toString()),
+                    ->formatStateUsing(fn (string $state): string => str($state)->headline()->toString())
+                    ->color(fn (AdmissionApplication $record): string|array => $this->homeStatusColor($record)),
                 TextColumn::make('updated_at')->label('Last activity')->dateTime()->sortable(),
             ])
             ->stackedOnMobile()
@@ -301,11 +302,12 @@ class Dashboard extends BaseDashboard implements HasTable
         };
     }
 
-    public function homeStatusColor(AdmissionApplication $application): string
+    /** @return string|array<int|string, string> */
+    public function homeStatusColor(AdmissionApplication $application): string|array
     {
         return match (true) {
             $this->deadlineStatus($application)['status'] === AdmissionDeadlineStatus::Closed => 'gray',
-            $this->deadlineStatus($application)['status'] === AdmissionDeadlineStatus::Expired,
+            $this->deadlineStatus($application)['status'] === AdmissionDeadlineStatus::Expired => AdmissionApplication::stateColor('Expired'),
             $application->application_state === AdmissionApplication::StateNotAdmitted => 'danger',
             default => $this->statusColor($application->application_state),
         };
@@ -349,15 +351,10 @@ class Dashboard extends BaseDashboard implements HasTable
         return str($state)->headline()->toString();
     }
 
-    public function statusColor(string $state): string
+    /** @return string|array<int|string, string> */
+    public function statusColor(string $state): string|array
     {
-        return match ($state) {
-            AdmissionApplication::StateAdmitted => 'success',
-            AdmissionApplication::StateActionNeeded => 'danger',
-            AdmissionApplication::StateNotAdmitted,
-            AdmissionApplication::StateWithdrawn => 'gray',
-            default => 'info',
-        };
+        return AdmissionApplication::stateColor($state);
     }
 
     /**

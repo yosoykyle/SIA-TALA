@@ -138,9 +138,9 @@ class RegistrationClassChoices
 
         $creditedEntryIds = collect();
         if ($case->studentProfile !== null) {
-            $creditedEntryIds = $creditedEntryIds->merge(
-                RegistrationCreditEvaluation::creditedEntryIdsForStudent($case->studentProfile),
-            );
+            $creditedEntryIds = $creditedEntryIds
+                ->merge(RegistrationCreditEvaluation::creditedEntryIdsForStudent($case->studentProfile))
+                ->merge($eligibility->acceptedProgramShiftCreditEntryIds($case->studentProfile));
         }
         if ($case->admissionApplication?->application_path === AdmissionApplication::PathTransferee) {
             $curriculumIds = $sections

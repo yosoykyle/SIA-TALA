@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Enrollments\Pages;
 
+use App\Actions\Academics\IrregularStudentReasons;
 use App\Actions\Calendar\CalendarPhaseGateService;
 use App\Actions\Calendar\Exceptions\CalendarGateViolation;
 use App\Actions\Enrollment\ApplyRegistrationAdjustment;
@@ -1346,6 +1347,17 @@ class ViewEnrollment extends ViewRecord
             });
     }
 
+    /** @return array<string, mixed>|null */
+    public function preparingIrregularReview(): ?array
+    {
+        $case = $this->getRecord();
+        if ($case->studentProfile === null) {
+            return null;
+        }
+
+        return app(IrregularStudentReasons::class)->forStudent($case->studentProfile, $case->term);
+    }
+
     /** #99 Scope 11: the student's irregular application waiting for this Registrar. */
     private function submittedIrregularRequest(): ?IrregularEnrollmentRequest
     {
@@ -1926,7 +1938,8 @@ class ViewEnrollment extends ViewRecord
                             );
                         }
                     });
-                    Notification::make()->title('Payment receipt verified')->success()->send();
+                    $this->record = $this->getRecord()->refresh()->load('currentCorVersion');
+                    $this->sendPostPaymentAutoEnrollmentNotification('Payment verified', 'Payment receipt verified');
                     $this->redirect($this->enrollmentUrl(['view' => 'history']));
                 } catch (Throwable $exception) {
                     $this->failure('Receipt was not verified', $exception);
@@ -2048,7 +2061,7 @@ class ViewEnrollment extends ViewRecord
                         channelSnapshot: $channelSnapshot,
                     );
 
-                    $this->record = $this->getRecord()->refresh();
+                    $this->record = $this->getRecord()->refresh()->load('currentCorVersion');
                     $this->accountingContext = null;
                     $this->accountingMemo = [];
                     if ($this->isAccountingWorkspace()) {
@@ -2056,10 +2069,10 @@ class ViewEnrollment extends ViewRecord
                     }
                     $this->resetPage('accountHistoryPaymentPage');
 
-                    Notification::make()
-                        ->title('Onsite payment recorded and applied to this account.')
-                        ->success()
-                        ->send();
+                    $this->sendPostPaymentAutoEnrollmentNotification(
+                        'Onsite payment recorded',
+                        'Onsite payment recorded and applied to this account.',
+                    );
                 } catch (ValidationException $exception) {
                     throw $exception;
                 } catch (RuntimeException $exception) {
@@ -4173,10 +4186,120 @@ class ViewEnrollment extends ViewRecord
             }
         }
 
+        $autoEnrollPreview = $this->autoEnrollPreview($this->getRecord(), $context, $allocation, $allocationError);
+
         return ['proof' => $proof, 'case' => $this->getRecord(), 'targets' => $targets,
             'targetBalance' => $sourceCurrent ? $money->fromCents($targets->sum(fn (array $row): int => $money->toCents($row['available_balance']))) : null,
             'sourceCurrent' => $sourceCurrent, 'allocation' => $allocation, 'allocationError' => $allocationError,
+            'autoEnrollPreview' => $autoEnrollPreview,
             'pendingProofs' => $context['account']?->paymentEvidenceVersions->where('state', PaymentEvidenceVersion::StateSubmitted)->sortByDesc('submitted_at') ?? collect()];
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     * @param  list<array{label:string,applied:string,remaining:string}>  $allocation
+     * @return array{state:string,remaining?:string,blockers?:list<string>}|null
+     */
+    private function autoEnrollPreview(Enrollment $case, array $context, array $allocation, ?string $allocationError): ?array
+    {
+        if ($case->canonical_outcome !== Enrollment::OutcomeInProgress
+            || $allocationError !== null
+            || $allocation === []) {
+            return null;
+        }
+
+        $requirement = $context['requirement'] ?? null;
+        if (! is_array($requirement) || ($requirement['state'] ?? 'Unavailable') === 'Unavailable') {
+            return null;
+        }
+
+        $money = app(DecimalMoney::class);
+        $requiredLabels = collect($context['position']['obligations'] ?? [])
+            ->where('required_for_enrollment', true)
+            ->pluck('label')
+            ->all();
+
+        $appliedToRequiredCents = collect($allocation)
+            ->filter(fn (array $row): bool => in_array($row['label'], $requiredLabels, true))
+            ->sum(fn (array $row): int => $money->toCents($row['applied']));
+
+        $currentRequiredBalanceCents = $money->toCents((string) ($requirement['balance'] ?? '0.00'));
+        $remainingRequiredCents = max(0, $currentRequiredBalanceCents - $appliedToRequiredCents);
+
+        if ($remainingRequiredCents > 0) {
+            return [
+                'state' => 'partial',
+                'remaining' => $money->fromCents($remainingRequiredCents),
+            ];
+        }
+
+        $readiness = app(RegistrationReadinessQuery::class)->for($case);
+        $nonFinanceBlockers = array_values(array_filter(
+            $readiness['blockers'],
+            fn (string $blocker): bool => $blocker !== 'Accounting clearance',
+        ));
+
+        if ($nonFinanceBlockers === []) {
+            return ['state' => 'ready'];
+        }
+
+        return [
+            'state' => 'blocked',
+            'blockers' => $nonFinanceBlockers,
+        ];
+    }
+
+    private function sendPostPaymentAutoEnrollmentNotification(string $prefix, string $defaultSuccessTitle): void
+    {
+        $case = $this->getRecord();
+        if ($case->canonical_outcome === Enrollment::OutcomeOfficiallyEnrolled
+            && $case->finalization_mode === Enrollment::FinalizationModeAutomatic
+            && $case->currentCorVersion !== null) {
+            Notification::make()
+                ->title("{$prefix} · Student officially enrolled")
+                ->body("COR-{$case->id}-{$case->currentCorVersion->version} issued automatically.")
+                ->success()
+                ->send();
+
+            return;
+        }
+
+        if ($case->canonical_outcome === Enrollment::OutcomeInProgress) {
+            $requirement = app(EnrollmentPaymentRequirementProjection::class)->forEnrollment($case);
+            if ($requirement['state'] === 'Cleared') {
+                $readiness = app(RegistrationReadinessQuery::class)->for($case);
+                $blockers = array_values(array_filter(
+                    $readiness['blockers'],
+                    fn (string $blocker): bool => $blocker !== 'Accounting clearance',
+                ));
+
+                if ($case->currentProposalVersion?->state === RegistrationProposalVersion::StateIssued
+                    && $case->currentProposalVersion?->confirmation === null
+                    && $readiness['identity']
+                    && $readiness['eligibility']) {
+                    Notification::make()
+                        ->title($defaultSuccessTitle)
+                        ->body('Payment applied. Enrollment will complete automatically once the student confirms subjects.')
+                        ->success()
+                        ->send();
+
+                    return;
+                }
+
+                Notification::make()
+                    ->title("{$prefix} · Needs Registrar attention")
+                    ->body('Payment applied, but automatic enrollment was blocked ('.implode(', ', $blockers).'). Routed to Registrar issues queue.')
+                    ->warning()
+                    ->send();
+
+                return;
+            }
+        }
+
+        Notification::make()
+            ->title($defaultSuccessTitle)
+            ->success()
+            ->send();
     }
 
     private function failedOfficialEnrollmentNotification(): ?OperationalEvent

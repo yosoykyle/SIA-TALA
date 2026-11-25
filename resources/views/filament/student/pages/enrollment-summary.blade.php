@@ -10,7 +10,7 @@
         $case !== null && $case->canonical_outcome !== \App\Models\Enrollment::OutcomeInProgress => 'Ask the Registrar about this enrollment',
         $context['reason'] !== null => 'Your enrollment needs an office update',
         $case?->currentProposalVersion?->state === \App\Models\RegistrationProposalVersion::StateIssued => 'Your subjects are ready to review',
-        $case?->currentProposalVersion?->confirmation !== null && ($requirement['state'] ?? '') === 'Cleared' => 'The Registrar can now finalize your enrollment',
+        $case?->currentProposalVersion?->confirmation !== null && ($requirement['state'] ?? '') === 'Cleared' => 'Your enrollment needs Registrar attention',
         $case !== null => 'The Registrar is preparing your enrollment',
         default => 'Start your next enrollment',
     };
