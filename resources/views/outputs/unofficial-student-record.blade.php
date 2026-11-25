@@ -20,17 +20,17 @@
         <p class="official-output-notice">UNOFFICIAL — FOR STUDENT REFERENCE. This is not a Transcript of Records and carries no certification, signatory, or seal.</p>
     </section>
 
-    @foreach ($terms as $term)
-        <section aria-labelledby="record-term-{{ $term->id }}">
-            <h2 id="record-term-{{ $term->id }}" class="finance-heading">{{ $term->label }}@if ($term->academicYear?->label && ! str_contains($term->label, $term->academicYear->label)) · {{ $term->academicYear->label }}@endif</h2>
+    @foreach ($recordPeriods as $period)
+        <section aria-labelledby="record-term-{{ $period['id_slug'] }}">
+            <h2 id="record-term-{{ $period['id_slug'] }}" class="finance-heading">{{ $period['heading'] }}</h2>
             <div class="official-output-table finance-responsive-table">
                 <table>
                     <thead>
-                        <tr><th colspan="4" style="background: #f4f4f5; font-weight: 700; border-bottom: 2px solid #09090b;">{{ $student->student_number }} · {{ collect([$student->last_name, $student->first_name])->filter()->implode(', ') }} · {{ $term->label }} · UNOFFICIAL RECORD</th></tr>
+                        <tr><th colspan="4" style="background: #f4f4f5; font-weight: 700; border-bottom: 2px solid #09090b;">{{ $student->student_number }} · {{ collect([$student->last_name, $student->first_name])->filter()->implode(', ') }} · {{ $period['label'] }} · UNOFFICIAL RECORD</th></tr>
                         <tr><th scope="col">Subject</th><th scope="col">Units</th><th scope="col">Released result</th><th scope="col">Released</th></tr>
                     </thead>
                     <tbody>
-                        @foreach ($results->where('term.id', $term->id) as $result)
+                        @foreach ($period['rows'] as $result)
                             <tr>
                                 <td data-label="Subject"><div><strong>{{ $result['course_specification']?->title }}</strong><br>{{ $result['course_specification']?->course?->code }}</div></td>
                                 <td data-label="Units">{{ (float) $result['units'] }}</td>
@@ -44,13 +44,21 @@
                                         <br>Supersedes an earlier released result.
                                     @endif
                                 </div></td>
-                                <td data-label="Released">{{ $result['event']?->released_at?->timezone(config('app.display_timezone'))->format('M j, Y') ?? 'Registrar-recorded outcome' }}</td>
+                                <td data-label="Released">
+                                    @if (($result['prior_credit'] ?? null) instanceof \App\Models\PriorAcademicCredit)
+                                        {{ filled($result['prior_credit']->source_school) ? 'Prior record · '.$result['prior_credit']->source_school : 'Prior institutional record' }}
+                                    @else
+                                        {{ $result['event']?->released_at?->timezone(config('app.display_timezone'))->format('M j, Y') ?? 'Registrar-recorded outcome' }}
+                                    @endif
+                                </td>
                             </tr>
                         @endforeach
                     </tbody>
                 </table>
             </div>
-            @php($average = $termAverages->get($term->id))
+            @php
+                $average = $period['average'];
+            @endphp
             <p><strong>{{ $average['label'] }}:</strong> {{ $average['value'] ?? $average['reason'] }}</p>
         </section>
     @endforeach

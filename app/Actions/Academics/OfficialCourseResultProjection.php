@@ -8,6 +8,7 @@ use App\Models\CourseEnrollment;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\GradeOutcomeEvent;
+use App\Models\PriorAcademicCredit;
 use App\Models\ProgramShiftCreditEntry;
 use App\Models\RegistrationCreditEvaluation;
 use App\Models\StudentLifecycleChange;
@@ -99,6 +100,16 @@ class OfficialCourseResultProjection
             return $result;
         });
 
+        $priorCredits = PriorAcademicCredit::query()
+            ->active()
+            ->where('student_profile_id', $student->id)
+            ->with(['courseSpecification.course', 'term.academicYear', 'curriculumEntry'])
+            ->orderBy('id')
+            ->get()
+            ->map($this->projectPriorCredit(...));
+
+        $results = $results->concat($priorCredits);
+
         return $results->map(function (array $result) use ($results, $credits): array {
             $classification = $result['course_specification']?->academic_classification;
             $courseId = (int) $result['course_specification']?->course_id;
@@ -117,18 +128,28 @@ class OfficialCourseResultProjection
                 $separatelySatisfied = $credits->contains($courseId)
                     || $results->contains(fn (array $attempt): bool => $courseId > 0
                         && (int) $attempt['course_specification']?->course_id === $courseId
-                        && $attempt['event'] !== null
+                        && ($attempt['event'] !== null || ($attempt['prior_credit'] ?? null) instanceof PriorAcademicCredit)
                         && is_numeric($attempt['result'])
                         && (float) $attempt['result'] <= 4.00);
                 $result['inc_settled'] = $result['inc_state'] === IncDeadlineService::StateCompletionOverdue || $separatelySatisfied;
                 $result['average_exclusion'] = $code.': INC contributes no grade points or units'
                     .($separatelySatisfied ? '; requirement satisfied by a separate released attempt or approved credit.'
                         : ($result['inc_settled'] ? '; completion overdue, no credit.' : '; completion remains open.'));
+            } elseif ($result['result'] === 'INC' && ($result['prior_credit'] ?? null) instanceof PriorAcademicCredit) {
+                $separatelySatisfied = $credits->contains($courseId)
+                    || $results->contains(fn (array $attempt): bool => $courseId > 0
+                        && (int) $attempt['course_specification']?->course_id === $courseId
+                        && (($attempt['prior_credit'] ?? null)?->id !== $result['prior_credit']->id)
+                        && is_numeric($attempt['result'])
+                        && (float) $attempt['result'] <= 4.00);
+                $result['inc_settled'] = $separatelySatisfied;
+                $result['average_exclusion'] = $code.': prior INC contributes no grade points or units'
+                    .($separatelySatisfied ? '; requirement satisfied by a separate released attempt or credit.' : '; completion remains open.');
             } elseif (in_array($classification, [CourseSpecification::AcademicClassificationPe, CourseSpecification::AcademicClassificationNstp], true)) {
                 $result['average_exclusion'] = $code.': PE/NSTP-equivalent course excluded.';
             } elseif ($classification === CourseSpecification::AcademicClassificationNonCredit) {
                 $result['average_exclusion'] = $code.': Non-credit/bridging course excluded.';
-            } elseif (in_array($result['result'], ['DRP', 'W', 'CREDIT'], true)) {
+            } elseif (in_array($result['result'], ['DRP', 'W', 'CREDIT', 'TC'], true)) {
                 $result['average_exclusion'] = $code.': nonnumeric Registrar outcome excluded.';
             }
 
@@ -167,16 +188,52 @@ class OfficialCourseResultProjection
             ->whereNotNull('released_at')
             ->sortByDesc('id')
             ->first();
+        $term = $courseEnrollment->enrollment?->term;
+        $yearLevel = $courseEnrollment->termOffering?->curriculumEntry?->year_level;
 
         return [
             'course_enrollment' => $courseEnrollment,
+            'prior_credit' => null,
             'course_specification' => $courseEnrollment->termOffering?->curriculumEntry?->courseSpecification,
-            'term' => $courseEnrollment->enrollment?->term,
+            'term' => $term,
+            'period_key' => 'term:'.(int) ($term?->id ?? 0),
+            'period_label' => (string) ($term?->label ?? 'Recorded Term'),
+            'academic_year_label' => $term?->academicYear?->label,
+            'year_level' => is_numeric($yearLevel) ? (int) $yearLevel : null,
+            'period_sort_key' => '1|'.($term?->ends_on?->toDateString() ?? '9999-12-31').'|'.($term?->starts_on?->toDateString() ?? '9999-12-31').'|'.sprintf('%010d', (int) ($term?->id ?? 0)),
             'event' => $latest instanceof GradeOutcomeEvent ? $latest : null,
             'result' => $latest?->result_code,
             'units' => (string) $courseEnrollment->units_snapshot,
             'outcome_complete' => $latest instanceof GradeOutcomeEvent,
             'outcome_source' => $latest instanceof GradeOutcomeEvent ? 'grade-outcome:'.$latest->id : null,
+            'inc_state' => null,
+            'inc_deadline' => null,
+            'inc_amendments' => collect(),
+            'inc_settled' => false,
+            'average_exclusion' => null,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function projectPriorCredit(PriorAcademicCredit $credit): array
+    {
+        $resultCode = $credit->effectiveResultCode();
+
+        return [
+            'course_enrollment' => null,
+            'prior_credit' => $credit,
+            'course_specification' => $credit->courseSpecification,
+            'term' => $credit->term,
+            'period_key' => $credit->periodKey(),
+            'period_label' => $credit->displayTermLabel(),
+            'academic_year_label' => $credit->displayAcademicYearLabel(),
+            'year_level' => $credit->year_level ?? (is_numeric($credit->curriculumEntry?->year_level) ? (int) $credit->curriculumEntry->year_level : null),
+            'period_sort_key' => $credit->periodSortKey(),
+            'event' => null,
+            'result' => $resultCode,
+            'units' => number_format((float) $credit->units, 2, '.', ''),
+            'outcome_complete' => true,
+            'outcome_source' => 'prior-credit:'.$credit->id,
             'inc_state' => null,
             'inc_deadline' => null,
             'inc_amendments' => collect(),

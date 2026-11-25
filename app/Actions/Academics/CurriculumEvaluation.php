@@ -57,6 +57,7 @@ class CurriculumEvaluation
                 );
                 $credited = $acceptedCredits->has($entry->id) || in_array((int) $entry->id, $transferCredits, true);
                 $inProgress = $entryAttempts->contains(fn (array $attempt): bool => $attempt['event'] === null
+                    && $attempt['course_enrollment'] instanceof CourseEnrollment
                     && $attempt['course_enrollment']->is_current
                     && $attempt['course_enrollment']->status === CourseEnrollment::StatusActive);
 

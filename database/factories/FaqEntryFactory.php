@@ -21,7 +21,7 @@ class FaqEntryFactory extends Factory
             'question' => rtrim(fake()->sentence(), '.').'?',
             'answer' => fake()->paragraph(),
             'category' => fake()->randomElement(array_keys(FaqEntry::categoryOptions())),
-            'sort_order' => fake()->numberBetween(0, 20),
+            'sort_order' => fake()->numberBetween(1, 20),
             'is_published' => false,
             'system_key' => null,
         ];

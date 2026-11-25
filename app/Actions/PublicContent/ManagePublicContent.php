@@ -39,7 +39,7 @@ class ManagePublicContent
         Gate::forUser($actor)->authorize('update', $record);
         $orderColumn = $record instanceof PublicNotice ? 'display_order' : 'sort_order';
         if (! array_key_exists($orderColumn, $data) || $data[$orderColumn] === null || $data[$orderColumn] === '') {
-            $data[$orderColumn] = $record->{$orderColumn};
+            $data[$orderColumn] = max(1, (int) $record->{$orderColumn});
         }
         $data = $this->validate($record::class, $data);
 

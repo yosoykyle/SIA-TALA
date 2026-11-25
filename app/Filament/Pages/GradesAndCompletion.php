@@ -3,11 +3,13 @@
 namespace App\Filament\Pages;
 
 use App\Actions\Academics\ExaminationPeriodProjection;
+use App\Actions\StudentProfiles\StudentAccountActivation;
 use App\Filament\Resources\GradeRosters\Concerns\InteractsWithResultHistory;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
 use App\Filament\Resources\GradeRosters\Tables\GradeRostersTable;
 use App\Filament\Resources\GradeRosters\Tables\ReleasedResultsTable;
 use App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResource;
+use App\Filament\Resources\StudentProfiles\StudentOnboardingActions;
 use App\Filament\Resources\StudentProfiles\StudentProfileResource;
 use App\Models\Enrollment;
 use App\Models\GradeRoster;
@@ -150,6 +152,19 @@ class GradesAndCompletion extends Page implements HasTable
         return $this->viewTab === 'overview' ? [] : [self::getUrl() => 'Students Record', $this->getTitle()];
     }
 
+    /** @return list<Action> */
+    protected function getHeaderActions(): array
+    {
+        if ($this->viewTab !== 'academic-progress') {
+            return [];
+        }
+
+        return StudentOnboardingActions::make(
+            isVisible: fn (): bool => $this->viewTab === 'academic-progress'
+                && (auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false),
+        );
+    }
+
     /** @return array<string, mixed> */
     protected function getViewData(): array
     {
@@ -184,7 +199,7 @@ class GradesAndCompletion extends Page implements HasTable
                     'x-on:keydown.escape.window' => 'if (areFiltersOpen) { toggleFiltersDropdown(); $refs.filtersTriggerActionContainer?.firstElementChild?.focus() }',
                 ])
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query->withOnly([
-                    'program', 'curriculumVersion',
+                    'user', 'program', 'curriculumVersion',
                     'enrollments' => fn (Relation $enrollments): Builder => $enrollments->getQuery()
                         ->where('canonical_outcome', Enrollment::OutcomeOfficiallyEnrolled)
                         ->where('term_id', $this->tableFilters['enrollment_scope']['term_id'] ?? null)
@@ -201,6 +216,22 @@ class GradesAndCompletion extends Page implements HasTable
                     TextColumn::make('student_section')->label('Student section')->wrap()
                         ->state(fn (StudentProfile $record): string => $record->enrollments->first()?->studentSection?->reference ?? 'Not assigned')
                         ->visible(fn (): bool => filled($this->tableFilters['enrollment_scope']['term_id'] ?? null)),
+                    TextColumn::make('lifecycle_status')
+                        ->label('Status')
+                        ->badge()
+                        ->color(fn (?string $state): string => StudentProfile::lifecycleStatusColor($state))
+                        ->formatStateUsing(fn (?string $state): string => StudentProfile::lifecycleStatusLabel((string) $state))
+                        ->description(function (StudentProfile $record): ?string {
+                            $parts = [];
+                            if (StudentAccountActivation::canResendActivation($record)) {
+                                $parts[] = 'Pending setup';
+                            }
+                            if ($record->academic_standing === StudentProfile::StandingIrregular) {
+                                $parts[] = 'Irregular';
+                            }
+
+                            return $parts !== [] ? implode(' · ', $parts) : null;
+                        }),
                 ])
                 ->defaultGroup(null)
                 ->groupingSettingsHidden()

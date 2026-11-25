@@ -26,6 +26,7 @@ use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Livewire\Attributes\Url;
 use Livewire\WithPagination;
 
@@ -189,20 +190,59 @@ class Academics extends Page
         $terms = $results->pluck('term')->filter()->unique('id')->sortByDesc('ends_on')->values();
         $currentEnrollment = app(CurrentOfficialEnrollmentResolver::class)->forProfile($student);
         $currentResults = $results->filter(fn (array $result): bool => $currentEnrollment !== null
+            && $result['course_enrollment'] instanceof CourseEnrollment
             && (int) $result['course_enrollment']->enrollment_id === (int) $currentEnrollment->id
             && $result['course_enrollment']->is_current
             && $result['course_enrollment']->status === CourseEnrollment::StatusActive);
         $historicalResults = $results->except($currentResults->keys()->all());
         $examinationTerm = $currentEnrollment?->term ?? $terms->first();
+        $termAverageProjection = app(TermWeightedAverageProjection::class);
         $termAverages = $terms->mapWithKeys(fn ($term): array => [
-            $term->id => app(TermWeightedAverageProjection::class)->forResults($results, $term),
+            $term->id => $termAverageProjection->forResults($results, $term),
         ]);
         $termYearLevels = $terms->mapWithKeys(fn ($term): array => [
             $term->id => $this->yearLevelLabel($results->where('term.id', $term->id)
-                ->map(fn (array $result): ?string => $result['course_enrollment']->termOffering?->curriculumEntry?->year_level)
+                ->map(function (array $result): ?string {
+                    if ($result['course_enrollment'] instanceof CourseEnrollment) {
+                        return $result['course_enrollment']->termOffering?->curriculumEntry?->year_level;
+                    }
+
+                    $yearLevel = $result['year_level'] ?? null;
+
+                    return $yearLevel !== null ? (string) $yearLevel : null;
+                })
                 ->filter()
                 ->first()),
         ]);
+        $recordPeriods = $results
+            ->groupBy(fn (array $result): string => (string) ($result['period_key'] ?? ('term:'.(int) ($result['term']?->id ?? 0))))
+            ->sortByDesc(fn (Collection $periodResults): string => (string) ($periodResults->first()['period_sort_key'] ?? ''))
+            ->map(function (Collection $periodResults, string $periodKey) use ($termAverageProjection): array {
+                $first = $periodResults->first();
+                $label = (string) ($first['period_label'] ?? $first['term']?->label ?? 'Recorded Term');
+                $yearLevelValue = $periodResults
+                    ->map(function (array $result): ?string {
+                        $level = $result['year_level'] ?? ($result['course_enrollment'] instanceof CourseEnrollment
+                            ? $result['course_enrollment']->termOffering?->curriculumEntry?->year_level
+                            : null);
+
+                        return $level !== null && $level !== '' ? (string) $level : null;
+                    })
+                    ->filter()
+                    ->first();
+                $yearLevelLabel = $this->yearLevelLabel($yearLevelValue);
+                $ayLabel = $first['academic_year_label'] ?? $first['term']?->academicYear?->label;
+                $subtitle = collect([$yearLevelLabel, $ayLabel])->filter()->implode(' · ');
+
+                return [
+                    'key' => $periodKey,
+                    'label' => $label,
+                    'subtitle' => $subtitle,
+                    'rows' => $periodResults->values(),
+                    'average' => $termAverageProjection->forPeriodResults($periodResults, $label),
+                ];
+            })
+            ->values();
 
         $completion = $this->academicView === 'graduation' ? app(CompletionReadinessProjection::class)->forStudent($student) : null;
         $curriculum = app(CurriculumEvaluation::class)->forStudent($student);
@@ -213,6 +253,7 @@ class Academics extends Page
             'studyContext' => app(StudentStudyContext::class)->forStudent($this->actor()),
             'results' => $results,
             'recordTerms' => $terms,
+            'recordPeriods' => $recordPeriods,
             'currentResults' => $currentResults,
             'currentUnits' => $currentResults->sum(fn (array $result): float => (float) $result['units']),
             'currentAverage' => $currentEnrollment !== null ? $termAverages->get($currentEnrollment->term_id) : null,
