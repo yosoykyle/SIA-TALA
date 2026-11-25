@@ -417,10 +417,17 @@ class TAL94D3bScheduleRevisionNotificationTest extends TestCase
             ->assertSee((string) $relatedUser->fresh()->name)
             ->assertSee('Schedule Revision Pending')
             ->assertSee('Schedule Revision Processed')
-            ->assertSee('Schedule Revision Failed')
-            ->assertSee('Pending')
-            ->assertSee('Recorded')
-            ->assertSee('Attention');
+            ->assertSee('Schedule Revision Failed');
+
+        $statuses = collect(
+            app(GovernanceEvidenceProjection::class)
+                ->paginate(GovernanceEvidenceProjection::SystemEvents, 1, 25, null, [])
+                ->items()
+        )->keyBy('type')->map(fn (array $row): string => (string) ($row['status'] ?? ''))->all();
+
+        $this->assertSame('Pending', $statuses['Schedule Revision Pending'] ?? null);
+        $this->assertSame('Recorded', $statuses['Schedule Revision Processed'] ?? null);
+        $this->assertSame('Attention', $statuses['Schedule Revision Failed'] ?? null);
     }
 
     /** @return array<string, mixed> */
