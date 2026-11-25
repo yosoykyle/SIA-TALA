@@ -2,11 +2,13 @@
 
 namespace App\Filament\Applicant\Pages\Auth;
 
+use App\Actions\Applicants\AdmissionWindowService;
 use App\Actions\Applicants\ApplicantEntryReadinessService;
 use App\Actions\Applicants\DispatchApplicantEmailVerification;
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\PasswordValidationRules;
 use App\Filament\Pages\Auth\Concerns\HasAuthRateLimitCountdown;
+use App\Models\AdmissionCycle;
 use App\Models\User;
 use Caresome\FilamentAuthDesigner\Pages\Auth\Register;
 use DanHarrin\LivewireRateLimiting\Exceptions\TooManyRequestsException;
@@ -19,16 +21,19 @@ use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\RenderHook;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\View as SchemaView;
 use Filament\Schemas\Schema;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use SensitiveParameter;
+use Throwable;
 
 class RegisterApplicant extends Register
 {
@@ -44,16 +49,11 @@ class RegisterApplicant extends Register
 
     public function mount(): void
     {
-        $readiness = app(ApplicantEntryReadinessService::class);
+        parent::mount();
 
-        if (! $readiness->registrationIsAvailable()) {
-            $reason = $readiness->admissionsAreOpen() ? 'unavailable' : 'closed';
-            $this->redirect(route('home', ['registration' => $reason]));
-
+        if (! $this->isRegistrationOpen()) {
             return;
         }
-
-        parent::mount();
 
         $this->checkInitialRateLimitOnMount(
             rateLimitingKey: $this->getRateLimitKey('register'),
@@ -61,6 +61,58 @@ class RegisterApplicant extends Register
             context: 'register',
             totalSeconds: 60,
         );
+    }
+
+    public function isRegistrationOpen(): bool
+    {
+        try {
+            return app(ApplicantEntryReadinessService::class)->registrationIsAvailable();
+        } catch (QueryException $exception) {
+            report($exception);
+
+            return false;
+        }
+    }
+
+    /**
+     * @return array{state: string, cycle: array{label: string, term: ?string, opens_at: ?string, closes_at: ?string}|null}
+     */
+    private function closedRegistrationContext(): array
+    {
+        try {
+            $nextCycle = app(AdmissionWindowService::class)->nextPublishedCycle();
+
+            if ($nextCycle instanceof AdmissionCycle) {
+                $timezone = (string) config('app.display_timezone');
+
+                return [
+                    'state' => 'upcoming',
+                    'cycle' => [
+                        'label' => (string) $nextCycle->label,
+                        'term' => $nextCycle->term?->label,
+                        'opens_at' => $nextCycle->opens_at?->timezone($timezone)->format('F j, Y, g:i A'),
+                        'closes_at' => $nextCycle->closes_at?->timezone($timezone)->format('F j, Y, g:i A'),
+                    ],
+                ];
+            }
+
+            $pastCycleExists = AdmissionCycle::query()
+                ->where('state', AdmissionCycle::StatePublished)
+                ->where('closes_at', '<=', now())
+                ->exists();
+
+            return [
+                'state' => $pastCycleExists ? 'closed' : 'missing',
+                'cycle' => null,
+            ];
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return [
+                'state' => 'unavailable',
+                'cycle' => null,
+            ];
+        }
     }
 
     /**
@@ -87,6 +139,19 @@ class RegisterApplicant extends Register
      */
     public function register(): ?RegistrationResponse
     {
+        if (! $this->isRegistrationOpen()) {
+            $this->resetErrorBag();
+            $this->resetValidation();
+
+            Notification::make()
+                ->title('Applications are currently closed')
+                ->body('New applicant registration is unavailable right now. Existing accounts can still sign in.')
+                ->warning()
+                ->send();
+
+            return null;
+        }
+
         if (RateLimiter::tooManyAttempts($this->getRateLimitKey('register'), 2)) {
             return parent::register();
         }
@@ -248,17 +313,23 @@ class RegisterApplicant extends Register
 
     public function getTitle(): string|Htmlable
     {
-        return 'Create your applicant account';
+        return $this->isRegistrationOpen()
+            ? 'Create your applicant account'
+            : $this->closedHeading();
     }
 
     public function getHeading(): string|Htmlable|null
     {
-        return 'Create your applicant account';
+        return $this->isRegistrationOpen()
+            ? 'Create your applicant account'
+            : $this->closedHeading();
     }
 
     public function getSubheading(): string|Htmlable|null
     {
-        return 'Use an active email address to start your admission application and track your progress.';
+        return $this->isRegistrationOpen()
+            ? 'Use an active email address to start your admission application and track your progress.'
+            : 'Online applicant registration is only available during an open admission cycle.';
     }
 
     public function content(Schema $schema): Schema
@@ -266,7 +337,9 @@ class RegisterApplicant extends Register
         return $schema
             ->components([
                 RenderHook::make(PanelsRenderHook::AUTH_REGISTER_FORM_BEFORE),
-                $this->getRateLimitCountdownContentComponent(),
+                $this->getRegistrationClosedContentComponent(),
+                $this->getRateLimitCountdownContentComponent()
+                    ->visible(fn (): bool => $this->isRegistrationOpen() && $this->isAuthRateLimited()),
                 $this->getFormContentComponent(),
                 RenderHook::make(PanelsRenderHook::AUTH_REGISTER_FORM_AFTER),
             ]);
@@ -276,7 +349,22 @@ class RegisterApplicant extends Register
     {
         return parent::getFormContentComponent()
             ->extraAttributes(['novalidate' => true])
-            ->visible(fn (): bool => ! $this->isAuthRateLimited());
+            ->visible(fn (): bool => $this->isRegistrationOpen() && ! $this->isAuthRateLimited());
+    }
+
+    private function getRegistrationClosedContentComponent(): Component
+    {
+        return SchemaView::make('filament.applicant.components.registration-closed-card')
+            ->key('applicant-registration-closed')
+            ->viewData(fn (): array => $this->closedRegistrationContext())
+            ->visible(fn (): bool => ! $this->isRegistrationOpen());
+    }
+
+    private function closedHeading(): string
+    {
+        return $this->closedRegistrationContext()['state'] === 'upcoming'
+            ? 'Applications have not opened yet'
+            : 'Applications are currently closed';
     }
 
     public function getRegisterFormAction(): Action

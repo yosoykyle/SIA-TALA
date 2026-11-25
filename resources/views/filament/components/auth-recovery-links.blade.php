@@ -1,7 +1,23 @@
 <x-content-progress label="Processing your request" wire:loading.delay.short.block />
 
 @if ($usesAuthDesigner && $showRecoveryLinks)
-    @if (request()->routeIs('public.sign-in') && app(\App\Actions\Applicants\ApplicantEntryReadinessService::class)->registrationIsAvailable())
+    @php
+        $showRegisterRecoveryLink = false;
+        $isLoginRoute = request()->routeIs('public.sign-in', 'filament.applicant.auth.login')
+            || (isset($this) && $this instanceof \App\Filament\Pages\Auth\ContextualLogin
+                && \Filament\Facades\Filament::getCurrentOrDefaultPanel()?->getId() === 'applicant'
+                && blank($this->userUndertakingMultiFactorAuthentication));
+
+        if ($isLoginRoute) {
+            try {
+                $showRegisterRecoveryLink = app(\App\Actions\Applicants\ApplicantEntryReadinessService::class)->registrationIsAvailable();
+            } catch (\Illuminate\Database\QueryException $exception) {
+                report($exception);
+                $showRegisterRecoveryLink = false;
+            }
+        }
+    @endphp
+    @if ($showRegisterRecoveryLink)
         <p class="tala-auth-recovery">
             <x-filament::link :href="route('public.apply')">New applicant? Apply for admission</x-filament::link>
         </p>

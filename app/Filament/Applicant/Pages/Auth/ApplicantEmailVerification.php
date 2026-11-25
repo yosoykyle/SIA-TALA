@@ -3,12 +3,15 @@
 namespace App\Filament\Applicant\Pages\Auth;
 
 use App\Actions\Applicants\DispatchApplicantEmailVerification;
+use App\Filament\Pages\Auth\Concerns\HasAuthRateLimitCountdown;
 use App\Models\User;
 use Caresome\FilamentAuthDesigner\Pages\Auth\EmailVerification;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Placeholder;
 use Filament\Notifications\Notification;
+use Filament\Schemas\Components\View as SchemaView;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\IconSize;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Contracts\View\View;
@@ -20,6 +23,8 @@ use Illuminate\Support\HtmlString;
  */
 class ApplicantEmailVerification extends EmailVerification
 {
+    use HasAuthRateLimitCountdown;
+
     public function resendNotificationAction(): Action
     {
         return Action::make('resendNotification')
@@ -28,20 +33,25 @@ class ApplicantEmailVerification extends EmailVerification
             ->icon(Heroicon::OutlinedEnvelope)
             ->label('Resend verification link')
             ->extraAttributes(['class' => 'w-full justify-center'])
+            ->disabled(fn (): bool => $this->isAuthRateLimited())
             ->action(function (): void {
                 $applicant = $this->applicant();
                 $rateLimitKey = 'applicant-email-verification-resend:'.$applicant->id;
 
                 if (RateLimiter::tooManyAttempts($rateLimitKey, maxAttempts: 1)) {
+                    $seconds = RateLimiter::availableIn($rateLimitKey);
+                    $this->startAuthRateLimitCountdown($seconds, 'email_verification', 60);
+
                     Notification::make()
                         ->title('Please wait before trying again')
-                        ->body('You can request another verification link in '.RateLimiter::availableIn($rateLimitKey).' seconds.')
+                        ->body('You can request another verification link in '.$seconds.' seconds.')
                         ->danger()
                         ->send();
 
                     return;
                 }
 
+                $this->clearAuthRateLimit();
                 RateLimiter::hit($rateLimitKey, decaySeconds: 60);
 
                 if (app(DispatchApplicantEmailVerification::class)->execute($applicant)) {
@@ -69,8 +79,9 @@ class ApplicantEmailVerification extends EmailVerification
             ->link()
             ->color('primary')
             ->icon(Heroicon::OutlinedArrowLeft)
+            ->iconSize(IconSize::Small)
             ->label('Back to sign in')
-            ->extraAttributes(['class' => 'min-h-[2.75rem]'])
+            ->extraAttributes(['class' => 'min-h-[2.75rem] whitespace-nowrap'])
             ->action(function (): void {
                 filament()->auth()->logout();
                 session()->invalidate();
@@ -104,8 +115,10 @@ class ApplicantEmailVerification extends EmailVerification
     public function content(Schema $schema): Schema
     {
         return $schema->components([
+            $this->getRateLimitCountdownContentComponent(),
             Placeholder::make('verification_countdown')
                 ->hiddenLabel()
+                ->visible(fn (): bool => ! $this->isAuthRateLimited())
                 ->content(function (): View {
                     $expiresAt = DispatchApplicantEmailVerification::expiresAt();
                     $remainingSeconds = $expiresAt === null
@@ -121,10 +134,22 @@ class ApplicantEmailVerification extends EmailVerification
                         'resendActionHtml' => new HtmlString($this->resendNotificationAction->toHtml()),
                     ]);
                 }),
-            new HtmlString(view('filament.applicant.components.verification-recovery-links', [
-                'backToSignInActionHtml' => new HtmlString($this->backToSignInAction->toHtml()),
-            ])->render()),
+            SchemaView::make('filament.applicant.components.verification-recovery-links')
+                ->key('verification-recovery-links')
+                ->viewData(fn (): array => [
+                    'backToSignInActionHtml' => new HtmlString($this->backToSignInAction->toHtml()),
+                ]),
         ]);
+    }
+
+    protected function getRateLimitCountdownTitle(): ?string
+    {
+        return 'Too many verification emails sent';
+    }
+
+    protected function getRateLimitCountdownSummary(): ?string
+    {
+        return 'Please wait until the timer finishes before requesting another verification email. You can still open the newest link already sent to your inbox.';
     }
 
     private function applicant(): User

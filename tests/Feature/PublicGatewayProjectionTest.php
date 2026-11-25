@@ -3,13 +3,18 @@
 namespace Tests\Feature;
 
 use App\Actions\Applicants\AdmissionWindowService;
+use App\Actions\Finance\SchoolPaymentChannels;
 use App\Models\AdmissionCycle;
 use App\Models\Program;
 use App\Models\PublicNotice;
+use App\Models\SystemSetting;
 use App\Models\Term;
+use App\Models\User;
+use App\Support\AuthBannerMedia;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use RuntimeException;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class PublicGatewayProjectionTest extends TestCase
@@ -99,7 +104,8 @@ class PublicGatewayProjectionTest extends TestCase
             ->assertDontSee('System Administrator')
             ->assertDontSee('System Super Admin')
             ->assertDontSee('handed-over students')
-            ->assertDontSee('id="notices"', false);
+            ->assertSee('id="notices"', false)
+            ->assertSee('No active school announcements right now.');
 
         $this->assertDoesNotMatchRegularExpression('/<(a|button)\b[^>]*>(?:(?!<\/\1>).)*Staff Workspace/s', $page->getContent());
     }
@@ -113,9 +119,8 @@ class PublicGatewayProjectionTest extends TestCase
             'published_at' => now(),
         ]);
 
-        $this->get('/')->assertSeeInOrder(['id="top"', 'id="notices"', 'Admissions', 'id="admission-status-title"', 'School announcement', 'Admission orientation', 'data-update-next', 'id="programs"'], false)
-            ->assertSee('Announcements')
-            ->assertSee('2 of 2')
+        $this->get('/')->assertSeeInOrder(['id="top"', 'id="notices"', 'id="admission-status-title"', 'Admissions', 'School announcements', 'Admission orientation', 'id="programs"'], false)
+            ->assertDontSee('data-update-next', false)
             ->assertDontSee('System Administration')
             ->assertDontSee('Version 1');
     }
@@ -160,5 +165,108 @@ class PublicGatewayProjectionTest extends TestCase
         $this->get('/')->assertOk()->assertViewHas('admissionState', 'Closed')->assertSee('Applications are closed')
             ->assertSee(route('public.sign-in'), false)
             ->assertDontSee(route('filament.applicant.auth.register'), false);
+    }
+
+    public function test_live_cash_channel_and_registrar_hours_are_projected_to_landing_page(): void
+    {
+        $actor = User::factory()->create(['status' => User::StatusActive]);
+
+        SystemSetting::query()->forceCreate([
+            'key' => SchoolPaymentChannels::SettingKey,
+            'scope_type' => 'institution',
+            'scope_id' => 0,
+            'value_type' => SystemSetting::ValueTypeJson,
+            'value' => json_encode([
+                'cash' => [
+                    'enabled' => true,
+                    'label' => 'Cash (Campus Cashier)',
+                    'location' => 'Main Accounting Window',
+                    'hours' => 'Monday to Saturday, 8:30 AM - 4:30 PM',
+                ],
+            ], JSON_THROW_ON_ERROR),
+            'effective_from' => now()->subMinute(),
+            'effective_until' => null,
+            'version' => 1,
+            'status' => 'Active',
+            'changed_by' => $actor->id,
+            'reason' => 'Test live cashier hours projection on public landing page.',
+        ]);
+
+        $this->get('/')
+            ->assertOk()
+            ->assertViewHas('registrarHours', fn (mixed $hours): bool => is_array($hours)
+                && ($hours['days'] ?? null) === 'Monday to Friday'
+                && ($hours['hours'] ?? null) === '7:00 AM – 5:00 PM'
+                && ($hours['note'] ?? null) === 'Closed on holidays')
+            ->assertViewHas('cashChannel', fn (mixed $cash): bool => is_array($cash)
+                && ($cash['enabled'] ?? false) === true
+                && ($cash['location'] ?? null) === 'Main Accounting Window'
+                && ($cash['hours'] ?? null) === 'Monday to Saturday, 8:30 AM - 4:30 PM');
+    }
+
+    public function test_cash_channel_degrades_gracefully_when_disabled_or_unavailable(): void
+    {
+        $this->mock(SchoolPaymentChannels::class)
+            ->shouldReceive('forDisplay')
+            ->once()
+            ->andReturn(['cashChannel' => null]);
+
+        $this->get('/')
+            ->assertOk()
+            ->assertViewHas('cashChannel', null)
+            ->assertViewHas('unavailable', fn (mixed $unavailable): bool => is_array($unavailable)
+                && ! in_array('cashChannel', $unavailable, true));
+
+        $this->mock(SchoolPaymentChannels::class)
+            ->shouldReceive('forDisplay')
+            ->once()
+            ->andThrow(new QueryException('mysql', 'select payment channels', [], new RuntimeException('Synthetic settings failure')));
+
+        $this->get('/')
+            ->assertOk()
+            ->assertViewHas('cashChannel', null)
+            ->assertViewHas('unavailable', fn (mixed $unavailable): bool => is_array($unavailable)
+                && in_array('cashChannel', $unavailable, true));
+    }
+
+    public function test_guest_sees_sign_in_and_authenticated_user_sees_open_workspace(): void
+    {
+        $this->get('/')
+            ->assertOk()
+            ->assertViewHas('workspaceAction', null)
+            ->assertSee('Sign in')
+            ->assertSee(route('public.sign-in'), false)
+            ->assertDontSee('Open workspace');
+
+        Role::findOrCreate('applicant', 'web');
+        $user = User::factory()->create([
+            'status' => User::StatusActive,
+            'email_verified_at' => now(),
+        ]);
+        $user->assignRole('applicant');
+
+        $this->actingAs($user)
+            ->get('/')
+            ->assertOk()
+            ->assertViewHas('workspaceAction', [
+                'label' => 'Open workspace',
+                'url' => '/applicant',
+            ])
+            ->assertSee('Open workspace')
+            ->assertSee('/applicant', false);
+    }
+
+    public function test_campus_slides_from_auth_banner_media_are_projected_to_landing_page(): void
+    {
+        $expectedSlides = AuthBannerMedia::slides('applicant.webp');
+        $this->assertNotEmpty($expectedSlides);
+
+        $response = $this->get('/')
+            ->assertOk()
+            ->assertViewHas('campusSlides', $expectedSlides);
+
+        foreach ($expectedSlides as $slide) {
+            $response->assertSee($slide['url'], false);
+        }
     }
 }

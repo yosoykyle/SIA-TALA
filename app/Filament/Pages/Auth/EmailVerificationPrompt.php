@@ -2,12 +2,17 @@
 
 namespace App\Filament\Pages\Auth;
 
+use App\Filament\Pages\Auth\Concerns\HasAuthRateLimitCountdown;
 use Caresome\FilamentAuthDesigner\Pages\Auth\EmailVerification as BaseEmailVerification;
+use DanHarrin\LivewireRateLimiting\Exceptions\TooManyRequestsException;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
+use Filament\Notifications\Notification;
+use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\HtmlString;
 
 /**
@@ -15,6 +20,36 @@ use Illuminate\Support\HtmlString;
  */
 class EmailVerificationPrompt extends BaseEmailVerification
 {
+    use HasAuthRateLimitCountdown;
+
+    public function mount(): void
+    {
+        parent::mount();
+
+        if (! Filament::auth()->check()) {
+            return;
+        }
+
+        $userRateLimitKey = $this->userResendRateLimitKey();
+
+        if (RateLimiter::tooManyAttempts($userRateLimitKey, maxAttempts: 2)) {
+            $this->startAuthRateLimitCountdown(
+                secondsUntilAvailable: RateLimiter::availableIn($userRateLimitKey),
+                context: 'email_verification',
+                totalSeconds: 60,
+            );
+
+            return;
+        }
+
+        $this->checkInitialRateLimitOnMount(
+            rateLimitingKey: $this->getRateLimitKey('resendNotification'),
+            maxAttempts: 2,
+            context: 'email_verification',
+            totalSeconds: 60,
+        );
+    }
+
     public function getTitle(): string|Htmlable
     {
         return 'Verify your email address';
@@ -32,13 +67,47 @@ class EmailVerificationPrompt extends BaseEmailVerification
 
     public function resendNotificationAction(): Action
     {
-        return parent::resendNotificationAction()
+        return Action::make('resendNotification')
             ->button()
             ->color('primary')
             ->icon(Heroicon::OutlinedEnvelope)
             ->label('Resend verification email')
             ->size('md')
-            ->extraAttributes(['class' => 'w-full justify-center']);
+            ->extraAttributes(['class' => 'w-full justify-center'])
+            ->disabled(fn (): bool => $this->isAuthRateLimited())
+            ->action(function (): void {
+                $userRateLimitKey = $this->userResendRateLimitKey();
+
+                if (RateLimiter::tooManyAttempts($userRateLimitKey, maxAttempts: 2)) {
+                    $exception = new TooManyRequestsException(
+                        static::class,
+                        'resendNotification',
+                        request()->ip(),
+                        RateLimiter::availableIn($userRateLimitKey),
+                    );
+                    $this->triggerVerificationRateLimitCountdown($exception);
+
+                    return;
+                }
+
+                try {
+                    $this->rateLimit(2, method: 'resendNotification');
+                } catch (TooManyRequestsException $exception) {
+                    $this->triggerVerificationRateLimitCountdown($exception);
+
+                    return;
+                }
+
+                $this->clearAuthRateLimit();
+                RateLimiter::hit($userRateLimitKey);
+
+                $this->sendEmailVerificationNotification($this->getVerifiable());
+
+                Notification::make()
+                    ->title(__('filament-panels::auth/pages/email-verification/email-verification-prompt.notifications.notification_resent.title'))
+                    ->success()
+                    ->send();
+            });
     }
 
     public function logoutAction(): Action
@@ -57,24 +126,42 @@ class EmailVerificationPrompt extends BaseEmailVerification
 
     public function content(Schema $schema): Schema
     {
-        $email = trim((string) (Filament::auth()->user()?->getEmailForVerification() ?? ''));
-        $lead = $email !== ''
-            ? 'We sent a verification link to <strong>'.e($email).'</strong>. Open the link in your inbox to verify your email address.'
-            : 'We sent a verification link to your email address. Open the link in your inbox to verify your email address.';
-
         return $schema->components([
-            new HtmlString(
-                '<div class="tala-auth-verify-card">'
-                .'<div class="tala-auth-verify-card__body">'
-                .'<p class="tala-auth-verify-card__lead">'.$lead.'</p>'
-                .'<p class="tala-auth-verify-card__note">Check your spam or junk folder if you do not see it within a few minutes.</p>'
-                .'</div>'
-                .'<div class="tala-auth-verify-card__actions tala-workspace-feature__action">'
-                .$this->resendNotificationAction->toHtml()
-                .$this->logoutAction->toHtml()
-                .'</div>'
-                .'</div>'
-            ),
+            $this->getRateLimitCountdownContentComponent(),
+            View::make('filament.components.email-verification-card')
+                ->key('email-verification-card')
+                ->viewData(fn (): array => [
+                    'email' => trim((string) (Filament::auth()->user()?->getEmailForVerification() ?? '')),
+                    'resendActionHtml' => new HtmlString($this->resendNotificationAction->toHtml()),
+                    'logoutActionHtml' => new HtmlString($this->logoutAction->toHtml()),
+                ])
+                ->visible(fn (): bool => ! $this->isAuthRateLimited()),
         ]);
+    }
+
+    protected function getRateLimitCountdownFooterHtml(): ?Htmlable
+    {
+        return new HtmlString($this->logoutAction->toHtml());
+    }
+
+    protected function getRateLimitCountdownTitle(): ?string
+    {
+        return 'Too many verification emails sent';
+    }
+
+    protected function getRateLimitCountdownSummary(): ?string
+    {
+        return 'Please wait until the timer finishes before requesting another verification email. You can still open the newest link already sent to your inbox.';
+    }
+
+    private function triggerVerificationRateLimitCountdown(TooManyRequestsException $exception): void
+    {
+        $this->startAuthRateLimitCountdown($exception->secondsUntilAvailable, 'email_verification', 60);
+        $this->getRateLimitedNotification($exception)?->send();
+    }
+
+    private function userResendRateLimitKey(): string
+    {
+        return 'filament-resend-email-verification:'.Filament::auth()->id();
     }
 }

@@ -9,15 +9,19 @@
 
     <script>
         (function () {
-            var theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-            document.documentElement.setAttribute('data-bs-theme', theme);
+            var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            var theme = prefersDark ? 'dark' : 'light';
+            var root = document.documentElement;
+            root.setAttribute('data-bs-theme', theme);
+            root.classList.toggle('dark', prefersDark);
+            root.style.colorScheme = theme;
         })();
     </script>
 
     <link href="{{ asset('landing/vendor/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
-    <link href="{{ asset('landing/css/styles.css') }}" rel="stylesheet">
     <link href="{{ asset('fonts/filament/filament/inter/index.css') }}" rel="stylesheet">
     <link href="{{ asset('css/tala-foundation.css') }}" rel="stylesheet">
+    <link href="{{ asset('landing/css/styles.css') }}" rel="stylesheet">
     <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
     <link rel="icon" type="image/png" href="{{ asset('images/brand/servitech-crest-favicon.png') }}">
 </head>

@@ -690,6 +690,79 @@ class ApplicantAccountEntryJourneyTest extends TestCase
             ->assertSee('Link expires 60 minutes after it was sent.');
     }
 
+    public function test_login_hides_register_link_when_admissions_are_closed_and_shows_it_when_open(): void
+    {
+        AdmissionCycle::query()->where('state', AdmissionCycle::StatePublished)->update(['state' => AdmissionCycle::StateDraft]);
+
+        $this->get(route('public.sign-in'))
+            ->assertOk()
+            ->assertDontSee('New applicant? Apply for admission')
+            ->assertDontSee(route('filament.applicant.auth.register'), false);
+
+        $this->get(route('filament.applicant.auth.login'))
+            ->assertOk()
+            ->assertDontSee('New applicant? Apply for admission')
+            ->assertDontSee(route('filament.applicant.auth.register'), false)
+            ->assertSee('Check admission availability');
+
+        $this->openAdmissions();
+
+        $this->get(route('public.sign-in'))
+            ->assertOk()
+            ->assertSee('New applicant? Apply for admission');
+
+        $this->get(route('filament.applicant.auth.login'))
+            ->assertOk()
+            ->assertSee('New applicant? Apply for admission')
+            ->assertDontSee('Check admission availability');
+    }
+
+    public function test_register_page_renders_styled_closed_card_and_blocks_submission_when_admissions_are_closed_or_upcoming(): void
+    {
+        AdmissionCycle::query()->where('state', AdmissionCycle::StatePublished)->update(['state' => AdmissionCycle::StateDraft]);
+
+        $this->get(route('filament.applicant.auth.register'))
+            ->assertOk()
+            ->assertSee('Applications are currently closed')
+            ->assertSee('Existing applicants, students, and staff can still sign in to access their accounts.')
+            ->assertSee('Back to sign in')
+            ->assertSee('Back to school site')
+            ->assertSee('Contact support')
+            ->assertSee('data-tala-registration-closed', false)
+            ->assertDontSee('Create account');
+
+        Filament::setCurrentPanel(Filament::getPanel('applicant'));
+
+        Livewire::test(RegisterApplicant::class)
+            ->assertSee('Applications are currently closed')
+            ->set('data.email', 'closed-attempt@example.test')
+            ->set('data.password', 'Valid1!passphrase')
+            ->set('data.password_confirmation', 'Valid1!passphrase')
+            ->set('data.privacy_acknowledged', true)
+            ->call('register')
+            ->assertNoRedirect()
+            ->assertNotified('Applications are currently closed');
+
+        $this->assertDatabaseMissing('users', ['email' => 'closed-attempt@example.test']);
+
+        $term = Term::query()->where('state', Term::StateActive)->first()
+            ?? Term::factory()->create(['state' => Term::StateActive]);
+
+        $upcoming = AdmissionCycle::factory()->for($term)->published()->create([
+            'label' => 'SY 2027-2028 First Intake',
+            'opens_at' => now()->addDays(5),
+            'closes_at' => now()->addDays(30),
+        ]);
+
+        $this->get(route('filament.applicant.auth.register'))
+            ->assertOk()
+            ->assertSee('Applications have not opened yet')
+            ->assertSee($upcoming->label)
+            ->assertSee('Applications open')
+            ->assertSee('Back to sign in')
+            ->assertDontSee('Create account');
+    }
+
     private function openAdmissions(): AdmissionCycle
     {
         $term = Term::query()->where('state', Term::StateActive)->first()

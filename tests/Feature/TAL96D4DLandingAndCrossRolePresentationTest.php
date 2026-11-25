@@ -109,7 +109,6 @@ class TAL96D4DLandingAndCrossRolePresentationTest extends TestCase
         $this->assertStringContainsString('padding-top: 1rem !important;', $styles);
         $this->assertStringContainsString('padding-bottom: 1rem !important;', $styles);
         $this->assertGreaterThanOrEqual(5, substr_count($landing, 'data-navbar-contrast-target'));
-        $this->assertStringContainsString('data-navbar-contrast-surface="dark"', $landing);
         $this->assertStringContainsString('data-navbar-contrast-surface="theme"', $landing);
         $this->assertStringContainsString('document.elementsFromPoint', $script);
         $this->assertStringContainsString('window.requestAnimationFrame', $script);
