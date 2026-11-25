@@ -152,7 +152,6 @@
                                     List
                                 </x-filament::tabs.item>
                             </x-tala-navigation>
-                            <p class="tala-faculty-schedule-bar__tz">Times in Asia/Manila</p>
                         </div>
 
                         @if ($this->scheduleCriteria() !== [])

@@ -21,8 +21,8 @@ class FaqEntriesTable
                     ->searchable(),
                 PublicContentActions::statusColumn(),
                 TextColumn::make('sort_order')->label('Position')->sortable(),
-                TextColumn::make('visible_from')->label('From (Asia/Manila)')->dateTime()->placeholder('On publication'),
-                TextColumn::make('visible_until')->label('Until (Asia/Manila)')->dateTime()->placeholder('Until unpublished'),
+                TextColumn::make('visible_from')->label('From')->dateTime()->placeholder('On publication'),
+                TextColumn::make('visible_until')->label('Until')->dateTime()->placeholder('Until unpublished'),
                 TextColumn::make('creator.name')
                     ->label('Created by')
                     ->sortable()

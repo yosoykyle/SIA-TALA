@@ -7,12 +7,16 @@ use App\Actions\Enrollment\CorrectRegistrationCreditEvaluation;
 use App\Actions\Enrollment\RecordRegistrationCreditEvaluation;
 use App\Actions\Enrollment\RegistrationAcademicEligibilityQuery;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
+use App\Filament\Resources\Enrollments\Schemas\TransferCreditingForm;
 use App\Filament\Resources\StudentProfiles\Pages\ViewStudentProfile;
 use App\Models\AdmissionApplication;
+use App\Models\AdmissionRequirement;
+use App\Models\AdmissionRequirementSet;
 use App\Models\ApplicationSubmissionVersion;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
+use App\Models\DocumentEvidence;
 use App\Models\Enrollment;
 use App\Models\RegistrationCreditEvaluation;
 use App\Models\RegistrationCreditLine;
@@ -21,6 +25,8 @@ use App\Models\Term;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
+use Filament\Schemas\Components\Section;
+use Filament\Support\Enums\Width;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Validation\ValidationException;
@@ -139,6 +145,13 @@ class TransfereeCreditingTest extends TestCase
         $statuses = collect(app(CurriculumEvaluation::class)->forStudent($student)['required'])
             ->mapWithKeys(fn (array $row): array => [$row['curriculum_entry']->id => $row['status']]);
         $this->assertSame(['Not taken', 'Approved credit'], [$statuses[$first->id], $statuses[$second->id]]);
+        // Credited subjects carry a clear indicator and their TOR source, apart from subjects passed at SIA.
+        $credited = collect(app(CurriculumEvaluation::class)->forStudent($student)['required'])->firstWhere('curriculum_entry.id', $second->id);
+        $this->assertSame('credited', $credited['checklist_state']);
+        $this->assertSame('Credited (transfer)', $credited['credit']['label']);
+        $this->assertStringContainsString('From IT 102', $credited['credit']['detail']);
+        $this->assertStringContainsString('TOR grade 2.25', $credited['credit']['detail']);
+        $component->assertSee('Credited (transfer)')->assertSee('TOR grade 2.25');
         $this->assertTrue(app(RegistrationAcademicEligibilityQuery::class)->satisfiedCourseIds($student)->contains($second->courseSpecification->course_id));
         $this->assertSame(2, RegistrationCreditEvaluation::query()->where('enrollment_id', $enrollment->id)->count());
 
@@ -152,6 +165,75 @@ class TransfereeCreditingTest extends TestCase
     }
 
     /** @return array{0: Enrollment, 1: CurriculumVersion, 2: list<CurriculumEntry>} */
+    public function test_crediting_table_lists_years_and_semesters_in_curriculum_order(): void
+    {
+        [$case, $curriculum] = $this->transfereeCase();
+        foreach ([['Second Year', 'Second Semester', 1], ['First Year', 'Second Semester', 1], ['Second Year', 'First Semester', 1], ['First Year', 'First Semester', 2]] as [$year, $term, $sequence]) {
+            CurriculumEntry::factory()->for($curriculum)->create([
+                'course_specification_id' => CourseSpecification::factory()->create(['credit_units' => 3.00])->id,
+                'year_level' => $year, 'term_label' => $term, 'sequence' => $sequence,
+            ]);
+        }
+
+        $termSections = new \ReflectionMethod(TransferCreditingForm::class, 'termSections');
+        $headings = collect($termSections->invoke(null, $curriculum->id, null))
+            ->map(fn (Section $section): string => (string) $section->getHeading())
+            ->all();
+
+        $this->assertSame(['Year 1 · First Semester', 'First Year · First Semester', 'First Year · Second Semester', 'Second Year · First Semester', 'Second Year · Second Semester'], $headings);
+    }
+
+    public function test_same_curriculum_fills_tor_code_title_and_units_and_different_clears_them(): void
+    {
+        [$case, $curriculum, $entries] = $this->transfereeCase();
+        [$first, $second] = $entries;
+        $first->load('courseSpecification.course');
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $component = Livewire::actingAs($this->staff(User::StaffRoleRegistrar))
+            ->test(ViewEnrollment::class, ['record' => $case->getRouteKey()])
+            ->mountAction('recordAcademicEvaluation')
+            ->setActionData(['curriculum_version_id' => $curriculum->id, "rows.e{$second->id}.source_course_code" => 'OLD 200'])
+            ->setActionData(['same_curriculum' => 'same']);
+
+        $component->assertActionDataSet([
+            "rows.e{$first->id}.source_course_code" => $first->courseSpecification->course->code,
+            "rows.e{$first->id}.source_course_title" => $first->courseSpecification->title,
+            "rows.e{$first->id}.source_units" => '3.00',
+            "rows.e{$second->id}.source_course_code" => 'OLD 200',
+        ]);
+
+        $component->setActionData(['same_curriculum' => 'different'])
+            ->assertActionDataSet([
+                "rows.e{$first->id}.source_course_code" => null,
+                "rows.e{$first->id}.source_course_title" => null,
+                "rows.e{$second->id}.source_course_code" => 'OLD 200',
+            ]);
+    }
+
+    public function test_crediting_opens_full_screen_with_the_tor_preview_first(): void
+    {
+        [$case] = $this->transfereeCase();
+        $application = $case->admissionApplication;
+        $set = AdmissionRequirementSet::factory()->create(['admission_cycle_id' => $application->admission_cycle_id, 'application_path' => $application->application_path]);
+        $credential = AdmissionRequirement::factory()->create(['admission_requirement_set_id' => $set->id, 'code' => 'HD', 'label' => 'Honorable Dismissal']);
+        $transcript = AdmissionRequirement::factory()->create(['admission_requirement_set_id' => $set->id, 'code' => 'TOR', 'label' => 'Transcript of Records']);
+        DocumentEvidence::factory()->canonical($application, $credential)->create();
+        $tor = DocumentEvidence::factory()->canonical($application, $transcript)->create();
+
+        $copies = TransferCreditingForm::previewCopies($application->fresh());
+        $this->assertSame(['Transcript of Records', 'Honorable Dismissal'], array_column($copies, 'label'));
+        $this->assertSame(route('admissions.evidence.view', ['evidence' => $tor->id]), $copies[0]['view_url']);
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $component = Livewire::actingAs($this->staff(User::StaffRoleRegistrar))
+            ->test(ViewEnrollment::class, ['record' => $case->getRouteKey()])
+            ->mountAction('recordAcademicEvaluation')
+            ->assertMountedActionModalSee('Transcript of Records')
+            ->assertMountedActionModalSee('Honorable Dismissal');
+        $this->assertSame(Width::Screen, $component->instance()->getMountedAction()->getModalWidth());
+    }
+
     private function transfereeCase(): array
     {
         $curriculum = CurriculumVersion::factory()->create(['state' => CurriculumVersion::StateActive]);

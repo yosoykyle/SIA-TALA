@@ -62,7 +62,7 @@ class CalendarEventForm
                         ->columns(2)
                         ->columnSpanFull(),
                     Section::make('Weekly time')
-                        ->description('Time zone: Asia/Manila. These times repeat each week.')
+                        ->description('These times repeat each week.')
                         ->contained(false)
                         ->schema([
                             Select::make('day_of_week')

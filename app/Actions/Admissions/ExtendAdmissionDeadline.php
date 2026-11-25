@@ -94,7 +94,7 @@ class ExtendAdmissionDeadline
                 safePayload: [
                     'application_reference' => $locked->application_reference,
                     'step' => $wasExpired ? 'Application re-admitted' : 'Deadline extended',
-                    'remark' => 'Your '.$label.' deadline is now '.$newDeadline->timezone((string) config('app.display_timezone'))->format('M j, Y g:i A').' (Asia/Manila). '.$validated['reason'],
+                    'remark' => 'Your '.$label.' deadline is now '.$newDeadline->timezone((string) config('app.display_timezone'))->format('M j, Y g:i A').'. '.$validated['reason'],
                 ],
             );
 

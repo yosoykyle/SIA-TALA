@@ -506,7 +506,7 @@ class Issue57RegistrarWorkflowRefinementTest extends TestCase
             ->assertHasErrors(['data.email'])
             ->assertSet('saveStatus', 'failed')
             ->assertSet('data.first_name', 'Retained entered name')
-            ->assertSet('saveStatusMessage', 'Draft could not be saved. Your entered work remains here; correct the identified item before continuing.')
+            ->assertSet('saveStatusMessage', fn (string $message): bool => str_starts_with($message, 'Draft could not be saved: ') && str_ends_with($message, ' Your entered work remains here.') && strlen($message) > 60)
             ->assertNoRedirect();
 
         $this->assertSame($before, $application->fresh()->getRawOriginal());
@@ -527,7 +527,7 @@ class Issue57RegistrarWorkflowRefinementTest extends TestCase
             ->assertSet('saveStatus', 'failed')
             ->assertSet('data.first_name', 'Facts saved before failure')
             ->assertSet('data.assistance_reason', 'Telephone assistance')
-            ->assertSet('saveStatusMessage', 'Save incomplete. Some answers may have saved before a copy failed. Your entered work remains here; correct the identified item before continuing.')
+            ->assertSet('saveStatusMessage', fn (string $message): bool => str_starts_with($message, 'Your answers were saved, but a copy was not: ') && str_ends_with($message, ' Your entered work remains here.'))
             ->assertNoRedirect();
 
         $this->assertSame('Facts saved before failure', $application->fresh()->first_name);

@@ -127,7 +127,7 @@ class Requirements extends Page implements HasTable
                             ->badge()
                             ->color(fn (AdmissionRequirement $record): string => $this->resultColor($row($record)['result'] ?? 'NotSubmitted')),
                         TextColumn::make('last_review_update')
-                            ->label('Last update (Asia/Manila)')
+                            ->label('Last update')
                             ->state(fn (AdmissionRequirement $record) => $row($record)['updated_at'] ?? null)
                             ->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')
                             ->placeholder('No copy submitted'),

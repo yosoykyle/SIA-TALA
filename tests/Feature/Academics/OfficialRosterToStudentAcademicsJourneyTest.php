@@ -1327,7 +1327,7 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         );
         $this->assertStringStartsWith("\xEF\xBB\xBF", $csv->streamedContent());
         $lines = explode("\r\n", substr($csv->streamedContent(), 3));
-        $this->assertSame(['Term', 'Class Reference', 'Course Code', 'Course Title', 'Program or Cohort', 'Student Number', 'Legal Name', 'As of (Asia/Manila)'], str_getcsv($lines[0], ',', '"', ''));
+        $this->assertSame(['Term', 'Class Reference', 'Course Code', 'Course Title', 'Program or Cohort', 'Student Number', 'Legal Name', 'As of'], str_getcsv($lines[0], ',', '"', ''));
         $this->assertCount(8, str_getcsv($lines[1], ',', '"', ''));
         $this->assertMatchesRegularExpression('/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} PHT/', $csv->streamedContent());
         $this->assertStringContainsString("'=HYPERLINK", $csv->streamedContent());

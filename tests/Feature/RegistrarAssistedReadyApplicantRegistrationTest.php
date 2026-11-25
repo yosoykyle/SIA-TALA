@@ -1150,7 +1150,12 @@ class RegistrarAssistedReadyApplicantRegistrationTest extends TestCase
         $page = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
             ->assertActionVisible('startEnrollment')
             ->assertActionHidden('openEnrollment');
-        $this->assertSame('startEnrollment', $page->instance()->getCachedHeaderActions()[0]->getName());
+        $this->assertNotContains('startEnrollment', collect($page->instance()->getCachedHeaderActions())->map->getName()->all());
+        $page->assertActionVisible('startEnrollment');
+        $steps = collect($page->instance()->processEvaluation())->keyBy('key');
+        $this->assertSame('current', $steps['readiness']['state']);
+        $this->assertSame('startEnrollment', $steps['readiness']['action']);
+        $this->assertNull($steps['payment']['action']);
 
         $page->callAction('startEnrollment')->assertNotified('Enrollment started');
 
@@ -1160,9 +1165,12 @@ class RegistrarAssistedReadyApplicantRegistrationTest extends TestCase
         $this->assertSame($application->user_id, $enrollment->credential_user_id);
         $page->assertRedirect(EnrollmentResource::getUrl('view', ['record' => $enrollment]));
 
-        Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
+        $after = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
             ->assertActionHidden('startEnrollment')
             ->assertActionVisible('openEnrollment');
+        $steps = collect($after->instance()->processEvaluation())->keyBy('key');
+        $this->assertSame('done', $steps['readiness']['state']);
+        $this->assertSame('current', $steps['payment']['state']);
     }
 
     public function test_registrar_records_clearance_and_starts_enrollment_in_one_step(): void

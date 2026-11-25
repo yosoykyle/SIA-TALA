@@ -13,12 +13,12 @@
                 <h3>Application details and earlier decisions</h3>
                 <dl class="tala-status-grid">
                     <div class="tala-status-grid__item"><dt>Admission cycle</dt><dd>{{ $application->admissionCycle?->label ?? 'Unavailable' }}</dd></div>
-                    <div class="tala-status-grid__item"><dt>Applications close</dt><dd>{{ $application->admissionCycle?->closes_at?->timezone(config('app.display_timezone'))->format('M j, Y, g:i A') ?? 'Unavailable' }} (Asia/Manila)</dd></div>
+                    <div class="tala-status-grid__item"><dt>Applications close</dt><dd>{{ $application->admissionCycle?->closes_at?->timezone(config('app.display_timezone'))->format('M j, Y, g:i A') ?? 'Unavailable' }}</dd></div>
                     <div class="tala-status-grid__item"><dt>Submitted version</dt><dd>{{ $application->currentSubmissionVersion?->version ?? 'Not submitted' }}</dd></div>
                     <div class="tala-status-grid__item"><dt>Private evidence history</dt><dd>{{ $application->evidenceVersions->count() }} retained versions</dd></div>
                 </dl>
                 @foreach ($application->decisions->where('id', '!=', $currentDecision?->id)->sortByDesc('decided_at') as $decision)
-                    <p class="mt-4"><strong>Superseded {{ str($decision->decision)->headline() }}</strong> · {{ $decision->decided_at?->timezone(config('app.display_timezone'))->format('M j, Y, g:i A') }} (Asia/Manila)<br>{{ $decision->applicant_explanation }}</p>
+                    <p class="mt-4"><strong>Superseded {{ str($decision->decision)->headline() }}</strong> · {{ $decision->decided_at?->timezone(config('app.display_timezone'))->format('M j, Y, g:i A') }}<br>{{ $decision->applicant_explanation }}</p>
                 @endforeach
             </div>
             @if ($application->submissionVersions->isNotEmpty())
@@ -63,7 +63,7 @@
             <div class="tala-record-group">
                 <h3>Application history</h3>
                 @forelse ($application->events->sortByDesc('occurred_at') as $event)
-                    <p><strong>{{ str($event->event_type)->headline() }}</strong> — {{ $event->occurred_at?->timezone(config('app.display_timezone'))->format('F j, Y, g:i A') }} (Asia/Manila)</p>
+                    <p><strong>{{ str($event->event_type)->headline() }}</strong> — {{ $event->occurred_at?->timezone(config('app.display_timezone'))->format('F j, Y, g:i A') }}</p>
                 @empty
                     <p>No authoritative lifecycle event has been recorded yet.</p>
                 @endforelse

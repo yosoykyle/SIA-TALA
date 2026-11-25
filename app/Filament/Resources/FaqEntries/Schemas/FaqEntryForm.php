@@ -37,8 +37,8 @@ class FaqEntryForm
                         TextInput::make('sort_order')->label('Display position')->integer()->required()->minValue(1)
                             ->default(fn (): int => ((int) FaqEntry::query()->max('sort_order')) + 1)
                             ->helperText('The next saved position is suggested. Change it to reorder; publication checks overlapping positions within the category.'),
-                        DateTimePicker::make('visible_from')->label('Visible from (Asia/Manila)')->timezone('Asia/Manila')->seconds(false),
-                        DateTimePicker::make('visible_until')->label('Visible until (Asia/Manila)')->timezone('Asia/Manila')->seconds(false)
+                        DateTimePicker::make('visible_from')->label('Visible from')->timezone('Asia/Manila')->seconds(false),
+                        DateTimePicker::make('visible_until')->label('Visible until')->timezone('Asia/Manila')->seconds(false)
                             ->afterOrEqual(fn (Get $get): ?string => filled($get('visible_from')) ? 'visible_from' : null),
                     ])
                     ->columns(2)

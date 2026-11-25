@@ -17,7 +17,7 @@ use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 class CurrentClassRosterOutput
 {
-    public const CsvHeaders = ['Term', 'Class Reference', 'Course Code', 'Course Title', 'Program or Cohort', 'Student Number', 'Legal Name', 'As of (Asia/Manila)'];
+    public const CsvHeaders = ['Term', 'Class Reference', 'Course Code', 'Course Title', 'Program or Cohort', 'Student Number', 'Legal Name', 'As of'];
 
     /** @return array{roster:GradeRoster,generatedAt:Carbon,headers:list<string>,rows:list<list<?string>>,count:int} */
     public function forRoster(GradeRoster $roster, User $actor): array

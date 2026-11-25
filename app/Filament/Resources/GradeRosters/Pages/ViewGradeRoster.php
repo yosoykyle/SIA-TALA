@@ -172,11 +172,11 @@ class ViewGradeRoster extends ViewRecord
                 ->modalSubmitActionLabel('Reopen grade entry')
                 ->schema([
                     DateTimePicker::make('opens_at')
-                        ->label('Opens at (Asia/Manila)')
+                        ->label('Opens at')
                         ->seconds(false)
                         ->required(),
                     DateTimePicker::make('closes_at')
-                        ->label('Closes at (Asia/Manila)')
+                        ->label('Closes at')
                         ->seconds(false)
                         ->required(),
                     Textarea::make('reason')

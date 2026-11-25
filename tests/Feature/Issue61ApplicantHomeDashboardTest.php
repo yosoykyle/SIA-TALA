@@ -19,6 +19,8 @@ use App\Models\AdmissionRequirement;
 use App\Models\AdmissionRequirementSet;
 use App\Models\ApplicationCorrectionItem;
 use App\Models\ApplicationSubmissionVersion;
+use App\Models\DocumentEvidence;
+use App\Models\PreliminaryEvidenceReview;
 use App\Models\Program;
 use App\Models\PublicNotice;
 use App\Models\RegistrarEnrollmentClearance;
@@ -133,7 +135,7 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
         $this->home($applicant, $application->fresh())
             ->assertSee('The Registrar asked you to correct part of your application.')
             ->assertSee('Correction due')
-            ->assertSee('Respond to correction')
+            ->assertSee('Fix correction')
             ->assertSee('Action Needed');
     }
 
@@ -248,7 +250,7 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
                 ->assertSee('Your application journey')
                 ->assertDontSee('Continue application')
                 ->assertDontSee('Update application')
-                ->assertDontSee('Respond to correction')
+                ->assertDontSee('Fix correction')
                 ->assertDontSee('Review requirements');
         }
     }
@@ -263,7 +265,7 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
             ->assertDontSee('Continue application');
     }
 
-    public function test_overdue_correction_still_offers_one_respond_action(): void
+    public function test_overdue_correction_still_offers_one_fix_action(): void
     {
         [$application, $applicant] = $this->application();
         $registrar = $this->registrar();
@@ -275,7 +277,7 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
 
         $this->home($applicant, $application->fresh())
             ->assertSee('Correction overdue')
-            ->assertSee('Respond to correction');
+            ->assertSee('Fix correction');
     }
 
     public function test_submitted_application_shows_the_open_cycle_closing_time(): void
@@ -284,7 +286,7 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
 
         $this->home($applicant, $application)
             ->assertSee('Applications close')
-            ->assertSee('You can still update your application until review starts (Asia/Manila).')
+            ->assertSee('You can still update your application until review starts.')
             ->assertDontSee('Nothing is due from you right now.');
     }
 
@@ -433,6 +435,27 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
         $this->assertSame([['state' => 'Not submitted', 'color' => 'gray'], ['state' => 'To be passed on-site', 'color' => 'info']], $rows->first()['badges']);
     }
 
+    public function test_home_shows_the_registrar_remark_and_correction_next_step_for_a_copy_that_needs_action(): void
+    {
+        [$application, $applicant] = $this->application(preliminaryEvidence: true);
+        $requirement = $application->currentSubmissionVersion->requirementSet->requirements->firstWhere('label', 'School review copy');
+        $evidence = DocumentEvidence::factory()->canonical($application, $requirement, $application->currentSubmissionVersion)->create();
+        PreliminaryEvidenceReview::factory()->create([
+            'document_evidence_id' => $evidence->id,
+            'result' => PreliminaryEvidenceReview::ResultActionNeeded,
+            'reason' => 'The birth date is unreadable. Upload a clear copy.',
+            'reviewed_by' => $this->registrar()->id,
+            'reviewed_at' => now(),
+        ]);
+
+        $this->home($applicant, $application->fresh())
+            ->assertSee('Needs action')
+            ->assertSee('Registrar: The birth date is unreadable. Upload a clear copy.')
+            ->assertSee('The Registrar marked School review copy for correction.')
+            ->assertDontSee('Updates from the Registrar')
+            ->assertDontSee('monitor Requirements for an instruction');
+    }
+
     public function test_applicant_pages_show_a_date_and_time_top_bar_without_account_controls(): void
     {
         [$application, $applicant] = $this->application(submitted: false);
@@ -445,7 +468,6 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
             ->assertSeeInOrder(['tala-applicant-topbar__person', 'Ana Reyes', 'tala-applicant-topbar__end', 'data-tala-clock'], false)
             ->assertDontSee('tala-brand__person', false)
             ->assertSee(now()->timezone('Asia/Manila')->format('D, M j, Y'))
-            ->assertSee('Asia/Manila')
             ->assertDontSee('fi-topbar-ctn', false);
     }
 

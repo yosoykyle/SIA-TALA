@@ -22,7 +22,6 @@
                 List
             </x-filament::tabs.item>
         </x-tala-navigation>
-        <p>Times in Asia/Manila</p>
     </div>
     <p class="sr-only" role="status" x-text="scheduleMode === 'weekly' ? 'Showing weekly schedule' : 'Showing meeting list'"></p>
     <div x-show="scheduleMode === 'weekly'" class="enrollment-schedule-week">

@@ -75,7 +75,7 @@ class FacultyQualificationForm
                                     ->placeholder('Unavailable')
                                     ->visible(fn (?FacultyQualification $record): bool => $record !== null),
                                 TextEntry::make('recorded_at')
-                                    ->label('Recorded at (Asia/Manila)')
+                                    ->label('Recorded at')
                                     ->dateTime('M j, Y, g:i A')
                                     ->timezone('Asia/Manila')
                                     ->placeholder('Unavailable')

@@ -63,7 +63,35 @@
             @else
                 <div class="student-enrollment-task-layout">
                     <section class="student-enrollment-task tala-task-surface" aria-labelledby="enrollment-task-heading">
-                        @if (! $confirmed)
+                        @if (! $confirmed && ($irregularReview['is_irregular'] ?? false) && ! $proposal)
+                            @php
+                                $requestState = $irregularRequest?->state;
+                                $progressIndex = match ($requestState) {
+                                    \App\Models\IrregularEnrollmentRequest::StateSubmitted => 1,
+                                    \App\Models\IrregularEnrollmentRequest::StateAccepted => 2,
+                                    default => 0,
+                                };
+                            @endphp
+                            <h2 id="enrollment-task-heading">{{ match ($requestState) {
+                                \App\Models\IrregularEnrollmentRequest::StateSubmitted => 'Irregular application – submitted – for Registrar approval',
+                                \App\Models\IrregularEnrollmentRequest::StateReturned => 'Irregular application returned for correction',
+                                default => 'Apply for irregular enrollment',
+                            } }}</h2>
+                            <ol class="tala-irregular-progress" aria-label="Irregular enrollment progress">
+                                @foreach (['Applied as irregular', 'Registrar approval', 'Assessment', 'Payment', 'Enrolled'] as $index => $step)
+                                    <li @class(['is-done' => $index < $progressIndex]) @if ($index === $progressIndex) aria-current="step" @endif>{{ $step }}</li>
+                                @endforeach
+                            </ol>
+                            @if ($requestState === \App\Models\IrregularEnrollmentRequest::StateSubmitted)
+                                <p>Your irregular application has been submitted. Please wait for Registrar approval. You cannot edit your subjects unless the Registrar returns your application for correction.</p>
+                            @elseif ($requestState === \App\Models\IrregularEnrollmentRequest::StateReturned)
+                                <p><strong>Registrar note:</strong> {{ $irregularRequest->return_reason }}</p>
+                            @else
+                                <x-irregular-reasons :review="$irregularReview" audience="student" />
+                                <p>Confirm your reason, choose your retakes and other subjects, then submit your application to the Registrar.</p>
+                            @endif
+                            @if ($this->applyAsIrregularAction->isVisible())<div class="student-tile-actions">{{ $this->applyAsIrregularAction }}</div>@endif
+                        @elseif (! $confirmed)
                             <h2 id="enrollment-task-heading">Your classes are being prepared</h2>
                             <p>The Registrar is preparing your subjects and schedule. You can confirm when your classes and fees are ready.</p>
                             <p>No action is needed from you yet.</p>

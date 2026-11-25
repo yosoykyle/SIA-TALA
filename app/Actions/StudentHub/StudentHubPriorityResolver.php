@@ -3,6 +3,7 @@
 namespace App\Actions\StudentHub;
 
 use App\Actions\Academics\AcademicEnrollmentGuidance;
+use App\Actions\Academics\IrregularStudentReasons;
 use App\Actions\Cor\BuildCorOutput;
 use App\Actions\Enrollment\RegistrationReadinessQuery;
 use App\Actions\Finance\StudentTermAccountPresenter;
@@ -55,6 +56,7 @@ class StudentHubPriorityResolver
         private readonly RegistrationReadinessQuery $registrationReadiness,
         private readonly BuildCorOutput $corOutput,
         private readonly AcademicEnrollmentGuidance $academicEnrollmentEffect,
+        private readonly IrregularStudentReasons $irregularReasons,
     ) {}
 
     /**
@@ -335,19 +337,27 @@ class StudentHubPriorityResolver
     private function academicDeficiencyTier(StudentProfile $studentProfile): ?array
     {
         $effect = $this->academicEnrollmentEffect->forStudent($studentProfile);
+        $irregular = $this->irregularReasons->forStudent($studentProfile);
 
-        if (! $effect['needs_attention']) {
+        if (! $effect['needs_attention'] && ! $irregular['is_irregular']) {
             return null;
         }
+
+        $confirmed = $irregular['is_irregular'] && ! $this->irregularReasons->needsReview($studentProfile);
 
         return [
             'tier' => 'Academic Guidance',
             'scope_label' => $effect['scope_label'],
             'term_id' => $effect['term_id'],
-            'academic_effect' => $effect['effect'],
-            'student_reason' => $effect['student_reason'] ?? $effect['reason'],
-            'required_action' => match ($effect['effect']) {
-                AcademicDecision::EffectAdvisingRequired => 'Before your next enrollment, ask the Registrar Office to plan your subjects with you.',
+            'academic_effect' => $irregular['is_irregular'] ? AcademicDecision::EffectAdvisingRequired : $effect['effect'],
+            'irregular' => $irregular['is_irregular'] ? [...$irregular, 'confirmed' => $confirmed] : null,
+            'student_reason' => $irregular['is_irregular']
+                ? (string) ($irregular['primary']['details'] ?? $effect['student_reason'] ?? $effect['reason'])
+                : ($effect['student_reason'] ?? $effect['reason']),
+            'required_action' => match (true) {
+                $irregular['is_irregular'] && $confirmed => 'You need to apply for irregular enrollment for the next term. Use Enroll as irregular when enrollment opens.',
+                $irregular['is_irregular'] => 'You are flagged for irregular review. The Registrar will confirm your status before your next enrollment.',
+                $effect['effect'] === AcademicDecision::EffectAdvisingRequired => 'Before your next enrollment, ask the Registrar Office to plan your subjects with you.',
                 default => 'Contact the Registrar Office for the named academic review or authorized next step.',
             },
             'office_to_contact' => 'Registrar Office',

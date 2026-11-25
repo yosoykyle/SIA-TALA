@@ -85,7 +85,7 @@ class RoomInfolist
                 ->columnSpanFull(),
             TextEntry::make('record_metadata')
                 ->hiddenLabel()
-                ->state(fn (Room $record): string => 'Created '.DisplayDateTime::format($record->created_at).' · Last updated '.DisplayDateTime::format($record->updated_at).' (Asia/Manila)')
+                ->state(fn (Room $record): string => 'Created '.DisplayDateTime::format($record->created_at).' · Last updated '.DisplayDateTime::format($record->updated_at))
                 ->color('gray')
                 ->extraAttributes(['class' => 'text-xs text-zinc-500 dark:text-zinc-400 tabular-nums'])
                 ->columnSpanFull(),

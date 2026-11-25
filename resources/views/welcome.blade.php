@@ -151,7 +151,7 @@
                                             <x-filament::icon icon="heroicon-o-calendar-days" class="tala-public-icon" aria-hidden="true" />
                                             {{ $admissionCycle['is_open'] ? 'Applications close' : 'Applications open' }}
                                         </dt>
-                                        <dd>{{ $admissionCycle['is_open'] ? $admissionCycle['closes_at'] : $admissionCycle['opens_at'] }} <span>Asia/Manila time</span></dd>
+                                        <dd>{{ $admissionCycle['is_open'] ? $admissionCycle['closes_at'] : $admissionCycle['opens_at'] }}</dd>
                                     </dl>
                                 @endif
 

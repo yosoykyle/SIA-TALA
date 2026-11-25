@@ -5,6 +5,7 @@ namespace App\Actions\Academics;
 use App\Filament\Student\Pages\Academics;
 use App\Filament\Student\Pages\Enrollment;
 use App\Mail\AcademicRecordChangedMail;
+use App\Models\AcademicDecision;
 use App\Models\ClassOfferingTeachingAssignment;
 use App\Models\GradeOutcomeEvent;
 use App\Models\GradeRoster;
@@ -187,6 +188,25 @@ class AcademicRecordNotificationService
 
         return $recipient instanceof User
             ? $this->recordForRecipientAfterCommit($recipient, OperationalEvent::TypeAcademicProgressLifecycleEmail, $change, 'A school record update', $actionPath, "state:{$change->state}")
+            : null;
+    }
+
+    /**
+     * Emails the Student when the Registrar confirms the Irregular status (#99 Scope 11).
+     */
+    public function recordIrregularConfirmedAfterCommit(AcademicDecision $decision, string $statusLabel): ?OperationalEvent
+    {
+        $decision->loadMissing('studentProfile.user');
+        $recipient = $decision->studentProfile?->user;
+
+        return $recipient instanceof User
+            ? $this->recordForRecipientAfterCommit(
+                $recipient,
+                OperationalEvent::TypeAcademicProgressLifecycleEmail,
+                $decision,
+                'Your enrollment status: '.$statusLabel,
+                Academics::getUrl(isAbsolute: false, panel: 'student'),
+            )
             : null;
     }
 

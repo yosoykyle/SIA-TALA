@@ -75,7 +75,6 @@ class AdmissionCycleInfolist
                             TextEntry::make('registrarOwner.email')->label('Responsible Registrar')->placeholder('Assign before publication'),
                         ]),
                     Section::make('Application dates')
-                        ->description('All times are Asia/Manila.')
                         ->compact()
                         ->schema([
                             TextEntry::make('opens_at')->label('Applications open')->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')->placeholder('Not set'),

@@ -54,8 +54,8 @@ use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Schemas\Components\Actions;
-use Filament\Schemas\Components\Fieldset;
 use Filament\Schemas\Components\Flex;
+use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Text;
@@ -124,7 +124,15 @@ class ViewAdmissionApplication extends ViewRecord
         ])->all();
     }
 
-    protected function getHeaderActions(): array
+    /** Actions the Process evaluation steps open; the page header does not repeat them. */
+    private const StepActionNames = ['startReview', 'reviewApplication', 'recordEnrollmentClearance', 'startEnrollment', 'openEnrollment', 'reviewReadiness'];
+
+    /**
+     * Every admission action on this page, flat, before header placement.
+     *
+     * @return list<Action>
+     */
+    private function admissionActions(): array
     {
         $actions = [
             Action::make('startReview')
@@ -256,12 +264,14 @@ class ViewAdmissionApplication extends ViewRecord
                             ->live()
                             ->visible(fn (): bool => collect($this->clearanceChecklist())->flatMap(fn (array $category): array => $category['items'])->contains('holdable', true)),
                         DateTimePicker::make('hold_until')
-                            ->label('Held papers due by (Manila time)')
+                            ->label('Held papers due by')
                             ->timezone(config('app.display_timezone'))
                             ->displayFormat('M j, Y · g:i A')
                             ->seconds(false)
                             ->native(false)
-                            ->minDate(fn (): ?string => $this->pickerBound(now()))
+                            ->minDate(fn (): ?string => $this->pickerDayStart(now()))
+                            ->rule(fn (): \Closure => $this->exactWindowRule(fn (): CarbonInterface => now(), null, ''))
+                            ->validationMessages(['after_or_equal' => fn (): string => 'Choose a time after now ('.$this->formatDeadline(now()).').'])
                             ->prefixIcon('heroicon-o-calendar-days')
                             ->visible(fn (Get $get): bool => filled($get('held_papers'))),
                         Checkbox::make('external_checks_confirmed')
@@ -364,28 +374,20 @@ class ViewAdmissionApplication extends ViewRecord
                             ])
                             ->required(),
                         DateTimePicker::make('deadline')
-                            ->label('New deadline (Manila time)')
+                            ->label('New deadline')
                             ->timezone(config('app.display_timezone'))
                             ->displayFormat('M j, Y · g:i A')
                             ->seconds(false)
                             ->native(false)
-                            ->minDate(fn (): ?string => $this->pickerBound(now()))
-                            ->maxDate(fn (): ?string => $this->pickerBound($this->application()->admissionCycle?->period_ends_at))
+                            ->minDate(fn (): ?string => $this->pickerDayStart(now()))
+                            ->maxDate(fn (): ?string => $this->pickerDayEnd($this->application()->admissionCycle?->period_ends_at))
+                            ->rule(fn (): \Closure => $this->exactWindowRule(fn (): CarbonInterface => now(), fn (): ?CarbonInterface => $this->application()->admissionCycle?->period_ends_at, 'the end of the admission period'))
                             ->prefixIcon('heroicon-o-calendar-days')
                             ->helperText(fn (): string => $this->deadlineWindowGuidance())
-                            ->rule(fn (): \Closure => function (string $attribute, mixed $value, \Closure $fail): void {
-                                if (blank($value)) {
-                                    return;
-                                }
-
-                                $chosen = CarbonImmutable::parse((string) $value, (string) config('app.timezone'));
-                                $periodEndsAt = $this->application()->admissionCycle?->period_ends_at;
-                                if (! $chosen->isFuture()) {
-                                    $fail('Choose a time after now ('.$this->formatDeadline(now()).').');
-                                } elseif ($periodEndsAt !== null && $chosen->greaterThan($periodEndsAt)) {
-                                    $fail('Choose a time on or before the end of the admission period ('.$this->formatDeadline($periodEndsAt).').');
-                                }
-                            })
+                            ->validationMessages([
+                                'after_or_equal' => fn (): string => 'Choose a time after now ('.$this->formatDeadline(now()).').',
+                                'before_or_equal' => fn (): string => 'Choose a time on or before the end of the admission period ('.$this->formatDeadline($this->application()->admissionCycle?->period_ends_at).').',
+                            ])
                             ->disabled(fn (): bool => ! $this->deadlineWindowIsOpen())
                             ->required(),
                         Actions::make([
@@ -498,6 +500,48 @@ class ViewAdmissionApplication extends ViewRecord
         ];
 
         $group = array_pop($actions);
+
+        return array_values(array_filter([...$actions, ...$group->getActions()], fn (mixed $action): bool => $action instanceof Action));
+    }
+
+    /** One named action from the page's admission actions, for a Process evaluation step button. */
+    private function admissionAction(string $name): Action
+    {
+        $action = collect($this->admissionActions())->first(fn (Action $action): bool => $action->getName() === $name);
+        abort_unless($action instanceof Action, 404);
+
+        return $action->group(null)->modalCancelAction(false);
+    }
+
+    public function startReviewAction(): Action
+    {
+        return $this->admissionAction('startReview');
+    }
+
+    public function recordEnrollmentClearanceAction(): Action
+    {
+        return $this->admissionAction('recordEnrollmentClearance');
+    }
+
+    public function startEnrollmentAction(): Action
+    {
+        return $this->admissionAction('startEnrollment');
+    }
+
+    public function openEnrollmentAction(): Action
+    {
+        return $this->admissionAction('openEnrollment');
+    }
+
+    public function reviewReadinessAction(): Action
+    {
+        return $this->admissionAction('reviewReadiness');
+    }
+
+    protected function getHeaderActions(): array
+    {
+        // Step actions (review, clearance, enrollment) live on the Process evaluation steps only.
+        $actions = array_values(array_filter($this->admissionActions(), fn (Action $action): bool => ! in_array($action->getName(), self::StepActionNames, true)));
         $primaryName = match ($this->application()->application_state) {
             AdmissionApplication::StateSubmitted => $this->isClosed() ? null : (! $this->application()->reviewHasStarted() ? 'startReview' : ($this->identityWarningOptions() !== []
                 ? 'resolveIdentity'
@@ -518,7 +562,7 @@ class ViewAdmissionApplication extends ViewRecord
         $secondary = [];
         $primary = null;
 
-        foreach ([...$actions, ...$group->getActions()] as $action) {
+        foreach ($actions as $action) {
             if ($action instanceof Action && $action->getName() === $primaryName) {
                 $primary = $action->group(null)->button()->color(in_array($primaryName, ['reviewReadiness', 'openEnrollment'], true) ? 'gray' : 'primary');
             } elseif ($action instanceof Action) {
@@ -630,15 +674,20 @@ class ViewAdmissionApplication extends ViewRecord
                     ->required()
                     ->maxLength(1500),
                 DateTimePicker::make('due_at')
-                    ->label('Correction due (Manila time)')
-                    ->helperText('Choose a date and time on or before the cycle correction boundary. An active correction remains available after its deadline.')
+                    ->label('Correction due')
+                    ->helperText(fn (): string => $this->correctionWindowGuidance().' An active correction remains available after its deadline.')
+                    ->validationMessages([
+                        'after_or_equal' => fn (): string => 'Choose a time after now ('.$this->formatDeadline(now()).').',
+                        'before_or_equal' => fn (): string => 'Choose a time on or before the correction deadline ('.$this->formatDeadline($this->application()->admissionCycle?->correction_closes_at).').',
+                    ])
                     ->timezone(config('app.display_timezone'))
                     ->displayFormat('M j, Y · g:i A')
                     ->seconds(false)
                     ->prefixIcon('heroicon-o-calendar-days')
                     ->native(false)
-                    ->minDate(fn (): ?string => $this->pickerBound(now()))
-                    ->maxDate(fn (): ?string => $this->pickerBound($this->application()->admissionCycle?->correction_closes_at))
+                    ->minDate(fn (): ?string => $this->pickerDayStart(now()))
+                    ->maxDate(fn (): ?string => $this->pickerDayEnd($this->application()->admissionCycle?->correction_closes_at))
+                    ->rule(fn (): \Closure => $this->exactWindowRule(fn (): CarbonInterface => now(), fn (): ?CarbonInterface => $this->application()->admissionCycle?->correction_closes_at, 'the correction deadline'))
                     ->required(),
             ])
             ->visible(fn (): bool => $this->canReview()
@@ -726,13 +775,18 @@ class ViewAdmissionApplication extends ViewRecord
                     ->compact()
                     ->visible($this->currentEvidence() !== [])
                     ->disabled(fn (): bool => $this->application()->application_state !== AdmissionApplication::StateSubmitted)
-                    ->schema(collect($this->currentEvidence())->map(fn (DocumentEvidence $evidence): Fieldset => Fieldset::make($evidence->admissionRequirement->label)
+                    ->schema(collect($this->currentEvidence())->map(fn (DocumentEvidence $evidence): Grid => Grid::make(['default' => 1, 'md' => 12])
                         ->statePath('copies.'.$evidence->id)
-                        ->columns(['default' => 1, 'md' => 2])
+                        ->extraAttributes(['class' => 'tala-copy-review-row'])
                         ->schema([
                             Hidden::make('expected_review_id'),
+                            Text::make($evidence->admissionRequirement->label)
+                                ->weight('medium')
+                                ->columnSpan(['default' => 1, 'md' => 4]),
                             Select::make('result')
-                                ->label('Result')
+                                ->label('Result for '.$evidence->admissionRequirement->label)
+                                ->hiddenLabel()
+                                ->columnSpan(['default' => 1, 'md' => 4])
                                 ->options([
                                     PreliminaryEvidenceReview::ResultAccepted => 'Accepted',
                                     PreliminaryEvidenceReview::ResultActionNeeded => 'Action needed',
@@ -749,7 +803,7 @@ class ViewAdmissionApplication extends ViewRecord
                                     ->label('Download')->icon('heroicon-o-arrow-down-tray')->color('gray')->link()
                                     ->url(route('admissions.evidence.download', ['evidence' => $evidence->id]))
                                     ->openUrlInNewTab(),
-                            ])->verticalAlignment('end'),
+                            ])->verticalAlignment('center')->columnSpan(['default' => 1, 'md' => 4]),
                             Textarea::make('reason')
                                 ->label('Remarks')
                                 ->placeholder('For example: The birth date is unreadable. Upload a clear copy showing the full page.')
@@ -867,8 +921,8 @@ class ViewAdmissionApplication extends ViewRecord
             ->color('success')
             ->modalHeading('Admit application')
             ->modalWidth(Width::ThreeExtraLarge)
-            ->modalDescription(fn (): string => 'Open each submitted copy, tick it when it passes, or mark it For correction. Admit needs every copy ticked. '.$this->application()->application_reference.' is told the outcome; papers are checked next in Enrollment clearance.')
-            ->modalSubmitActionLabel(fn (): string => $this->admitFormHasCorrections() ? 'Save' : 'Admit')
+            ->modalDescription('Tick each copy that is correct, or mark it For correction. All copies must be ticked to admit.')
+            ->modalSubmitActionLabel(fn (): string => $this->admitFormHasCorrections() ? 'Send correction' : 'Admit')
             ->fillForm(fn (): array => [
                 'copies' => collect($this->currentEvidence())->mapWithKeys(function (DocumentEvidence $evidence): array {
                     $review = $this->application()->currentPreliminaryReview($evidence);
@@ -881,6 +935,7 @@ class ViewAdmissionApplication extends ViewRecord
                     ]];
                 })->all(),
                 'expected_submission_version_id' => $this->application()->current_submission_version_id,
+                'correction_due_at' => $this->defaultCorrectionDueAt(),
             ])
             ->schema(fn (): array => [
                 Hidden::make('expected_submission_version_id'),
@@ -931,6 +986,23 @@ class ViewAdmissionApplication extends ViewRecord
                 ])
                     ->statePath('copies.'.$evidence->id)
                     ->extraAttributes(['class' => 'tala-admit-copy-row']))->all(),
+                DateTimePicker::make('correction_due_at')
+                    ->label('Correction due')
+                    ->helperText(fn (): string => $this->correctionWindowGuidance().' The Applicant is emailed the copies to fix and this due date.')
+                    ->validationMessages([
+                        'after_or_equal' => fn (): string => 'Choose a time after now ('.$this->formatDeadline(now()).').',
+                        'before_or_equal' => fn (): string => 'Choose a time on or before the correction deadline ('.$this->formatDeadline($this->application()->admissionCycle?->correction_closes_at).').',
+                    ])
+                    ->timezone(config('app.display_timezone'))
+                    ->displayFormat('M j, Y · g:i A')
+                    ->seconds(false)
+                    ->prefixIcon('heroicon-o-calendar-days')
+                    ->native(false)
+                    ->minDate(fn (): ?string => $this->pickerDayStart(now()))
+                    ->maxDate(fn (): ?string => $this->pickerDayEnd($this->application()->admissionCycle?->correction_closes_at))
+                    ->rule(fn (): \Closure => $this->exactWindowRule(fn (): CarbonInterface => now(), fn (): ?CarbonInterface => $this->application()->admissionCycle?->correction_closes_at, 'the correction deadline'))
+                    ->visible(fn (Get $get): bool => collect((array) $get('copies'))->contains(fn (mixed $row): bool => is_array($row) && (bool) ($row['for_correction'] ?? false)))
+                    ->required(fn (Get $get): bool => collect((array) $get('copies'))->contains(fn (mixed $row): bool => is_array($row) && (bool) ($row['for_correction'] ?? false))),
             ])
             ->visible(fn (): bool => $this->canReview()
                 && $this->application()->application_state === AdmissionApplication::StateSubmitted
@@ -969,10 +1041,27 @@ class ViewAdmissionApplication extends ViewRecord
                                 $reason,
                                 filled($row['expected_review_id'] ?? null) ? (int) $row['expected_review_id'] : null,
                                 (int) $data['expected_submission_version_id'],
+                                notifyApplicant: false,
                             );
                         }
 
                         if ($corrections->isNotEmpty()) {
+                            // One step: the copies marked For correction become the Applicant's correction request.
+                            $marked = collect($this->currentEvidence())->filter(fn (DocumentEvidence $evidence): bool => (bool) ($copies[$evidence->id]['for_correction'] ?? false));
+                            app(RequestAdmissionCorrection::class)->execute(
+                                $this->application()->fresh(),
+                                $actor,
+                                $marked->map(fn (DocumentEvidence $evidence): array => [
+                                    'type' => ApplicationCorrectionItem::ScopeEvidence,
+                                    'key' => 'requirement:'.(int) $evidence->admission_requirement_id,
+                                    'admission_requirement_id' => (int) $evidence->admission_requirement_id,
+                                ])->values()->all(),
+                                $marked->map(fn (DocumentEvidence $evidence): string => $evidence->admissionRequirement->label.': '.trim((string) ($copies[$evidence->id]['reason'] ?? '')))->implode("\n"),
+                                'Applicant',
+                                CarbonImmutable::parse((string) $data['correction_due_at']),
+                                (int) $data['expected_submission_version_id'],
+                            );
+
                             return;
                         }
 
@@ -988,7 +1077,7 @@ class ViewAdmissionApplication extends ViewRecord
                             papersConfirmed: false,
                         );
                     }, attempts: 3);
-                }, $corrections->isNotEmpty() ? 'Copy results saved. Use For correction to send the Applicant what to fix.' : 'Application admitted', $action);
+                }, $corrections->isNotEmpty() ? 'Correction sent to the Applicant' : 'Application admitted', $action);
             });
     }
 
@@ -1008,7 +1097,20 @@ class ViewAdmissionApplication extends ViewRecord
             ->all();
     }
 
-    /** A copy in the open Admit modal is marked For correction, so the modal saves instead of admitting. */
+    /** Default correction due date for Send correction. */
+    private function defaultCorrectionDueAt(): ?string
+    {
+        // 5:00 PM school time, three days out, but never past the cycle's correction deadline.
+        $due = now(config('app.display_timezone'))->addDays(3)->setTime(17, 0)->timezone(config('app.timezone'));
+        $boundary = $this->application()->admissionCycle?->correction_closes_at?->copy()->startOfMinute();
+        if ($boundary !== null && $due->greaterThan($boundary)) {
+            $due = $boundary;
+        }
+
+        return $due->isFuture() ? $due->toDateTimeString() : null;
+    }
+
+    /** A copy in the open Admit modal is marked For correction, so the modal sends a correction instead of admitting. */
     private function admitFormHasCorrections(): bool
     {
         return collect((array) data_get($this->mountedActions, '0.data.copies', []))
@@ -1116,7 +1218,6 @@ class ViewAdmissionApplication extends ViewRecord
         $timezone = (string) config('app.display_timezone');
         $format = fn ($moment): ?string => $moment?->timezone($timezone)->format('M j, Y · g:i A');
         $projection = app(ReadyApplicantProjectionQuery::class)->forApplication($application);
-        $reviewEvent = $application->events->firstWhere('event_type', AdmissionApplicationEvent::TypeReviewStarted);
         $decision = $application->decisions()->whereDoesntHave('successor')->latest('decided_at')->first();
         $clearance = $application->enrollmentClearances()->whereDoesntHave('successor')->latest('recorded_at')->first();
         $copies = ($application->currentSubmissionVersion?->requirementSet?->requirements ?? collect())
@@ -1150,22 +1251,12 @@ class ViewAdmissionApplication extends ViewRecord
             ->sortByDesc('occurred_at')
             ->groupBy(fn (AdmissionApplicationEvent $event): string => match ($step = (string) ($event->payload['step'] ?? '')) {
                 // Copy review and screening are one step since #99 Scope 10; earlier copy-review remarks show under it.
-                SendAdmissionProcessRemark::StepEvidence => SendAdmissionProcessRemark::StepScreening,
+                SendAdmissionProcessRemark::StepEvidence, SendAdmissionProcessRemark::StepReview => SendAdmissionProcessRemark::StepScreening,
                 default => $step,
             });
 
+        // Opening the case already means review is underway, so there is no separate Start review step.
         $steps = [
-            [
-                'key' => SendAdmissionProcessRemark::StepReview,
-                'done' => $application->reviewHasStarted(),
-                'stopped' => false,
-                'summary' => $reviewEvent
-                    ? 'Started by '.($reviewEvent->actor?->getFilamentName() ?? 'Registrar').' · '.$format($reviewEvent->occurred_at)
-                    : ($application->reviewHasStarted() ? 'Review is underway.' : 'Starting review locks ordinary Applicant edits on this submitted version.'),
-                'blocker' => null,
-                'action' => 'startReview',
-                'button' => 'Start review',
-            ],
             [
                 'key' => SendAdmissionProcessRemark::StepScreening,
                 'done' => $application->application_state === AdmissionApplication::StateAdmitted,
@@ -1178,10 +1269,19 @@ class ViewAdmissionApplication extends ViewRecord
                         ? str($decision->decision)->headline().' by '.($decision->decisionMaker?->getFilamentName() ?? 'Registrar').' · '.$format($decision->decided_at)
                         : 'Decision pending',
                 ])->implode(' · ').'.',
-                'blocker' => $decision ? null : ($correctionNote ?? ($copiesAccepted ? $this->admissionBlockerGuidance() : 'Waiting on: '.$copies->where('accepted', false)
-                    ->map(fn (array $copy): string => $copy['label'].' ('.$copy['status'].')')->implode('; ').'.')),
-                'action' => 'reviewApplication',
-                'button' => 'Review application',
+                'blocker' => $decision ? null : ($correctionNote ?? ($copiesAccepted ? $this->admissionBlockerGuidance() : null)),
+                // Each submitted copy and its review status, shown as a list under the step.
+                'documents' => $copies->map(fn (array $copy): array => [
+                    'label' => $copy['label'],
+                    'status' => str($copy['status'])->ucfirst()->toString(),
+                    'color' => match (true) {
+                        $copy['accepted'] => 'success',
+                        in_array($copy['status'], ['copy missing', 'action needed'], true) => 'danger',
+                        default => 'warning',
+                    },
+                ])->all(),
+                'action' => $application->reviewHasStarted() ? 'reviewApplication' : 'startReview',
+                'button' => $application->reviewHasStarted() ? 'Review application' : 'Start review',
             ],
             [
                 'key' => SendAdmissionProcessRemark::StepClearance,
@@ -1199,14 +1299,19 @@ class ViewAdmissionApplication extends ViewRecord
             ],
             [
                 'key' => SendAdmissionProcessRemark::StepReadiness,
-                'done' => (bool) $projection['ready'],
+                // Done once the enrollment exists: Start enrollment here moves the process on to Payment verified.
+                'done' => (bool) $projection['ready'] && $enrollment !== null,
                 'stopped' => false,
-                'summary' => $projection['ready']
-                    ? 'Admissions checks are complete. Official enrollment is recorded separately.'
-                    : 'Becomes ready once admission, identity review and clearance are complete.',
-                'blocker' => null,
-                'action' => 'reviewReadiness',
-                'button' => 'Check readiness',
+                'summary' => match (true) {
+                    (bool) $projection['ready'] && $enrollment !== null => 'Admissions checks are complete and enrollment has started.',
+                    (bool) $projection['ready'] => 'Admissions checks are complete. Start enrollment to move on to payment.',
+                    default => 'Becomes ready once admission, identity review and clearance are complete.',
+                },
+                'blocker' => (bool) $projection['ready'] && $enrollment === null && ! $this->canStartEnrollment()
+                    ? 'Enrollment can start once the enrollment period for this term is open.'
+                    : null,
+                'action' => $enrollment === null ? 'startEnrollment' : null,
+                'button' => $enrollment === null ? 'Start enrollment' : null,
             ],
             [
                 'key' => SendAdmissionProcessRemark::StepPayment,
@@ -1216,11 +1321,11 @@ class ViewAdmissionApplication extends ViewRecord
                     $verifiedPayment !== null => 'Verified by Accounting · '.$format($verifiedPayment->verified_at),
                     $enrollment?->officially_enrolled_at !== null => 'Enrollment finalized without a separate payment record.',
                     $enrollment !== null => 'Enrollment started. Accounting assesses the fee and records the payment on the enrollment record.',
-                    default => 'Start the enrollment here or let the Applicant start it. Accounting then assesses the fee and verifies the payment; it cannot be overridden.',
+                    default => 'Starts after enrollment begins. Accounting then assesses the fee and verifies the payment; it cannot be overridden.',
                 },
                 'blocker' => null,
-                'action' => $enrollment === null ? 'startEnrollment' : 'openEnrollment',
-                'button' => $enrollment === null ? 'Start enrollment' : 'Open enrollment',
+                'action' => $enrollment !== null ? 'openEnrollment' : null,
+                'button' => $enrollment !== null ? 'Open enrollment' : null,
             ],
             [
                 'key' => SendAdmissionProcessRemark::StepEnrolled,
@@ -1283,6 +1388,7 @@ class ViewAdmissionApplication extends ViewRecord
                 'action' => $actionIsAvailable ? $step['action'] : null,
                 'action_label' => $actionIsAvailable ? $step['button'] : null,
                 'choices' => $choices,
+                'documents' => $step['documents'] ?? [],
                 'remarks' => ($remarks->get($step['key']) ?? collect())->map(fn (AdmissionApplicationEvent $event): array => [
                     'remark' => (string) ($event->payload['remark'] ?? ''),
                     'by' => $event->actor?->getFilamentName() ?? 'Registrar',
@@ -1518,13 +1624,78 @@ class ViewAdmissionApplication extends ViewRecord
     }
 
     /**
-     * A date-picker bound as Manila wall time with its offset (#99 Scope 9). The picker reads the wall time, and
-     * Filament's own server rule (after_or_equal / before_or_equal) parses the offset, so both agree on the instant.
-     * A bound without an offset is read as Manila time by the picker but as UTC by the server rule.
+     * Date-picker limits are whole school days (#99 Scope 9/12).
+     *
+     * Filament resets the time to 0:00 whenever the time being stepped through falls outside min/max, so an
+     * exact "now" bound made the hour impossible to raise on today's date. The calendar therefore limits days
+     * only, and {@see exactWindowRule()} enforces the exact times on the server. Bounds are school wall time
+     * without an offset because the picker's value is school wall time until after validation.
      */
-    private function pickerBound(?CarbonInterface $moment): ?string
+    private function pickerDayStart(?CarbonInterface $moment): ?string
     {
-        return $moment?->copy()->timezone((string) config('app.display_timezone'))->toIso8601String();
+        return $moment?->copy()->timezone((string) config('app.display_timezone'))->startOfDay()->format('Y-m-d H:i:s');
+    }
+
+    private function pickerDayEnd(?CarbonInterface $moment): ?string
+    {
+        return $moment?->copy()->timezone((string) config('app.display_timezone'))->endOfDay()->format('Y-m-d H:i:s');
+    }
+
+    /**
+     * Exact-time check inside the allowed days: after now, and on or before the latest moment (if any).
+     *
+     * @param  \Closure(): CarbonInterface  $earliest
+     * @param  (\Closure(): ?CarbonInterface)|null  $latest
+     */
+    private function exactWindowRule(\Closure $earliest, ?\Closure $latest, string $latestLabel): \Closure
+    {
+        return function (string $attribute, mixed $value, \Closure $fail) use ($earliest, $latest, $latestLabel): void {
+            if (blank($value)) {
+                return;
+            }
+
+            $timezone = (string) config('app.display_timezone');
+            $chosen = CarbonImmutable::parse((string) $value, $timezone);
+            $from = $earliest()->copy()->timezone($timezone);
+            $until = $latest !== null ? $latest()?->copy()->timezone($timezone) : null;
+            // Whole-day misses are reported by the picker's own min/max rule.
+            if ($chosen->lessThan($from->copy()->startOfDay()) || ($until !== null && $chosen->greaterThan($until->copy()->endOfDay()))) {
+                return;
+            }
+
+            if (! $chosen->greaterThan($from)) {
+                $fail('Choose a time after now ('.$this->formatDeadline($earliest()).').');
+            } elseif ($until !== null && $chosen->greaterThan($until)) {
+                $fail('Choose a time on or before '.$latestLabel.' ('.$this->formatDeadline($latest()).').');
+            }
+        };
+    }
+
+    /** Some time remains between now and the cycle's correction boundary (or no boundary is set). */
+    private function correctionWindowIsOpen(): bool
+    {
+        $closesAt = $this->application()->admissionCycle?->correction_closes_at;
+
+        return $closesAt === null || $closesAt->isFuture();
+    }
+
+    public function correctionWindowGuidance(): string
+    {
+        $closesAt = $this->application()->admissionCycle?->correction_closes_at;
+
+        if ($closesAt === null) {
+            return 'Choose a time after now. No correction deadline is set for this cycle.';
+        }
+
+        if (! $closesAt->isFuture()) {
+            return 'No time is left: corrections closed '.$this->formatDeadline($closesAt).'. Move the correction deadline in the cycle\'s Set admission deadlines first.';
+        }
+
+        $window = 'Allowed: after now ('.$this->formatDeadline(now()).') and on or before the correction deadline ('.$this->formatDeadline($closesAt).').';
+
+        return $closesAt->lessThanOrEqualTo(now()->addDay())
+            ? $window.' Warning: corrections close in '.now()->diffForHumans($closesAt, ['syntax' => CarbonInterface::DIFF_ABSOLUTE, 'parts' => 2]).'.'
+            : $window;
     }
 
     /** Some time remains between now and the end of the admission period (or no period end is set). */
@@ -1547,7 +1718,7 @@ class ViewAdmissionApplication extends ViewRecord
             return 'No time is left: the admission period ended '.$this->formatDeadline($periodEndsAt).'. Move the admission period end in the cycle\'s Set admission deadlines first.';
         }
 
-        $window = 'Allowed: after now ('.$this->formatDeadline(now()).') and on or before the end of the admission period ('.$this->formatDeadline($periodEndsAt).'), Manila time.';
+        $window = 'Allowed: after now ('.$this->formatDeadline(now()).') and on or before the end of the admission period ('.$this->formatDeadline($periodEndsAt).').';
 
         return $periodEndsAt->lessThanOrEqualTo(now()->addDay())
             ? $window.' Warning: the admission period ends in '.now()->diffForHumans($periodEndsAt, ['syntax' => CarbonInterface::DIFF_ABSOLUTE, 'parts' => 2]).', so very little time can be given.'

@@ -7,7 +7,7 @@
         @endif
         <p class="mt-2"><strong>Registrar's instructions</strong></p>
         <p class="whitespace-pre-line">{{ $activeCorrection->applicant_instruction }}</p>
-        <p class="mt-2">Resubmit by {{ $activeCorrection->due_at->timezone(config('app.display_timezone'))->format('F j, Y, g:i A') }} (Asia/Manila).@if ($activeCorrection->isOverdue()) You can still resubmit.@endif</p>
+        <p class="mt-2">Resubmit by {{ $activeCorrection->due_at->timezone(config('app.display_timezone'))->format('F j, Y, g:i A') }}.@if ($activeCorrection->isOverdue()) You can still resubmit.@endif</p>
         <details class="mt-3">
             <summary class="cursor-pointer">View requested fields and copies</summary>
             <div class="mt-3 space-y-3">

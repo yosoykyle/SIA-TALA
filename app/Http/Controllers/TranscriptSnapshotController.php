@@ -48,7 +48,7 @@ class TranscriptSnapshotController extends Controller
                 'generated_at' => data_get(
                     $snapshot->content,
                     'document.generated_at',
-                    $snapshot->issued_at->copy()->timezone('Asia/Manila')->format('F j, Y g:i A').' Asia/Manila',
+                    $snapshot->issued_at->copy()->timezone('Asia/Manila')->format('F j, Y g:i A'),
                 ),
                 'generation_reference' => data_get(
                     $snapshot->content,

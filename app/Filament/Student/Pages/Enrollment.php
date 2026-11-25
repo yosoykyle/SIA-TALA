@@ -3,6 +3,7 @@
 namespace App\Filament\Student\Pages;
 
 use App\Actions\Academics\AcademicEnrollmentGuidance;
+use App\Actions\Academics\IrregularStudentReasons;
 use App\Actions\Enrollment\CancelRegistrationCase;
 use App\Actions\Enrollment\ConfirmRegistrationProposal;
 use App\Actions\Enrollment\RegistrationEntryContext;
@@ -13,11 +14,14 @@ use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
 use App\Actions\Finance\SchoolPaymentChannels;
 use App\Actions\Finance\SubmitPaymentEvidence;
 use App\Actions\Finance\TermAccountProjection;
+use App\Filament\Student\IrregularEnrollmentRequestAction;
 use App\Models\Assessment;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment as EnrollmentRecord;
+use App\Models\IrregularEnrollmentRequest;
 use App\Models\OperationalEvent;
 use App\Models\RegistrationProposalVersion;
+use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\User;
 use App\Support\RegistrationSchedulePresentation;
@@ -86,7 +90,9 @@ class Enrollment extends Page
 
     public function startRegistrationAction(): Action
     {
-        return Action::make('startRegistration')->label('Prepare enrollment')->icon('heroicon-o-play')
+        return Action::make('startRegistration')
+            ->label(fn (): string => $this->isIrregularStudent() ? 'Enroll as irregular' : 'Prepare enrollment')
+            ->icon('heroicon-o-play')
             ->visible(fn (): bool => $this->entryContext()['can_start'])
             ->action(function (): void {
                 $context = $this->entryContext();
@@ -103,6 +109,19 @@ class Enrollment extends Page
                     $this->failure('Enrollment could not be prepared', $exception);
                 }
             });
+    }
+
+    /** #99 Scope 11: the student's irregular enrollment request, before the Registrar prepares subjects. */
+    public function applyAsIrregularAction(): Action
+    {
+        return IrregularEnrollmentRequestAction::make(fn (): ?EnrollmentRecord => $this->currentEnrollment());
+    }
+
+    private function isIrregularStudent(): bool
+    {
+        $student = $this->entryContext()['student_profile'] ?? null;
+
+        return $student instanceof StudentProfile && app(IrregularStudentReasons::class)->forStudent($student)['is_irregular'];
     }
 
     public function confirmProposalAction(): Action
@@ -271,6 +290,9 @@ class Enrollment extends Page
                 ->with(['termOffering.curriculumEntry.courseSpecification.course', 'section'])->get() : collect(),
             'latestEvidence' => $case?->termAccount?->latestPaymentEvidenceVersion,
             'corHistory' => $this->corHistory($case), 'isStudent' => $this->actor()->hasRole('student'),
+            'irregularRequest' => $case !== null ? IrregularEnrollmentRequest::query()->where('enrollment_id', $case->id)->first() : null,
+            'irregularReview' => $case?->selection_basis === EnrollmentRecord::SelectionIndividuallyAdvised && $case->studentProfile !== null
+                ? app(IrregularStudentReasons::class)->forStudent($case->studentProfile, $case->term) : null,
         ];
     }
 

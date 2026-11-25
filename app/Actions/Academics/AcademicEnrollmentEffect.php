@@ -14,6 +14,8 @@ use Illuminate\Support\Collection;
 
 class AcademicEnrollmentEffect
 {
+    public const SourceReleasedRecords = 'Current released academic and lifecycle records';
+
     public function __construct(private readonly OfficialCourseResultProjection $results) {}
 
     /**
@@ -81,7 +83,7 @@ class AcademicEnrollmentEffect
 
         return [
             'effect' => AcademicDecision::EffectAllowed,
-            'source' => 'Current released academic and lifecycle records',
+            'source' => self::SourceReleasedRecords,
             'reason' => 'No recorded academic or lifecycle authority blocks ordinary curriculum placement.',
         ];
     }

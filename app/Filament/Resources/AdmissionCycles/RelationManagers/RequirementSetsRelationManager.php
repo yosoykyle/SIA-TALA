@@ -45,7 +45,7 @@ class RequirementSetsRelationManager extends RelationManager
                             ->options(AdmissionCycle::studentTypeOptions())
                             ->required(),
                         TextInput::make('version')->numeric()->minValue(1)->required(),
-                        DateTimePicker::make('effective_at')->label('Effective from (Manila time)')
+                        DateTimePicker::make('effective_at')->label('Effective from')
                             ->helperText('Controls when this requirement version may apply. Existing submitted versions retain their original requirements.')
                             ->placeholder('Select date and time')->prefixIcon('heroicon-o-calendar-days')->native(false)->required(),
                         Select::make('replaces_requirement_set_id')

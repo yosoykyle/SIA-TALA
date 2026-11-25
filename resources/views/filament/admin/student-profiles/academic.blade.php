@@ -161,7 +161,14 @@
                                                     </div>
                                                 @endif
                                             </th>
-                                            <td>{{ str($row['status'])->headline() }}</td>
+                                            <td>
+                                                @if ($row['credit'] ?? null)
+                                                    <x-filament::badge color="info" icon="heroicon-m-document-check" size="sm">{{ $row['credit']['label'] }}</x-filament::badge>
+                                                    @if (filled($row['credit']['detail']))<div class="tala-profile-muted" style="font-size: .75rem; margin-block-start: .25rem;">{{ $row['credit']['detail'] }}</div>@endif
+                                                @else
+                                                    {{ str($row['status'])->headline() }}
+                                                @endif
+                                            </td>
                                             <td class="tala-profile-numeric">{{ $row['credited_units'] }}</td>
                                         </tr>
                                     @endforeach
@@ -189,6 +196,19 @@
             @endforeach
         </dl>
         @if ($this->recordExternalCompetencyAction->isVisible())<x-slot:footer>{{ $this->recordExternalCompetencyAction }}</x-slot:footer>
+        @endif
+    </x-filament::section>
+@endif
+@php
+    $irregularReview = $this->irregularReview;
+@endphp
+@if ($irregularReview['is_irregular'] || $irregularReview['kept_regular'] || $irregularReview['needs_review'])
+    <x-filament::section compact id="irregular-review" @class(['tala-irregular-review', 'is-flagged' => $irregularReview['needs_review']])>
+        <x-slot:heading>{{ $irregularReview['needs_review'] ? 'Irregular review needed' : 'Irregular status' }}</x-slot:heading>
+        <x-slot:description>{{ $irregularReview['needs_review'] ? 'Released records flagged this student. Confirm irregular, or keep regular while the reason is not final.' : 'Recorded by the Registrar. Use Record enrollment decision to change it.' }}</x-slot:description>
+        <x-irregular-reasons :review="$irregularReview" />
+        @if ($this->confirmIrregularAction->isVisible() || $this->keepRegularAction->isVisible())
+            <x-slot:footer><div class="tala-irregular-review__actions">{{ $this->confirmIrregularAction }} {{ $this->keepRegularAction }}</div></x-slot:footer>
         @endif
     </x-filament::section>
 @endif

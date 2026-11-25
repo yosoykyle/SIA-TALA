@@ -56,7 +56,7 @@ class FeePlanForm
                         ->live(onBlur: true),
                 ])->columnSpanFull(),
             SchemaSection::make('Payment dates')
-                ->description('The first payment is required for enrollment. Later payments remain due on their dates. Dates use '.config('app.display_timezone', 'Asia/Manila').'.')
+                ->description('The first payment is required for enrollment. Later payments remain due on their dates.')
                 ->contained(false)
                 ->extraAttributes(['class' => 'accounting-finance-form-section'])
                 ->schema([
