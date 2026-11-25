@@ -464,11 +464,13 @@
                             ], true)
                         );
                         $emptyHeroTone = $isErrorEmptyHero ? ($isErrorSeverity ? 'danger' : 'warning') : ($isDraftEmptyHero ? 'neutral' : 'default');
-                        $emptyHeroAurora = match ($emptyHeroTone) {
-                            'danger' => 'tala-aurora-canvas--error',
-                            'warning' => 'tala-aurora-canvas--stalled',
-                            default => 'tala-aurora-canvas--calm',
+                        $emptyStageMood = match ($emptyHeroTone) {
+                            'danger' => 'error',
+                            'warning' => 'stalled',
+                            default => 'calm',
                         };
+                        $solverJsPath = public_path('js/tala-solver-stage.js');
+                        $solverJsUrl = asset('js/tala-solver-stage.js').'?v='.(is_file($solverJsPath) ? filemtime($solverJsPath) : '1');
                         $emptyDescription = $isDraftEmptyHero
                             ? ($plainFailure['explanation'] ?? $reviewEvidence['meaning'] ?? 'Inspect the recorded findings and adjust the inputs before trying again.')
                             : ($readiness['ready']
@@ -480,20 +482,33 @@
                             ? (in_array($activeRun->status, [\App\Models\ScheduleGenerationRun::StatusQueued, \App\Models\ScheduleGenerationRun::StatusDispatching], true) ? 'Preparing your timetable' : 'No timetable was created')
                             : 'No timetable yet';
                     @endphp
-                    <div @class([
-                        'tala-guide-empty-work',
-                        'tala-timetable-empty-stage',
-                        'is-error-stage' => $emptyHeroTone === 'danger',
-                        'is-warning-stage' => $emptyHeroTone === 'warning',
-                    ])>
-                        <div class="tala-aurora-canvas {{ $emptyHeroAurora }}" aria-hidden="true">
-                            <span class="tala-aurora-blob tala-aurora-blob--green"></span>
-                            <span class="tala-aurora-blob tala-aurora-blob--gold"></span>
-                            <span class="tala-aurora-blob tala-aurora-blob--sage"></span>
-                        </div>
-                        @if (! $isErrorEmptyHero)
-                            <x-tala-ambient-backdrop variant="stage" class="tala-ambient--trinkets-only" />
-                        @endif
+                    <div
+                        @class([
+                            'tala-guide-empty-work',
+                            'tala-timetable-empty-stage',
+                            'is-error-stage' => $emptyHeroTone === 'danger',
+                            'is-warning-stage' => $emptyHeroTone === 'warning',
+                        ])
+                        data-tala-ambient-stage
+                        data-stage-mood="{{ $emptyStageMood }}"
+                        data-script-url="{{ $solverJsUrl }}"
+                        x-data="{
+                            init() {
+                                if (window.talaAmbientStageMount) {
+                                    window.talaAmbientStageMount(this.$el);
+                                    return;
+                                }
+                                if (!document.querySelector('script[data-tala-solver-stage-loader]')) {
+                                    const script = document.createElement('script');
+                                    script.src = this.$el.dataset.scriptUrl;
+                                    script.dataset.talaSolverStageLoader = 'true';
+                                    script.onload = () => window.talaAmbientStageMount && window.talaAmbientStageMount(this.$el);
+                                    document.head.appendChild(script);
+                                }
+                            }
+                        }"
+                    >
+                        <x-tala-ambient-backdrop variant="stage" wire:ignore />
                         <div class="tala-timetable-empty-stage__content">
                             @if ($isDraftEmptyHero)
                                 @php
@@ -597,6 +612,7 @@
                             @endif
                         </div>
                     </div>
+                    <script src="{{ $solverJsUrl }}" data-navigate-once></script>
                 @endif
             </section>
 

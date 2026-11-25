@@ -86,13 +86,13 @@
         default => 'Building an optimized whole-term schedule',
     };
 
-    $auroraModifier = match (true) {
-        $solverHealth === 'error' => 'tala-aurora-canvas--error',
-        $solverHealth === 'stalled' => 'tala-aurora-canvas--stalled',
-        $serverStage === 'saved' => 'tala-aurora-canvas--saved',
-        $serverStage === 'queued' => 'tala-aurora-canvas--queued',
-        $serverStage === 'validating' => 'tala-aurora-canvas--validating',
-        default => 'tala-aurora-canvas--optimizing',
+    $stageMood = match (true) {
+        $solverHealth === 'error' => 'error',
+        $solverHealth === 'stalled' => 'stalled',
+        $serverStage === 'saved' => 'saved',
+        $serverStage === 'queued' => 'queued',
+        $serverStage === 'validating' => 'validating',
+        default => 'optimizing',
     };
 
     $barFillState = match (true) {
@@ -124,6 +124,7 @@
     data-server-stage="{{ $serverStage }}"
     data-solver-health="{{ $solverHealth }}"
     data-server-health="{{ $solverHealth }}"
+    data-stage-mood="{{ $stageMood }}"
     data-has-retryable-failure="{{ $hasRetryableFailure ? '1' : '0' }}"
     data-script-url="{{ $solverJsUrl }}"
     x-data="{
@@ -142,14 +143,7 @@
         }
     }"
 >
-    <div class="tala-aurora-canvas {{ $auroraModifier }}" data-solver-aurora aria-hidden="true" wire:ignore>
-        <span class="tala-aurora-blob tala-aurora-blob--green"></span>
-        <span class="tala-aurora-blob tala-aurora-blob--gold"></span>
-        <span class="tala-aurora-blob tala-aurora-blob--sage"></span>
-    </div>
-    @if ($solverHealth !== 'error')
-        <x-tala-ambient-backdrop variant="stage" class="tala-ambient--trinkets-only" wire:ignore />
-    @endif
+    <x-tala-ambient-backdrop variant="stage" wire:ignore />
 
     <div class="tala-solver-stage">
         <div class="tala-solver-meta-row">
