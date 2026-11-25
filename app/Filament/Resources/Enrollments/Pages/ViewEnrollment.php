@@ -1263,12 +1263,22 @@ class ViewEnrollment extends ViewRecord
             ->authorize(fn (): bool => $this->actor()->can('confirmPlacement', $this->getRecord()))
             ->visible(fn (): bool => $this->getRecord()->canonical_outcome === Enrollment::OutcomeInProgress
                 && ($this->actor()->can('confirmPlacement', $this->getRecord())))
-            ->fillForm(fn (): array => [
-                'case_version' => $this->getRecord()->lock_version,
-                'section_ids' => $this->getRecord()->currentProposalVersion?->items->pluck('section_id')->all() ?? $this->submittedIrregularRequest()?->sectionIds() ?? [],
-                'subject_year_filter' => null,
-                'subject_term_filter' => $this->submittedIrregularRequest() !== null ? null : $this->defaultSubjectTermFilter(),
-            ])
+            ->fillForm(function (): array {
+                $availableSectionIds = $this->classChoices()['sections']
+                    ->pluck('id')
+                    ->map(fn (mixed $id): int => (int) $id)
+                    ->all();
+                $prefilledSectionIds = $this->getRecord()->currentProposalVersion?->items->pluck('section_id')->all()
+                    ?? $this->submittedIrregularRequest()?->sectionIds()
+                    ?? [];
+
+                return [
+                    'case_version' => $this->getRecord()->lock_version,
+                    'section_ids' => array_values(array_intersect(array_map('intval', $prefilledSectionIds), $availableSectionIds)),
+                    'subject_year_filter' => null,
+                    'subject_term_filter' => $this->submittedIrregularRequest() !== null ? null : $this->defaultSubjectTermFilter(),
+                ];
+            })
             ->schema([
                 Hidden::make('case_version')->required(),
                 Grid::make(['default' => 1, 'sm' => 2])->schema([

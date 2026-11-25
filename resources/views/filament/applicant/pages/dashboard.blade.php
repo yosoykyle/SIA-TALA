@@ -185,13 +185,15 @@
                         <div class="tala-home-help__copy">
                             <h2 id="tala-home-help-title">Need help?</h2>
                             <p>Questions about your application? Contact admissions support.</p>
-                            <p class="tala-home-help__contact">
-                                @if ($support['href'] === $supportModalRoute)
-                                    <a class="tala-home-link" href="#" x-on:click.prevent="$dispatch('open-modal', { id: 'applicant-support-contact' })">{{ $support['text'] }}</a>
-                                @else
-                                    <a class="tala-home-link" href="{{ $support['href'] }}">{{ $support['text'] }}</a>
-                                @endif
-                            </p>
+                            @if (preg_match('/[\pL\pN]/u', $support['text']))
+                                <p class="tala-home-help__contact">
+                                    @if ($support['href'] === $supportModalRoute)
+                                        <a class="tala-home-link" href="#" x-on:click.prevent="$dispatch('open-modal', { id: 'applicant-support-contact' })">{{ $support['text'] }}</a>
+                                    @else
+                                        <a class="tala-home-link" href="{{ $support['href'] }}">{{ $support['text'] }}</a>
+                                    @endif
+                                </p>
+                            @endif
                         </div>
                         <x-filament::button color="gray" icon="heroicon-m-chat-bubble-left-right" x-on:click="$dispatch('open-modal', { id: 'applicant-support-contact' })">Contact support</x-filament::button>
                     </section>

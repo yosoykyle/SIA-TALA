@@ -136,6 +136,63 @@ class RegistrationClassChoices
             })
             ->values();
 
+        $creditedEntryIds = collect();
+        if ($case->studentProfile !== null) {
+            $creditedEntryIds = $creditedEntryIds->merge(
+                RegistrationCreditEvaluation::creditedEntryIdsForStudent($case->studentProfile),
+            );
+        }
+        if ($case->admissionApplication?->application_path === AdmissionApplication::PathTransferee) {
+            $curriculumIds = $sections
+                ->pluck('termOffering.curriculumEntry.curriculum_version_id')
+                ->merge($studentCurriculumIds)
+                ->filter()
+                ->map(fn (mixed $id): int => (int) $id)
+                ->unique();
+            $creditedEntryIds = $creditedEntryIds->merge(
+                $curriculumIds
+                    ->flatMap(fn (int $curriculumId): array => RegistrationCreditEvaluation::latestCurrentFor($case, $curriculumId)?->credited_curriculum_entry_ids ?? []),
+            );
+        }
+        $creditedEntryIds = $creditedEntryIds
+            ->filter()
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values();
+        $creditedCourseIds = $creditedEntryIds->isNotEmpty()
+            ? CurriculumEntry::query()
+                ->with('courseSpecification')
+                ->whereIn('id', $creditedEntryIds)
+                ->get()
+                ->pluck('courseSpecification.course_id')
+                ->filter()
+                ->map(fn (mixed $id): int => (int) $id)
+                ->unique()
+                ->values()
+            : collect();
+
+        if ($creditedEntryIds->isNotEmpty() || $creditedCourseIds->isNotEmpty()) {
+            $sections = $sections
+                ->reject(function (Section $section) use ($eligibility, $studentEntries, $creditedEntryIds, $creditedCourseIds): bool {
+                    $offering = $section->termOffering;
+                    if ($offering !== null && $creditedEntryIds->contains((int) $offering->curriculum_entry_id)) {
+                        return true;
+                    }
+
+                    $offeredCourseId = (int) ($offering?->courseSpecification()?->course_id ?? 0);
+                    if ($offeredCourseId > 0 && $creditedCourseIds->contains($offeredCourseId)) {
+                        return true;
+                    }
+
+                    $matchedEntry = $eligibility->resolveCurriculumEntryFromEntries($studentEntries, $offering, $section);
+
+                    return $matchedEntry instanceof CurriculumEntry
+                        && ($creditedEntryIds->contains((int) $matchedEntry->id)
+                            || $creditedCourseIds->contains((int) ($matchedEntry->courseSpecification?->course_id ?? 0)));
+                })
+                ->values();
+        }
+
         $sectionIds = $sections->pluck('id')->all();
         $reserved = $sectionIds === []
             ? collect()
@@ -169,28 +226,7 @@ class RegistrationClassChoices
                 ->map(fn (mixed $id): int => (int) $id);
             $satisfiedCourseIds = $satisfiedCourseIds->merge($earlierPassedCourseIds)->unique()->values();
         }
-        if ($case->admissionApplication?->application_path === AdmissionApplication::PathTransferee) {
-            $curriculumIds = $sections
-                ->pluck('termOffering.curriculumEntry.curriculum_version_id')
-                ->merge($studentCurriculumIds)
-                ->filter()
-                ->map(fn (mixed $id): int => (int) $id)
-                ->unique();
-            $creditedEntryIds = $curriculumIds
-                ->flatMap(fn (int $curriculumId): array => RegistrationCreditEvaluation::latestCurrentFor($case, $curriculumId)?->credited_curriculum_entry_ids ?? [])
-                ->filter()
-                ->map(fn (mixed $id): int => (int) $id)
-                ->unique()
-                ->values();
-            $creditedCourseIds = $creditedEntryIds->isNotEmpty()
-                ? CurriculumEntry::query()
-                    ->with('courseSpecification')
-                    ->whereIn('id', $creditedEntryIds)
-                    ->get()
-                    ->pluck('courseSpecification.course_id')
-                    ->filter()
-                    ->map(fn (mixed $id): int => (int) $id)
-                : collect();
+        if ($creditedCourseIds->isNotEmpty()) {
             $satisfiedCourseIds = $eligibility->expandWithEquivalentCourseIds(
                 $satisfiedCourseIds->merge($creditedCourseIds),
             );

@@ -44,10 +44,18 @@ class IrregularEnrollmentRequestAction
             ->stickyModalHeader()
             ->stickyModalFooter()
             ->modalSubmitActionLabel('Submit irregular application')
-            ->fillForm(fn (): array => [
-                'section_ids' => self::request($case())?->sectionIds() ?? self::mandatorySectionDefaults($case()),
-                'student_remarks' => self::request($case())?->student_remarks,
-            ])
+            ->fillForm(function () use ($case): array {
+                $availableSectionIds = self::choices()->forCase($case())['sections']
+                    ->pluck('id')
+                    ->map(fn (mixed $id): int => (int) $id)
+                    ->all();
+                $prefilledSectionIds = self::request($case())?->sectionIds() ?? self::mandatorySectionDefaults($case());
+
+                return [
+                    'section_ids' => array_values(array_intersect(array_map('intval', $prefilledSectionIds), $availableSectionIds)),
+                    'student_remarks' => self::request($case())?->student_remarks,
+                ];
+            })
             ->steps([
                 Step::make('Confirm reason')
                     ->description('Why you are irregular')

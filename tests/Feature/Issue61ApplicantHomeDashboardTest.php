@@ -500,6 +500,12 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
             ->assertSee('Contact support')
             ->assertSee('applicant-support-contact', false);
 
+        $application->admissionCycle->forceFill(['support_contact' => '.'])->saveQuietly();
+        $this->home($applicant, $application->fresh())
+            ->assertSee('Need help?')
+            ->assertSee('Contact support')
+            ->assertDontSee('tala-home-help__contact', false);
+
         $application->admissionCycle->forceFill(['support_contact' => ''])->saveQuietly();
         $this->home($applicant, $application->fresh())->assertDontSee('Need help?');
     }
