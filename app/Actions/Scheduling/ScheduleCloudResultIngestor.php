@@ -208,7 +208,11 @@ final class ScheduleCloudResultIngestor
             ? (string) $run->term->label
             : 'selected term';
         $timetableUrl = Route::has('filament.admin.term-planning.pages.timetable')
-            ? route('filament.admin.term-planning.pages.timetable', ['termId' => (int) $run->term_id])
+            ? route('filament.admin.term-planning.pages.timetable', [
+                'termId' => (int) $run->term_id,
+                'timetableState' => 'draft',
+                'selectedRunId' => (int) $run->id,
+            ], absolute: false)
             : null;
 
         if ($run->status === ScheduleGenerationRun::StatusUnderReview) {

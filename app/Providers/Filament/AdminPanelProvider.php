@@ -9,6 +9,7 @@ use App\Actions\Grades\IncDeadlineService;
 use App\Filament\Clusters\Admissions;
 use App\Filament\Clusters\PublicContent;
 use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
+use App\Filament\Components\LiveDatabaseNotifications;
 use App\Filament\Pages\AcademicApprovals;
 use App\Filament\Pages\AssistedAdmissionApplication;
 use App\Filament\Pages\Auth\AccountSecurity;
@@ -134,7 +135,8 @@ class AdminPanelProvider extends PanelProvider
                 isRequired: true,
             )
             ->multiFactorAuthenticationRequiredMiddlewareName(EnsureStaffMfaIsEnabled::class)
-            ->databaseNotifications()
+            ->databaseNotifications(livewireComponent: LiveDatabaseNotifications::class)
+            ->databaseNotificationsPolling('8s')
             ->brandName('Servitech Institute Asia — Staff Workspace')
             ->plugin(
                 AuthDesignerPlugin::make()

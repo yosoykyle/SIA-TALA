@@ -385,7 +385,7 @@
 
             <section class="tala-studio-board" aria-label="Scheduled meetings">
                 @if ($pendingGeneration)
-                    <div class="tala-studio-canvas is-generating">
+                    <div class="tala-studio-canvas is-generating" wire:key="timetable-board-generating-{{ $activeRun->id }}">
                         <x-tala-operation-status :run="$activeRun" in-canvas wire:poll.5s.visible>
                             @if ($this->cancelActiveRunAction->isVisible())
                                 <x-slot name="actions">
@@ -402,7 +402,10 @@
                             && ($this->canUndoLastChange() || $this->canResetToSolverDraft() || $showDockRegenerate);
                         $hasDraftDock = $showDraftDockActions;
                     @endphp
-                    <div @class(['tala-studio-canvas', 'is-week' => $timetableFormat === 'week', 'has-draft-dock' => $hasDraftDock])>
+                    <div
+                        @class(['tala-studio-canvas', 'is-week' => $timetableFormat === 'week', 'has-draft-dock' => $hasDraftDock])
+                        wire:key="timetable-board-grid-{{ $showOfficial ? 'official-'.($selectedVersion?->id ?? '0') : 'draft-'.($activeRun?->id ?? '0') }}"
+                    >
                         @if (! count($timetablePresentation['meetings']))
                             <p class="tala-studio-empty-filter">No meetings match this view. <x-filament::button color="gray" size="sm" wire:click="clearViewFilters">Clear filters</x-filament::button></p>
                         @elseif (in_array($timetableView, ['whole', 'section', 'faculty', 'room']) && ($timetableView === 'whole' || $viewFilter))
@@ -489,6 +492,7 @@
                             'is-error-stage' => $emptyHeroTone === 'danger',
                             'is-warning-stage' => $emptyHeroTone === 'warning',
                         ])
+                        wire:key="timetable-board-empty-{{ $activeRun?->id ?? 'none' }}"
                         data-tala-ambient-stage
                         data-stage-mood="{{ $emptyStageMood }}"
                         data-script-url="{{ $solverJsUrl }}"

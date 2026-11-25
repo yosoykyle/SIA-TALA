@@ -34,7 +34,7 @@ class TimetableFailureLanguage
             'Review or reject the retained candidate, or change its source facts before generating again.' => [
                 'title' => 'A previous draft needs your decision',
                 'explanation' => 'A previous timetable draft is still waiting for your decision.',
-                'nextStep' => 'Approve or reject that draft, or change the schedule inputs, before generating a new one.',
+                'nextStep' => 'Open that draft to publish or discard it, or discard it now to generate a fresh timetable.',
             ],
             'Correct the conflicting source facts before generating again.' => [
                 'title' => 'Timetable could not be generated',

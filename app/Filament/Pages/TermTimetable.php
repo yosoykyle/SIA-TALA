@@ -110,6 +110,8 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
     #[Url]
     public ?string $yearFilter = null;
 
+    public ?int $watchingPendingRunId = null;
+
     /** @return array<string, array<string, mixed>> */
     protected function queryString(): array
     {
@@ -659,6 +661,30 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
     private function buildTimetableViewData(): array
     {
         $data = $this->timetableSourceData();
+        $activeRunForWatch = $data['activeRun'] ?? null;
+        $isPendingNow = $activeRunForWatch instanceof ScheduleGenerationRun
+            && in_array($activeRunForWatch->status, [
+                ScheduleGenerationRun::StatusQueued,
+                ScheduleGenerationRun::StatusDispatching,
+            ], true);
+
+        if ($isPendingNow) {
+            $this->watchingPendingRunId = (int) $activeRunForWatch->id;
+        } elseif ($this->watchingPendingRunId !== null) {
+            $watchedStillPending = ScheduleGenerationRun::query()
+                ->whereKey($this->watchingPendingRunId)
+                ->whereIn('status', [
+                    ScheduleGenerationRun::StatusQueued,
+                    ScheduleGenerationRun::StatusDispatching,
+                ])
+                ->exists();
+
+            if (! $watchedStillPending) {
+                $this->watchingPendingRunId = null;
+                $this->dispatch('databaseNotificationsSent');
+            }
+        }
+
         $official = $data['showOfficial'];
         $presentation = $official ? $data['publishedPresentation'] : $data['candidatePresentation'];
         $allMeetings = $presentation['meetings'] ?? [];
@@ -1176,13 +1202,19 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                         ->send();
                 } catch (ValidationException $exception) {
                     $message = collect($exception->errors())->flatten()->first();
-                    $plain = TimetableFailureLanguage::forBlockedGeneration(is_string($message) ? $message : '');
+                    $rawMessage = is_string($message) ? $message : '';
+                    $plain = TimetableFailureLanguage::forBlockedGeneration($rawMessage);
+                    $blockingRun = $rawMessage === 'Review or reject the retained candidate, or change its source facts before generating again.'
+                        && isset($term) && $term instanceof Term
+                        ? $this->undecidedDraftRun($term)
+                        : null;
 
                     $this->generationFailure = [
                         'title' => $plain['title'],
                         'explanation' => $plain['explanation'],
                         'nextStep' => $plain['nextStep'],
                         'technical' => is_string($message) ? $message : 'Review the Schedule Requirement findings and try again.',
+                        'blockingRunId' => $blockingRun?->id,
                     ];
                     $this->dispatch('open-modal', id: 'timetable-generation-failure');
                 } catch (Throwable $exception) {

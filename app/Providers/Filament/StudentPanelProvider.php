@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Actions\Authentication\TalaAppAuthentication;
+use App\Filament\Components\LiveDatabaseNotifications;
 use App\Filament\Pages\Auth\AccountSecurity;
 use App\Filament\Pages\Auth\ContextualLogin;
 use App\Filament\Pages\Auth\EmailVerificationPrompt;
@@ -68,7 +69,8 @@ class StudentPanelProvider extends PanelProvider
                 isRequired: true,
             )
             ->multiFactorAuthenticationRequiredMiddlewareName(EnsureStaffMfaIsEnabled::class)
-            ->databaseNotifications()
+            ->databaseNotifications(livewireComponent: LiveDatabaseNotifications::class)
+            ->databaseNotificationsPolling('8s')
             ->brandName('Servitech Institute Asia — Student Hub')
             ->plugin(
                 AuthDesignerPlugin::make()

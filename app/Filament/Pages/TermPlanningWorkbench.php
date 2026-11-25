@@ -2023,13 +2023,19 @@ class TermPlanningWorkbench extends Page
                 } catch (ValidationException $exception) {
 
                     $message = collect($exception->errors())->flatten()->first();
-                    $plain = TimetableFailureLanguage::forBlockedGeneration(is_string($message) ? $message : '');
+                    $rawMessage = is_string($message) ? $message : '';
+                    $plain = TimetableFailureLanguage::forBlockedGeneration($rawMessage);
+                    $blockingRun = $rawMessage === 'Review or reject the retained candidate, or change its source facts before generating again.'
+                        && isset($term) && $term instanceof Term
+                        ? $this->undecidedDraftRun($term)
+                        : null;
 
                     $this->generationFailure = [
                         'title' => $plain['title'],
                         'explanation' => $plain['explanation'],
                         'nextStep' => $plain['nextStep'],
                         'technical' => is_string($message) ? $message : 'Review the Schedule Requirement findings and try again.',
+                        'blockingRunId' => $blockingRun?->id,
                     ];
                     $this->dispatch('open-modal', id: 'timetable-generation-failure');
 
@@ -2050,6 +2056,134 @@ class TermPlanningWorkbench extends Page
 
             });
 
+    }
+
+    protected function undecidedDraftRun(Term $term): ?ScheduleGenerationRun
+    {
+        return ScheduleGenerationRun::query()
+            ->where('term_id', $term->id)
+            ->where('status', ScheduleGenerationRun::StatusUnderReview)
+            ->where(function ($query): void {
+                $query->whereNull('candidate_state')
+                    ->orWhereNotIn('candidate_state', ['Accepted', 'Rejected', 'Stale', 'Superseded']);
+            })
+            ->latest('id')
+            ->first();
+    }
+
+    public function openBlockingDraft(int $runId): void
+    {
+        $this->generationFailure = null;
+        $this->dispatch('close-modal', id: 'timetable-generation-failure');
+
+        if ($this instanceof TermTimetable) {
+            $this->chooseTimetable("draft:{$runId}");
+
+            return;
+        }
+
+        $this->redirect(TermTimetable::getUrl([
+            'termId' => $this->termId,
+            'timetableState' => 'draft',
+            'selectedRunId' => $runId,
+        ]));
+    }
+
+    public function discardBlockingDraftAndGenerate(int $runId): void
+    {
+        $actor = auth()->user();
+        abort_unless($actor instanceof User && $actor->hasRole(User::StaffRoleRegistrar), 403);
+
+        try {
+            $term = Term::query()->findOrFail($this->termId);
+
+            if ($this->isTermClosed($term)) {
+                throw ValidationException::withMessages([
+                    'term' => 'This term is closed and cannot generate a new timetable.',
+                ]);
+            }
+
+            if ($this->hasPublishedTimetable($term) && $this->hasOfficialStudentEnrollments($term)) {
+                throw ValidationException::withMessages([
+                    'term' => 'Full timetable regeneration is blocked because active official student enrollments exist. Use Revise schedule instead.',
+                ]);
+            }
+
+            $blockingRun = ScheduleGenerationRun::query()
+                ->where('term_id', $term->id)
+                ->whereKey($runId)
+                ->first();
+
+            if ($blockingRun instanceof ScheduleGenerationRun
+                && $blockingRun->status === ScheduleGenerationRun::StatusUnderReview
+                && ! in_array($blockingRun->candidate_state, ['Accepted', 'Rejected', 'Stale', 'Superseded'], true)) {
+                app(ReviewTimetableCandidate::class)->reject(
+                    $blockingRun,
+                    $actor,
+                    'Discarded by Registrar to generate a fresh draft timetable.',
+                );
+            }
+
+            $newRun = app(ScheduleGenerationService::class)->generate($term, $actor);
+
+            $this->generationFailure = null;
+            $this->dispatch('close-modal', id: 'timetable-generation-failure');
+            $this->selectedRunId = $newRun->id;
+
+            if ($this instanceof TermTimetable) {
+                $this->timetableState = 'draft';
+                $this->viewFilter = null;
+                $this->programFilter = null;
+                $this->yearFilter = null;
+                $this->resetTable();
+            } else {
+                $this->redirect(TermTimetable::getUrl([
+                    'termId' => $term->id,
+                    'timetableState' => 'draft',
+                    'selectedRunId' => $newRun->id,
+                ]));
+            }
+
+            $lockedCount = SchedulingCommitment::query()->where('term_id', $term->id)->count();
+            $body = $lockedCount > 0
+                ? sprintf('Attempt #%d is queued. %d locked %s preserved.', $newRun->id, $lockedCount, Str::plural('slot', $lockedCount))
+                : "Attempt #{$newRun->id} is queued. Status refreshes automatically.";
+
+            Notification::make()
+                ->title('Regenerating draft timetable')
+                ->body($body)
+                ->success()
+                ->send();
+        } catch (ValidationException $exception) {
+            $message = collect($exception->errors())->flatten()->first();
+            $rawMessage = is_string($message) ? $message : '';
+            $plain = TimetableFailureLanguage::forBlockedGeneration($rawMessage);
+            $nextBlockingRun = $rawMessage === 'Review or reject the retained candidate, or change its source facts before generating again.'
+                && isset($term) && $term instanceof Term
+                ? $this->undecidedDraftRun($term)
+                : null;
+
+            $this->generationFailure = [
+                'title' => $plain['title'],
+                'explanation' => $plain['explanation'],
+                'nextStep' => $plain['nextStep'],
+                'technical' => is_string($message) ? $message : 'Review the Schedule Requirement findings and try again.',
+                'blockingRunId' => $nextBlockingRun?->id,
+            ];
+            $this->dispatch('open-modal', id: 'timetable-generation-failure');
+        } catch (Throwable $exception) {
+            report($exception);
+            $plain = TimetableFailureLanguage::fallback();
+
+            $this->generationFailure = [
+                'title' => $plain['title'],
+                'explanation' => $plain['explanation'],
+                'nextStep' => $plain['nextStep'],
+                'technical' => $exception->getMessage(),
+                'blockingRunId' => null,
+            ];
+            $this->dispatch('open-modal', id: 'timetable-generation-failure');
+        }
     }
 
     public function acceptCandidateAction(): Action
