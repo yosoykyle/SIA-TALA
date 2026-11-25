@@ -132,6 +132,9 @@ final class TermPlanningRedesignTest extends TestCase
         $this->assertSame(9, $projection['summary']['section_count']);
         $this->assertSame(18, $projection['summary']['meeting_count']);
         Livewire::test(TermOverview::class)
+            ->assertSeeHtml('href="'.e(TermOverview::getUrl(['academicYearId' => $term->academic_year_id])).'"');
+
+        Livewire::withQueryParams(['academicYearId' => $term->academic_year_id])->test(TermOverview::class)
             ->assertSeeHtml('href="'.e(TermCalendar::getUrl(['termId' => $term->id])).'"');
     }
 

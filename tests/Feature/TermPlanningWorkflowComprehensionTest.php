@@ -68,7 +68,14 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
             TermCalendarPackage::factory()->for($activeTerm)->create(['state' => TermCalendarPackage::StateActive]);
         }
 
-        $directoryResponse = $this->get(TermOverview::getUrl())->assertOk()->assertSee('Exact selected Term');
+        $yearsResponse = $this->get(TermOverview::getUrl())->assertOk()->assertSee('AY 2033-2034');
+        if ($role === User::StaffRoleRegistrar) {
+            $yearsResponse->assertSee('New academic year');
+        } else {
+            $yearsResponse->assertSee('Academic Oversight')->assertDontSee('New academic year');
+        }
+
+        $directoryResponse = $this->get(TermOverview::getUrl(['academicYearId' => $targetYear->id]))->assertOk()->assertSee('Exact selected Term');
         if ($role === User::StaffRoleRegistrar) {
             $directoryResponse->assertSee('New term');
         } else {
@@ -137,9 +144,19 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
             ->assertOk()
             ->assertSee($recentYear->label)
             ->assertSee($priorYear->label)
-            ->assertSee('Active')
+            ->assertSeeHtml('href="'.e(TermOverview::getUrl(['academicYearId' => $recentYear->id])).'"')
+            ->assertSeeHtml('href="'.e(TermOverview::getUrl(['academicYearId' => $priorYear->id])).'"');
+
+        Livewire::withQueryParams(['academicYearId' => $recentYear->id])->test(TermOverview::class)
+            ->assertOk()
+            ->assertSee($recentYear->label)
+            ->assertSee('Planning')
             ->assertSee('Draft')
-            ->assertSee('Term 1')
+            ->assertSee('Term 1');
+
+        Livewire::withQueryParams(['academicYearId' => $priorYear->id])->test(TermOverview::class)
+            ->assertOk()
+            ->assertSee($priorYear->label)
             ->assertSee('Term 7')
             ->assertSeeHtml('href="'.e(TermCalendar::getUrl(['termId' => $terms->last()->id])).'"');
 
@@ -168,11 +185,11 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
         $this->actingAs($head)->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleAcademicHead]);
 
         Livewire::test(TermOverview::class)
-            ->assertSee('No terms recorded')
-            ->assertSee('Ask the Registrar to create a term before planning begins.')
+            ->assertSee('No academic years recorded')
+            ->assertSee('Ask the Registrar to add an academic year before planning begins.')
             ->assertSee('Academic Oversight')
             ->assertSee(AcademicApprovals::getUrl(), false)
-            ->assertDontSee('New term');
+            ->assertDontSee('New academic year');
     }
 
     public function test_oversight_requires_exact_term_selection_when_active_terms_overlap(): void
