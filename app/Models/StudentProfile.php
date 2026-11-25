@@ -232,6 +232,12 @@ class StudentProfile extends Model
         return $this->hasMany(Hold::class);
     }
 
+    /** @return HasMany<PriorAcademicCredit, $this> */
+    public function priorAcademicCredits(): HasMany
+    {
+        return $this->hasMany(PriorAcademicCredit::class);
+    }
+
     public function enrollmentExceptions(): HasMany
     {
         return $this->hasMany(EnrollmentException::class);

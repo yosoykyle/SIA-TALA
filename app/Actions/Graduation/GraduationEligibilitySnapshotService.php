@@ -10,6 +10,7 @@ use App\Models\GradeRosterRow;
 use App\Models\GraduationReviewMember;
 use App\Models\GraduationSnapshot;
 use App\Models\Hold;
+use App\Models\PriorAcademicCredit;
 use App\Models\ProgramShiftCreditEntry;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
@@ -100,6 +101,7 @@ class GraduationEligibilitySnapshotService
         $profile = $member->studentProfile;
         $entries = $this->curriculumEntries($profile);
         $academicRows = $this->academicRows($profile);
+        $priorCredits = $this->priorAcademicCredits($profile);
         $currentEnrollments = $this->currentEnrollments($profile);
         $credits = $this->acceptedShiftCredits($profile);
         $exceptions = $this->activeGraduationExceptions($profile);
@@ -125,6 +127,7 @@ class GraduationEligibilitySnapshotService
             $sourceReferences[] = $this->reference('curriculum_entry', (int) $entry->id, $entry->courseSpecification?->course?->code);
             $courseId = (int) $entry->courseSpecification->course_id;
             $row = $academicRows->get($courseId);
+            $priorCredit = $priorCredits->get($courseId);
             $credit = $credits->get((int) $entry->id);
             $exception = $exceptions->first(fn (EnrollmentException $item): bool => $item->original_rule === 'GRADUATION:'.$entry->id
                 || $item->scope_key === 'graduation:'.$entry->id
@@ -169,17 +172,38 @@ class GraduationEligibilitySnapshotService
                 continue;
             }
 
+            if ($row instanceof GradeRosterRow
+                && $row->released_at !== null
+                && $row->current_outcome_category === GradeRosterRow::CategoryPassing
+                && is_numeric($row->current_outcome_code)) {
+                $sourceReferences[] = $this->reference('grade_roster_row', (int) $row->id, $entry->courseSpecification->course->code);
+                $completed[] = [...$fact, 'status' => 'completed', 'source' => ['type' => 'grade_roster_row', 'id' => (int) $row->id]];
+
+                continue;
+            }
+
+            if ($priorCredit instanceof PriorAcademicCredit && $priorCredit->isPassing()) {
+                $priorSource = ['type' => 'prior_academic_credit', 'id' => (int) $priorCredit->id];
+                $priorCode = $priorCredit->effectiveResultCode();
+                $priorNumeric = is_numeric($priorCode) ? $priorCode : null;
+                $acceptedCredits[] = [
+                    ...$fact,
+                    'type' => 'prior_academic_credit',
+                    'gwa_treatment' => $priorNumeric === null ? 'excluded' : 'included',
+                    'numeric_grade' => $priorNumeric,
+                    'source' => $priorSource,
+                ];
+                $sourceReferences[] = $this->reference('prior_academic_credit', (int) $priorCredit->id, $entry->courseSpecification->course->code);
+                $completed[] = [...$fact, 'status' => 'credited', 'source' => $priorSource];
+
+                continue;
+            }
+
             if ($row instanceof GradeRosterRow) {
                 $sourceReferences[] = $this->reference('grade_roster_row', (int) $row->id, $entry->courseSpecification->course->code);
 
                 if ($row->released_at === null) {
                     $pending[] = [...$fact, 'source' => ['type' => 'grade_roster_row', 'id' => (int) $row->id]];
-
-                    continue;
-                }
-
-                if ($row->current_outcome_category === GradeRosterRow::CategoryPassing && is_numeric($row->current_outcome_code)) {
-                    $completed[] = [...$fact, 'status' => 'completed', 'source' => ['type' => 'grade_roster_row', 'id' => (int) $row->id]];
 
                     continue;
                 }
@@ -199,6 +223,20 @@ class GraduationEligibilitySnapshotService
                     'source' => ['type' => 'course_enrollment', 'id' => (int) $courseEnrollment->id],
                 ];
                 $sourceReferences[] = $this->reference('course_enrollment', (int) $courseEnrollment->id, $entry->courseSpecification->course->code);
+            } elseif ($priorCredit instanceof PriorAcademicCredit) {
+                $priorSource = ['type' => 'prior_academic_credit', 'id' => (int) $priorCredit->id];
+                $sourceReferences[] = $this->reference('prior_academic_credit', (int) $priorCredit->id, $entry->courseSpecification->course->code);
+                $priorCode = $priorCredit->effectiveResultCode();
+
+                match (true) {
+                    $priorCredit->result_status === PriorAcademicCredit::ResultFailed
+                        || (is_numeric($priorCode) && (float) $priorCode > 4.00) => $failed[] = [...$fact, 'source' => $priorSource],
+                    $priorCredit->result_status === PriorAcademicCredit::ResultInc
+                        || $priorCode === 'INC' => $inc[] = [...$fact, 'source' => $priorSource],
+                    $priorCredit->result_status === PriorAcademicCredit::ResultDropped
+                        || in_array($priorCode, ['DRP', 'W'], true) => $withdrawn[] = [...$fact, 'source' => $priorSource],
+                    default => $missing[] = $fact,
+                };
             } else {
                 $missing[] = $fact;
             }
@@ -290,6 +328,36 @@ class GraduationEligibilitySnapshotService
 
                 return $courseId === null ? [] : [(int) $courseId => $row];
             });
+    }
+
+    /** @return Collection<int, PriorAcademicCredit> */
+    private function priorAcademicCredits(StudentProfile $profile): Collection
+    {
+        return PriorAcademicCredit::query()
+            ->active()
+            ->where('student_profile_id', $profile->id)
+            ->with('courseSpecification')
+            ->orderBy('id')
+            ->get()
+            ->toBase()
+            ->reduce(function (Collection $carry, PriorAcademicCredit $credit): Collection {
+                $courseId = $credit->courseSpecification?->course_id;
+
+                if ($courseId === null) {
+                    return $carry;
+                }
+
+                $courseId = (int) $courseId;
+                $existing = $carry->get($courseId);
+
+                if (! $existing instanceof PriorAcademicCredit
+                    || (! $existing->isPassing() && $credit->isPassing())
+                    || ($existing->isPassing() === $credit->isPassing() && $credit->id > $existing->id)) {
+                    $carry->put($courseId, $credit);
+                }
+
+                return $carry;
+            }, collect());
     }
 
     /** @return Collection<int, CourseEnrollment> */

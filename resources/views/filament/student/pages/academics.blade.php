@@ -20,8 +20,11 @@
             @if ($academicView === 'current')
                 @php
                     $firstInc = $currentResults->firstWhere('result', 'INC');
+                    $openSubjectId = $firstInc && ($firstInc['course_enrollment'] ?? null) instanceof \App\Models\CourseEnrollment
+                        ? $firstInc['course_enrollment']->id
+                        : null;
                 @endphp
-                <section aria-labelledby="current-subjects-heading" x-data="{ openSubject: @js($firstInc ? $firstInc['course_enrollment']->id : null) }">
+                <section aria-labelledby="current-subjects-heading" x-data="{ openSubject: @js($openSubjectId) }">
                     <header class="student-academic-heading">
                         <div><h2 id="current-subjects-heading">Current subjects</h2><p class="student-academic-secondary">Your official subjects and released results.</p></div>
                         <x-filament::button tag="a" color="gray" :href="$enrollmentUrl" icon="heroicon-o-arrow-top-right-on-square">View enrollment</x-filament::button>
@@ -57,7 +60,8 @@
                                 <tbody>
                                     @foreach ($currentResults as $result)
                                         @php
-                                            $courseId = $result['course_enrollment']->id;
+                                            $enrollmentRow = ($result['course_enrollment'] ?? null) instanceof \App\Models\CourseEnrollment ? $result['course_enrollment'] : null;
+                                            $courseId = $enrollmentRow?->id ?? 0;
                                         @endphp
                                         <tr @if ($result['result'] === 'INC') x-bind:class="{ 'student-subject-selected': openSubject === {{ $courseId }} }" @endif>
                                             <th scope="row">
@@ -70,11 +74,17 @@
                                                     {{ $result['course_specification']?->title ?? 'Subject unavailable' }}
                                                     <span class="student-academic-secondary">{{ $result['course_specification']?->course?->code }}</span>
                                                 @endif
-                                                <span class="student-mobile-subject-meta">{{ $result['course_enrollment']->section?->code ?? 'Class not recorded' }} · {{ (float) $result['units'] }} units</span>
+                                                <span class="student-mobile-subject-meta">{{ $enrollmentRow?->section?->code ?? 'Class not recorded' }} · {{ (float) $result['units'] }} units</span>
                                             </th>
-                                            <td>{{ $result['course_enrollment']->section?->code ?? 'Not recorded' }}</td>
+                                            <td>{{ $enrollmentRow?->section?->code ?? 'Not recorded' }}</td>
                                             <td class="student-academic-number">{{ (float) $result['units'] }}</td>
-                                            <td @class(['student-record-grade' => is_numeric($result['result'])])><x-student-academic-result :$result :show-details="false" /></td>
+                                            <td @class(['student-record-grade' => is_numeric($result['result'])])>
+                                                @if ($enrollmentRow)
+                                                    <x-student-academic-result :$result :show-details="false" />
+                                                @else
+                                                    <span>{{ $result['result'] ?? 'Not released' }}</span>
+                                                @endif
+                                            </td>
                                         </tr>
                                         @if ($result['result'] === 'INC')
                                             <tr class="student-subject-detail" x-show="openSubject === {{ $courseId }}" x-cloak>
@@ -327,7 +337,7 @@
                                 <p>Released results</p>
                                 <p><strong>{{ $recordReleased }} of {{ $results->count() }}</strong> released</p>
                                 <div class="student-tile-bar" role="img" aria-label="{{ (int) round($recordReleased / $results->count() * 100) }} percent of results released"><span style="inline-size: {{ (int) round($recordReleased / $results->count() * 100) }}%"></span></div>
-                                <p>Across {{ $recordTerms->count() }} {{ $recordTerms->count() === 1 ? 'term' : 'terms' }}</p>
+                                <p>Across {{ $recordPeriods->count() }} {{ $recordPeriods->count() === 1 ? 'term' : 'terms' }}</p>
                             </div>
                         @endif
                             <x-supporting-details summary="Average sources" class="student-record-sources">
@@ -363,17 +373,37 @@
                         </section>
                     @endif
                     </div>
-                    <div class="student-record-terms">@foreach ($recordTerms as $term)
+                    <div class="student-record-terms">@foreach ($recordPeriods as $period)
                         @php
-                            $average = $termAverages->get($term->id);
+                            $average = $period['average'];
                         @endphp
                         <section class="student-record-term">
                             <header class="student-record-term-heading">
-                                <div><h2>{{ $term->label }}</h2><p>{{ collect([$termYearLevels->get($term->id), $term->academicYear?->label])->filter()->implode(' · ') }}</p></div>
+                                <div><h2>{{ $period['label'] }}</h2>@if (filled($period['subtitle']))<p>{{ $period['subtitle'] }}</p>@endif</div>
                                 <div class="student-record-term-average"><x-academic-average :$average compact /></div>
                             </header>
-                            <div class="tala-data-table-scroll student-academic-table-wrap" role="region" aria-label="{{ $term->label }} results" tabindex="0"><table class="tala-data-table student-academic-table"><thead><tr><th scope="col">Subject</th><th scope="col">Units</th><th scope="col">Result</th></tr></thead><tbody>
-                                @foreach ($results->where('term.id', $term->id) as $result)<tr><th scope="row">{{ $result['course_specification']?->title }}<span class="student-academic-secondary">{{ $result['course_specification']?->course?->code }}</span></th><td>{{ (float) $result['units'] }}</td><td @class(['student-record-grade' => is_numeric($result['result'])])><x-student-academic-result :$result :show-details="false" /></td></tr>@endforeach
+                            <div class="tala-data-table-scroll student-academic-table-wrap" role="region" aria-label="{{ $period['label'] }} results" tabindex="0"><table class="tala-data-table student-academic-table"><thead><tr><th scope="col">Subject</th><th scope="col">Units</th><th scope="col">Result</th></tr></thead><tbody>
+                                @foreach ($period['rows'] as $result)
+                                    <tr>
+                                        <th scope="row">{{ $result['course_specification']?->title }}<span class="student-academic-secondary">{{ $result['course_specification']?->course?->code }}</span></th>
+                                        <td>{{ (float) $result['units'] }}</td>
+                                        <td @class(['student-record-grade' => is_numeric($result['result'])])>
+                                            @if (($result['course_enrollment'] ?? null) instanceof \App\Models\CourseEnrollment)
+                                                <x-student-academic-result :$result :show-details="false" />
+                                            @else
+                                                @php
+                                                    $priorCredit = $result['prior_credit'] ?? null;
+                                                @endphp
+                                                @if ($result['result'] === 'INC')
+                                                    <x-filament::badge color="warning" id="prior-credit-result-{{ $priorCredit?->id ?? $loop->index }}">INC</x-filament::badge>
+                                                @else
+                                                    <span id="prior-credit-result-{{ $priorCredit?->id ?? $loop->index }}">{{ $result['result'] ?? 'Not released' }}</span>
+                                                @endif
+                                                <span class="student-academic-secondary">{{ filled($priorCredit?->source_school) ? 'Prior record · '.$priorCredit->source_school : 'Prior record' }}</span>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
                             </tbody></table></div>
                             @if ($average['value'] === null)<p class="student-record-term-note">{{ $average['reason'] }}</p>@endif
                         </section>

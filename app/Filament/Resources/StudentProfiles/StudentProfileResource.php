@@ -8,10 +8,12 @@ use App\Actions\Academics\CurriculumEvaluation;
 use App\Actions\Academics\OfficialCourseResultProjection;
 use App\Actions\Academics\TermWeightedAverageProjection;
 use App\Actions\Enrollment\EnrollmentAcademicContextResolver;
+use App\Actions\StudentProfiles\StudentAccountActivation;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResource;
+use App\Filament\Resources\StudentProfiles\Pages\ImportOngoingStudentsSpreadsheet;
 use App\Filament\Resources\StudentProfiles\Pages\ListStudentProfiles;
 use App\Filament\Resources\StudentProfiles\Pages\ViewStudentProfile;
 use App\Filament\Resources\StudentProfiles\RelationManagers\ChecklistItemsRelationManager;
@@ -43,6 +45,7 @@ use Filament\Schemas\Components\View as SchemaView;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\ViewColumn;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
@@ -227,14 +230,19 @@ class StudentProfileResource extends Resource
                             ->filter(fn (array $result): bool => $result['outcome_source'] !== null)
                             ->map(function (array $result): array {
                                 $event = $result['event'];
-                                $row = $result['course_enrollment']->gradeRosterRow;
+                                $row = $result['course_enrollment']?->gradeRosterRow;
                                 $specification = $result['course_specification'];
+                                $isPriorCredit = ($result['prior_credit'] ?? null) !== null;
+                                $termLabel = $result['term'] !== null
+                                    ? collect([$result['term']?->academicYear?->label, $result['term']?->label])->filter()->implode(' · ')
+                                    : collect([$result['academic_year_label'] ?? null, $result['period_label'] ?? null])->filter()->implode(' · ');
 
                                 return [
-                                    'term' => collect([$result['term']?->academicYear?->label, $result['term']?->label])->filter()->implode(' · '),
-                                    'course' => collect([$specification?->course?->code, $specification?->title])->filter()->implode(' — '),
+                                    'term' => $termLabel,
+                                    'course' => collect([$specification?->course?->code, $specification?->title])->filter()->implode(' · '),
                                     'grade' => $result['result'],
-                                    'category' => $event?->new_category ?? 'Registrar-recorded outcome',
+                                    'category' => $event?->new_category ?? ($isPriorCredit ? 'Prior institutional record' : 'Registrar-recorded outcome'),
+                                    'is_prior_credit' => $isPriorCredit,
                                     'released_on' => $event?->released_at?->format('M j, Y'),
                                     'inc_deadline' => $result['inc_deadline']?->format('M j, Y'),
                                     'inc_state' => $result['inc_state'] ? str($result['inc_state'])->headline()->toString() : null,
@@ -252,7 +260,7 @@ class StudentProfileResource extends Resource
                                 TextEntry::make('term')->hiddenLabel(),
                                 TextEntry::make('released_on')->hiddenLabel()->color('gray')
                                     ->formatStateUsing(fn (string $state): string => 'Released '.$state)
-                                    ->placeholder('Registrar-recorded outcome'),
+                                    ->placeholder(fn (Get $get): string => $get('is_prior_credit') ? 'Prior institutional record' : 'Registrar-recorded outcome'),
                             ])->gap(false),
                             Group::make([
                                 TextEntry::make('grade')->hiddenLabel()->badge()->color('gray'),
@@ -265,7 +273,7 @@ class StudentProfileResource extends Resource
                                 ->hiddenLabel()
                                 ->formatStateUsing(fn (): string => 'Open Grade Roster')
                                 ->url(fn (?string $state): ?string => $state)
-                                ->placeholder('Registrar-recorded outcome'),
+                                ->placeholder(fn (Get $get): string => $get('is_prior_credit') ? 'Prior institutional record' : 'Registrar-recorded outcome'),
                         ])
                         ->columns(2)
                         ->columnSpanFull(),
@@ -369,6 +377,7 @@ class StudentProfileResource extends Resource
         return $table
             ->extraAttributes(['class' => 'tala-data-table tala-profile-directory-table'])
             ->modifyQueryUsing(fn (Builder $query): Builder => $query->with([
+                'user',
                 'program',
                 'curriculumVersion',
                 'enrollments' => function (Relation $relation): void {
@@ -386,51 +395,79 @@ class StudentProfileResource extends Resource
                 },
             ]))
             ->columns([
-                TextColumn::make('student_number')->searchable()->sortable()->wrapHeader(),
-                TextColumn::make('last_name')->label('Student')->formatStateUsing(fn (StudentProfile $record): string => $record->last_name.', '.$record->first_name)->searchable(['last_name', 'first_name'])->sortable(),
-                TextColumn::make('program.name')->label('Current program')->searchable()->sortable()->wrapHeader(),
-                TextColumn::make('curriculumVersion.name')->label('Curriculum')->sortable(),
-                TextColumn::make('current_term')
-                    ->label('Current Term')
-                    ->state(fn (StudentProfile $record): string => app(EnrollmentAcademicContextResolver::class)->currentForProfile($record)['term_label'] ?? 'No active-term enrollment')
-                    ->wrap()
-                    ->wrapHeader(),
+                ViewColumn::make('last_name')
+                    ->label('Student')
+                    ->view('filament.components.student-record-label')
+                    ->searchable(['last_name', 'first_name', 'student_number'])
+                    ->sortable(),
+                TextColumn::make('program.code')
+                    ->label('Program & Curriculum')
+                    ->weight('semibold')
+                    ->description(fn (StudentProfile $record): ?string => $record->curriculumVersion?->name ?? $record->program?->name)
+                    ->tooltip(fn (StudentProfile $record): ?string => $record->program?->name)
+                    ->searchable(['programs.code', 'programs.name'])
+                    ->sortable(),
                 TextColumn::make('current_enrollment_status')
-                    ->label('Enrollment Status')
+                    ->label('Current Enrollment')
                     ->state(fn (StudentProfile $record): string => app(EnrollmentAcademicContextResolver::class)->currentForProfile($record)['enrollment_status_label'] ?? 'Not started')
+                    ->description(function (StudentProfile $record): string {
+                        $context = app(EnrollmentAcademicContextResolver::class)->currentForProfile($record);
+                        if ($context === null) {
+                            return 'No active-term enrollment';
+                        }
+
+                        return collect([
+                            $context['term_label'] ?? null,
+                            $context['curriculum_level_label'] ?? null,
+                        ])->filter()->implode(' · ');
+                    })
                     ->badge()
-                    ->wrapHeader(),
-                TextColumn::make('current_enrollment_type')
-                    ->label('Enrollment Type')
-                    ->state(fn (StudentProfile $record): string => app(EnrollmentAcademicContextResolver::class)->currentForProfile($record)['enrollment_type_label'] ?? 'Not recorded')
-                    ->badge()
-                    ->wrapHeader(),
-                TextColumn::make('curriculum_level')
-                    ->label('Curriculum Level')
-                    ->state(fn (StudentProfile $record): string => app(EnrollmentAcademicContextResolver::class)->currentForProfile($record)['curriculum_level_label'] ?? 'Not recorded')
-                    ->wrapHeader(),
+                    ->wrap(),
                 TextColumn::make('lifecycle_status')
-                    ->label('Lifecycle Status')
+                    ->label('Status')
                     ->badge()
                     ->color(fn (?string $state): string => StudentProfile::lifecycleStatusColor($state))
                     ->formatStateUsing(fn (?string $state): string => StudentProfile::lifecycleStatusLabel((string) $state))
-                    ->sortable()
-                    ->wrapHeader(),
+                    ->description(function (StudentProfile $record): ?string {
+                        $parts = [];
+                        if (StudentAccountActivation::canResendActivation($record)) {
+                            $parts[] = 'Pending setup';
+                        }
+                        if ($record->academic_standing === StudentProfile::StandingIrregular) {
+                            $parts[] = 'Irregular';
+                        }
+
+                        return $parts !== [] ? implode(' · ', $parts) : null;
+                    })
+                    ->sortable(),
                 TextColumn::make('academic_effect')
                     ->label('Enrollment Guidance')
-                    ->state(function (StudentProfile $record): string {
-                        $guidance = app(AcademicEnrollmentGuidance::class)->forStudent($record);
-
-                        return $guidance['label'].' · '.$guidance['scope_label'];
-                    })
-                    ->wrap()
-                    ->wrapHeader()
+                    ->state(fn (StudentProfile $record): string => app(AcademicEnrollmentGuidance::class)->forStudent($record)['label'])
+                    ->description(fn (StudentProfile $record): string => app(AcademicEnrollmentGuidance::class)->forStudent($record)['scope_label'])
                     ->badge()
                     ->color(fn (StudentProfile $record): string => match (app(AcademicEnrollmentGuidance::class)->forStudent($record)['effect']) {
                         AcademicDecision::EffectBlocked => 'danger',
                         AcademicDecision::EffectAdvisingRequired, AcademicDecision::EffectPendingDecision => 'warning',
                         default => 'success',
                     }),
+                TextColumn::make('student_number')
+                    ->label('Student Number')
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('current_term')
+                    ->label('Current Term')
+                    ->state(fn (StudentProfile $record): string => app(EnrollmentAcademicContextResolver::class)->currentForProfile($record)['term_label'] ?? 'No active-term enrollment')
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('current_enrollment_type')
+                    ->label('Enrollment Type')
+                    ->state(fn (StudentProfile $record): string => app(EnrollmentAcademicContextResolver::class)->currentForProfile($record)['enrollment_type_label'] ?? 'Not recorded')
+                    ->badge()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('curriculum_level')
+                    ->label('Curriculum Level')
+                    ->state(fn (StudentProfile $record): string => app(EnrollmentAcademicContextResolver::class)->currentForProfile($record)['curriculum_level_label'] ?? 'Not recorded')
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])->filters([
                 ...self::academicBrowsingFilters(),
                 SelectFilter::make('current_enrollment_status')
@@ -560,6 +597,27 @@ class StudentProfileResource extends Resource
                     ->filter(fn (Term $term): bool => $term->academicYear !== null)->mapWithKeys(fn (Term $term): array => [$term->academic_year_id => $term->academicYear->label])->all())
                 ->query(fn (Builder $query, array $data): Builder => $query->when($data['value'] ?? null,
                     fn (Builder $scope, mixed $yearId): Builder => $scope->whereHas('entryTerm', fn (Builder $terms): Builder => $terms->where('academic_year_id', $yearId)))),
+            SelectFilter::make('activation_status')
+                ->label('Account activation')
+                ->options([
+                    'pending' => 'Pending password setup',
+                    'activated' => 'Activated',
+                ])
+                ->query(fn (Builder $query, array $data): Builder => match ($data['value'] ?? null) {
+                    'pending' => $query->whereHas('user', fn (Builder $users): Builder => $users
+                        ->whereNull('password')
+                        ->orWhere('password', '')
+                        ->orWhere(fn (Builder $unverified): Builder => $unverified
+                            ->whereNull('email_verified_at')
+                            ->whereNull('last_sign_in_at'))),
+                    'activated' => $query->whereHas('user', fn (Builder $users): Builder => $users
+                        ->whereNotNull('password')
+                        ->where('password', '!=', '')
+                        ->where(fn (Builder $verified): Builder => $verified
+                            ->whereNotNull('email_verified_at')
+                            ->orWhereNotNull('last_sign_in_at'))),
+                    default => $query,
+                }),
         ];
     }
 
@@ -649,6 +707,7 @@ class StudentProfileResource extends Resource
     {
         return [
             'index' => ListStudentProfiles::route('/'),
+            'import' => ImportOngoingStudentsSpreadsheet::route('/import'),
             'view' => ViewStudentProfile::route('/{record}'),
         ];
     }

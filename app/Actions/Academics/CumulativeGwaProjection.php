@@ -17,27 +17,30 @@ class CumulativeGwaProjection
     {
         $results = $this->results->forStudent($student)
             ->when($throughTerm, fn ($attempts) => $attempts->filter(
-                fn (array $result): bool => $this->termOrder($result['term']) <= $this->termOrder($throughTerm),
+                fn (array $result): bool => $result['term'] === null
+                    || $this->termOrder($result['term']) <= $this->termOrder($throughTerm),
             ));
-        $terms = $results->groupBy(fn (array $result): int => (int) $result['term']?->id)
-            ->sortBy(fn ($termResults): string => $this->termOrder($termResults->first()['term']));
+        $terms = $results->groupBy(fn (array $result): string => (string) ($result['period_key'] ?? ('term:'.(int) $result['term']?->id)))
+            ->sortBy(fn ($termResults): string => (string) ($termResults->first()['period_sort_key'] ?? $this->termOrder($termResults->first()['term'])));
         $completeResults = collect();
         $through = null;
         $blockedState = null;
         $blockedTerm = null;
 
         foreach ($terms as $termResults) {
-            $term = $termResults->first()['term'];
+            $first = $termResults->first();
+            $term = $first['term'] ?? null;
+            $label = $term?->label ?? ($first['period_label'] ?? null);
             $state = $this->readiness->forResults($termResults);
             if (in_array($state, [AcademicAverageReadiness::GradesNotComplete, AcademicAverageReadiness::IncompleteResultPending], true)) {
                 $blockedState = $state;
-                $blockedTerm = $term?->label;
+                $blockedTerm = $label;
 
                 break;
             }
 
             $completeResults = $completeResults->concat($termResults);
-            $through = $term?->label;
+            $through = $label;
         }
 
         $value = $this->readiness->average($completeResults);

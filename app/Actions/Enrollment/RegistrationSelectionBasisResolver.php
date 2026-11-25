@@ -35,7 +35,8 @@ class RegistrationSelectionBasisResolver
             ]);
         }
 
-        return $effect['effect'] === AcademicDecision::EffectAdvisingRequired
+        return $studentProfile->academic_standing === StudentProfile::StandingIrregular
+            || $effect['effect'] === AcademicDecision::EffectAdvisingRequired
             || StudentLifecycleChange::query()->where('student_profile_id', $studentProfile->id)
                 ->where('type', StudentLifecycleChange::TypeProgramShift)->where('state', StudentLifecycleChange::StateApplied)
                 ->where('target_curriculum_version_id', $studentProfile->curriculum_version_id)

@@ -1205,8 +1205,7 @@ class AdminPanelProvider extends PanelProvider
 
         $request = \Filament\Support\original_request();
         $inside = $request->routeIs(GradesAndCompletion::getRouteName(), CompletionAndTor::getRouteName())
-            || $request->routeIs('filament.admin.resources.grade-rosters.*', 'filament.admin.resources.student-lifecycle-changes.*', 'filament.admin.resources.transcript-requests.*')
-            || ($request->query('viewTab') === 'academic-progress' && $request->routeIs('filament.admin.resources.student-profiles.*'));
+            || $request->routeIs('filament.admin.resources.grade-rosters.*', 'filament.admin.resources.student-lifecycle-changes.*', 'filament.admin.resources.transcript-requests.*', 'filament.admin.resources.student-profiles.*');
 
         $isOverview = $request->routeIs(GradesAndCompletion::getRouteName())
             && ! array_key_exists((string) $request->query('viewTab', 'overview'), GradesAndCompletion::tabs());

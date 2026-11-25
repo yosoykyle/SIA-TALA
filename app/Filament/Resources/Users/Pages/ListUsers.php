@@ -2,17 +2,22 @@
 
 namespace App\Filament\Resources\Users\Pages;
 
+use App\Actions\StudentProfiles\OngoingStudentSpreadsheetExportService;
 use App\Filament\Resources\Users\UserResource;
+use App\Models\StudentProfile;
 use App\Models\User;
 use App\Support\NavigationBadgeCounts;
+use Filament\Actions\Action;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Schemas\Components\EmbeddedTable;
 use Filament\Schemas\Components\RenderHook;
 use Filament\Schemas\Components\View as SchemaView;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Database\Eloquent\Builder;
 use Livewire\Attributes\Url;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ListUsers extends ListRecords
 {
@@ -82,7 +87,28 @@ class ListUsers extends ListRecords
 
     protected function getHeaderActions(): array
     {
-        return [];
+        return [
+            Action::make('exportActivationStatus')
+                ->label('Export student activation status')
+                ->color('gray')
+                ->icon(Heroicon::OutlinedArrowDownTray)
+                ->visible(fn (): bool => $this->normalizedQueue() === 'learners'
+                    && (auth()->user()?->hasRole(User::StaffRoleSystemSuperAdmin) ?? false))
+                ->authorize(fn (): bool => auth()->user()?->hasRole(User::StaffRoleSystemSuperAdmin) ?? false)
+                ->action(function (): BinaryFileResponse {
+                    $userIds = $this->getFilteredTableQuery()->pluck('id');
+                    $profiles = StudentProfile::query()
+                        ->whereIn('user_id', $userIds)
+                        ->with(['user', 'program', 'curriculumVersion'])
+                        ->orderBy('student_number')
+                        ->get();
+
+                    $exportService = app(OngoingStudentSpreadsheetExportService::class);
+                    $path = $exportService->exportActivationStatus($profiles);
+
+                    return $exportService->downloadAndDelete($path, basename($path), 'csv');
+                }),
+        ];
     }
 
     public function normalizedQueue(): string

@@ -6,9 +6,11 @@ use App\Models\AcademicDecision;
 use App\Models\Course;
 use App\Models\CourseEnrollment;
 use App\Models\CourseRequirement;
+use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\EnrollmentException;
 use App\Models\GradeRosterRow;
+use App\Models\PriorAcademicCredit;
 use App\Models\ProgramShiftCreditEntry;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
@@ -41,6 +43,7 @@ class AcademicProgressionService
         }
 
         $academicRows = $this->academicRows($studentProfile);
+        $priorCredits = $this->priorAcademicCredits($studentProfile);
         $currentCourseIds = $this->currentCourseIds($studentProfile, $targetTerm);
         $shiftCredits = $this->acceptedShiftCredits($studentProfile);
         $exceptions = $this->activeExceptions($studentProfile, $targetTerm);
@@ -61,17 +64,25 @@ class AcademicProgressionService
 
             $row = $academicRows->get((int) $course->id);
             $credit = $shiftCredits->get((int) $entry->id);
+            $priorCredit = $priorCredits->get((int) $course->id);
+            $priorCode = $priorCredit instanceof PriorAcademicCredit ? $priorCredit->effectiveResultCode() : null;
+            $priorNumericGrade = $priorCredit instanceof PriorAcademicCredit
+                && ! in_array($priorCredit->result_status, [PriorAcademicCredit::ResultInc, PriorAcademicCredit::ResultDropped], true)
+                && ! CourseSpecification::isExcludedFromGwa($entry->courseSpecification->academic_classification)
+                && is_numeric($priorCode)
+                ? $priorCode
+                : null;
             $numericGrade = $credit instanceof ProgramShiftCreditEntry ? $credit->numeric_grade : null;
             $numericGrade ??= $row instanceof GradeRosterRow && $row->released_at !== null && is_numeric($row->current_outcome_code)
                 ? $row->current_outcome_code
-                : null;
+                : $priorNumericGrade;
 
             if ($numericGrade !== null) {
                 $units = (float) $entry->courseSpecification->credit_units;
                 $gwaPoints += (float) $numericGrade * $units;
                 $gwaUnits += $units;
             }
-            $completion = $this->completionSource($row, $credit);
+            $completion = $this->completionSource($row, $credit, $priorCredit);
 
             if ($completion !== null) {
                 $completed[] = $this->fact($entry, 'completed', $completion);
@@ -79,7 +90,7 @@ class AcademicProgressionService
                 continue;
             }
 
-            $outcomeBlocker = $this->outcomeBlocker($entry, $row);
+            $outcomeBlocker = $this->outcomeBlocker($entry, $row, $priorCredit);
 
             if ($outcomeBlocker !== null) {
                 $blockers[] = $outcomeBlocker;
@@ -87,8 +98,8 @@ class AcademicProgressionService
                 continue;
             }
 
-            if ($this->isBackSubject($row, $studentProfile, (int) $course->id)) {
-                $backSubjects[] = $this->fact($entry, 'back_subject', $this->rowSource($row));
+            if ($this->isBackSubject($row, $studentProfile, (int) $course->id, $priorCredit)) {
+                $backSubjects[] = $this->fact($entry, 'back_subject', $this->rowSource($row) ?? $this->priorCreditSource($priorCredit));
             }
 
             $offering = $offerings->get((int) $entry->id);
@@ -102,6 +113,7 @@ class AcademicProgressionService
                 $offering,
                 $academicRows,
                 $shiftCredits,
+                $priorCredits,
                 $currentCourseIds,
                 $exceptions,
             );
@@ -293,6 +305,36 @@ class AcademicProgressionService
             });
     }
 
+    /** @return Collection<int, PriorAcademicCredit> */
+    private function priorAcademicCredits(StudentProfile $studentProfile): Collection
+    {
+        return PriorAcademicCredit::query()
+            ->active()
+            ->where('student_profile_id', $studentProfile->id)
+            ->with('courseSpecification')
+            ->orderBy('id')
+            ->get()
+            ->toBase()
+            ->reduce(function (Collection $carry, PriorAcademicCredit $credit): Collection {
+                $courseId = $credit->courseSpecification?->course_id;
+
+                if ($courseId === null) {
+                    return $carry;
+                }
+
+                $courseId = (int) $courseId;
+                $existing = $carry->get($courseId);
+
+                if (! $existing instanceof PriorAcademicCredit
+                    || (! $existing->isPassing() && $credit->isPassing())
+                    || ($existing->isPassing() === $credit->isPassing() && $credit->id > $existing->id)) {
+                    $carry->put($courseId, $credit);
+                }
+
+                return $carry;
+            }, collect());
+    }
+
     /** @return Collection<int, int> */
     private function currentCourseIds(StudentProfile $studentProfile, ?Term $term): Collection
     {
@@ -355,6 +397,7 @@ class AcademicProgressionService
         TermOffering $offering,
         Collection $rows,
         Collection $credits,
+        Collection $priorCredits,
         Collection $currentCourseIds,
         Collection $exceptions,
     ): array {
@@ -365,7 +408,7 @@ class AcademicProgressionService
         $blockers = [];
 
         foreach ($requirements as $groupKey => $alternatives) {
-            $passed = $alternatives->contains(fn (CourseRequirement $requirement): bool => $this->requirementAlternativePasses($requirement, $rows, $credits, $currentCourseIds));
+            $passed = $alternatives->contains(fn (CourseRequirement $requirement): bool => $this->requirementAlternativePasses($requirement, $rows, $credits, $priorCredits, $currentCourseIds));
             $exception = $exceptions->first(fn (EnrollmentException $item): bool => (int) $item->target_term_offering_id === (int) $offering->id
                 && in_array($item->exception_type, [EnrollmentException::TypePrerequisite, EnrollmentException::TypeCorequisite], true)
                 && in_array($item->original_rule, [$groupKey, $alternatives->first()?->group_key], true));
@@ -380,7 +423,7 @@ class AcademicProgressionService
                     'rule' => $groupKey,
                     'alternatives' => $alternatives->pluck('relatedCourse.code')->filter()->values()->all(),
                     'alternative_blockers' => $alternatives
-                        ->map(fn ($requirement): array => $this->alternativeBlocker($requirement, $rows))
+                        ->map(fn ($requirement): array => $this->alternativeBlocker($requirement, $rows, $priorCredits))
                         ->values()
                         ->all(),
                 ];
@@ -390,8 +433,13 @@ class AcademicProgressionService
         return ['passed' => $blockers === [], 'blockers' => $blockers];
     }
 
-    private function requirementAlternativePasses(CourseRequirement $requirement, Collection $rows, Collection $credits, Collection $currentCourseIds): bool
-    {
+    private function requirementAlternativePasses(
+        CourseRequirement $requirement,
+        Collection $rows,
+        Collection $credits,
+        Collection $priorCredits,
+        Collection $currentCourseIds,
+    ): bool {
         if ($requirement->rule_type === CourseRequirement::TypeCorequisite && $currentCourseIds->contains((int) $requirement->related_course_id)) {
             return true;
         }
@@ -399,41 +447,53 @@ class AcademicProgressionService
         $row = $rows->get((int) $requirement->related_course_id);
 
         if ($row instanceof GradeRosterRow) {
-            if ($row->released_at === null) {
-                return false;
-            }
-
-            if ($row->current_outcome_code === 'TC') {
+            if ($row->released_at !== null && ($row->current_outcome_code === 'TC' || $this->numericOutcomeMeets($row))) {
                 return true;
             }
-
-            return $this->numericOutcomeMeets($row);
         }
 
-        return $credits->contains(fn (ProgramShiftCreditEntry $credit): bool => (int) $credit->source_course_id === (int) $requirement->related_course_id
-            && ($credit->numeric_grade === null || (float) $credit->numeric_grade <= 4.00));
+        if ($credits->contains(fn (ProgramShiftCreditEntry $credit): bool => (int) $credit->source_course_id === (int) $requirement->related_course_id
+            && ($credit->numeric_grade === null || (float) $credit->numeric_grade <= 4.00))) {
+            return true;
+        }
+
+        $priorCredit = $priorCredits->get((int) $requirement->related_course_id);
+
+        return $priorCredit instanceof PriorAcademicCredit && $priorCredit->isPassing();
     }
 
-    private function requirementReason(CourseRequirement $requirement, Collection $rows): string
+    private function requirementReason(CourseRequirement $requirement, Collection $rows, Collection $priorCredits): string
     {
         $row = $rows->get((int) $requirement->related_course_id);
 
-        if (! $row instanceof GradeRosterRow) {
-            return 'missing_history';
+        if ($row instanceof GradeRosterRow) {
+            if ($row->released_at === null) {
+                return 'pending_grade';
+            }
+
+            return match ($row->current_outcome_code) {
+                'INC' => 'active_inc',
+                default => 'failed',
+            };
         }
 
-        if ($row->released_at === null) {
-            return 'pending_grade';
+        $priorCredit = $priorCredits->get((int) $requirement->related_course_id);
+
+        if ($priorCredit instanceof PriorAcademicCredit) {
+            if ($priorCredit->result_status === PriorAcademicCredit::ResultInc || $priorCredit->effectiveResultCode() === 'INC') {
+                return 'active_inc';
+            }
+
+            if (! $priorCredit->isPassing()) {
+                return 'failed';
+            }
         }
 
-        return match ($row->current_outcome_code) {
-            'INC' => 'active_inc',
-            default => 'failed',
-        };
+        return 'missing_history';
     }
 
     /** @return array<string,mixed> */
-    private function alternativeBlocker(mixed $requirement, Collection $rows): array
+    private function alternativeBlocker(mixed $requirement, Collection $rows, Collection $priorCredits): array
     {
         if (! $requirement instanceof CourseRequirement) {
             return ['course_id' => null, 'code' => null, 'reason' => self::class];
@@ -442,7 +502,7 @@ class AcademicProgressionService
         return [
             'course_id' => (int) $requirement->related_course_id,
             'code' => Course::query()->whereKey($requirement->related_course_id)->value('code'),
-            'reason' => $this->requirementReason($requirement, $rows),
+            'reason' => $this->requirementReason($requirement, $rows, $priorCredits),
         ];
     }
 
@@ -454,28 +514,40 @@ class AcademicProgressionService
             && (float) $row->current_outcome_code <= 4.00;
     }
 
-    private function completionSource(?GradeRosterRow $row, ?ProgramShiftCreditEntry $credit): ?array
+    private function completionSource(?GradeRosterRow $row, ?ProgramShiftCreditEntry $credit, ?PriorAcademicCredit $priorCredit = null): ?array
     {
         if ($credit instanceof ProgramShiftCreditEntry) {
             return ['type' => 'internal_shift_credit', 'id' => (int) $credit->id, 'numeric_grade' => $credit->numeric_grade];
         }
 
-        if (! $row instanceof GradeRosterRow) {
-            return null;
+        if ($row instanceof GradeRosterRow) {
+            if ($row->released_at !== null && $row->current_outcome_code === 'TC') {
+                return ['type' => 'external_transfer_credit', 'id' => (int) $row->id];
+            }
+
+            if ($this->numericOutcomeMeets($row)) {
+                return $this->rowSource($row);
+            }
         }
 
-        if ($row->released_at !== null && $row->current_outcome_code === 'TC') {
-            return ['type' => 'external_transfer_credit', 'id' => (int) $row->id];
+        if ($priorCredit instanceof PriorAcademicCredit && $priorCredit->isPassing()) {
+            return $this->priorCreditSource($priorCredit);
         }
 
-        return $this->numericOutcomeMeets($row) ? $this->rowSource($row) : null;
+        return null;
     }
 
-    private function isBackSubject(?GradeRosterRow $row, StudentProfile $studentProfile, int $courseId): bool
+    private function isBackSubject(?GradeRosterRow $row, StudentProfile $studentProfile, int $courseId, ?PriorAcademicCredit $priorCredit = null): bool
     {
         if ($row instanceof GradeRosterRow && $row->released_at !== null) {
             return in_array($row->current_outcome_category, [GradeRosterRow::CategoryFailed, GradeRosterRow::CategoryWithdrawn], true)
                 || in_array($row->current_outcome_code, ['DRP', 'W'], true);
+        }
+
+        if (! $row instanceof GradeRosterRow
+            && $priorCredit instanceof PriorAcademicCredit
+            && in_array($priorCredit->result_status, [PriorAcademicCredit::ResultFailed, PriorAcademicCredit::ResultDropped], true)) {
+            return true;
         }
 
         return CourseEnrollment::query()
@@ -511,20 +583,47 @@ class AcademicProgressionService
     }
 
     /** @return array<string,mixed>|null */
-    private function outcomeBlocker(CurriculumEntry $entry, ?GradeRosterRow $row): ?array
+    private function priorCreditSource(?PriorAcademicCredit $priorCredit): ?array
     {
-        if (! $row instanceof GradeRosterRow || ($row->released_at !== null && $row->current_outcome_code !== 'INC')) {
-            return null;
+        return $priorCredit instanceof PriorAcademicCredit ? [
+            'type' => 'prior_academic_credit',
+            'id' => (int) $priorCredit->id,
+            'code' => $priorCredit->effectiveResultCode(),
+            'status' => $priorCredit->result_status,
+        ] : null;
+    }
+
+    /** @return array<string,mixed>|null */
+    private function outcomeBlocker(CurriculumEntry $entry, ?GradeRosterRow $row, ?PriorAcademicCredit $priorCredit = null): ?array
+    {
+        if ($row instanceof GradeRosterRow) {
+            if ($row->released_at !== null && $row->current_outcome_code !== 'INC') {
+                return null;
+            }
+
+            return [
+                'key' => 'outcome:'.$entry->id.':'.($row->released_at === null ? 'unreleased' : $row->current_outcome_code),
+                'kind' => 'outcome',
+                'course_id' => (int) $entry->courseSpecification->course_id,
+                'course_code' => $entry->courseSpecification->course->code,
+                'reason' => $row->released_at === null ? 'pending_grade' : 'active_inc',
+                'source' => $this->rowSource($row),
+            ];
         }
 
-        return [
-            'key' => 'outcome:'.$entry->id.':'.($row->released_at === null ? 'unreleased' : $row->current_outcome_code),
-            'kind' => 'outcome',
-            'course_id' => (int) $entry->courseSpecification->course_id,
-            'course_code' => $entry->courseSpecification->course->code,
-            'reason' => $row->released_at === null ? 'pending_grade' : 'active_inc',
-            'source' => $this->rowSource($row),
-        ];
+        if ($priorCredit instanceof PriorAcademicCredit
+            && ($priorCredit->result_status === PriorAcademicCredit::ResultInc || $priorCredit->effectiveResultCode() === 'INC')) {
+            return [
+                'key' => 'outcome:'.$entry->id.':prior:INC',
+                'kind' => 'outcome',
+                'course_id' => (int) $entry->courseSpecification->course_id,
+                'course_code' => $entry->courseSpecification->course->code,
+                'reason' => 'active_inc',
+                'source' => $this->priorCreditSource($priorCredit),
+            ];
+        }
+
+        return null;
     }
 
     private function recommendedStanding(StudentProfile $studentProfile, EloquentCollection $entries, array $completed, array $backSubjects, array $blockers, Collection $currentCourseIds): string

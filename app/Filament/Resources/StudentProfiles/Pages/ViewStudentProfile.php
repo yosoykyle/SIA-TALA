@@ -9,7 +9,10 @@ use App\Actions\Academics\OfficialCourseResultProjection;
 use App\Actions\Academics\TermWeightedAverageProjection;
 use App\Actions\Enrollment\EnrollmentAcademicContextResolver;
 use App\Actions\Enrollment\RecordStudentSection;
+use App\Actions\Enrollment\RegistrationAcademicEligibilityQuery;
+use App\Actions\StudentProfiles\RecordPriorAcademicCredits;
 use App\Actions\StudentProfiles\RecordStudentProfileCorrection;
+use App\Actions\StudentProfiles\StudentAccountActivation;
 use App\Filament\Concerns\HasAcademicOversightReturn;
 use App\Filament\Pages\GradesAndCompletion;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
@@ -21,15 +24,19 @@ use App\Filament\Resources\StudentProfiles\RelationManagers\HoldsRelationManager
 use App\Filament\Resources\StudentProfiles\StudentAcademicActions;
 use App\Filament\Resources\StudentProfiles\StudentProfileResource;
 use App\Models\Assessment;
+use App\Models\CourseEnrollment;
+use App\Models\CurriculumEntry;
 use App\Models\Enrollment;
 use App\Models\ExternalCompetencyRequirement;
 use App\Models\Hold;
+use App\Models\PriorAcademicCredit;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\TermCohort;
 use App\Models\User;
 use Filament\Actions\Action;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
@@ -77,13 +84,16 @@ class ViewStudentProfile extends ViewRecord
     public ?int $academicTerm = null;
 
     #[Url]
+    public ?string $academicPeriod = null;
+
+    #[Url]
     public string $academicSearch = '';
 
     #[Url]
     public int $academicPage = 1;
 
     #[Url]
-    public ?int $academicResult = null;
+    public int|string|null $academicResult = null;
 
     #[Url]
     public ?int $enrollment = null;
@@ -268,6 +278,250 @@ class ViewStudentProfile extends ViewRecord
         return ExternalCompetencyRequirement::query()->applicableTo($this->record)->exists();
     }
 
+    public function recordPriorSubjectsAction(): Action
+    {
+        return Action::make('recordPriorSubjects')
+            ->label('Record prior subjects')
+            ->icon('heroicon-o-clipboard-document-list')
+            ->color('gray')
+            ->size('sm')
+            ->visible(fn (): bool => $this->isRegistrarActor() && $this->studentProfile()->curriculum_version_id !== null)
+            ->authorize(fn (): bool => $this->isRegistrarActor())
+            ->modalHeading('Record prior completed subjects')
+            ->modalDescription('Check subjects the student completed or received institutional credit for before TALA. Subjects already passed in official SIA grade rosters are locked.')
+            ->modalWidth(Width::FourExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
+            ->modalSubmitActionLabel('Save prior subjects')
+            ->fillForm(function (): array {
+                $student = $this->studentProfile();
+                $activeEntryIds = PriorAcademicCredit::query()
+                    ->active()
+                    ->where('student_profile_id', $student->id)
+                    ->whereNotNull('curriculum_entry_id')
+                    ->pluck('curriculum_entry_id')
+                    ->map(fn (mixed $id): int => (int) $id)
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                $latestPrior = PriorAcademicCredit::query()
+                    ->active()
+                    ->where('student_profile_id', $student->id)
+                    ->latest('id')
+                    ->first();
+
+                return [
+                    'academic_year_label' => $latestPrior?->academic_year_label ?: 'Prior Institutional Record',
+                    'source_school' => $latestPrior?->source_school,
+                    'selected_entry_ids' => $activeEntryIds,
+                ];
+            })
+            ->schema(function (): array {
+                $student = $this->studentProfile();
+                $entries = CurriculumEntry::query()
+                    ->where('curriculum_version_id', $student->curriculum_version_id)
+                    ->with('courseSpecification.course')
+                    ->orderBy('year_level')
+                    ->orderBy('sequence')
+                    ->orderBy('id')
+                    ->get();
+
+                $nativePassedCourseIds = app(OfficialCourseResultProjection::class)
+                    ->forStudent($student)
+                    ->filter(fn (array $result): bool => $result['course_enrollment'] instanceof CourseEnrollment
+                        && RegistrationAcademicEligibilityQuery::isPassingResult($result['result'] ?? null))
+                    ->pluck('course_specification.course_id')
+                    ->filter()
+                    ->map(fn (mixed $id): int => (int) $id)
+                    ->unique()
+                    ->all();
+
+                $options = [];
+                $descriptions = [];
+                $lockedEntryIds = [];
+
+                foreach ($entries as $entry) {
+                    $spec = $entry->courseSpecification;
+                    $courseId = (int) ($spec?->course_id ?? 0);
+                    $isLocked = $courseId > 0 && in_array($courseId, $nativePassedCourseIds, true);
+                    if ($isLocked) {
+                        $lockedEntryIds[] = (int) $entry->id;
+                    }
+
+                    $yearLabel = $this->yearLevelDisplay($entry->year_level) ?? 'Year not recorded';
+                    $termLabel = filled($entry->term_label) ? (string) $entry->term_label : 'Prior Term';
+                    $units = $spec?->credit_units !== null
+                        ? rtrim(rtrim(number_format((float) $spec->credit_units, 2, '.', ''), '0'), '.')
+                        : '0';
+
+                    $options[(int) $entry->id] = collect([$spec?->course?->code, $spec?->title])->filter()->implode(' · ')
+                        ." ({$units} ".((float) $units === 1.0 ? 'unit' : 'units').')';
+                    $descriptions[(int) $entry->id] = $yearLabel.' · '.$termLabel
+                        .($isLocked ? ' · Passed in official SIA grade roster' : '');
+                }
+
+                return [
+                    Grid::make(['default' => 1, 'md' => 2])->schema([
+                        TextInput::make('academic_year_label')
+                            ->label('Academic Year label')
+                            ->default('Prior Institutional Record')
+                            ->maxLength(120),
+                        TextInput::make('source_school')
+                            ->label('Source school (optional)')
+                            ->placeholder('e.g. Prior campus or transfer institution')
+                            ->maxLength(255),
+                    ]),
+                    CheckboxList::make('selected_entry_ids')
+                        ->label('Curriculum subjects (grouped by Year Level & Term)')
+                        ->options($options)
+                        ->descriptions($descriptions)
+                        ->disableOptionWhen(fn (string $value): bool => in_array((int) $value, $lockedEntryIds, true))
+                        ->searchable()
+                        ->bulkToggleable()
+                        ->columns(['default' => 1, 'md' => 2]),
+                ];
+            })
+            ->action(function (array $data): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User, 403);
+                $student = $this->studentProfile();
+
+                $nativePassedCourseIds = app(OfficialCourseResultProjection::class)
+                    ->forStudent($student)
+                    ->filter(fn (array $result): bool => $result['course_enrollment'] instanceof CourseEnrollment
+                        && RegistrationAcademicEligibilityQuery::isPassingResult($result['result'] ?? null))
+                    ->pluck('course_specification.course_id')
+                    ->filter()
+                    ->map(fn (mixed $id): int => (int) $id)
+                    ->unique()
+                    ->all();
+
+                $lockedEntryIds = CurriculumEntry::query()
+                    ->where('curriculum_version_id', $student->curriculum_version_id)
+                    ->whereHas('courseSpecification', fn ($query) => $query->whereIn('course_id', $nativePassedCourseIds))
+                    ->pluck('id')
+                    ->map(fn (mixed $id): int => (int) $id)
+                    ->all();
+
+                $selectedIds = array_values(array_diff(
+                    array_map('intval', (array) ($data['selected_entry_ids'] ?? [])),
+                    $lockedEntryIds,
+                ));
+
+                $summary = app(RecordPriorAcademicCredits::class)->syncChecklistCredits(
+                    profile: $student,
+                    selectedEntryIds: $selectedIds,
+                    actor: $actor,
+                    academicYearLabel: filled($data['academic_year_label'] ?? null) ? (string) $data['academic_year_label'] : null,
+                    sourceSchool: filled($data['source_school'] ?? null) ? (string) $data['source_school'] : null,
+                );
+
+                $student->refresh();
+                unset($this->academicProfile, $this->studentTerms);
+
+                Notification::make()
+                    ->title('Prior academic record updated')
+                    ->body("Added {$summary['added']} and removed {$summary['revoked']} prior subject credit(s).")
+                    ->success()
+                    ->send();
+            });
+    }
+
+    public function resendActivationAction(): Action
+    {
+        return Action::make('resendActivation')
+            ->label('Send / Resend activation email')
+            ->icon('heroicon-o-envelope')
+            ->color('gray')
+            ->size('sm')
+            ->visible(function (): bool {
+                $student = $this->studentProfile();
+                $student->loadMissing('user');
+
+                return $this->isRegistrarActor() && StudentAccountActivation::canResendActivation($student);
+            })
+            ->authorize(fn (): bool => $this->isRegistrarActor())
+            ->requiresConfirmation()
+            ->modalHeading('Send activation email')
+            ->modalDescription(fn (): string => 'Send a passwordless account setup link to '.($this->studentProfile()->user?->email ?? $this->studentProfile()->email ?? 'this student').'.')
+            ->modalSubmitActionLabel('Send activation email')
+            ->action(function (): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User, 403);
+                $student = $this->studentProfile();
+
+                $sent = app(StudentAccountActivation::class)->sendActivationEmail($student, $actor);
+                $student->refresh()->loadMissing('user');
+                unset($this->academicProfile);
+
+                if ($sent) {
+                    Notification::make()
+                        ->title('Activation email sent')
+                        ->body('A fresh password setup link was sent to '.($student->user?->email ?? $student->email).'.')
+                        ->success()
+                        ->send();
+                } else {
+                    Notification::make()
+                        ->title('Activation email could not be sent')
+                        ->body('Please verify mail delivery configuration or try again shortly.')
+                        ->warning()
+                        ->send();
+                }
+            });
+    }
+
+    public function correctActivationEmailAction(): Action
+    {
+        return Action::make('correctActivationEmail')
+            ->label('Correct email & resend')
+            ->icon('heroicon-o-at-symbol')
+            ->color('gray')
+            ->size('sm')
+            ->visible(function (): bool {
+                $student = $this->studentProfile();
+                $student->loadMissing('user');
+
+                return $this->isRegistrarActor() && StudentAccountActivation::canCorrectUnactivatedEmail($student);
+            })
+            ->authorize(fn (): bool => $this->isRegistrarActor())
+            ->modalHeading('Correct email & resend activation')
+            ->modalDescription('Update the email address on this unactivated student account and immediately send a fresh activation link.')
+            ->modalWidth(Width::Medium)
+            ->modalSubmitActionLabel('Save & resend activation')
+            ->fillForm(fn (): array => [
+                'email' => $this->studentProfile()->user?->email ?? $this->studentProfile()->email ?? '',
+            ])
+            ->schema([
+                TextInput::make('email')
+                    ->label('Student Email')
+                    ->email()
+                    ->required()
+                    ->maxLength(255),
+            ])
+            ->action(function (array $data): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User, 403);
+                $student = $this->studentProfile();
+
+                $sent = app(StudentAccountActivation::class)->correctEmailAndResend(
+                    $student,
+                    (string) $data['email'],
+                    $actor,
+                );
+                $student->refresh()->loadMissing('user');
+                unset($this->academicProfile);
+
+                Notification::make()
+                    ->title($sent ? 'Email updated & activation sent' : 'Email updated')
+                    ->body($sent
+                        ? 'Updated student email and sent a fresh activation link to '.$student->email.'.'
+                        : 'Updated student email, but activation delivery returned a warning.')
+                    ->status($sent ? 'success' : 'warning')
+                    ->send();
+            });
+    }
+
     /** @return array<string, mixed> */
     #[Computed]
     public function academicProfile(): array
@@ -281,18 +535,89 @@ class ViewStudentProfile extends ViewRecord
         $results = $this->activeRecordTab() === 'academic'
             ? app(OfficialCourseResultProjection::class)->forStudent($student) : collect();
         $terms = $this->studentTerms;
-        $selectedTerm = $terms->firstWhere('id', $this->academicTerm) ?? $terms->first();
-        $termResults = $results->filter(fn (array $result): bool => $selectedTerm !== null
-            && (int) $result['term']?->id === (int) $selectedTerm->id);
-        (new EloquentCollection($termResults->pluck('course_enrollment')->all()))
+
+        $periodEntries = collect();
+        foreach ($terms as $term) {
+            $key = 'term:'.(int) $term->id;
+            $periodEntries->put($key, [
+                'key' => $key,
+                'label' => $this->termLabel($term),
+                'short_label' => (string) $term->label,
+                'term' => $term,
+                'sort_key' => '1|'.($term->starts_on?->toDateString() ?? '0000-00-00').'|'.sprintf('%010d', (int) $term->id),
+            ]);
+        }
+
+        foreach ($results as $result) {
+            $key = (string) ($result['period_key'] ?? ('term:'.(int) $result['term']?->id));
+            if ($periodEntries->has($key)) {
+                continue;
+            }
+
+            $term = $result['term'] ?? null;
+            if ($term instanceof Term) {
+                $periodEntries->put($key, [
+                    'key' => $key,
+                    'label' => $this->termLabel($term),
+                    'short_label' => (string) $term->label,
+                    'term' => $term,
+                    'sort_key' => '1|'.($term->starts_on?->toDateString() ?? '0000-00-00').'|'.sprintf('%010d', (int) $term->id),
+                ]);
+
+                continue;
+            }
+
+            $yearLabel = $this->yearLevelDisplay($result['year_level'] ?? null);
+            $ayLabel = filled($result['academic_year_label'] ?? null) ? (string) $result['academic_year_label'] : null;
+            $termLabel = filled($result['period_label'] ?? null) ? (string) $result['period_label'] : 'Prior Term';
+            $fullLabel = collect([$yearLabel, $ayLabel, $termLabel])->filter()->implode(' · ');
+
+            $periodEntries->put($key, [
+                'key' => $key,
+                'label' => $fullLabel !== '' ? $fullLabel : $termLabel,
+                'short_label' => $termLabel,
+                'term' => null,
+                'sort_key' => (string) ($result['period_sort_key'] ?? '0|0000'),
+            ]);
+        }
+
+        $periodEntries = $periodEntries->sortByDesc('sort_key');
+        $selectedPeriodKey = null;
+        if ($this->academicPeriod !== null && $periodEntries->has($this->academicPeriod)) {
+            $selectedPeriodKey = $this->academicPeriod;
+        } elseif ($this->academicTerm !== null && $periodEntries->has('term:'.$this->academicTerm)) {
+            $selectedPeriodKey = 'term:'.$this->academicTerm;
+        } else {
+            $selectedPeriodKey = $periodEntries->keys()->first();
+        }
+
+        $selectedPeriod = $selectedPeriodKey !== null ? $periodEntries->get($selectedPeriodKey) : null;
+        $selectedTerm = $selectedPeriod['term'] ?? null;
+
+        $periodResults = $results->filter(fn (array $result): bool => $selectedPeriodKey !== null
+            && (string) ($result['period_key'] ?? ('term:'.(int) $result['term']?->id)) === $selectedPeriodKey);
+
+        (new EloquentCollection($periodResults->pluck('course_enrollment')->filter()->all()))
             ->loadMissing(['gradeRosterRow.roster', 'gradeRosterRow.outcomeEvents.completionSubmissions']);
-        $released = $termResults->filter(fn (array $result): bool => $result['outcome_source'] !== null)
+
+        $released = $periodResults->filter(fn (array $result): bool => $result['outcome_source'] !== null)
             ->map(fn (array $result): array => $this->resultLinks($result));
         $search = Str::lower(trim($this->academicSearch));
         $filtered = $released->filter(fn (array $result): bool => $search === '' || Str::contains(
             Str::lower(collect([$result['course_specification']?->course?->code, $result['course_specification']?->title])->filter()->implode(' ')), $search,
         ))->values();
         $pagedResults = $this->paginateRows($filtered, $this->academicPage, 'academicPage');
+
+        $selectedResult = null;
+        if ($this->academicResult === null) {
+            $selectedResult = $pagedResults->getCollection()->first();
+        } else {
+            $targetKey = is_int($this->academicResult) || ctype_digit((string) $this->academicResult)
+                ? 'ce:'.(int) $this->academicResult
+                : (string) $this->academicResult;
+            $selectedResult = $filtered->first(fn (array $result): bool => $result['result_key'] === $targetKey);
+        }
+
         $effect = app(AcademicEnrollmentGuidance::class)->forStudent($student);
         $accountingWait = ($context['responsible_office'] ?? null) === 'Accounting Office';
         $handoff = $enrollment?->canonical_outcome === Enrollment::OutcomeInProgress ? [
@@ -309,13 +634,18 @@ class ViewStudentProfile extends ViewRecord
         return [
             'student' => $student, 'enrollment' => $enrollment, 'context' => $context, 'handoff' => $handoff,
             'termOptions' => $terms->mapWithKeys(fn (Term $term): array => [$term->id => $this->termLabel($term)])->all(),
+            'periodOptions' => $periodEntries->mapWithKeys(fn (array $entry): array => [$entry['key'] => $entry['label']])->all(),
+            'selectedPeriodKey' => $selectedPeriodKey,
+            'selectedPeriodLabel' => $selectedPeriod['label'] ?? null,
+            'selectedPeriodShortLabel' => $selectedPeriod['short_label'] ?? 'No enrolled term',
             'selectedTerm' => $selectedTerm,
             'results' => $pagedResults,
-            'selectedResult' => $this->academicResult === null
-                ? $pagedResults->getCollection()->first()
-                : $filtered->first(fn (array $result): bool => (int) $result['course_enrollment']->id === $this->academicResult),
-            'termAverage' => $selectedTerm && $this->activeRecordTab() === 'academic'
-                ? app(TermWeightedAverageProjection::class)->forResults($results, $selectedTerm) : null,
+            'selectedResult' => $selectedResult,
+            'termAverage' => $selectedPeriodKey !== null && $this->activeRecordTab() === 'academic'
+                ? ($selectedTerm instanceof Term
+                    ? app(TermWeightedAverageProjection::class)->forResults($results, $selectedTerm)
+                    : app(TermWeightedAverageProjection::class)->forPeriodResults($periodResults, (string) ($selectedPeriod['short_label'] ?? 'Prior Term')))
+                : null,
             'termLabel' => collect([$enrollment?->term?->label, $enrollment?->term?->academicYear?->label])->filter()->implode(' · '),
             'enrollmentUrl' => $enrollment && EnrollmentResource::canView($enrollment)
                 ? EnrollmentResource::getUrl('view', ['record' => $enrollment, ...$this->oversightQueryParameters()]) : null,
@@ -352,8 +682,38 @@ class ViewStudentProfile extends ViewRecord
         return collect([$term?->academicYear?->label, $term?->label])->filter()->implode(' · ');
     }
 
+    private function yearLevelDisplay(mixed $yearLevel): ?string
+    {
+        $raw = trim((string) ($yearLevel ?? ''));
+        if ($raw === '' || $raw === '0') {
+            return null;
+        }
+
+        return match ($raw) {
+            '1', '1st Year', 'First Year' => 'First Year',
+            '2', '2nd Year', 'Second Year' => 'Second Year',
+            '3', '3rd Year', 'Third Year' => 'Third Year',
+            '4', '4th Year', 'Fourth Year' => 'Fourth Year',
+            default => ctype_digit($raw) ? 'Year '.$raw : $raw,
+        };
+    }
+
     public function updatedAcademicTerm(): void
     {
+        $this->academicPeriod = $this->academicTerm !== null ? 'term:'.$this->academicTerm : null;
+        $this->academicPage = 1;
+        $this->academicResult = null;
+    }
+
+    public function updatedAcademicPeriod(): void
+    {
+        if (is_string($this->academicPeriod) && str_starts_with($this->academicPeriod, 'term:')) {
+            $termId = (int) substr($this->academicPeriod, 5);
+            $this->academicTerm = $termId > 0 ? $termId : null;
+        } else {
+            $this->academicTerm = null;
+        }
+
         $this->academicPage = 1;
         $this->academicResult = null;
     }
@@ -375,7 +735,7 @@ class ViewStudentProfile extends ViewRecord
         $this->historyPage = max(1, $page);
     }
 
-    public function selectAcademicResult(?int $result): void
+    public function selectAcademicResult(int|string|null $result): void
     {
         $this->academicResult = $result;
         unset($this->academicProfile);
@@ -384,21 +744,36 @@ class ViewStudentProfile extends ViewRecord
     /** @param array<string, mixed> $result @return array<string, mixed> */
     private function resultLinks(array $result): array
     {
-        $roster = $result['course_enrollment']->gradeRosterRow?->roster;
+        $courseEnrollment = $result['course_enrollment'] ?? null;
+
+        if (! $courseEnrollment instanceof CourseEnrollment) {
+            $priorCredit = $result['prior_credit'] ?? null;
+
+            return [
+                ...$result,
+                'result_key' => 'pc:'.($priorCredit?->id ?? 0),
+                'sourceUrl' => null,
+                'followUpUrl' => null,
+                'followUp' => null,
+            ];
+        }
+
+        $roster = $courseEnrollment->gradeRosterRow?->roster;
         $canView = $roster && GradeRosterResource::canView($roster);
-        $parameters = ['record' => $roster, 'result' => $result['course_enrollment']->gradeRosterRow?->id, ...$this->oversightQueryParameters()];
-        $enrollment = $result['course_enrollment']->enrollment;
+        $parameters = ['record' => $roster, 'result' => $courseEnrollment->gradeRosterRow?->id, ...$this->oversightQueryParameters()];
+        $enrollment = $courseEnrollment->enrollment;
         $sourceUrl = $canView
-            ? GradeRosterResource::getUrl('view', [...$parameters, 'viewTab' => 'grade-review', 'history' => true]).'#course-result-'.$result['course_enrollment']->id
+            ? GradeRosterResource::getUrl('view', [...$parameters, 'viewTab' => 'grade-review', 'history' => true]).'#course-result-'.$courseEnrollment->id
             : ($enrollment && EnrollmentResource::canView($enrollment)
                 ? EnrollmentResource::getUrl('view', ['record' => $enrollment, ...$this->oversightQueryParameters()]) : null);
 
         return [...$result,
+            'result_key' => 'ce:'.$courseEnrollment->id,
             'sourceUrl' => $sourceUrl,
             'followUpUrl' => $canView ? GradeRosterResource::getUrl('view', [...$parameters, 'viewTab' => 'inc-corrections']) : null,
             'followUp' => $result['result'] === 'INC' && $result['inc_deadline'] !== null
-                && $result['course_enrollment']->gradeRosterRow !== null
-                    ? ReleasedResultsTable::followUp($result['course_enrollment']->gradeRosterRow) : null,
+                && $courseEnrollment->gradeRosterRow !== null
+                    ? ReleasedResultsTable::followUp($courseEnrollment->gradeRosterRow) : null,
         ];
     }
 

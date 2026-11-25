@@ -5,15 +5,36 @@
     $tab = $this->activeRecordTab();
     $name = collect([$student->first_name, $student->middle_name, $student->last_name])->filter()->implode(' ');
     $initials = mb_substr($student->first_name, 0, 1).mb_substr($student->last_name, 0, 1);
+    $activationStatus = $this->isRegistrarActor()
+        ? \App\Actions\StudentProfiles\StudentAccountActivation::statusLabel($student)
+        : null;
+    $showPriorRecordGuidance = $this->isRegistrarActor()
+        && $student->applicant_intake_id === null
+        && ! $student->enrollments()->exists()
+        && ! $student->priorAcademicCredits()->active()->exists();
 @endphp
 <div class="tala-student-profile">
     <x-record-identity :name="$name" :number="$student->student_number" :program="$student->program?->name"
         :initials="$initials" :photo-url="$student->adminPhotoUrl()" heading-level="h1">
-        <x-slot:supporting><p class="tala-profile-muted">{{ $student->curriculumVersion?->name ?? 'No curriculum recorded' }}</p></x-slot:supporting>
+        <x-slot:supporting>
+            <p class="tala-profile-muted">{{ $student->curriculumVersion?->name ?? 'No curriculum recorded' }}</p>
+            @if ($activationStatus !== null && \App\Actions\StudentProfiles\StudentAccountActivation::canResendActivation($student))
+                <p class="tala-profile-muted">Account status: {{ $activationStatus }}</p>
+            @endif
+        </x-slot:supporting>
         <x-slot:actions>
             <x-filament::badge :color="$student->lifecycle_status === \App\Models\StudentProfile::LifecycleActive ? 'success' : 'gray'">{{ \App\Models\StudentProfile::lifecycleStatusLabel($student->lifecycle_status) }} student</x-filament::badge>
             @if ($this->recordCorrectionAction->isVisible())
                 {{ $this->recordCorrectionAction }}
+            @endif
+            @if ($this->recordPriorSubjectsAction->isVisible())
+                {{ $this->recordPriorSubjectsAction }}
+            @endif
+            @if ($this->resendActivationAction->isVisible())
+                {{ $this->resendActivationAction }}
+            @endif
+            @if ($this->correctActivationEmailAction->isVisible())
+                {{ $this->correctActivationEmailAction }}
             @endif
         </x-slot:actions>
     </x-record-identity>
@@ -25,6 +46,16 @@
     <div class="tala-content-region" wire:loading.attr="aria-busy" wire:target="selectRecordTab">
     <x-content-progress label="Loading student record" wire:loading.delay.short.block wire:target="selectRecordTab" />
     @if ($tab === 'overview')
+        @if ($showPriorRecordGuidance)
+            <x-tala-access-alert variant="warning" title="Prior academic record needed">
+                <div class="tala-profile-action-row">
+                    <p>Prior academic record not yet recorded: record prior subjects before starting next-term enrollment so TALA places this student accurately.</p>
+                    @if ($this->recordPriorSubjectsAction->isVisible())
+                        <div class="tala-action-block">{{ $this->recordPriorSubjectsAction }}</div>
+                    @endif
+                </div>
+            </x-tala-access-alert>
+        @endif
         @if ($profile['handoff'])
             <div class="tala-profile-handoff">
                 <p class="tala-profile-muted">Current enrollment · {{ $profile['termLabel'] }}</p>

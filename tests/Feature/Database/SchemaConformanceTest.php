@@ -35,7 +35,7 @@ final class SchemaConformanceTest extends TestCase
         'graduation_snapshots', 'holds', 'identity_match_reviews', 'inc_completion_submissions',
         'inc_deadline_amendments', 'late_grade_authorizations',
         'ledger_entries', 'operational_events', 'output_access_logs', 'payment_allocations',
-        'payment_evidence_versions', 'payment_schedule_rows', 'payments', 'program_shift_credit_entries',
+        'payment_evidence_versions', 'payment_schedule_rows', 'payments', 'prior_academic_credits', 'program_shift_credit_entries',
         'pending_email_changes',
         'programs', 'preliminary_evidence_reviews', 'official_credential_results', 'official_output_payment_clearances', 'official_output_restrictions',
         'public_notices', 'published_timetable_meetings', 'published_timetable_versions',
@@ -69,9 +69,9 @@ final class SchemaConformanceTest extends TestCase
         $expected = [...self::APPLICATION_TABLES, ...self::PLATFORM_TABLES];
         sort($expected);
 
-        $this->assertCount(125, self::APPLICATION_TABLES);
+        $this->assertCount(126, self::APPLICATION_TABLES);
         $this->assertCount(17, self::PLATFORM_TABLES);
-        $this->assertCount(142, $actual);
+        $this->assertCount(143, $actual);
         $this->assertSame($expected, $actual);
     }
 
