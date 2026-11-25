@@ -223,10 +223,14 @@ class Issue58SuccessorRecoveryTest extends TestCase
         app(RecordFacultyAvailabilityDeadline::class)->execute($package->term, $registrar, '2026-08-20 09:00:00', 'Corrected memo', 'Approved extension', $deadline->id);
         Mail::fake();
 
-        $component->callMountedAction()->assertNotified('Cannot send availability reminder');
+        $component->callMountedAction()
+            ->assertHasErrors(['calendar_package'])
+            ->assertNotified('Cannot send availability reminder');
 
         $this->assertSame(0, OperationalEvent::query()->where('related_record_type', TermCalendarPackage::class)->where('related_record_id', $package->id)->where('event_type', OperationalEvent::TypeFacultyAvailabilityRequestedEmail)->count());
+        $this->assertSame(2, FacultyAvailabilityDeadline::query()->whereBelongsTo($package->term)->count());
         Mail::assertNothingQueued();
+        Mail::assertNothingSent();
     }
 
     public function test_faculty_correction_prefills_own_term_and_clears_weekly_times_when_unavailable_for_the_term(): void

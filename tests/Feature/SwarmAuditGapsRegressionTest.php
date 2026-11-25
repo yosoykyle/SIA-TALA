@@ -15,6 +15,8 @@ use App\Actions\Scheduling\ReviewTimetableCandidate;
 use App\Actions\Scheduling\ScheduleCloudResultIngestor;
 use App\Actions\Scheduling\ScheduleSolverDispatchLifecycleService;
 use App\Filament\Components\LiveDatabaseNotifications;
+use App\Filament\Pages\SchoolResources;
+use App\Filament\Pages\TermCalendar;
 use App\Models\AcademicYear;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
@@ -176,17 +178,17 @@ class SwarmAuditGapsRegressionTest extends TestCase
             ->assertNotDispatched('notificationsSent');
     }
 
-    public function test_activating_calendar_package_closes_lingering_draft_packages(): void
+    public function test_closing_term_closes_active_and_draft_calendar_packages_while_older_drafts_do_not_override_active_ui(): void
     {
         $registrar = $this->registrar();
-        $term = Term::factory()->create();
+        $term = Term::factory()->create(['state' => Term::StateDraft]);
 
-        $lingeringDraft = TermCalendarPackage::factory()->for($term)->create([
+        $olderDraft = TermCalendarPackage::factory()->for($term)->create([
             'version' => 1,
             'state' => TermCalendarPackage::StateDraft,
         ]);
 
-        $newDraft = TermCalendarPackage::factory()->for($term)->create([
+        $activeDraft = TermCalendarPackage::factory()->for($term)->create([
             'version' => 2,
             'state' => TermCalendarPackage::StateDraft,
             'classes_start_on' => $term->starts_on,
@@ -194,17 +196,39 @@ class SwarmAuditGapsRegressionTest extends TestCase
             'administrative_starts_on' => $term->starts_on,
             'administrative_ends_on' => $term->ends_on,
         ]);
-        $newDraft->teachingGridRows()->create([
+        $activeDraft->teachingGridRows()->create([
             'day_of_week' => 1,
             'starts_at' => '08:00:00',
             'ends_at' => '17:00:00',
             'breaks' => [],
         ]);
 
-        app(ActivateTermCalendarPackage::class)->execute($newDraft->fresh(['teachingGridRows', 'windows', 'datedExceptions']), $registrar, $newDraft->fresh()->concurrencyToken());
+        app(ActivateTermCalendarPackage::class)->execute(
+            $activeDraft->fresh(['teachingGridRows', 'windows', 'datedExceptions']),
+            $registrar,
+            $activeDraft->fresh()->concurrencyToken(),
+        );
 
-        $this->assertSame(TermCalendarPackage::StateActive, $newDraft->fresh()->state);
-        $this->assertSame(TermCalendarPackage::StateClosed, $lingeringDraft->fresh()->state);
+        // Activating v2 preserves v1 as Draft (immutable audit / explicit draft preservation).
+        $this->assertSame(TermCalendarPackage::StateActive, $activeDraft->fresh()->state);
+        $this->assertSame(TermCalendarPackage::StateDraft, $olderDraft->fresh()->state);
+
+        // An older lingering Draft (v1 < v2) must NOT override the Active calendar UI.
+        Livewire::actingAs($registrar)
+            ->test(TermCalendar::class, ['termId' => $term->id])
+            ->assertSee('Active')
+            ->assertSee('Edit calendar')
+            ->assertDontSee('Review and activate this draft when ready');
+
+        // Closing the term closes both Active and lingering Draft calendar packages.
+        Livewire::actingAs($registrar)
+            ->test(TermCalendar::class, ['termId' => $term->id])
+            ->callAction('closeTerm')
+            ->assertHasNoActionErrors();
+
+        $this->assertSame(Term::StateClosed, $term->fresh()->state);
+        $this->assertSame(TermCalendarPackage::StateClosed, $activeDraft->fresh()->state);
+        $this->assertSame(TermCalendarPackage::StateClosed, $olderDraft->fresh()->state);
     }
 
     public function test_cancelling_class_via_proposal_purges_unreferenced_scheduling_demands(): void
@@ -281,14 +305,17 @@ class SwarmAuditGapsRegressionTest extends TestCase
         $this->assertDatabaseMissing('scheduling_demands', ['section_delivery_group_id' => $group->id]);
     }
 
-    public function test_room_policy_allows_deleting_unreferenced_rooms_and_blocks_referenced_rooms(): void
+    public function test_school_resources_only_allows_registrar_to_delete_unreferenced_rooms(): void
     {
         $registrar = $this->registrar();
         $term = Term::factory()->create();
         $policy = app(RoomPolicy::class);
 
         $unusedRoom = Room::factory()->create();
-        $this->assertTrue($policy->delete($registrar, $unusedRoom));
+        $this->assertFalse($policy->delete($registrar, $unusedRoom));
+        Livewire::actingAs($registrar)
+            ->test(SchoolResources::class)
+            ->assertTableActionVisible('deleteRoom', $unusedRoom);
 
         CalendarEvent::query()->create([
             'term_id' => $term->id,
@@ -304,7 +331,22 @@ class SwarmAuditGapsRegressionTest extends TestCase
             'authority' => 'Registrar Office',
         ]);
 
-        $this->assertFalse($policy->delete($registrar, $unusedRoom->fresh()));
+        $deletableRoom = Room::factory()->create();
+        $academicHead = User::factory()->create();
+        $academicHead->assignRole(Role::findOrCreate(User::StaffRoleAcademicHead, 'web'));
+
+        Livewire::actingAs($academicHead)
+            ->test(SchoolResources::class)
+            ->assertTableActionHidden('deleteRoom', $deletableRoom);
+
+        Livewire::actingAs($registrar)
+            ->test(SchoolResources::class)
+            ->assertTableActionHidden('deleteRoom', $unusedRoom)
+            ->callTableAction('deleteRoom', $deletableRoom)
+            ->assertHasNoActionErrors();
+
+        $this->assertModelExists($unusedRoom);
+        $this->assertModelMissing($deletableRoom);
     }
 
     public function test_unbatched_curriculum_activation_does_not_retire_active_batched_curricula_and_discard_cleans_orphan_draft_specs(): void

@@ -300,7 +300,7 @@
                 <header class="tala-solver-card__header">
                     <h2 id="solver-quality-heading">Schedule quality</h2>
                     <p class="tala-solver-card__caption">
-                        Optimization priorities ranked in order. Lower values are better (except stability preference, where higher is better).
+                        Ranked optimization-quality measures, not predictive accuracy or an accuracy score. Lower values are preferred when earlier priorities tie (except stability preference, where higher is better).
                     </p>
                 </header>
                 @if ($report['qualityRows'] !== [])

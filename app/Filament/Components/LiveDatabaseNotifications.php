@@ -18,9 +18,9 @@ use Illuminate\Support\Collection;
  */
 class LiveDatabaseNotifications extends DatabaseNotifications
 {
-    private const int MaxToastsPerPoll = 5;
+    private const MaxToastsPerPoll = 5;
 
-    private const int MaxRememberedIds = 50;
+    private const MaxRememberedIds = 50;
 
     public function mount(): void
     {

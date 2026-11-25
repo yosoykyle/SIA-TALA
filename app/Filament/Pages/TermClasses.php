@@ -481,8 +481,8 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                 $this->classDetailsAction('viewClass')->label('Details')->icon(Heroicon::OutlinedEye)->button()->color('gray')->size('sm')->extraAttributes(['class' => 'whitespace-nowrap']),
             ])->recordActionsColumnLabel('Actions')->defaultSort('code')
             ->emptyState(view('filament.partials.collection-empty-state'))
-            ->emptyStateHeading(fn (): string => filled($this->getTableSearch()) || $this->getTable()->getActiveFiltersCount() ? 'No matching classes' : 'No classes added for this term')
-            ->emptyStateDescription(fn (): string => filled($this->getTableSearch()) || $this->getTable()->getActiveFiltersCount()
+            ->emptyStateHeading(fn (): string => $this->hasActiveClassesFilterOrSearch() ? 'No matching classes' : 'No classes added for this term')
+            ->emptyStateDescription(fn (): string => $this->hasActiveClassesFilterOrSearch()
                 ? 'Try another subject or clear the search and filters.'
                 : (auth()->user()?->hasRole(User::StaffRoleAcademicHead) ? 'The Registrar adds student sections and loads classes for this term.' : 'Add student sections first, then load subjects from curriculum or add a class.'))->stackedOnMobile();
     }
@@ -2416,6 +2416,22 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
             ->filter()
             ->mapWithKeys(fn (int $entryId): array => [$entryId => true])
             ->all();
+    }
+
+    private function hasActiveClassesFilterOrSearch(): bool
+    {
+        if (filled($this->getTableSearch())) {
+            return true;
+        }
+
+        $lifecycleStatus = $this->getTableFilterState('lifecycle_status')['value'] ?? 'active';
+        $activeFilters = $this->getTable()->getActiveFiltersCount();
+
+        if ($lifecycleStatus === 'active' && $this->getTable()->getFilter('lifecycle_status')?->getActiveCount() === 1) {
+            $activeFilters = max(0, $activeFilters - 1);
+        }
+
+        return $activeFilters > 0;
     }
 
     private function yearLevelLabel(?int $yearLevel): ?string

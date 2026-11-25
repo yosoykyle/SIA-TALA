@@ -1063,7 +1063,7 @@ final class TAL62SolverRunDispatchTest extends TestCase
 
         $page = $component->instance();
         $this->assertInstanceOf(ListScheduleGenerationRuns::class, $page);
-        $this->assertSame('5s', $page->getTable()->getPollingInterval());
+        $this->assertNull($page->getTable()->getPollingInterval());
 
         Livewire::actingAs($registrar)
             ->test(TermTimetable::class, ['termId' => $source['term']->id])
@@ -1072,6 +1072,7 @@ final class TAL62SolverRunDispatchTest extends TestCase
 
         $run = ScheduleGenerationRun::query()->whereBelongsTo($source['term'])->sole();
 
+        $this->assertSame('5s', $page->getTable()->getPollingInterval());
         $component->assertNotified(
             Notification::make()
                 ->title('Timetable generation requested')
@@ -1085,7 +1086,7 @@ final class TAL62SolverRunDispatchTest extends TestCase
         $source = $this->schedulingSource();
         $registrar = $this->staff(User::StaffRoleRegistrar);
 
-        ScheduleGenerationRun::query()->create([
+        $blocked = ScheduleGenerationRun::query()->create([
             'term_id' => $source['term']->id,
             'status' => ScheduleGenerationRun::StatusBlocked,
             'requested_by' => $registrar->id,
@@ -1093,15 +1094,31 @@ final class TAL62SolverRunDispatchTest extends TestCase
             'input_hash' => hash('sha256', 'tal96d5b-large-snapshot'),
             'solver_version' => 'tal96d5b-test',
             'model_version' => 'tal96d5b-test',
-            'diagnostics' => ['detail' => str_repeat('y', 1_000_000)],
+            'diagnostics' => [
+                'detail' => str_repeat('y', 1_000_000),
+                'solver_result' => ['solver_status' => 'infeasible'],
+            ],
         ]);
 
-        $this->actingAs($registrar);
+        $manualEdit = $blocked->replicate()->forceFill([
+            'status' => ScheduleGenerationRun::StatusSuperseded,
+            'input_hash' => hash('sha256', 'tal96d5b-manual-edit'),
+            'diagnostics' => [
+                'candidate_origin' => 'LocalAdjustment',
+                'detail' => str_repeat('z', 1_000_000),
+            ],
+        ]);
+        $manualEdit->save();
 
-        $component = Livewire::test(ListScheduleGenerationRuns::class);
-
-        $component->assertOk();
-        $component->assertCanSeeTableRecords(ScheduleGenerationRun::query()->get());
+        Livewire::actingAs($registrar)->test(ListScheduleGenerationRuns::class)
+            ->assertCanSeeTableRecords([$blocked])
+            ->assertCanNotSeeTableRecords([$manualEdit])
+            ->assertSee('Infeasible')
+            ->filterTable('hide_manual_adjustments', true)
+            ->assertCanSeeTableRecords([$manualEdit, $blocked], inOrder: true)
+            ->filterTable('hide_manual_adjustments', false)
+            ->assertCanSeeTableRecords([$manualEdit])
+            ->assertCanNotSeeTableRecords([$blocked]);
     }
 
     /**

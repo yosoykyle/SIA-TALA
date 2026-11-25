@@ -46,6 +46,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Url;
 use UnitEnum;
@@ -362,10 +363,11 @@ final class SchoolResources extends Page implements HasTable
                     ->modalHeading(fn (Room $record): string => 'Delete '.$record->code.'?')
                     ->modalDescription(fn (Room $record): string => "Permanently deletes {$record->code} because it has no meetings, closures, commitments, or scheduling requirements. This cannot be undone.")
                     ->modalSubmitActionLabel('Delete room')
-                    ->visible(fn (Room $record): bool => ! $this->isReadOnly() && RoomResource::canDelete($record))
+                    ->visible(fn (Room $record): bool => ! $this->isReadOnly() && Gate::allows('deleteUnusedRoom', $record))
                     ->action(function (Room $record): void {
                         $actor = auth()->user();
-                        abort_unless($actor instanceof User && $actor->hasRole(User::StaffRoleRegistrar) && RoomResource::canDelete($record), 403);
+                        abort_unless($actor instanceof User && ! $this->isReadOnly(), 403);
+                        Gate::forUser($actor)->authorize('deleteUnusedRoom', $record);
 
                         $code = $record->code;
 

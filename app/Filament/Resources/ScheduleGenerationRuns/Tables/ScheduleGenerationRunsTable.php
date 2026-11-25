@@ -31,10 +31,10 @@ class ScheduleGenerationRunsTable
                     'schedule_runs.runtime_ms',
                     'schedule_runs.created_at',
                     'schedule_runs.updated_at',
+                    'diagnostic_flags.dispatch_status_flag',
+                    'diagnostic_flags.solver_status_flag',
                 ])
-                ->selectRaw("JSON_UNQUOTE(JSON_EXTRACT(diagnostics, '$.solver_dispatch.status')) as dispatch_status_flag")
-                ->selectRaw("JSON_UNQUOTE(JSON_EXTRACT(diagnostics, '$.solver_result.solver_status')) as solver_status_flag")
-                ->selectRaw("JSON_UNQUOTE(JSON_EXTRACT(diagnostics, '$.candidate_origin')) as candidate_origin_flag")
+                ->joinSub(self::diagnosticFlags(), 'diagnostic_flags', 'diagnostic_flags.run_id', '=', 'schedule_runs.id')
                 ->with(['term', 'requester'])
                 ->withCount('candidateRows'))
             ->columns([
@@ -93,10 +93,10 @@ class ScheduleGenerationRunsTable
                     ->default(null)
                     ->queries(
                         true: fn (Builder $query): Builder => $query,
-                        false: fn (Builder $query): Builder => $query->where('diagnostics->candidate_origin', 'LocalAdjustment'),
+                        false: fn (Builder $query): Builder => $query->where('diagnostic_flags.candidate_origin', 'LocalAdjustment'),
                         blank: fn (Builder $query): Builder => $query->where(function (Builder $inner): void {
-                            $inner->whereNull('diagnostics->candidate_origin')
-                                ->orWhere('diagnostics->candidate_origin', '!=', 'LocalAdjustment')
+                            $inner->whereNull('diagnostic_flags.candidate_origin')
+                                ->orWhere('diagnostic_flags.candidate_origin', '!=', 'LocalAdjustment')
                                 ->orWhere('status', '!=', ScheduleGenerationRun::StatusSuperseded);
                         }),
                     ),
@@ -112,6 +112,16 @@ class ScheduleGenerationRunsTable
             ->emptyStateHeading('No generated timetables are recorded')
             ->emptyStateDescription('Prepare the Term inputs, then generate a timetable from Timetable.')
             ->emptyState(view('filament.partials.collection-empty-state'));
+    }
+
+    private static function diagnosticFlags(): Builder
+    {
+        // Keep large diagnostics off the table reference used for ordering and pagination.
+        return ScheduleGenerationRun::query()
+            ->select('id as run_id')
+            ->selectRaw("JSON_UNQUOTE(JSON_EXTRACT(diagnostics, '$.solver_dispatch.status')) as dispatch_status_flag")
+            ->selectRaw("JSON_UNQUOTE(JSON_EXTRACT(diagnostics, '$.solver_result.solver_status')) as solver_status_flag")
+            ->selectRaw("JSON_UNQUOTE(JSON_EXTRACT(diagnostics, '$.candidate_origin')) as candidate_origin");
     }
 
     private static function resultLabel(ScheduleGenerationRun $record): string

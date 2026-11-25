@@ -737,9 +737,15 @@ class TermCalendar extends TermPlanningWorkbench implements HasTable
             return null;
         }
 
+        $activeVersion = TermCalendarPackage::query()
+            ->where('term_id', $this->termId)
+            ->where('state', TermCalendarPackage::StateActive)
+            ->max('version');
+
         return TermCalendarPackage::query()
             ->where('term_id', $this->termId)
             ->where('state', TermCalendarPackage::StateDraft)
+            ->when($activeVersion !== null, fn ($query) => $query->where('version', '>', (int) $activeVersion))
             ->latest('version')
             ->first();
     }

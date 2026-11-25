@@ -50,6 +50,14 @@ class RoomPolicy
      */
     public function delete(User $user, Room $room): bool
     {
+        return false;
+    }
+
+    /**
+     * Determine whether the Registrar can permanently delete an unreferenced room.
+     */
+    public function deleteUnusedRoom(User $user, Room $room): bool
+    {
         if (! $this->canManage($user)) {
             return false;
         }

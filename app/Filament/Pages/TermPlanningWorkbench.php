@@ -1521,7 +1521,6 @@ class TermPlanningWorkbench extends Page
                     'package_token' => $package?->concurrencyToken(),
                     'expected_deadline_id' => $prior?->id ?? 0,
                     'original_due_at_utc' => $prior?->due_at?->copy()->timezone((string) config('app.timezone'))->format('Y-m-d H:i'),
-                    'original_due_at_display' => $prior?->due_at?->copy()->timezone('Asia/Manila')->format('Y-m-d H:i'),
                     'due_at' => $prior?->due_at?->copy()->timezone((string) config('app.timezone'))->format('Y-m-d H:i:s'),
                     'faculty_user_ids' => $noResponseIds,
                 ];
@@ -1531,7 +1530,6 @@ class TermPlanningWorkbench extends Page
                 Hidden::make('package_token')->required(),
                 Hidden::make('expected_deadline_id')->required(),
                 Hidden::make('original_due_at_utc'),
-                Hidden::make('original_due_at_display'),
                 Select::make('faculty_user_ids')
                     ->label('Recipients (no response)')
                     ->helperText('Pre-filled with Term faculty who have not replied yet. Clear to update only the due date.')
@@ -1562,8 +1560,8 @@ class TermPlanningWorkbench extends Page
                     ->label('Reason for changing due date')
                     ->helperText('Required when changing an existing due date.')
                     ->maxLength(2000)
-                    ->required(fn (Get $get): bool => (int) $get('expected_deadline_id') > 0 && $this->deadlineInputChanged($get('due_at'), $get('original_due_at_display'), 'Asia/Manila'))
-                    ->visible(fn (Get $get): bool => (int) $get('expected_deadline_id') > 0 && $this->deadlineInputChanged($get('due_at'), $get('original_due_at_display'), 'Asia/Manila')),
+                    ->required(fn (Get $get): bool => (int) $get('expected_deadline_id') > 0 && $this->deadlineInputChanged($get('due_at'), $get('original_due_at_utc'), (string) config('app.timezone')))
+                    ->visible(fn (Get $get): bool => (int) $get('expected_deadline_id') > 0),
             ])
             ->action(function (array $data): void {
                 $actor = auth()->user();
@@ -2833,6 +2831,11 @@ class TermPlanningWorkbench extends Page
                 ->where('term_id', $term->id)
 
                 ->where('state', TermCalendarPackage::StateDraft)
+
+                ->when(
+                    $activePackage instanceof TermCalendarPackage,
+                    fn ($query) => $query->where('version', '>', $activePackage->version),
+                )
 
                 ->with(['windows', 'teachingGridRows', 'datedExceptions'])
 
