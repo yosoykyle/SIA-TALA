@@ -80,8 +80,10 @@
             <div class="registrar-start-actions">{{ $continuingAction }} {{ $shiftProgramAction }} {{ $lateContinuingAction }}</div>
         </section>
         <section class="registrar-progress-panel tala-task-surface" aria-labelledby="registrar-progress-heading">
-            <h2 id="registrar-progress-heading">Waiting on others</h2>
-            <p class="tala-workspace-launcher__scope">Payment and fee review</p>
+            <header class="registrar-progress-panel__header">
+                <h2 id="registrar-progress-heading">Waiting on others</h2>
+                <p class="tala-workspace-launcher__scope">Payment and fee review</p>
+            </header>
             <nav class="registrar-work-list" aria-label="Enrollments waiting for the next step">
                 <x-workspace-link :href="$queueUrl('finance_pending')" icon="heroicon-o-banknotes" label="Waiting for payment or fee review" description="Learner payment or Accounting review is pending.">
                     <x-slot name="status"><span class="registrar-work-count">{{ $counts['finance'] }}</span></x-slot>
