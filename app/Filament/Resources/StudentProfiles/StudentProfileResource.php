@@ -405,7 +405,12 @@ class StudentProfileResource extends Resource
                     ->weight('semibold')
                     ->description(fn (StudentProfile $record): ?string => $record->curriculumVersion?->name ?? $record->program?->name)
                     ->tooltip(fn (StudentProfile $record): ?string => $record->program?->name)
-                    ->searchable(['programs.code', 'programs.name'])
+                    ->searchable(query: fn (Builder $query, string $search): Builder => $query->whereHas(
+                        'program',
+                        fn (Builder $programs): Builder => $programs
+                            ->where('code', 'like', "%{$search}%")
+                            ->orWhere('name', 'like', "%{$search}%"),
+                    ))
                     ->sortable(),
                 TextColumn::make('current_enrollment_status')
                     ->label('Current Enrollment')

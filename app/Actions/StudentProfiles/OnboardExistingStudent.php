@@ -3,6 +3,7 @@
 namespace App\Actions\StudentProfiles;
 
 use App\Actions\Enrollment\AllocateStudentNumber;
+use App\Models\AcademicDecision;
 use App\Models\CurriculumVersion;
 use App\Models\Hold;
 use App\Models\Program;
@@ -164,6 +165,19 @@ class OnboardExistingStudent
                 'phone' => filled($data['phone'] ?? null) ? trim((string) $data['phone']) : null,
                 'address' => filled($data['address'] ?? null) ? trim((string) $data['address']) : null,
             ]);
+
+            if ($standing === StudentProfile::StandingIrregular) {
+                AcademicDecision::query()->create([
+                    'student_profile_id' => $profile->id,
+                    'term_id' => null,
+                    'effect' => AcademicDecision::EffectAdvisingRequired,
+                    'reason' => 'Onboarded as an irregular continuing student requiring individual subject advising.',
+                    'effective_from' => today('Asia/Manila'),
+                    'state' => AcademicDecision::StateActive,
+                    'recorded_by' => $actor->id,
+                    'recorded_at' => now(),
+                ]);
+            }
 
             $holdNote = trim((string) ($data['financial_hold_note'] ?? ''));
             if ($holdNote !== '') {
