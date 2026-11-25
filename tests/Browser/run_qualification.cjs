@@ -84,16 +84,16 @@ async function loginAsAdmin(page) {
         }
 
         // Check for refresh action
-        const refreshBtn = await page.$('button:has-text("Refresh local evidence")');
+        const refreshBtn = await page.$('button:has-text("Refresh status")');
         console.log('Refresh button found:', !!refreshBtn);
         if (refreshBtn) {
             await refreshBtn.click();
             await page.waitForTimeout(1000);
-            console.log('Clicked refresh local evidence.');
+            console.log('Clicked refresh status.');
         }
 
         // Check for self test email
-        const selfTestBtn = await page.$('button:has-text("Send self-test email")');
+        const selfTestBtn = await page.$('button:has-text("Send test email")');
         console.log('Self-test email button found:', !!selfTestBtn);
 
         // Test 2: SYS-004 Governance & Audit
@@ -110,7 +110,7 @@ async function loginAsAdmin(page) {
         console.log('Rendered WAI-ARIA tabs:', tabs);
 
         // Check Privacy tab copy
-        const privacyTab = await page.$('[role="tab"]:has-text("Privacy and Retention Boundary")');
+        const privacyTab = await page.$('[role="tab"]:has-text("Privacy & retention")');
         if (privacyTab) {
             await privacyTab.click();
             await page.waitForTimeout(1000);

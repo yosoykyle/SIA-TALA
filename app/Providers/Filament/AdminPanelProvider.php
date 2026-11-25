@@ -135,7 +135,20 @@ class AdminPanelProvider extends PanelProvider
                 isRequired: true,
             )
             ->multiFactorAuthenticationRequiredMiddlewareName(EnsureStaffMfaIsEnabled::class)
-            ->databaseNotifications(livewireComponent: LiveDatabaseNotifications::class)
+            ->databaseNotifications(
+                condition: function (): bool {
+                    $user = auth()->user();
+
+                    if (! $user instanceof User) {
+                        return true;
+                    }
+
+                    $roles = $user->roles->pluck('name')->values()->all();
+
+                    return ! ($roles === [User::StaffRoleSystemSuperAdmin]);
+                },
+                livewireComponent: LiveDatabaseNotifications::class,
+            )
             ->databaseNotificationsPolling('8s')
             ->brandName('Servitech Institute Asia — Staff Workspace')
             ->plugin(
@@ -391,7 +404,7 @@ class AdminPanelProvider extends PanelProvider
                 ? $this->planningWithChildren($items, $termPlanningContext)
                 : $this->academicHeadNavigation($items);
         } elseif ($selectedContext === User::StaffRoleSystemSuperAdmin) {
-            $items = $this->publicContentWithChildren($items);
+            $items = $this->systemAdminNavigation($items, $badgeCounts);
         }
 
         return $builder->items($items);
@@ -999,35 +1012,131 @@ class AdminPanelProvider extends PanelProvider
     }
 
     /**
-     * Attach Public Content child destinations (Notices, FAQ) for System Administrator
+     * Upgrade the 4 canonical System Administrator destinations with focused expandable
+     * sub-options and request-memoized sidebar badges.
+     *
+     * @param  list<NavigationItem>  $items
+     * @return list<NavigationItem>
+     */
+    private function systemAdminNavigation(array $items, NavigationBadgeCounts $badgeCounts): array
+    {
+        $items = $this->usersAndAccessWithChildren($items, $badgeCounts);
+        $items = $this->publicContentWithChildren($items, $badgeCounts);
+        $items = $this->systemHealthWithBadge($items, $badgeCounts);
+
+        return $this->governanceAuditItem($items);
+    }
+
+    /**
+     * Attach Users & Access queue sub-options and attention badge for System Administrator.
+     *
+     * @param  list<NavigationItem>  $items
+     * @return list<NavigationItem>
+     */
+    private function usersAndAccessWithChildren(array $items, NavigationBadgeCounts $badgeCounts): array
+    {
+        if (! UserResource::canAccess()) {
+            return $items;
+        }
+
+        $onUsers = fn (): bool => \Filament\Support\original_request()->routeIs('filament.admin.resources.users.*');
+        $onUsersList = fn (): bool => \Filament\Support\original_request()->routeIs('filament.admin.resources.users.index');
+        $activeQueue = fn (): string => match ((string) \Filament\Support\original_request()->query('queue', 'all')) {
+            'attention' => 'attention',
+            'staff' => 'staff',
+            'multi-role' => 'multi-role',
+            'learners' => 'learners',
+            default => 'all',
+        };
+
+        $children = [
+            NavigationItem::make('All accounts')
+                ->icon(Heroicon::OutlinedUsers)
+                ->url(UserResource::getUrl('index'))
+                ->isActiveWhen(fn (): bool => $onUsersList() && $activeQueue() === 'all'),
+            NavigationItem::make('Needs attention')
+                ->icon(Heroicon::OutlinedExclamationCircle)
+                ->url(UserResource::getUrl('index', ['queue' => 'attention']))
+                ->isActiveWhen(fn (): bool => $onUsersList() && $activeQueue() === 'attention')
+                ->badge(
+                    fn (): ?string => ($count = $badgeCounts->systemAdminUsers()['attention']) > 0 ? (string) $count : null,
+                    'warning',
+                ),
+            NavigationItem::make('Staff accounts')
+                ->icon(Heroicon::OutlinedShieldCheck)
+                ->url(UserResource::getUrl('index', ['queue' => 'staff']))
+                ->isActiveWhen(fn (): bool => $onUsersList() && $activeQueue() === 'staff'),
+            NavigationItem::make('Multi-role')
+                ->icon(Heroicon::OutlinedArrowsRightLeft)
+                ->url(UserResource::getUrl('index', ['queue' => 'multi-role']))
+                ->isActiveWhen(fn (): bool => $onUsersList() && $activeQueue() === 'multi-role')
+                ->badge(
+                    fn (): ?string => ($count = $badgeCounts->systemAdminUsers()['multi_role']) > 0 ? (string) $count : null,
+                    'gray',
+                ),
+            NavigationItem::make('Learners')
+                ->icon(Heroicon::OutlinedAcademicCap)
+                ->url(UserResource::getUrl('index', ['queue' => 'learners']))
+                ->isActiveWhen(fn (): bool => $onUsersList() && $activeQueue() === 'learners'),
+        ];
+
+        return array_map(
+            fn (NavigationItem $item): NavigationItem => $item->getLabel() === 'Users & Access'
+                ? $this->expandableNavigationItem(
+                    $item
+                        ->icon(Heroicon::OutlinedUsers)
+                        ->badge(
+                            fn (): ?string => ($count = $badgeCounts->systemAdminUsers()['attention']) > 0 ? (string) $count : null,
+                            'warning',
+                        ),
+                    $children,
+                    $onUsers,
+                )
+                : $item,
+            $items,
+        );
+    }
+
+    /**
+     * Attach Public Content child destinations (Announcements, FAQs) for System Administrator
      * using the shared expand-on-active sidebar pattern.
      *
      * @param  list<NavigationItem>  $items
      * @return list<NavigationItem>
      */
-    private function publicContentWithChildren(array $items): array
+    private function publicContentWithChildren(array $items, NavigationBadgeCounts $badgeCounts): array
     {
         $request = \Filament\Support\original_request();
         $children = [];
 
         if (PublicNoticeResource::canAccess()) {
-            $children[] = NavigationItem::make('Notices')
+            $children[] = NavigationItem::make('Announcements')
                 ->icon(Heroicon::OutlinedMegaphone)
                 ->url(PublicNoticeResource::getUrl('index'))
-                ->isActiveWhen(fn (): bool => $request->routeIs('filament.admin.public-content.resources.public-notices.*'));
+                ->isActiveWhen(fn (): bool => $request->routeIs('filament.admin.public-content.resources.public-notices.*'))
+                ->badge(
+                    fn (): ?string => ($count = $badgeCounts->systemAdminPublicContent()['notices_draft']) > 0 ? (string) $count : null,
+                    'info',
+                )
+                ->badgeTooltip('Draft announcements');
         }
 
         if (FaqEntryResource::canAccess()) {
-            $children[] = NavigationItem::make('FAQ')
-                ->icon(Heroicon::OutlinedRectangleStack)
+            $children[] = NavigationItem::make('FAQs')
+                ->icon(Heroicon::OutlinedQuestionMarkCircle)
                 ->url(FaqEntryResource::getUrl('index'))
-                ->isActiveWhen(fn (): bool => $request->routeIs('filament.admin.public-content.resources.faq-entries.*'));
+                ->isActiveWhen(fn (): bool => $request->routeIs('filament.admin.public-content.resources.faq-entries.*'))
+                ->badge(
+                    fn (): ?string => ($count = $badgeCounts->systemAdminPublicContent()['faqs_draft']) > 0 ? (string) $count : null,
+                    'info',
+                )
+                ->badgeTooltip('Draft FAQs');
         }
 
         return array_map(
             fn (NavigationItem $item): NavigationItem => $item->getLabel() === 'Public Content'
                 ? $this->expandableNavigationItem(
-                    $item,
+                    $item->icon(Heroicon::OutlinedMegaphone),
                     $children,
                     fn (): bool => $request->routeIs(
                         'filament.admin.public-content',
@@ -1035,6 +1144,50 @@ class AdminPanelProvider extends PanelProvider
                         'filament.admin.public-content.resources.faq-entries.*',
                     ),
                 )
+                : $item,
+            $items,
+        );
+    }
+
+    /**
+     * Attach the live local-check attention badge to System Health.
+     *
+     * @param  list<NavigationItem>  $items
+     * @return list<NavigationItem>
+     */
+    private function systemHealthWithBadge(array $items, NavigationBadgeCounts $badgeCounts): array
+    {
+        return array_map(
+            fn (NavigationItem $item): NavigationItem => $item->getLabel() === 'System Health'
+                ? $item
+                    ->icon(Heroicon::OutlinedSignal)
+                    ->badge(
+                        fn (): ?string => ($count = $badgeCounts->systemAdminHealth()['attention']) > 0 ? (string) $count : null,
+                        'warning',
+                    )
+                : $item,
+            $items,
+        );
+    }
+
+    /**
+     * Keep Governance & Audit as a single focused sidebar item; its 4 in-page tabs own sub-navigation.
+     *
+     * @param  list<NavigationItem>  $items
+     * @return list<NavigationItem>
+     */
+    private function governanceAuditItem(array $items): array
+    {
+        if (! GovernanceAudit::canAccess()) {
+            return $items;
+        }
+
+        return array_map(
+            fn (NavigationItem $item): NavigationItem => $item->getLabel() === 'Governance & Audit'
+                ? $item
+                    ->icon(Heroicon::OutlinedShieldCheck)
+                    ->url(GovernanceAudit::getUrl())
+                    ->isActiveWhen(fn (): bool => \Filament\Support\original_request()->routeIs(GovernanceAudit::getRouteName()))
                 : $item,
             $items,
         );

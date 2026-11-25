@@ -19,7 +19,7 @@ class EditFaqEntry extends EditRecord
     {
         return [
             PublicContent::getUrl() => 'Public Content',
-            FaqEntryResource::getUrl('index') => 'FAQ',
+            FaqEntryResource::getUrl('index') => 'FAQs',
             'Edit FAQ',
         ];
     }

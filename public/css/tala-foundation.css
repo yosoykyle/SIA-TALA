@@ -428,9 +428,29 @@
 }
 
 .tala-access-page { margin: 0; background: var(--tala-canvas); color: var(--tala-text); font-family: var(--tala-font-body); line-height: 1.6; }
-.tala-access-main { display: grid; place-items: center; min-height: 100dvh; padding: 2rem 1rem; max-width: 36rem; margin-inline: auto; }
+.tala-access-main { display: grid; place-items: center; min-height: 100dvh; padding: 2rem 1rem; max-width: 34rem; margin-inline: auto; }
 .tala-access-main-wide { max-width: 48rem; }
-.tala-access-card { width: 100%; min-width: 0; padding: clamp(1rem, 4vw, 2rem); border: 1px solid var(--tala-border); border-radius: 0.75rem; background: var(--tala-surface); overflow-wrap: anywhere; }
+.tala-access-card { width: 100%; min-width: 0; padding: clamp(1.25rem, 4vw, 2rem); border: 1px solid var(--tala-edge-strong); border-radius: 1rem; background: var(--tala-surface); box-shadow: var(--tala-shadow-surface); overflow-wrap: anywhere; }
+.tala-access-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
+.tala-access-header .tala-brand { margin-bottom: 0; }
+.tala-access-theme-toggle { display: inline-flex; align-items: center; justify-content: center; inline-size: 2.25rem; block-size: 2.25rem; flex: none; border-radius: 0.5rem; border: 1px solid var(--tala-edge-strong); background: var(--tala-surface-sunken); color: var(--tala-muted); cursor: pointer; transition: border-color 150ms ease, color 150ms ease, background-color 150ms ease; }
+.tala-access-theme-toggle:hover { border-color: var(--tala-selected-edge); color: var(--tala-text); background: var(--tala-surface-raised); }
+.tala-access-theme-icon { inline-size: 1.125rem; block-size: 1.125rem; }
+.tala-access-theme-icon--sun { display: none; }
+.tala-access-theme-icon--moon { display: block; }
+html.dark .tala-access-theme-icon--sun { display: block; }
+html.dark .tala-access-theme-icon--moon { display: none; }
+.tala-access-heading-block { display: grid; gap: 0.25rem; }
+.tala-access-identity-pill { display: flex; align-items: center; gap: 0.75rem; margin-top: 1.25rem; padding: 0.75rem 0.875rem; border: 1px solid var(--tala-edge); border-radius: 0.75rem; background: var(--tala-surface-sunken); }
+.tala-access-identity-avatar { display: grid; place-items: center; inline-size: 2.25rem; block-size: 2.25rem; flex: none; border-radius: 9999px; background: var(--tala-brand-tint); color: var(--tala-on-brand-tint); border: 1px solid var(--tala-selected-edge); font-size: 0.8125rem; font-weight: 700; }
+.tala-access-identity-meta { display: grid; min-inline-size: 0; line-height: 1.3; }
+.tala-access-identity-name { font-size: 0.875rem; font-weight: 600; color: var(--tala-text); overflow-wrap: anywhere; }
+.tala-access-identity-email { font-size: 0.8125rem; color: var(--tala-muted); overflow-wrap: anywhere; }
+.tala-access-invite-context { display: grid; gap: 0.25rem; margin-top: 1.25rem; padding: 0.875rem 1rem; border: 1px solid var(--tala-edge); border-radius: 0.75rem; background: var(--tala-surface-sunken); }
+.tala-access-invite-context__name { margin: 0; font-size: 0.9375rem; font-weight: 600; color: var(--tala-text); }
+.tala-access-invite-context__email { margin: 0; font-size: 0.8125rem; color: var(--tala-muted); overflow-wrap: anywhere; }
+.tala-access-invite-context__roles { display: flex; flex-wrap: wrap; gap: 0.375rem; margin-top: 0.5rem; }
+.tala-access-role-pill { display: inline-flex; align-items: center; padding: 0.1875rem 0.5625rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; background: var(--tala-brand-tint); color: var(--tala-on-brand-tint); border: 1px solid var(--tala-selected-edge); }
 .tala-task-surface { border: 1px solid var(--tala-edge); border-radius: var(--tala-card-radius); background: var(--tala-surface); }
 .tala-task-surface .tala-task-surface { background: var(--tala-surface-raised); border-color: var(--tala-edge-strong); }
 .tala-context-inset { display:grid; gap:calc(var(--tala-card-gap) / 2); min-inline-size:0; padding:var(--tala-card-pad-compact); border:1px solid var(--tala-edge-strong); border-radius:var(--tala-card-radius); background:var(--tala-surface-raised); box-shadow:var(--tala-material-detail); }
@@ -468,18 +488,33 @@
     .tala-choice-options--cards .fi-fo-radio-label:has(input:checked) { outline:2px solid Highlight; }
 }
 .tala-access-card .tala-brand { margin-bottom: 1.5rem; }
-.tala-access-card .tala-brand__crest { display: block; width: 3.5rem; height: 3.5rem; }
+.tala-access-card .tala-brand__crest { display: block; width: 3rem; height: 3rem; }
 :is(.tala-access-card h1, .tala-auth-main .fi-simple-header-heading) {
     font-family: var(--tala-font-heading);
-    font-size: clamp(2.25rem, 4vw, 3.25rem);
-    font-weight: 800;
-    line-height: 1.1;
+    font-size: clamp(1.5rem, 2.2vw, 1.875rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
     text-wrap: balance;
+    margin: 0;
 }
 html:not(.dark) :is(.tala-access-card h1, .tala-auth-main .fi-simple-header-heading) { color: var(--tala-brand-strong); }
-.tala-access-form { display: grid; gap: 1.25rem; margin-block-start: 1.5rem; }
+.tala-access-form { display: grid; gap: 1.125rem; margin-block-start: 1.5rem; }
+.tala-access-field { display: grid; gap: 0.25rem; }
+.tala-access-label { display: block; font-size: 0.875rem; font-weight: 600; color: var(--tala-text); }
 .tala-access-muted { color: var(--tala-muted); }
-.tala-access-input { width: 100%; min-height: 2.75rem; background: var(--tala-surface); color: var(--tala-text); border: 1px solid var(--tala-control-border); padding: 0.5rem 0.75rem; border-radius: 0.375rem; }
+.tala-access-password-field { position: relative; display: flex; align-items: center; }
+.tala-access-input { width: 100%; min-height: 2.75rem; background: var(--tala-surface); color: var(--tala-text); border: 1px solid var(--tala-control-border); padding: 0.5rem 0.75rem; border-radius: 0.5rem; font-size: 0.9375rem; transition: border-color 150ms ease, box-shadow 150ms ease; }
+.tala-access-input--with-toggle { padding-inline-end: 2.75rem; }
+.tala-access-input:focus { outline: none; border-color: var(--tala-brand); box-shadow: 0 0 0 2px color-mix(in srgb, var(--tala-brand) 22%, transparent); }
+.tala-access-input:user-invalid, .tala-access-input[aria-invalid="true"] { border-color: var(--tala-status-danger-fg, #dc2626); }
+.tala-access-password-toggle { position: absolute; inset-inline-end: 0.375rem; display: inline-flex; align-items: center; justify-content: center; inline-size: 2.125rem; block-size: 2.125rem; border: 0; border-radius: 0.375rem; background: transparent; color: var(--tala-muted); cursor: pointer; }
+.tala-access-password-toggle:hover { color: var(--tala-text); background: var(--tala-surface-sunken); }
+.tala-access-checklist { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; list-style: none; margin: 0; padding: 0.75rem 0.875rem; border-radius: 0.5rem; background: var(--tala-surface-sunken); border: 1px solid var(--tala-edge); font-size: 0.8125rem; }
+.tala-access-checklist__item { display: inline-flex; align-items: center; gap: 0.4375rem; color: var(--tala-muted); transition: color 150ms ease; }
+.tala-access-checklist__dot { inline-size: 0.5rem; block-size: 0.5rem; border-radius: 9999px; background: var(--tala-border); flex: none; transition: background-color 150ms ease; }
+.tala-access-checklist__item[data-met="true"] { color: var(--tala-brand-foreground); font-weight: 600; }
+.tala-access-checklist__item[data-met="true"] .tala-access-checklist__dot { background: var(--tala-brand); }
 .tala-access-alert {
     display: flex;
     align-items: flex-start;
@@ -547,16 +582,80 @@ html:not(.dark) :is(.tala-access-card h1, .tala-auth-main .fi-simple-header-head
 .tala-access-alert--success .tala-access-alert__title {
     color: var(--tala-on-brand-tint);
 }
-.tala-access-primary { display: block; width: 100%; min-height: 2.75rem; background: var(--tala-brand); color: var(--tala-on-brand); padding: 0.625rem 1rem; border-radius: 0.375rem; font-weight: 600; }
-.tala-workspace-choice { width: 100%; min-height: 5rem; border: 1px solid var(--tala-border); background: var(--tala-surface); padding: var(--tala-card-pad); border-radius: 0.5rem; text-align: start; }
-.tala-workspace-choice:hover { border-color: var(--tala-link); }
-.tala-workspace-empty-panel { width: 100%; border: 1px solid var(--tala-border); background: var(--tala-canvas); border-radius: 0.5rem; padding: var(--tala-card-pad); box-sizing: border-box; }
-.tala-access-help { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin-top: 1.5rem; }
-.tala-access-help a, .tala-access-text-button { display: inline-flex; align-items: center; min-height: 2.75rem; color: var(--tala-link); text-decoration: underline; text-underline-offset: 0.2em; }
+.tala-access-primary { display: inline-flex; align-items: center; justify-content: center; width: 100%; min-height: 2.75rem; background: var(--tala-brand); color: var(--tala-on-brand); border: 1px solid transparent; padding: 0.625rem 1rem; border-radius: 0.5rem; font-weight: 600; font-size: 0.9375rem; cursor: pointer; transition: background-color 150ms ease, transform 120ms ease; }
+.tala-access-primary:hover { background: var(--tala-brand-strong); }
+.tala-workspace-grid { display: grid; gap: 0.75rem; margin-top: 1.25rem; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 40rem) {
+    .tala-workspace-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.tala-workspace-form { display: flex; }
+.tala-workspace-choice { display: flex; align-items: flex-start; gap: 0.875rem; width: 100%; min-height: 5.5rem; border: 1px solid var(--tala-edge-strong); background: var(--tala-surface); box-shadow: var(--tala-material-detail); padding: 1rem; border-radius: 0.75rem; text-align: start; cursor: pointer; transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease; }
+.tala-workspace-choice:hover { border-color: var(--tala-selected-edge); background: color-mix(in srgb, var(--tala-brand-tint) 38%, var(--tala-surface)); box-shadow: var(--tala-shadow-surface); }
+.tala-workspace-choice__icon { display: grid; place-items: center; inline-size: 2.375rem; block-size: 2.375rem; flex: none; border-radius: 0.625rem; border: 1px solid var(--tala-edge); }
+.tala-workspace-choice__icon svg { inline-size: 1.25rem; block-size: 1.25rem; }
+.tala-workspace-choice__icon--primary { background: var(--tala-brand-tint); color: var(--tala-brand-foreground); border-color: var(--tala-selected-edge); }
+.tala-workspace-choice__icon--warning { background: var(--tala-status-warning-bg); color: var(--tala-status-warning-fg); border-color: var(--tala-status-warning-border); }
+.tala-workspace-choice__icon--danger { background: var(--tala-status-danger-bg); color: var(--tala-status-danger-fg); border-color: var(--tala-status-danger-border); }
+.tala-workspace-choice__icon--neutral { background: var(--tala-surface-sunken); color: var(--tala-muted); border-color: var(--tala-edge-strong); }
+.tala-workspace-choice__body { display: grid; gap: 0.25rem; min-inline-size: 0; flex: 1 1 auto; }
+.tala-workspace-choice__title { font-size: 0.9375rem; font-weight: 600; color: var(--tala-text); line-height: 1.3; }
+.tala-workspace-choice__desc { font-size: 0.8125rem; color: var(--tala-muted); line-height: 1.45; }
+.tala-workspace-choice__chevron { inline-size: 1.125rem; block-size: 1.125rem; flex: none; align-self: center; color: var(--tala-muted); transition: transform 150ms ease, color 150ms ease; }
+.tala-workspace-choice:hover .tala-workspace-choice__chevron { color: var(--tala-brand-foreground); transform: translateX(2px); }
+.tala-workspace-empty-panel { width: 100%; border: 1px solid var(--tala-edge-strong); background: var(--tala-surface-sunken); border-radius: 0.75rem; padding: 1rem; box-sizing: border-box; }
+.tala-access-footer-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--tala-edge); }
+.tala-access-secondary-btn { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 2.5rem; padding: 0.5rem 0.875rem; border-radius: 0.5rem; border: 1px solid var(--tala-edge-strong); background: var(--tala-surface-sunken); color: var(--tala-text); font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: border-color 150ms ease, background-color 150ms ease; }
+.tala-access-secondary-btn:hover { background: var(--tala-surface-raised); border-color: var(--tala-border); }
+.tala-access-help { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--tala-edge); font-size: 0.875rem; }
+.tala-access-help a, .tala-access-text-button { display: inline-flex; align-items: center; min-height: 2.5rem; color: var(--tala-link); text-decoration: underline; text-underline-offset: 0.2em; }
 .tala-access-page :focus-visible { outline: 3px solid var(--tala-focus); outline-offset: 3px; }
 
+:root.dark[data-tala-system-appearance],
+:root[data-tala-appearance="dark"] {
+    color-scheme: dark;
+    --tala-canvas: #151619;
+    --tala-chrome: #1e2024;
+    --tala-chrome-divider: rgb(255 255 255 / 8%);
+    --tala-surface: #27282c;
+    --tala-surface-raised: #303237;
+    --tala-surface-sunken: #1b1c20;
+    --tala-overlay: #35373d;
+    --tala-text: #f5f6f7;
+    --tala-muted: #c6c6ce;
+    --tala-border: #52525b;
+    --tala-control-border: #a1a1aa;
+    --tala-edge: rgb(255 255 255 / 12%);
+    --tala-edge-strong: rgb(255 255 255 / 20%);
+    --tala-rim: rgb(255 255 255 / 16%);
+    --tala-selected-edge: color-mix(in srgb, var(--primary-400, #6acb7c) 35%, transparent);
+    --tala-shadow-surface: 0 1px 2px rgb(0 0 0 / 25%), 0 8px 20px -10px rgb(0 0 0 / 30%);
+    --tala-shadow-detail: 0 1px 2px rgb(0 0 0 / 15%);
+    --tala-shadow-overlay: 0 2px 6px rgb(0 0 0 / 40%), 0 20px 48px -12px rgb(0 0 0 / 70%);
+    --tala-shadow-seated: 0 0 #0000;
+    --tala-inset-well: inset 0 1px 2px rgb(0 0 0 / 35%);
+    --tala-rim-inset: inset 0 1px 0 var(--tala-rim);
+
+    --tala-focus: #facc15;
+    --tala-link: #8de698;
+    --tala-brand-tint: #23422d;
+    --tala-on-brand-tint: #dff5e4;
+    --tala-brand-foreground: #8de698;
+    --tala-control-icon: #c6c6ce;
+    --tala-status-success-fg: var(--success-400, #4ade80);
+    --tala-status-success-bg: color-mix(in srgb, var(--tala-status-success-fg) 12%, var(--tala-surface));
+    --tala-status-success-border: color-mix(in srgb, var(--tala-status-success-fg) 35%, var(--tala-edge));
+    --tala-status-warning-fg: var(--warning-300, #fcd34d);
+    --tala-status-warning-icon: var(--warning-400, #fbbf24);
+    --tala-status-warning-bg: color-mix(in srgb, var(--warning-500, #f59e0b) 14%, var(--tala-surface));
+    --tala-status-warning-border: color-mix(in srgb, var(--warning-400, #fbbf24) 35%, var(--tala-edge));
+    --tala-status-danger-fg: var(--danger-400, #f87171);
+    --tala-status-danger-bg: color-mix(in srgb, var(--tala-status-danger-fg) 12%, var(--tala-surface));
+    --tala-status-danger-border: color-mix(in srgb, var(--tala-status-danger-fg) 35%, var(--tala-edge));
+    --tala-status-neutral-fg: var(--tala-muted);
+}
+
 @media (prefers-color-scheme: dark) {
-    :root[data-tala-system-appearance] {
+    :root[data-tala-system-appearance]:not([data-tala-appearance="light"]) {
         color-scheme: dark;
         --tala-canvas: #151619;
         --tala-chrome: #1e2024;

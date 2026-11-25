@@ -266,6 +266,17 @@
 .tala-draft-progress {
     display: grid;
     gap: 1rem;
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+}
+
+.tala-guidance :is(h3, p, dd),
+.tala-content-message,
+.tala-content-heading,
+.tala-content-link {
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .tala-draft-progress {
@@ -2386,5 +2397,446 @@ table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
 @media (forced-colors: active) {
     .fi-body :is(.tala-card-picker, .tala-catalog-subject-picker) .fi-fo-checkbox-list-option:has(.fi-checkbox-input:checked) {
         border-color: Highlight;
+    }
+}
+
+/* Shared Term-Planning-style unnested 4-tile KPI strip (directly on canvas) */
+.tala-kpi-strip {
+    margin: 0;
+}
+
+.tala-kpi-strip__grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.tala-kpi-strip__grid--5 {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.625rem;
+}
+
+.tala-kpi-strip__grid--5 .tala-kpi-tile {
+    padding: 0.75rem 0.875rem;
+}
+
+.tala-kpi-tile {
+    display: grid;
+    align-content: start;
+    gap: 0.375rem;
+    min-inline-size: 0;
+    padding: 0.875rem 1rem;
+    border: 1px solid var(--tala-edge);
+    border-radius: 0.625rem;
+    background: var(--tala-surface);
+    color: var(--tala-text);
+    box-shadow: var(--tala-material-detail);
+    text-decoration: none;
+    transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+}
+
+@media (hover: hover) {
+    .tala-kpi-tile--interactive:hover:not(.is-active) {
+        border-color: var(--tala-edge-strong);
+        background: var(--tala-surface-sunken);
+    }
+}
+
+.tala-kpi-tile--interactive:focus-visible {
+    outline: 2px solid var(--tala-focus);
+    outline-offset: 2px;
+}
+
+.tala-kpi-tile.is-active {
+    border-color: var(--tala-selected-edge);
+    background: var(--tala-brand-tint);
+    color: var(--tala-on-brand-tint);
+    box-shadow: inset 0 0 0 1px var(--tala-selected-edge), var(--tala-material-raised);
+}
+
+.tala-kpi-tile__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    min-inline-size: 0;
+}
+
+.tala-kpi-tile__label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--tala-muted);
+    min-inline-size: 0;
+}
+
+.tala-kpi-tile__icon {
+    inline-size: 1rem;
+    block-size: 1rem;
+    flex: none;
+    color: var(--tala-muted);
+}
+
+.tala-kpi-tile__icon--success {
+    color: var(--tala-brand-foreground);
+}
+
+.tala-kpi-tile__icon--warning {
+    color: var(--tala-status-warning-icon);
+}
+
+.tala-kpi-tile__icon--danger {
+    color: var(--tala-status-danger-fg);
+}
+
+.tala-kpi-tile__value {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    color: var(--tala-text);
+}
+
+.tala-kpi-tile--danger .tala-kpi-tile__value {
+    color: var(--tala-status-danger-fg);
+}
+
+.tala-kpi-tile--warning .tala-kpi-tile__value {
+    color: var(--tala-status-warning-fg);
+}
+
+.tala-kpi-tile--success .tala-kpi-tile__value {
+    color: var(--tala-brand-foreground);
+}
+
+.tala-kpi-tile__meta {
+    margin: 0;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: var(--tala-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.tala-kpi-tile.is-active .tala-kpi-tile__label,
+.tala-kpi-tile.is-active .tala-kpi-tile__value,
+.tala-kpi-tile.is-active .tala-kpi-tile__meta,
+.tala-kpi-tile.is-active .tala-kpi-tile__icon {
+    color: var(--tala-on-brand-tint);
+}
+
+@media (max-width: 64rem) {
+    .tala-kpi-strip__grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 48rem) {
+    .tala-kpi-strip__grid--5 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 36rem) {
+    .tala-kpi-strip__grid,
+    .tala-kpi-strip__grid--5 {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* 1:1 Public Landing Page Preview (Announcements Bento Card & Interactive FAQ Accordion) */
+.tala-lp-bento {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--tala-surface);
+    border: 1px solid var(--tala-edge);
+    border-radius: 1rem;
+    box-shadow: var(--tala-material-raised);
+    color: var(--tala-text);
+}
+
+.tala-lp-bento__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.875rem;
+    padding: 1.25rem 1.375rem;
+}
+
+.tala-lp-bento__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.625rem 0.75rem;
+}
+
+.tala-lp-bento__title {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 700;
+    line-height: 1.3;
+    letter-spacing: -0.015em;
+    color: var(--tala-text);
+}
+
+.tala-lp-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.3;
+    white-space: nowrap;
+    background: var(--tala-status-warning-bg);
+    color: var(--tala-status-warning-fg);
+}
+
+.tala-lp-status-pill__dot {
+    inline-size: 0.45rem;
+    block-size: 0.45rem;
+    border-radius: 999px;
+    background: currentColor;
+    flex: none;
+}
+
+.tala-lp-notice-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    min-inline-size: 0;
+    padding-block-start: 0.875rem;
+    border-block-start: 1px solid var(--tala-edge);
+}
+
+.tala-lp-notice-row__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.25rem 0.75rem;
+}
+
+.tala-lp-notice-row__title {
+    margin: 0;
+    min-inline-size: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--tala-text);
+}
+
+.tala-lp-notice-row__date {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: var(--tala-status-warning-fg);
+}
+
+.tala-lp-notice-row__message {
+    margin: 0;
+    font-size: 0.9375rem;
+    line-height: 1.58;
+    color: var(--tala-muted);
+    white-space: pre-line;
+}
+
+.tala-lp-notice-row__actions {
+    margin-block-start: 0.25rem;
+}
+
+.tala-lp-notice-row__link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--tala-link);
+    text-decoration: none;
+}
+
+.tala-lp-notice-row__link:hover {
+    text-decoration: underline;
+}
+
+.tala-lp-bento__footer {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.875rem 1.375rem;
+    border-block-start: 1px solid var(--tala-edge);
+    background: var(--tala-surface-sunken);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--tala-muted);
+}
+
+.tala-lp-faq-item {
+    background: var(--tala-surface);
+    border: 1px solid var(--tala-edge);
+    border-radius: 1rem;
+    box-shadow: var(--tala-material-raised);
+    color: var(--tala-text);
+    overflow: hidden;
+}
+
+.tala-lp-faq-trigger {
+    display: flex;
+    inline-size: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 1.0625rem 1.25rem;
+    border: 0;
+    background: var(--tala-surface);
+    color: var(--tala-text);
+    text-align: start;
+    cursor: pointer;
+    transition: background-color 140ms ease;
+}
+
+.tala-lp-faq-trigger.is-open {
+    background: var(--tala-surface-sunken);
+    box-shadow: inset 0 -1px 0 var(--tala-edge);
+}
+
+.tala-lp-faq-trigger:focus-visible {
+    outline: 2px solid var(--tala-focus);
+    outline-offset: -2px;
+}
+
+.tala-lp-faq-question {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+    min-inline-size: 0;
+}
+
+.tala-lp-faq-category {
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--tala-status-warning-fg);
+}
+
+.tala-lp-faq-heading {
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--tala-text);
+}
+
+.tala-lp-faq-chevron {
+    color: var(--tala-muted);
+    transition: transform 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.tala-lp-faq-chevron.is-open {
+    transform: rotate(180deg);
+}
+
+.tala-lp-faq-body {
+    padding: 1.0625rem 1.25rem 1.25rem;
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    color: var(--tala-muted);
+    white-space: pre-line;
+}
+
+/* Flush 4-cell figure-forward KPI tray (ViewUser profile, modeled on .tala-capacity-headroom__grid) */
+.tala-kpi-tray {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    margin: 0;
+    border-block-start: 1px solid var(--tala-edge);
+    background: var(--tala-surface);
+}
+
+.tala-kpi-tray__cell {
+    display: grid;
+    align-content: start;
+    gap: 0.1875rem;
+    min-inline-size: 0;
+    padding: 0.875rem var(--tala-card-pad);
+}
+
+.tala-kpi-tray__cell + .tala-kpi-tray__cell {
+    border-inline-start: 1px solid var(--tala-edge);
+}
+
+.tala-kpi-tray__label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--tala-muted);
+}
+
+.tala-kpi-tray__value {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: -0.015em;
+    font-variant-numeric: tabular-nums;
+    color: var(--tala-text);
+    overflow-wrap: anywhere;
+}
+
+.tala-kpi-tray__value--success {
+    color: var(--tala-brand-foreground);
+}
+
+.tala-kpi-tray__value--warning {
+    color: var(--tala-status-warning-fg);
+}
+
+.tala-kpi-tray__value--danger {
+    color: var(--tala-status-danger-fg);
+}
+
+.tala-kpi-tray__note {
+    margin: 0;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: var(--tala-muted);
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 64rem) {
+    .tala-kpi-tray {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .tala-kpi-tray__cell:nth-child(odd) {
+        border-inline-start: 0;
+    }
+
+    .tala-kpi-tray__cell:nth-child(n + 3) {
+        border-block-start: 1px solid var(--tala-edge);
+    }
+}
+
+@media (max-width: 36rem) {
+    .tala-kpi-tray {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .tala-kpi-tray__cell + .tala-kpi-tray__cell {
+        border-inline-start: 0;
+        border-block-start: 1px solid var(--tala-edge);
+    }
+}
+
+@media (forced-colors: active) {
+    .tala-kpi-tile.is-active {
+        border-color: Highlight;
+        outline: 1px solid Highlight;
     }
 }

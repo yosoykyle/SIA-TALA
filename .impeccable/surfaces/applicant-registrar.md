@@ -1,8 +1,8 @@
 ---
 version: 1
 slug: "applicant-registrar"
-primary_target: "applicant-registrar"
-related_targets: ["app/Filament/Applicant/Pages/Dashboard.php","app/Filament/Applicant/Pages/Application.php","app/Filament/Applicant/Pages/Requirements.php","app/Filament/Applicant/Pages/SubmissionReceipt.php","app/Filament/Resources/AdmissionApplications/AdmissionApplicationResource.php","app/Filament/Resources/AdmissionApplications/Pages/ListAdmissionApplications.php","app/Filament/Resources/AdmissionApplications/Pages/ViewAdmissionApplication.php","resources/views/welcome.blade.php"]
+primary_target: "app/Filament/Applicant/Pages/Dashboard.php"
+related_targets: ["applicant-registrar","app/Filament/Applicant/Pages/Application.php","app/Filament/Applicant/Pages/Requirements.php","app/Filament/Applicant/Pages/SubmissionReceipt.php","app/Filament/Resources/AdmissionApplications/AdmissionApplicationResource.php","app/Filament/Resources/AdmissionApplications/Pages/ListAdmissionApplications.php","app/Filament/Resources/AdmissionApplications/Pages/ViewAdmissionApplication.php","resources/views/welcome.blade.php"]
 ---
 
 # Surface Brief: Applicant–Registrar Journey

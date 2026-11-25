@@ -5,13 +5,15 @@ namespace App\Filament\Resources\FaqEntries\Pages;
 use App\Actions\PublicContent\ManagePublicContent;
 use App\Filament\Clusters\PublicContent;
 use App\Filament\Resources\FaqEntries\FaqEntryResource;
+use App\Filament\Support\CreatesPublicContent;
 use App\Models\FaqEntry;
-use Filament\Actions\Action;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Database\Eloquent\Model;
 
 class CreateFaqEntry extends CreateRecord
 {
+    use CreatesPublicContent;
+
     protected static string $resource = FaqEntryResource::class;
 
     /** @return array<string|int, string> */
@@ -19,7 +21,7 @@ class CreateFaqEntry extends CreateRecord
     {
         return [
             PublicContent::getUrl() => 'Public Content',
-            FaqEntryResource::getUrl('index') => 'FAQ',
+            FaqEntryResource::getUrl('index') => 'FAQs',
             'Add FAQ',
         ];
     }
@@ -37,13 +39,5 @@ class CreateFaqEntry extends CreateRecord
     protected function getRedirectUrl(): string
     {
         return $this->getResourceUrl();
-    }
-
-    protected function getCancelFormAction(): Action
-    {
-        return Action::make('cancel')
-            ->label('Cancel')
-            ->url($this->getResourceUrl())
-            ->color('gray');
     }
 }

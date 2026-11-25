@@ -107,8 +107,9 @@ class PublicNoticeLifecycleTest extends TestCase
     {
         return [
             'empty title' => [['title' => '']],
-            'long title' => [['title' => str_repeat('a', 161)]],
+            'long title' => [['title' => str_repeat('a', 121)]],
             'long message' => [['message' => str_repeat('a', 501)]],
+            'long link label' => [['link_url' => 'https://example.test', 'link_label' => str_repeat('a', 61)]],
             'zero order' => [['display_order' => 0]],
             'unsafe link' => [['link_url' => 'javascript:alert(1)', 'link_label' => 'Details']],
             'insecure link' => [['link_url' => 'http://example.test', 'link_label' => 'Details']],

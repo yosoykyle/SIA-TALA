@@ -115,19 +115,31 @@ class SharedAccessPresentationTest extends TestCase
             ->assertSee('Skip to main content')
             ->assertSee('No workspace is currently authorized')
             ->assertSee('System Administrator')
-            ->assertSee('Contact support');
+            ->assertSee('Contact support')
+            ->assertDontSee('—');
     }
 
     public function test_staff_activation_retains_native_password_fields_with_associated_guidance(): void
     {
         $this->view('auth.staff-activation', [
-            'invitation' => (new StaffInvitation)->forceFill(['id' => 1]), 'token' => str_repeat('a', 64),
-            'isUsable' => true, 'errors' => new ViewErrorBag,
+            'invitation' => (new StaffInvitation)->forceFill([
+                'id' => 1,
+                'email' => 'faculty.invitee@example.test',
+                'staff_roles' => [User::StaffRoleFaculty],
+            ]),
+            'token' => str_repeat('a', 64),
+            'isUsable' => true,
+            'errors' => new ViewErrorBag,
         ])->assertSee('data-tala-system-appearance', false)
             ->assertSee('autocomplete="new-password"', false)
             ->assertSee('aria-describedby="password-guidance', false)
-            ->assertSee('Continue to MFA setup')
-            ->assertSee('Contact support');
+            ->assertSee('15 to 64 characters')
+            ->assertSee('Passwords match')
+            ->assertSee('faculty.invitee@example.test')
+            ->assertSee('Faculty')
+            ->assertSee('Activate account')
+            ->assertSee('Contact support')
+            ->assertDontSee('—');
     }
 
     public function test_server_failure_rendering_does_not_require_authentication_data_or_compiled_assets(): void
@@ -149,7 +161,7 @@ class SharedAccessPresentationTest extends TestCase
     {
         $view = $this->blade('<x-tala-access-layout title="Test Access" heading-id="test-heading"><h1 id="test-heading">Test Heading</h1><div>Body Content</div></x-tala-access-layout>');
 
-        $view->assertSee('Test Access — Servitech Institute Asia Inc.')
+        $view->assertSee('Test Access | Servitech Institute Asia Inc.')
             ->assertDontSee('Powered by TALA')
             ->assertSee('Servitech Institute Asia home')
             ->assertSee('alt="" aria-hidden="true" class="tala-brand__crest tala-crest-outlined"', false)

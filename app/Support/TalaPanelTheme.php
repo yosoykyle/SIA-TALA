@@ -10,6 +10,7 @@ use App\Filament\Pages\AssistedAdmissionApplication;
 use App\Models\User;
 use Caresome\FilamentAuthDesigner\Data\AuthPageConfig;
 use Caresome\FilamentAuthDesigner\Enums\MediaPosition;
+use Closure;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
@@ -69,6 +70,20 @@ class TalaPanelTheme
             ? ['aria-label' => trim(strip_tags((string) $action->getLabel()))] : [], merge: true);
 
         $action->modalFooterActionsAlignment(Alignment::End);
+
+        $action->closeModalByClickingAway(static function (Action $action): bool {
+            if ($action->isSchemaDisabled() || $action->getModalSubmitAction() === false) {
+                return true;
+            }
+
+            $hasDefinedSchema = Closure::bind(
+                static fn (Action $target): bool => $target->schema !== null && $target->schema !== [],
+                null,
+                Action::class,
+            )($action);
+
+            return ! $hasDefinedSchema;
+        });
 
         $action->extraModalWindowAttributes([
             'x-effect' => <<<'JS'

@@ -181,7 +181,7 @@ class WorkspaceNavigationSearchTest extends TestCase
     {
         $this->signIn(User::StaffRoleSystemSuperAdmin, ['manage-faqs', 'manage-public-notices']);
 
-        $this->assertContains('FAQ', $this->titles('FAQ'));
+        $this->assertContains('FAQs', $this->titles('FAQs'));
 
         $publicContent = collect(Filament::getNavigation())
             ->flatMap(fn ($group) => $group->getItems())
@@ -189,7 +189,7 @@ class WorkspaceNavigationSearchTest extends TestCase
 
         $this->assertNotNull($publicContent);
         $this->assertSame(
-            ['Notices', 'FAQ'],
+            ['Announcements', 'FAQs'],
             collect($publicContent->getChildItems())->map->getLabel()->values()->all(),
         );
     }
@@ -349,20 +349,20 @@ class WorkspaceNavigationSearchTest extends TestCase
         $this->assertSame([], Livewire::test(GovernanceAudit::class)->instance()->getBreadcrumbs());
         $this->assertSame([
             PublicContent::getUrl() => 'Public Content',
-            'Notices',
+            'Announcements',
         ], Livewire::test(ListPublicNotices::class)->instance()->getBreadcrumbs());
         $this->assertSame([
             PublicContent::getUrl() => 'Public Content',
-            PublicNoticeResource::getUrl('index') => 'Notices',
-            'Add notice',
+            PublicNoticeResource::getUrl('index') => 'Announcements',
+            'Add announcement',
         ], Livewire::test(CreatePublicNotice::class)->instance()->getBreadcrumbs());
         $this->assertSame([
             PublicContent::getUrl() => 'Public Content',
-            'FAQ',
+            'FAQs',
         ], Livewire::test(ListFaqEntries::class)->instance()->getBreadcrumbs());
         $this->assertSame([
             PublicContent::getUrl() => 'Public Content',
-            FaqEntryResource::getUrl('index') => 'FAQ',
+            FaqEntryResource::getUrl('index') => 'FAQs',
             'Add FAQ',
         ], Livewire::test(CreateFaqEntry::class)->instance()->getBreadcrumbs());
         $this->assertNotNull($admin);
