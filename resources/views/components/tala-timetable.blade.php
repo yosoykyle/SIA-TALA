@@ -95,6 +95,8 @@
         teachingGrid: {{ \Illuminate\Support\Js::from($scheduleContext['teachingGrid'] ?? []) }},
         blockedPeriods: {{ \Illuminate\Support\Js::from($presentation['blockedPeriods'] ?? []) }},
         teacherAvailability: {{ \Illuminate\Support\Js::from($scheduleContext['teacherAvailability'] ?? []) }},
+        teacherLoadLimits: {{ \Illuminate\Support\Js::from($scheduleContext['teacherLoadLimits'] ?? []) }},
+        defaultMaxUnits: {{ \Illuminate\Support\Js::from($scheduleContext['defaultMaxUnits'] ?? null) }},
         rooms: {{ \Illuminate\Support\Js::from($scheduleContext['rooms'] ?? []) }},
         qualifiedTeachersByCourse: {{ \Illuminate\Support\Js::from($scheduleContext['qualifiedTeachersByCourse'] ?? []) }},
         dayOptions: {{ \Illuminate\Support\Js::from($scheduleContext['dayOptions'] ?? []) }},
@@ -618,12 +620,12 @@
                 return dayLabel + ', ' + label;
             }
             if (check.isCurrent) {
-                return dayLabel + ', ' + label + ' — Current slot for ' + targetName + '.';
+                return dayLabel + ', ' + label + ': Current slot for ' + targetName + '.';
             }
             if (check.valid) {
-                return dayLabel + ', ' + label + ' — Available, conflict-free. Select to move ' + targetName + '.';
+                return dayLabel + ', ' + label + ': Available, conflict-free. Select to move ' + targetName + '.';
             }
-            return dayLabel + ', ' + label + ' — Unavailable: ' + check.reason + '.';
+            return dayLabel + ', ' + label + ': Unavailable (' + check.reason + ').';
         },
         onDragOverSlot(dayNumber, startsAt) {
             if (!this.editable || !this.activeMoveMeeting) return;
@@ -716,21 +718,89 @@
             const isCurrent = Number(this.selectedMeeting.day) === Number(this.editForm.day)
                 && this.selectedMeeting.startsAt === slot.value;
             if (isCurrent && check.valid) {
-                return slot.label + ' — Current slot';
+                return slot.label + ' · Current slot';
             }
-            return slot.label + ' — ' + (check.valid ? 'Available' : check.reason);
+            return slot.label + ' · ' + (check.valid ? 'Available' : check.reason);
+        },
+        formatUnits(val) {
+            const num = Number(val || 0);
+            if (!Number.isFinite(num)) return '0';
+            return Number(num.toFixed(2)).toString();
+        },
+        selectedTeacherLoadSummary() {
+            const meeting = this.selectedMeeting;
+            const facultyId = Number(this.editForm.facultyId || 0);
+            if (!meeting || facultyId <= 0) return null;
+
+            const sectionKeyFor = (m) => {
+                if (m.sectionId) return 'sec:' + Number(m.sectionId);
+                if (m.schedulingDemandId) return 'dem:' + Number(m.schedulingDemandId);
+                return 'id:' + String(m.id);
+            };
+
+            const currentSections = {};
+            for (const m of (this.meetings || [])) {
+                if (!m || Number(m.facultyId || 0) !== facultyId) continue;
+                const key = sectionKeyFor(m);
+                const units = Number(m.creditUnits || 0);
+                currentSections[key] = Math.max(currentSections[key] || 0, units);
+            }
+
+            const current = Object.values(currentSections).reduce((sum, u) => sum + u, 0);
+            const targetKey = sectionKeyFor(meeting);
+            const targetUnits = Number(meeting.creditUnits || 0);
+            const alreadyTeachingSection = Object.prototype.hasOwnProperty.call(currentSections, targetKey);
+            const added = alreadyTeachingSection ? 0 : targetUnits;
+            const projected = Number((current + added).toFixed(2));
+
+            const limitEntry = this.teacherLoadLimits[facultyId] || this.teacherLoadLimits[String(facultyId)] || null;
+            const limit = limitEntry && limitEntry.limit !== null && limitEntry.limit !== undefined
+                ? Number(limitEntry.limit)
+                : (this.defaultMaxUnits !== null && this.defaultMaxUnits !== undefined ? Number(this.defaultMaxUnits) : null);
+
+            const hasLimit = limit !== null && Number.isFinite(limit) && limit > 0;
+            const remaining = hasLimit ? Number((limit - projected).toFixed(2)) : null;
+            const isOverloaded = hasLimit && projected > limit + 0.0001;
+            const excess = isOverloaded ? Number((projected - limit).toFixed(2)) : 0;
+            const rawPct = hasLimit ? (projected / limit) * 100 : 0;
+            const percent = hasLimit ? Math.min(100, Math.max(0, Math.round(rawPct))) : 0;
+            const tone = isOverloaded ? 'is-over' : (hasLimit && rawPct >= 85 ? 'is-near' : 'is-ok');
+
+            return {
+                current: Number(current.toFixed(2)),
+                added: Number(added.toFixed(2)),
+                projected,
+                limit: hasLimit ? Number(limit.toFixed(2)) : null,
+                remaining,
+                excess,
+                isOverloaded,
+                percent,
+                tone,
+                hasOverride: Boolean(limitEntry?.hasOverride),
+            };
         },
         evaluateProposedEdit() {
             if (!this.selectedMeeting) return { valid: true, reason: '' };
             const slotObj = (this.timeSlotOptions || []).find(s => s.value === this.editForm.startsAt);
             const startMin = slotObj ? slotObj.minutes : 480;
-            return this.evaluateSlotForMeeting(
+            const slotCheck = this.evaluateSlotForMeeting(
                 this.selectedMeeting,
                 this.editForm.day,
                 startMin,
                 this.editForm.roomId,
                 this.editForm.facultyId
             );
+            if (!slotCheck.valid) {
+                return slotCheck;
+            }
+            const load = this.selectedTeacherLoadSummary();
+            if (load && load.isOverloaded && load.added > 0) {
+                return {
+                    valid: false,
+                    reason: 'Exceeds teacher load (' + this.formatUnits(load.projected) + '/' + this.formatUnits(load.limit) + ' units)',
+                };
+            }
+            return slotCheck;
         },
         async submitInlineEdit() {
             if (!this.editable || !this.selectedMeeting) return;
@@ -945,6 +1015,45 @@
                                     </x-filament::input.wrapper>
                                 </label>
                             </div>
+
+                            <template x-if="selectedTeacherLoadSummary()">
+                                <div class="tala-load-guard tala-load-guard--compact" :class="selectedTeacherLoadSummary().tone" role="status" aria-live="polite">
+                                    <div class="tala-load-guard__head">
+                                        <span class="tala-load-guard__title">Teaching load</span>
+                                        <span class="tala-load-guard__badge">
+                                            <template x-if="selectedTeacherLoadSummary().limit !== null">
+                                                <span>
+                                                    <span x-text="formatUnits(selectedTeacherLoadSummary().projected)"></span> / <span x-text="formatUnits(selectedTeacherLoadSummary().limit)"></span> units
+                                                    <template x-if="selectedTeacherLoadSummary().isOverloaded">
+                                                        <span> · Over by <span x-text="formatUnits(selectedTeacherLoadSummary().excess)"></span></span>
+                                                    </template>
+                                                    <template x-if="!selectedTeacherLoadSummary().isOverloaded">
+                                                        <span> · <span x-text="formatUnits(selectedTeacherLoadSummary().remaining)"></span> left</span>
+                                                    </template>
+                                                </span>
+                                            </template>
+                                            <template x-if="selectedTeacherLoadSummary().limit === null">
+                                                <span><span x-text="formatUnits(selectedTeacherLoadSummary().projected)"></span> units assigned</span>
+                                            </template>
+                                        </span>
+                                    </div>
+                                    <template x-if="selectedTeacherLoadSummary().limit !== null">
+                                        <div
+                                            class="tala-load-guard__track"
+                                            role="progressbar"
+                                            aria-label="Projected teaching load"
+                                            aria-valuemin="0"
+                                            :aria-valuenow="selectedTeacherLoadSummary().projected"
+                                            :aria-valuemax="selectedTeacherLoadSummary().limit"
+                                        >
+                                            <span class="tala-load-guard__fill" :style="{ width: selectedTeacherLoadSummary().percent + '%' }"></span>
+                                        </div>
+                                    </template>
+                                    <p class="tala-load-guard__alert" x-show="selectedTeacherLoadSummary().isOverloaded" x-cloak>
+                                        Exceeds teaching limit by <span x-text="formatUnits(selectedTeacherLoadSummary().excess)"></span> units. Approve a Load override in Step 3 (Faculty &amp; rooms) or choose another teacher.
+                                    </p>
+                                </div>
+                            </template>
 
                             <div class="tala-inspector-edit-card__footer">
                                 <span class="tala-inspector-edit-note">Draft adjustment · No approval memo required while under review.</span>
@@ -1625,6 +1734,45 @@
                                                 </x-filament::input.select>
                                             </x-filament::input.wrapper>
                                         </label>
+
+                                        <template x-if="selectedTeacherLoadSummary()">
+                                            <div class="tala-load-guard tala-load-guard--compact" :class="selectedTeacherLoadSummary().tone" role="status" aria-live="polite">
+                                                <div class="tala-load-guard__head">
+                                                    <span class="tala-load-guard__title">Teaching load</span>
+                                                    <span class="tala-load-guard__badge">
+                                                        <template x-if="selectedTeacherLoadSummary().limit !== null">
+                                                            <span>
+                                                                <span x-text="formatUnits(selectedTeacherLoadSummary().projected)"></span> / <span x-text="formatUnits(selectedTeacherLoadSummary().limit)"></span> units
+                                                                <template x-if="selectedTeacherLoadSummary().isOverloaded">
+                                                                    <span> · Over by <span x-text="formatUnits(selectedTeacherLoadSummary().excess)"></span></span>
+                                                                </template>
+                                                                <template x-if="!selectedTeacherLoadSummary().isOverloaded">
+                                                                    <span> · <span x-text="formatUnits(selectedTeacherLoadSummary().remaining)"></span> left</span>
+                                                                </template>
+                                                            </span>
+                                                        </template>
+                                                        <template x-if="selectedTeacherLoadSummary().limit === null">
+                                                            <span><span x-text="formatUnits(selectedTeacherLoadSummary().projected)"></span> units assigned</span>
+                                                        </template>
+                                                    </span>
+                                                </div>
+                                                <template x-if="selectedTeacherLoadSummary().limit !== null">
+                                                    <div
+                                                        class="tala-load-guard__track"
+                                                        role="progressbar"
+                                                        aria-label="Projected teaching load"
+                                                        aria-valuemin="0"
+                                                        :aria-valuenow="selectedTeacherLoadSummary().projected"
+                                                        :aria-valuemax="selectedTeacherLoadSummary().limit"
+                                                    >
+                                                        <span class="tala-load-guard__fill" :style="{ width: selectedTeacherLoadSummary().percent + '%' }"></span>
+                                                    </div>
+                                                </template>
+                                                <p class="tala-load-guard__alert" x-show="selectedTeacherLoadSummary().isOverloaded" x-cloak>
+                                                    Exceeds teaching limit by <span x-text="formatUnits(selectedTeacherLoadSummary().excess)"></span> units. Approve a Load override in Step 3 (Faculty &amp; rooms) or choose another teacher.
+                                                </p>
+                                            </div>
+                                        </template>
                                     </div>
 
                                     <div class="tala-rail-edit-footer">

@@ -488,7 +488,7 @@ class TermCalendar extends TermPlanningWorkbench implements HasTable
                     throw ValidationException::withMessages([
                         'classes_start_on' => $this->isTermClosed($term)
                             ? 'This term is closed and read-only.'
-                            : 'Official timetable is published — schedule changes go through Timetable → Revise official schedule.',
+                            : 'Official timetable is published. Make schedule changes in Timetable via Revise schedule.',
                     ]);
                 }
 

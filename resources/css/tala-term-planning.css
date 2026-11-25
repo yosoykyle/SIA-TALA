@@ -944,7 +944,7 @@ html.dark .fi-body .fi-section.tala-term-settings-identity.tala-term-settings-id
     .tala-planning-heading .fi-header { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:start; gap:1rem; }
     .tala-planning-heading .fi-header.fi-header-has-breadcrumbs .fi-header-actions-ctn { align-self:start; padding-block-start:1.75rem; }
 }
-@container tala-main (max-width: 51.999rem) {
+@media (max-width: 67.999rem) {
     .tala-planning-heading .fi-header.fi-header-has-breadcrumbs .fi-header-actions-ctn,
     .tala-planning-heading .fi-header-actions-ctn { padding-block-start:0; }
 }
@@ -1827,7 +1827,7 @@ html.dark .fi-body .fi-section.tala-term-settings-identity.tala-term-settings-id
     }
 }
 
-/* Living Servitech Brand-Color-Shifting Aurora Canvas (Empty State + Solver Stage — Zero-Blue) */
+/* Living Servitech Brand-Color-Shifting Aurora Canvas (Empty State + Solver Stage - Zero-Blue) */
 .tala-ambient--trinkets-only :is(.tala-ambient-wash, .tala-ambient-glow, .tala-ambient-edge) {
     display: none;
 }
@@ -2763,6 +2763,65 @@ html.dark .fi-body .fi-section.tala-term-settings-identity.tala-term-settings-id
 }
 
 .tala-calendar-lock-note .fi-icon {
+    inline-size: 1rem;
+    block-size: 1rem;
+    flex: none;
+    color: var(--tala-muted);
+}
+
+.tala-term-context-strip {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    min-inline-size: 0;
+}
+
+.tala-term-context-strip__switcher {
+    inline-size: min(100%, 28rem);
+    min-inline-size: 0;
+}
+
+.tala-term-context-strip__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem 0.625rem;
+    margin-block-start: 0.125rem;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    color: var(--tala-muted);
+}
+
+.tala-term-context-strip__dates {
+    font-variant-numeric: tabular-nums;
+}
+
+.tala-calendar-published-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    margin-block-start: 0.875rem;
+    padding: 0.625rem 0.875rem;
+    border: 1px solid var(--tala-edge);
+    border-radius: 0.5rem;
+    background: var(--tala-surface-sunken);
+    color: var(--tala-text);
+    font-size: 0.8125rem;
+    line-height: 1.45;
+}
+
+.tala-calendar-published-strip__copy {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1 1 18rem;
+    min-inline-size: 0;
+}
+
+.tala-calendar-published-strip__copy > .fi-icon {
     inline-size: 1rem;
     block-size: 1rem;
     flex: none;

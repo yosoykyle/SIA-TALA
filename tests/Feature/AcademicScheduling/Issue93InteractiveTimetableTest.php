@@ -11,6 +11,7 @@ use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
+use App\Models\Enrollment;
 use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\FacultyQualification;
 use App\Models\Program;
@@ -281,6 +282,54 @@ class Issue93InteractiveTimetableTest extends TestCase
             ->test(TermTimetable::class, ['termId' => $fixture['term']->id])
             ->call('togglePinMeeting', $fixture['lectureRow']->id)
             ->assertForbidden();
+    }
+
+    #[Test]
+    public function published_term_with_older_blocked_run_defaults_to_official_live_and_toggles_draft_vs_lock_strip(): void
+    {
+        $fixture = $this->createDraftTimetableFixture();
+
+        $publishedRun = ScheduleGenerationRun::factory()->create([
+            'term_id' => $fixture['term']->id,
+            'status' => ScheduleGenerationRun::StatusPublished,
+            'candidate_state' => 'Accepted',
+            'requested_by' => $fixture['registrar']->id,
+            'published_by' => $fixture['registrar']->id,
+            'published_at' => now()->subDay(),
+            'publication_version' => 1,
+        ]);
+
+        PublishedTimetableVersion::factory()->create([
+            'term_id' => $fixture['term']->id,
+            'schedule_run_id' => $publishedRun->id,
+            'state' => PublishedTimetableVersion::StatePublished,
+            'published_by' => $fixture['registrar']->id,
+        ]);
+
+        $fixture['run']->forceFill([
+            'status' => ScheduleGenerationRun::StatusBlocked,
+            'candidate_state' => 'Rejected',
+        ])->save();
+
+        Livewire::actingAs($fixture['registrar'])
+            ->test(TermTimetable::class, ['termId' => $fixture['term']->id])
+            ->assertOk()
+            ->assertSet('timetableState', 'official')
+            ->assertSee('Official · Live')
+            ->assertSee('No active student enrollments yet.')
+            ->assertSee('New draft');
+
+        Enrollment::factory()->for($fixture['term'])->create([
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+        ]);
+
+        Livewire::actingAs($fixture['registrar'])
+            ->test(TermTimetable::class, ['termId' => $fixture['term']->id])
+            ->assertOk()
+            ->assertSet('timetableState', 'official')
+            ->assertSee('Official · Live')
+            ->assertSee('Whole-term draft generation is locked because active student enrollments exist for this term.')
+            ->assertDontSee('No active student enrollments yet.');
     }
 
     /**
