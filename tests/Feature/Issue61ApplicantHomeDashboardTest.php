@@ -338,7 +338,7 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
         $this->get('/')
             ->assertOk()
             ->assertSee('href="#about"', false)
-            ->assertSeeInOrder(['id="top"', 'About Servitech Institute Asia', 'Objectives', 'Be the leading TechVoc Training and Assessment Center in Region IV-A.', 'Plan your visit', 'Established', '2017', 'San Pedro, Laguna', 'TESDA', 'id="programs"'], false);
+            ->assertSeeInOrder(['id="top"', 'Established', '2017', 'San Pedro, Laguna', 'TESDA', 'About Servitech Institute Asia', 'Plan your visit', 'Objectives', 'Be the leading TechVoc Training and Assessment Center in Region IV-A.', 'id="programs"'], false);
     }
 
     public function test_registrar_assisted_entry_keeps_full_program_names(): void

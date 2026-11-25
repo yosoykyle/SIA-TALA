@@ -683,7 +683,7 @@
                                         <x-filament::icon icon="heroicon-o-map-pin" class="tala-public-icon" aria-hidden="true" />
                                         <span>Campus address</span>
                                     </div>
-                                    <address id="campus-address" class="institution-address mb-0">{{ config('institution.address') }}</address>
+                                    <div id="campus-address"><address class="institution-address mb-0">{{ config('institution.address') }}</address></div>
                                     <div class="visit-address-inset__copy">
                                         <span class="copy-control">
                                             <button
