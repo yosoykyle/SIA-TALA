@@ -305,7 +305,7 @@ class CandidateRowsRelationManager extends RelationManager
                 return 'Requested changes: '.$counts->get('RequestedRepair', 0)
                     .' · Other changes: '.$counts->get('RepairImpact', 0)
                     .' · Unchanged meetings: '.$counts->get('Unchanged', 0)
-                    .'. Counts cover the whole candidate.';
+                    .'. Counts cover the whole draft timetable.';
             }
         }
 

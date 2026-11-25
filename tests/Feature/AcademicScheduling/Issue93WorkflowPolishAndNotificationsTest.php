@@ -553,7 +553,7 @@ final class Issue93WorkflowPolishAndNotificationsTest extends TestCase
         $calendar = Livewire::withQueryParams(['termId' => $term->id])->test(TermCalendar::class)
             ->assertOk()
             ->assertSeeHtml('tala-calendar-facts')
-            ->assertSee('30-minute slots')
+            ->assertSee('30-minute intervals')
             ->assertSee('Mon–Sat · 7:00 AM–7:00 PM')
             ->assertSee('Feb 2 – Feb 21, 2027')
             ->assertDontSeeHtml('tala-calendar-schematic')

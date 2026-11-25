@@ -498,7 +498,8 @@
 .tala-record-fact dt .fi-icon { flex:none; inline-size:1.125rem; block-size:1.125rem; color:var(--tala-brand-foreground); }
 .tala-record-fact dd { margin:0; color:var(--tala-muted); }
 /* Native radio choices share the record-selection surface and semantic colors. */
-.tala-choice-options.fi-fo-radio { display:grid; align-items:stretch; grid-template-columns:repeat(auto-fit,minmax(min(100%,10rem),1fr)); gap:.625rem; }
+.tala-choice-options.fi-fo-radio { display:grid; align-items:stretch; grid-template-columns:repeat(auto-fit,minmax(min(100%,10rem),1fr)); gap:.625rem; margin-block-start:.375rem; }
+.fi-fo-field:has(.tala-choice-options) > .fi-fo-field-label-col :is(.fi-fo-field-label-ctn, .fi-fo-field-label) { line-height:1.4; position:relative; z-index:1; }
 .tala-choice-options .fi-fo-radio-label { display:flex; align-self:stretch; align-items:flex-start; gap:.625rem; margin:0; padding:.875rem; border:1px solid var(--tala-edge-strong); border-radius:.5rem; background:var(--tala-surface); box-shadow:var(--tala-material-detail); cursor:pointer; transition:border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease; }
 .tala-choice-options .fi-fo-radio-label:hover:not(:has(input:checked)):not(:has(input:disabled)) { background:var(--tala-surface-sunken); }
 .tala-choice-options .fi-fo-radio-label:has(input:checked) { background:var(--tala-brand-tint); border-color:var(--tala-selected-edge); color:var(--tala-on-brand-tint); box-shadow:inset 0 0 0 1px var(--tala-selected-edge), var(--tala-material-raised); }

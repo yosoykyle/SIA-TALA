@@ -511,9 +511,16 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             ->assertSee('Registration proposal · Published timetable')
             ->assertSee('Current placement source')->assertSee($item->course_title_snapshot)
             ->assertSee('These subjects are proposed and are not official registrations.')
-            ->assertDontSee('Official class registrations')->assertDontSee('PHP')->assertDontSee('0.00')
+            ->assertDontSee('Official class registrations')->assertDontSee('PHP')
             ->assertActionHidden('prepareProposal')->assertActionHidden('finalizeOfficialEnrollment')->assertActionHidden('createAssessment');
         $page->assertActionDoesNotExist('printCor')->assertActionDoesNotExist('resendOfficialEnrollmentEmail');
+
+        $document = new \DOMDocument;
+        @$document->loadHTML('<?xml encoding="UTF-8">'.$page->html());
+        $xpath = new \DOMXPath($document);
+        $enrollmentText = $xpath->evaluate('normalize-space(string(//div[contains(concat(" ", normalize-space(@class), " "), " head-enrollment-detail ")]))');
+        $this->assertStringContainsString('Current enrollment clearance', $enrollmentText);
+        $this->assertDoesNotMatchRegularExpression('/(?<![\d.])0\.00(?!\d)/', $enrollmentText);
 
         app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);
         Filament::setCurrentPanel(Filament::getPanel('admin'));

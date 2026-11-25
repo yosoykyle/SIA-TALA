@@ -65,7 +65,7 @@
     color: var(--tala-muted);
 }
 
-@container tala-main (min-width: 44rem) {
+@media (min-width: 60rem) {
     .fi-body:has(.fi-layout) .fi-page:has(.tala-curriculum-board) .fi-header {
         grid-template-columns: minmax(0, 1fr) auto;
         align-items: center;

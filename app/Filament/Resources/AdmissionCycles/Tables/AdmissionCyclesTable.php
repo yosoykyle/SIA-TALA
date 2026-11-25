@@ -2,17 +2,22 @@
 
 namespace App\Filament\Resources\AdmissionCycles\Tables;
 
+use App\Actions\Admissions\ChangeAdmissionCycle;
 use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use App\Models\AdmissionCycle;
+use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Notifications\Notification;
+use Filament\Support\Enums\Width;
 use Filament\Tables\Columns\Layout\Panel;
 use Filament\Tables\Columns\Layout\Split;
 use Filament\Tables\Columns\Layout\Stack;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Validation\ValidationException;
 
 class AdmissionCyclesTable
 {
@@ -97,6 +102,40 @@ class AdmissionCyclesTable
                 ViewAction::make()->label('Open')->button()->color('gray'),
                 EditAction::make()->iconButton()->tooltip('Edit draft cycle')->color('gray')
                     ->visible(fn (AdmissionCycle $record): bool => $record->state === AdmissionCycle::StateDraft),
+                Action::make('discardDraft')
+                    ->iconButton()
+                    ->icon('heroicon-o-trash')
+                    ->tooltip('Discard draft cycle')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->modalWidth(Width::Large)
+                    ->stickyModalHeader()
+                    ->stickyModalFooter()
+                    ->modalHeading('Discard cycle draft?')
+                    ->modalDescription(fn (AdmissionCycle $record): string => "Permanently removes {$record->label} ({$record->code}) and any draft requirement sets.")
+                    ->modalSubmitActionLabel('Discard draft')
+                    ->visible(fn (AdmissionCycle $record): bool => auth()->user()?->can('delete', $record) ?? false)
+                    ->action(function (AdmissionCycle $record): void {
+                        $actor = auth()->user();
+                        abort_unless($actor instanceof User, 403);
+
+                        try {
+                            app(ChangeAdmissionCycle::class)->discardDraft($record, $actor);
+                        } catch (ValidationException $exception) {
+                            Notification::make()
+                                ->title('Draft cycle cannot be discarded')
+                                ->body($exception->validator->errors()->first())
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
+                        Notification::make()
+                            ->title('Draft cycle discarded')
+                            ->success()
+                            ->send();
+                    }),
             ])
             ->emptyStateHeading('No admission cycles')
             ->emptyStateDescription('Create an admission cycle to configure dates, accepting programs, and requirements.')

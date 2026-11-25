@@ -57,7 +57,7 @@ class RequirementSetsRelationManager extends RelationManager
                                 ->orderByDesc('version')
                                 ->get()
                                 ->mapWithKeys(fn (AdmissionRequirementSet $set): array => [
-                                    $set->id => 'Version '.$set->version.' — '.($set->effective_at?->timezone(config('app.display_timezone'))->format('M j, Y g:i A') ?? 'effective time unavailable'),
+                                    $set->id => 'Version '.$set->version.' · '.($set->effective_at?->timezone(config('app.display_timezone'))->format('M j, Y g:i A') ?? 'effective time unavailable'),
                                 ])
                                 ->all())
                             ->searchable()
@@ -78,9 +78,9 @@ class RequirementSetsRelationManager extends RelationManager
                         Select::make('credential_classification')
                             ->label('Credential classification')
                             ->options([
-                                AdmissionRequirement::ClassificationCoreFirstYearCompletionCredential => 'Core — first-year completion credential',
-                                AdmissionRequirement::ClassificationCoreTransferCredential => 'Core — transfer credential',
-                                AdmissionRequirement::ClassificationCoreOtherOfficialCredential => 'Core — other official credential',
+                                AdmissionRequirement::ClassificationCoreFirstYearCompletionCredential => 'Core: first-year completion credential',
+                                AdmissionRequirement::ClassificationCoreTransferCredential => 'Core: transfer credential',
+                                AdmissionRequirement::ClassificationCoreOtherOfficialCredential => 'Core: other official credential',
                                 AdmissionRequirement::ClassificationNonCore => 'Non-core requirement',
                             ])
                             ->required()
@@ -153,7 +153,8 @@ class RequirementSetsRelationManager extends RelationManager
                 CreateAction::make()
                     ->modalWidth(Width::FourExtraLarge)
                     ->stickyModalHeader()
-                    ->stickyModalFooter(),
+                    ->stickyModalFooter()
+                    ->visible(fn (): bool => $this->getOwnerRecord()->state !== AdmissionCycle::StateCancelled),
             ])
             ->emptyStateHeading('No requirement versions yet')
             ->emptyStateDescription('Create a requirement version to list required credentials and submission rules for each student type.')
@@ -169,7 +170,8 @@ class RequirementSetsRelationManager extends RelationManager
                     ->stickyModalHeader()
                     ->stickyModalFooter()
                     ->modalDescription('Publishing makes this exact requirement version immutable. Review every path, authority, method, and due stage first.')
-                    ->visible(fn (AdmissionRequirementSet $record): bool => $record->state === AdmissionRequirementSet::StateDraft)
+                    ->visible(fn (AdmissionRequirementSet $record): bool => $record->state === AdmissionRequirementSet::StateDraft
+                        && $this->getOwnerRecord()->state !== AdmissionCycle::StateCancelled)
                     ->action(function (AdmissionRequirementSet $record): void {
                         $actor = auth()->user();
                         abort_unless($actor instanceof User, 403);
@@ -194,12 +196,14 @@ class RequirementSetsRelationManager extends RelationManager
                     ->modalWidth(Width::FourExtraLarge)
                     ->stickyModalHeader()
                     ->stickyModalFooter()
-                    ->visible(fn (AdmissionRequirementSet $record): bool => $record->state === AdmissionRequirementSet::StateDraft),
+                    ->visible(fn (AdmissionRequirementSet $record): bool => $record->state === AdmissionRequirementSet::StateDraft
+                        && $this->getOwnerRecord()->state !== AdmissionCycle::StateCancelled),
                 DeleteAction::make()
                     ->modalWidth(Width::Large)
                     ->stickyModalHeader()
                     ->stickyModalFooter()
-                    ->visible(fn (AdmissionRequirementSet $record): bool => $record->state === AdmissionRequirementSet::StateDraft),
+                    ->visible(fn (AdmissionRequirementSet $record): bool => $record->state === AdmissionRequirementSet::StateDraft
+                        && $this->getOwnerRecord()->state !== AdmissionCycle::StateCancelled),
             ]);
     }
 }

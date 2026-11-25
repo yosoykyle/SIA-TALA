@@ -109,7 +109,7 @@ class CurriculumVersionForm
                         ))
                         ->accepted(fn (Get $get): bool => self::isProgramInactive(
                             self::resolveProgramId($programId, $get('program_id')),
-                        ) && filled($get('starting_academic_year_id'))),
+                        )),
                     TextInput::make('name')
                         ->label('Curriculum label (optional when a starting batch is chosen)')
                         ->placeholder('e.g. Batch 2027–28 or BSIT Revised Curriculum')
@@ -134,7 +134,7 @@ class CurriculumVersionForm
         return [
             TextInput::make('name')
                 ->label('Curriculum name')
-                ->placeholder('e.g. BSIT Curriculum — Batch 2026')
+                ->placeholder('e.g. BSIT Curriculum · Batch 2026')
                 ->required()
                 ->maxLength(255),
             Select::make('effective_entry_term_id')->label('First student intake')
@@ -173,7 +173,7 @@ class CurriculumVersionForm
                 ->helperText('Activates this program now so the copied curriculum can receive its starting batch.')
                 ->default(false)
                 ->visible($isInactive)
-                ->accepted(fn (Get $get): bool => $isInactive && filled($get('starting_academic_year_id'))),
+                ->accepted(fn (): bool => $isInactive),
             TextInput::make('name')
                 ->label('Curriculum label (optional when a starting batch is chosen)')
                 ->placeholder('Leave blank to auto-label from the starting batch')
@@ -332,7 +332,7 @@ class CurriculumVersionForm
             return '';
         }
 
-        return "{$program->code} — {$program->name} is currently inactive. Activate the program to proceed with batch assignment.";
+        return "{$program->code} · {$program->name} is currently inactive. Activate the program to proceed with batch assignment.";
     }
 
     private static function resolveProgramId(?int $fixedProgramId, mixed $selectedProgramId): ?int
@@ -367,13 +367,15 @@ class CurriculumVersionForm
     {
         return Term::query()
             ->with('academicYear')
+            ->where('state', '!=', Term::StateClosed)
             ->orderByDesc('starts_on')
+            ->limit(25)
             ->get()
             ->mapWithKeys(fn (Term $term): array => [
                 $term->id => collect([
                     $term->academicYear?->label,
                     $term->label,
-                ])->filter()->implode(' | '),
+                ])->filter()->implode(' · '),
             ])
             ->all();
     }

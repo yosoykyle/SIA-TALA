@@ -43,8 +43,10 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Url;
 use UnitEnum;
@@ -350,6 +352,51 @@ final class SchoolResources extends Page implements HasTable
                             ->success()
                             ->send();
                     }),
+                Action::make('deleteRoom')
+                    ->label('Delete')
+                    ->icon(Heroicon::OutlinedTrash)
+                    ->button()
+                    ->color('danger')
+                    ->size('sm')
+                    ->extraAttributes(['class' => 'whitespace-nowrap'])
+                    ->requiresConfirmation()
+                    ->modalHeading(fn (Room $record): string => 'Delete '.$record->code.'?')
+                    ->modalDescription(fn (Room $record): string => "Permanently deletes {$record->code} because it has no meetings, closures, commitments, or scheduling requirements. This cannot be undone.")
+                    ->modalSubmitActionLabel('Delete room')
+                    ->visible(fn (Room $record): bool => ! $this->isReadOnly() && Gate::allows('deleteUnusedRoom', $record))
+                    ->action(function (Room $record): void {
+                        $actor = auth()->user();
+                        abort_unless($actor instanceof User && ! $this->isReadOnly(), 403);
+                        Gate::forUser($actor)->authorize('deleteUnusedRoom', $record);
+
+                        $code = $record->code;
+
+                        try {
+                            DB::transaction(function () use ($record): void {
+                                $locked = Room::query()->whereKey($record->id)->lockForUpdate()->firstOrFail();
+                                $locked->features()->delete();
+                                $locked->delete();
+                            }, attempts: 3);
+                        } catch (QueryException) {
+                            Notification::make()
+                                ->title("Cannot delete {$code}")
+                                ->body("{$code} is already referenced by scheduling records. Deactivate it instead.")
+                                ->danger()
+                                ->persistent()
+                                ->send();
+
+                            return;
+                        }
+
+                        $this->refreshActiveTermScheduling($actor);
+                        $this->flushCachedTableRecords();
+
+                        Notification::make()
+                            ->title("{$code} deleted")
+                            ->body('Unused room removed from the shared campus catalog.')
+                            ->success()
+                            ->send();
+                    }),
                 Action::make('inspectRoom')
                     ->label('Details')
                     ->icon(Heroicon::OutlinedEye)
@@ -404,17 +451,8 @@ final class SchoolResources extends Page implements HasTable
                     ->sortable()
                     ->description(fn (User $record): string => (string) $record->email)
                     ->wrap(),
-                TextColumn::make('qualified_subjects')
-                    ->label('Qualified subjects')
-                    ->state(function (User $record): string {
-                        $labels = $this->formatFacultyQualifiedSubjects($record);
-
-                        return $labels !== [] ? implode(', ', $labels) : 'No qualified subjects assigned';
-                    })
-                    ->color(fn (User $record): ?string => $record->facultyQualifications->isEmpty() ? 'gray' : null)
-                    ->wrap(),
                 TextColumn::make('qualified_count')
-                    ->label('Subjects')
+                    ->label('Qualified subjects')
                     ->badge()
                     ->state(fn (User $record): int => $record->facultyQualifications->unique('course_id')->count())
                     ->color(fn (int $state): string => $state > 0 ? 'success' : 'gray')
@@ -462,10 +500,11 @@ final class SchoolResources extends Page implements HasTable
                             ->map(fn (mixed $id): string => (string) $id)
                             ->values()
                             ->all();
-                        [$visibleSelected, $retainedSelected] = $this->partitionSelectedCourseIds($activeIds, 'all');
+                        $defaultFilter = $this->defaultProgramFilterForSelection($activeIds);
+                        [$visibleSelected, $retainedSelected] = $this->partitionSelectedCourseIds($activeIds, $defaultFilter, $activeIds);
 
                         return [
-                            'program_filter' => 'all',
+                            'program_filter' => $defaultFilter,
                             'retained_course_ids' => $retainedSelected,
                             'course_ids' => $visibleSelected,
                             'notes' => null,
@@ -479,7 +518,7 @@ final class SchoolResources extends Page implements HasTable
                             ->options(fn (): array => $this->programFilterOptions())
                             ->default('all')
                             ->selectablePlaceholder(false)
-                            ->native(false)
+                            ->native(true)
                             ->dehydrated(false)
                             ->live()
                             ->afterStateUpdated(function (Get $get, Set $set, ?string $state): void {
@@ -487,15 +526,25 @@ final class SchoolResources extends Page implements HasTable
                             }),
                         CheckboxList::make('course_ids')
                             ->label('Qualified subjects')
-                            ->options(fn (Get $get): array => $this->filteredCatalogSubjectOptions($get('program_filter')))
-                            ->descriptions(fn (Get $get): array => $this->filteredCatalogSubjectDescriptions($get('program_filter')))
+                            ->options(fn (Get $get): array => $this->filteredCatalogSubjectOptions(
+                                $get('program_filter'),
+                                $this->mergeSelectedCourseIds($get('course_ids'), $get('retained_course_ids')),
+                            ))
+                            ->descriptions(fn (Get $get): array => $this->filteredCatalogSubjectDescriptions(
+                                $get('program_filter'),
+                                $this->mergeSelectedCourseIds($get('course_ids'), $get('retained_course_ids')),
+                            ))
                             ->searchable()
                             ->searchPrompt('Search by subject code or title...')
                             ->bulkToggleable()
                             ->columns(['default' => 1, 'md' => 2])
                             ->gridDirection(GridDirection::Row)
                             ->extraAttributes(['class' => 'tala-card-picker'])
-                            ->helperText(fn (Get $get): string => $this->subjectSelectionHelperText($get('retained_course_ids'))),
+                            ->helperText(fn (Get $get): string => $this->subjectSelectionHelperText(
+                                $get('retained_course_ids'),
+                                $get('program_filter'),
+                                $get('course_ids'),
+                            )),
                         Textarea::make('notes')
                             ->label('Notes (optional)')
                             ->rows(2)
@@ -532,7 +581,7 @@ final class SchoolResources extends Page implements HasTable
         return Action::make('assignSubjects')
             ->label('Assign subjects')
             ->icon(Heroicon::OutlinedAcademicCap)
-            ->color('gray')
+            ->color('primary')
             ->size('sm')
             ->modalHeading('Assign qualified subjects')
             ->modalDescription('Shared across all terms · Choose a teacher and check the catalog subjects they are approved to teach.')
@@ -555,10 +604,12 @@ final class SchoolResources extends Page implements HasTable
                         ->pluck('name', 'id')
                         ->all())
                     ->searchable()
+                    ->preload()
                     ->required()
                     ->live()
                     ->afterStateUpdated(function (Get $get, Set $set, mixed $state): void {
                         if (blank($state)) {
+                            $set('program_filter', 'all');
                             $set('course_ids', []);
                             $set('retained_course_ids', []);
 
@@ -573,11 +624,14 @@ final class SchoolResources extends Page implements HasTable
                             ->values()
                             ->all();
 
+                        $defaultFilter = $this->defaultProgramFilterForSelection($activeIds);
                         [$visibleSelected, $retainedSelected] = $this->partitionSelectedCourseIds(
                             $activeIds,
-                            (string) ($get('program_filter') ?? 'all'),
+                            $defaultFilter,
+                            $activeIds,
                         );
 
+                        $set('program_filter', $defaultFilter);
                         $set('course_ids', $visibleSelected);
                         $set('retained_course_ids', $retainedSelected);
                     }),
@@ -586,7 +640,7 @@ final class SchoolResources extends Page implements HasTable
                     ->options(fn (): array => $this->programFilterOptions())
                     ->default('all')
                     ->selectablePlaceholder(false)
-                    ->native(false)
+                    ->native(true)
                     ->dehydrated(false)
                     ->live()
                     ->visible(fn (Get $get): bool => filled($get('faculty_user_id')))
@@ -595,8 +649,14 @@ final class SchoolResources extends Page implements HasTable
                     }),
                 CheckboxList::make('course_ids')
                     ->label('Qualified subjects')
-                    ->options(fn (Get $get): array => $this->filteredCatalogSubjectOptions($get('program_filter')))
-                    ->descriptions(fn (Get $get): array => $this->filteredCatalogSubjectDescriptions($get('program_filter')))
+                    ->options(fn (Get $get): array => $this->filteredCatalogSubjectOptions(
+                        $get('program_filter'),
+                        $this->mergeSelectedCourseIds($get('course_ids'), $get('retained_course_ids')),
+                    ))
+                    ->descriptions(fn (Get $get): array => $this->filteredCatalogSubjectDescriptions(
+                        $get('program_filter'),
+                        $this->mergeSelectedCourseIds($get('course_ids'), $get('retained_course_ids')),
+                    ))
                     ->searchable()
                     ->searchPrompt('Search by subject code or title...')
                     ->bulkToggleable()
@@ -604,7 +664,11 @@ final class SchoolResources extends Page implements HasTable
                     ->gridDirection(GridDirection::Row)
                     ->extraAttributes(['class' => 'tala-card-picker'])
                     ->visible(fn (Get $get): bool => filled($get('faculty_user_id')))
-                    ->helperText(fn (Get $get): string => $this->subjectSelectionHelperText($get('retained_course_ids'))),
+                    ->helperText(fn (Get $get): string => $this->subjectSelectionHelperText(
+                        $get('retained_course_ids'),
+                        $get('program_filter'),
+                        $get('course_ids'),
+                    )),
                 Textarea::make('notes')
                     ->label('Notes (optional)')
                     ->rows(2)
@@ -660,7 +724,7 @@ final class SchoolResources extends Page implements HasTable
 
                 $title = trim((string) ($course->specifications->first()?->title ?? ''));
 
-                return $title !== '' ? "{$course->code} — {$title}" : $course->code;
+                return $title !== '' ? "{$course->code} · {$title}" : $course->code;
             })
             ->filter()
             ->values()
@@ -691,13 +755,14 @@ final class SchoolResources extends Page implements HasTable
         $payload = $this->catalogSubjectsPayload();
 
         $options = [
-            'all' => 'All catalog subjects',
+            'assigned' => 'Currently assigned',
         ];
 
         if ($payload['needed_ids'] !== []) {
             $options['needed'] = 'Needed in active/draft terms';
         }
 
+        $options['all'] = 'All catalog subjects';
         $options['shared'] = 'General Education / Shared across programs';
 
         foreach ($payload['programs'] as $programId => $label) {
@@ -708,12 +773,21 @@ final class SchoolResources extends Page implements HasTable
     }
 
     /**
+     * @param  list<mixed>  $selectedIds
+     */
+    private function defaultProgramFilterForSelection(array $selectedIds): string
+    {
+        return $selectedIds !== [] ? 'assigned' : 'all';
+    }
+
+    /**
+     * @param  list<mixed>  $selectedIds
      * @return array<int, string>
      */
-    private function filteredCatalogSubjectOptions(?string $filter): array
+    private function filteredCatalogSubjectOptions(?string $filter, array $selectedIds = []): array
     {
         $payload = $this->catalogSubjectsPayload();
-        $allowedIds = $this->filteredCourseIdsForFilter($filter, $payload);
+        $allowedIds = $this->filteredCourseIdsForFilter($filter, $payload, $selectedIds);
 
         if ($allowedIds === null) {
             return $payload['options'];
@@ -723,12 +797,13 @@ final class SchoolResources extends Page implements HasTable
     }
 
     /**
+     * @param  list<mixed>  $selectedIds
      * @return array<int, string>
      */
-    private function filteredCatalogSubjectDescriptions(?string $filter): array
+    private function filteredCatalogSubjectDescriptions(?string $filter, array $selectedIds = []): array
     {
         $payload = $this->catalogSubjectsPayload();
-        $allowedIds = $this->filteredCourseIdsForFilter($filter, $payload);
+        $allowedIds = $this->filteredCourseIdsForFilter($filter, $payload, $selectedIds);
 
         if ($allowedIds === null) {
             return $payload['descriptions'];
@@ -746,14 +821,24 @@ final class SchoolResources extends Page implements HasTable
      *     program_course_ids: array<int, list<int>>,
      *     programs: array<int, string>
      * }  $payload
+     * @param  list<mixed>  $selectedIds
      * @return list<int>|null
      */
-    private function filteredCourseIdsForFilter(?string $filter, array $payload): ?array
+    private function filteredCourseIdsForFilter(?string $filter, array $payload, array $selectedIds = []): ?array
     {
         $normalized = filled($filter) ? (string) $filter : 'all';
 
         if ($normalized === 'all') {
             return null;
+        }
+
+        if ($normalized === 'assigned') {
+            return collect($selectedIds)
+                ->map(fn (mixed $id): int => (int) $id)
+                ->filter(fn (int $id): bool => $id > 0)
+                ->unique()
+                ->values()
+                ->all();
         }
 
         if ($normalized === 'needed') {
@@ -777,9 +862,10 @@ final class SchoolResources extends Page implements HasTable
      * Split a complete list of selected course IDs into [visibleIds, retainedHiddenIds] for the active filter.
      *
      * @param  list<mixed>  $allSelected
+     * @param  list<mixed>|null  $selectedForAssigned
      * @return array{0: list<string>, 1: list<string>}
      */
-    private function partitionSelectedCourseIds(array $allSelected, ?string $filter): array
+    private function partitionSelectedCourseIds(array $allSelected, ?string $filter, ?array $selectedForAssigned = null): array
     {
         $normalizedSelected = collect($allSelected)
             ->map(fn (mixed $id): string => (string) (int) $id)
@@ -790,7 +876,7 @@ final class SchoolResources extends Page implements HasTable
 
         $visibleKeys = array_map(
             'strval',
-            array_keys($this->filteredCatalogSubjectOptions($filter)),
+            array_keys($this->filteredCatalogSubjectOptions($filter, $selectedForAssigned ?? $normalizedSelected)),
         );
         $visibleLookup = array_flip($visibleKeys);
 
@@ -815,7 +901,7 @@ final class SchoolResources extends Page implements HasTable
             is_array($get('retained_course_ids')) ? $get('retained_course_ids') : [],
         );
 
-        [$visible, $retained] = $this->partitionSelectedCourseIds($allSelected, $filter);
+        [$visible, $retained] = $this->partitionSelectedCourseIds($allSelected, $filter, $allSelected);
 
         $set('course_ids', $visible);
         $set('retained_course_ids', $retained);
@@ -835,7 +921,7 @@ final class SchoolResources extends Page implements HasTable
             ->all();
     }
 
-    private function subjectSelectionHelperText(mixed $retainedIds): string
+    private function subjectSelectionHelperText(mixed $retainedIds, ?string $filter = null, mixed $visibleIds = null): string
     {
         $retainedCount = collect(is_array($retainedIds) ? $retainedIds : [])
             ->map(fn (mixed $id): int => (int) $id)
@@ -845,6 +931,10 @@ final class SchoolResources extends Page implements HasTable
 
         if ($retainedCount > 0) {
             return $retainedCount.' additional selected '.str('subject')->plural($retainedCount).' outside this filter will be kept when you save.';
+        }
+
+        if ($filter === 'assigned' && (! is_array($visibleIds) || $visibleIds === [])) {
+            return 'No subjects selected yet. Switch the filter above to add subjects from the catalog.';
         }
 
         return 'Check every subject this teacher can be scheduled to teach.';
@@ -891,7 +981,7 @@ final class SchoolResources extends Page implements HasTable
         $programCourseIds = [];
 
         foreach ($activePrograms as $program) {
-            $programs[(int) $program->id] = "{$program->code} — {$program->name}";
+            $programs[(int) $program->id] = "{$program->code} · {$program->name}";
             $programCourseIds[(int) $program->id] = [];
         }
 
@@ -942,7 +1032,7 @@ final class SchoolResources extends Page implements HasTable
             $courseId = (int) $course->id;
             $spec = $course->specifications->first();
             $title = trim((string) ($spec?->title ?? ''));
-            $options[$courseId] = $title !== '' ? "{$course->code} — {$title}" : $course->code;
+            $options[$courseId] = $title !== '' ? "{$course->code} · {$title}" : $course->code;
 
             $linkedProgramIds = array_values($courseProgramIds[$courseId] ?? []);
             if (count($linkedProgramIds) === 1) {

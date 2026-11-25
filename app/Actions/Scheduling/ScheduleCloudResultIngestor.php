@@ -38,12 +38,14 @@ final class ScheduleCloudResultIngestor
                 || $lockedRun->candidateRows()->exists()
                 || in_array(data_get($lockedRun->diagnostics, 'solver_result.summary.status'), ['accepted', 'blocked'], true)
                 || in_array($lockedRun->candidate_state, ['Accepted', 'Rejected'], true)
+                || data_get($lockedRun->diagnostics, 'solver_dispatch.status') === 'cancelled'
                 || in_array($lockedRun->status, [
                     ScheduleGenerationRun::StatusPublished,
                     ScheduleGenerationRun::StatusSuperseded,
+                    ScheduleGenerationRun::StatusFailed,
                 ], true)) {
                 throw ValidationException::withMessages([
-                    'status' => 'A retained solver outcome, candidate or published schedule cannot ingest another result.',
+                    'status' => 'A retained solver outcome, candidate, cancelled, failed, or published schedule cannot ingest another result.',
                 ]);
             }
 
@@ -208,7 +210,11 @@ final class ScheduleCloudResultIngestor
             ? (string) $run->term->label
             : 'selected term';
         $timetableUrl = Route::has('filament.admin.term-planning.pages.timetable')
-            ? route('filament.admin.term-planning.pages.timetable', ['termId' => (int) $run->term_id])
+            ? route('filament.admin.term-planning.pages.timetable', [
+                'termId' => (int) $run->term_id,
+                'timetableState' => 'draft',
+                'selectedRunId' => (int) $run->id,
+            ], absolute: false)
             : null;
 
         if ($run->status === ScheduleGenerationRun::StatusUnderReview) {
@@ -301,8 +307,11 @@ final class ScheduleCloudResultIngestor
                 ? data_get($solverResult, 'objective_details.values')
                 : null,
             'diagnostics' => $diagnostics,
-            'candidate_state' => $status === ScheduleGenerationRun::StatusUnderReview ? 'UnderReview'
-                : (($summary['current_sources_valid'] ?? null) === false ? 'Stale' : null),
+            'candidate_state' => $run->candidate_state === 'Stale'
+                ? 'Stale'
+                : ($status === ScheduleGenerationRun::StatusUnderReview
+                    ? 'UnderReview'
+                    : (($summary['current_sources_valid'] ?? null) === false ? 'Stale' : null)),
         ];
 
         if ($replaceCandidateKey) {

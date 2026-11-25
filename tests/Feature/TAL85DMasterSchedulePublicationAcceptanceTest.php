@@ -191,7 +191,7 @@ final class TAL85DMasterSchedulePublicationAcceptanceTest extends TestCase
             ])
             ->test(TermTimetable::class)
             ->assertOk()
-            ->assertSee('Official · Locked')
+            ->assertSee('Official · Live')
             ->assertSee('10:00 AM–12:00 PM')
             ->assertDontSee('8:00 AM–10:00 AM')
             ->assertActionDoesNotExist('create')
@@ -208,7 +208,7 @@ final class TAL85DMasterSchedulePublicationAcceptanceTest extends TestCase
             ])
             ->test(TermTimetable::class)
             ->assertOk()
-            ->assertSee('Official · Locked')
+            ->assertSee('Official · Live')
             ->assertActionHidden('revisePublishedSchedule')
             ->assertActionHidden('cancelPublishedClass');
 

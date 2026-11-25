@@ -10,6 +10,8 @@ use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\ExternalCompetencyRequirement;
 use App\Models\Program;
+use App\Models\SchedulingDemand;
+use App\Models\Section;
 use App\Models\Term;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -572,11 +574,32 @@ class CurriculumWorkbenchService
 
             Gate::forUser($actor)->authorize('update', $lockedEntry->curriculumVersion);
 
+            $specId = $lockedEntry->course_specification_id;
+
             ExternalCompetencyRequirement::query()
                 ->where('curriculum_entry_id', $lockedEntry->id)
                 ->update(['curriculum_entry_id' => null]);
 
             $lockedEntry->delete();
+
+            if ($specId !== null) {
+                $orphanFork = CourseSpecification::query()
+                    ->whereKey($specId)
+                    ->where('state', CourseSpecification::StateDraft)
+                    ->where('revision_code', 'like', 'DRAFT-%')
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($orphanFork instanceof CourseSpecification
+                    && CourseSpecification::query()->where('course_id', $orphanFork->course_id)->whereKeyNot($orphanFork->id)->exists()
+                    && ! $orphanFork->curriculumEntries()->exists()
+                    && ! Section::query()->where('course_specification_id', $orphanFork->id)->exists()
+                    && ! SchedulingDemand::query()->whereHas('courseComponent', fn ($q) => $q->where('course_specification_id', $orphanFork->id))->exists()) {
+                    $orphanFork->components()->delete();
+                    $orphanFork->requirements()->delete();
+                    $orphanFork->delete();
+                }
+            }
 
             activity()
                 ->performedOn($lockedEntry->curriculumVersion)

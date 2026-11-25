@@ -12,6 +12,8 @@ use App\Models\ExternalCompetencyRequirement;
 use App\Models\Program;
 use App\Models\ProgramShiftCreditEntry;
 use App\Models\RegistrationCreditEvaluation;
+use App\Models\SchedulingDemand;
+use App\Models\Section;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
 use App\Models\Term;
@@ -354,6 +356,7 @@ class CurriculumVersionLifecycleService
                 $supersededIds = CurriculumVersion::query()
                     ->where('program_id', $locked->program_id)
                     ->where('state', CurriculumVersion::StateActive)
+                    ->whereDoesntHave('batches')
                     ->whereKeyNot($locked->id)
                     ->lockForUpdate()
                     ->pluck('id')
@@ -659,10 +662,47 @@ class CurriculumVersionLifecycleService
                 ->withProperties($properties)
                 ->log('Draft curriculum discarded');
 
+            $candidateDraftSpecIds = $locked->entries()
+                ->pluck('course_specification_id')
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
             $locked->batches()->delete();
             $locked->externalCompetencyRequirements()->delete();
             $locked->entries()->delete();
             $locked->delete();
+
+            if ($candidateDraftSpecIds !== []) {
+                $orphanForks = CourseSpecification::query()
+                    ->whereIn('id', $candidateDraftSpecIds)
+                    ->where('state', CourseSpecification::StateDraft)
+                    ->where('revision_code', 'like', 'DRAFT-%')
+                    ->lockForUpdate()
+                    ->get();
+
+                foreach ($orphanForks as $spec) {
+                    $hasOtherSpec = CourseSpecification::query()
+                        ->where('course_id', $spec->course_id)
+                        ->whereKeyNot($spec->id)
+                        ->exists();
+
+                    if (! $hasOtherSpec) {
+                        continue;
+                    }
+
+                    if ($spec->curriculumEntries()->exists()
+                        || Section::query()->where('course_specification_id', $spec->id)->exists()
+                        || SchedulingDemand::query()->whereHas('courseComponent', fn ($q) => $q->where('course_specification_id', $spec->id))->exists()) {
+                        continue;
+                    }
+
+                    $spec->components()->delete();
+                    $spec->requirements()->delete();
+                    $spec->delete();
+                }
+            }
         });
     }
 
@@ -780,7 +820,7 @@ class CurriculumVersionLifecycleService
         ?AcademicYear $startingBatch,
         bool $activateProgramIfInactive,
     ): void {
-        if ($program->is_active || ! $startingBatch instanceof AcademicYear) {
+        if ($program->is_active) {
             return;
         }
 
@@ -793,8 +833,8 @@ class CurriculumVersionLifecycleService
                 ->causedBy($actor)
                 ->event('program_activated_for_curriculum_batch')
                 ->withProperties([
-                    'academic_year_id' => $startingBatch->id,
-                    'academic_year_label' => $startingBatch->label,
+                    'academic_year_id' => $startingBatch?->id,
+                    'academic_year_label' => $startingBatch?->label,
                 ])
                 ->log('Program activated for curriculum batch assignment');
 
@@ -802,7 +842,7 @@ class CurriculumVersionLifecycleService
         }
 
         throw ValidationException::withMessages([
-            'program_id' => "{$program->code} is inactive. Activate the program before assigning a batch curriculum.",
+            'program_id' => "{$program->code} is inactive. Activate the program before creating or assigning a curriculum.",
         ]);
     }
 
@@ -823,8 +863,12 @@ class CurriculumVersionLifecycleService
             ?: 'another curriculum';
         $short = CurriculumVersion::formatBatchShort($academicYear);
 
+        $message = $existing->curriculumVersion?->state === CurriculumVersion::StateDraft
+            ? "Batch {$short} is currently reserved by draft curriculum {$ownerLabel} for {$program->code}. Open that draft to continue editing, or discard it to free this batch."
+            : "Batch {$short} is already assigned to {$ownerLabel} for {$program->code}.";
+
         throw ValidationException::withMessages([
-            'academic_year_id' => "Batch {$short} is already assigned to {$ownerLabel} for {$program->code}.",
+            'academic_year_id' => $message,
         ]);
     }
 }

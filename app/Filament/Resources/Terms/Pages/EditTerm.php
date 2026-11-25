@@ -3,6 +3,10 @@
 namespace App\Filament\Resources\Terms\Pages;
 
 use App\Filament\Resources\Terms\TermResource;
+use App\Models\FacultyTermLoadOverride;
+use App\Models\PublishedTimetableVersion;
+use App\Models\SchedulingDemand;
+use App\Models\SectionMeeting;
 use App\Models\Term;
 use App\Support\ReturnsToTermPlanning;
 use Filament\Actions\Action;
@@ -80,6 +84,13 @@ class EditTerm extends EditRecord
         return DB::transaction(function () use ($record, $data): Term {
             $term = Term::query()->whereKey($record)->lockForUpdate()->firstOrFail();
             Gate::authorize('update', $term);
+
+            if ($term->state === Term::StateClosed) {
+                throw ValidationException::withMessages([
+                    'label' => 'This Term is closed and read-only.',
+                ]);
+            }
+
             if ($term->hasActivatedCalendar()) {
                 foreach (['label', 'academic_year_id', 'type', 'starts_on', 'ends_on'] as $field) {
                     if (array_key_exists($field, $data) && (string) $data[$field] !== (string) $term->getRawOriginal($field)) {
@@ -87,6 +98,76 @@ class EditTerm extends EditRecord
                     }
                 }
             }
+
+            $oldDefaultMaxUnits = (float) ($term->default_max_units ?? 24);
+            $newDefaultMaxUnits = (float) ($data['default_max_units'] ?? $term->default_max_units ?? 24);
+            $hasPublished = PublishedTimetableVersion::query()
+                ->where('term_id', $term->id)
+                ->where('state', PublishedTimetableVersion::StatePublished)
+                ->exists();
+
+            if ($hasPublished && $newDefaultMaxUnits + 0.0001 < $oldDefaultMaxUnits) {
+                $facultyIdsWithActiveOverride = FacultyTermLoadOverride::query()
+                    ->where('term_id', $term->id)
+                    ->where('is_active', true)
+                    ->pluck('faculty_user_id')
+                    ->map(fn (mixed $id): int => (int) $id)
+                    ->all();
+
+                $activeMeetings = SectionMeeting::query()
+                    ->activeOfficial()
+                    ->whereNotNull('faculty_user_id')
+                    ->whereHas('scheduleRun', fn ($query) => $query->where('term_id', $term->id))
+                    ->with([
+                        'schedulingDemand.courseComponent.courseSpecification',
+                        'schedulingDemand.sectionDeliveryGroup',
+                        'schedulingDemand.termOffering.curriculumEntry.courseSpecification',
+                    ])
+                    ->get();
+
+                $maxAssignedUnitsWithoutOverride = 0.0;
+
+                foreach ($activeMeetings->groupBy('faculty_user_id') as $facultyId => $meetings) {
+                    if (in_array((int) $facultyId, $facultyIdsWithActiveOverride, true)) {
+                        continue;
+                    }
+
+                    $countedKeys = [];
+                    $facultyUnits = 0.0;
+
+                    foreach ($meetings as $meeting) {
+                        $demand = $meeting->schedulingDemand;
+                        if (! $demand instanceof SchedulingDemand) {
+                            continue;
+                        }
+
+                        $sectionId = $demand->sectionDeliveryGroup?->section_id;
+                        $unitKey = $sectionId !== null ? 'section:'.$sectionId : 'demand:'.$demand->id;
+                        if (isset($countedKeys[$unitKey])) {
+                            continue;
+                        }
+                        $countedKeys[$unitKey] = true;
+
+                        $creditUnits = $demand->courseComponent?->courseSpecification?->credit_units
+                            ?? $demand->termOffering?->curriculumEntry?->courseSpecification?->credit_units
+                            ?? 0;
+                        $facultyUnits += (float) $creditUnits;
+                    }
+
+                    if ($facultyUnits > $maxAssignedUnitsWithoutOverride) {
+                        $maxAssignedUnitsWithoutOverride = $facultyUnits;
+                    }
+                }
+
+                if ($maxAssignedUnitsWithoutOverride > $newDefaultMaxUnits + 0.0001) {
+                    $minRequired = rtrim(rtrim(number_format($maxAssignedUnitsWithoutOverride, 2, '.', ''), '0'), '.');
+
+                    throw ValidationException::withMessages([
+                        'default_max_units' => "Cannot lower default maximum teaching units below {$minRequired} units because at least one faculty member without an individual load override is already assigned {$minRequired} units on the published timetable.",
+                    ]);
+                }
+            }
+
             $term->update($data);
 
             return $term;

@@ -117,7 +117,7 @@ class ScheduleGenerationService
             return;
         }
 
-        if (($outcome === 'unknown' && ! $technicalFailure) || $previous->candidate_state === 'Rejected') {
+        if (($outcome === 'unknown' && ! $technicalFailure) || in_array($previous->candidate_state, ['Rejected', 'Stale'], true)) {
             return;
         }
 

@@ -13,6 +13,7 @@ use App\Models\Enrollment;
 use App\Models\EnrollmentSeatReservation;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
+use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\StudentProfile;
@@ -62,7 +63,7 @@ final class PrepareTermClassProposal
             'term_type' => $entry->term_type,
             'modes' => $entry->courseSpecification->allowed_modalities ?? [],
             'meetings' => $entry->courseSpecification->scheduling_treatment === CourseSpecification::SchedulingExternallyArranged
-                ? 'Externally arranged — no recurring meetings'
+                ? 'Externally arranged (no recurring meetings)'
                 : $entry->courseSpecification->components->map(fn (CourseComponent $component): ?string => CourseComponent::meetingPatternOptions()[$component->meeting_pattern] ?? $component->meeting_pattern)->filter()->implode(' + '),
             'existing' => $classes->filter(fn (Section $class): bool => (int) $class->termOffering->curriculum_entry_id === $entry->id && $class->state !== Section::StateCancelled)->count(),
         ])->all();
@@ -153,6 +154,19 @@ final class PrepareTermClassProposal
                         throw ValidationException::withMessages(['classes' => 'Cancellation requires a reason. A published class must use the controlled timetable revision and enrollment-impact path.']);
                     }
                     $class->update(['state' => Section::StateCancelled]);
+                    $groupIds = $class->deliveryGroups()->pluck('id')->all();
+                    if ($groupIds !== []) {
+                        SectionDeliveryGroup::query()
+                            ->whereIn('id', $groupIds)
+                            ->whereNotIn('state', [SectionDeliveryGroup::StateCancelled, SectionDeliveryGroup::StateClosed])
+                            ->update(['state' => SectionDeliveryGroup::StateCancelled, 'updated_at' => now()]);
+
+                        SchedulingDemand::query()
+                            ->whereIn('section_delivery_group_id', $groupIds)
+                            ->whereDoesntHave('sectionMeetings')
+                            ->whereDoesntHave('candidateRows')
+                            ->delete();
+                    }
                     activity()->causedBy($actor)->performedOn($class)->withProperties(['term_id' => $term->id, 'reason' => $row['cancellation_reason']])->log('class_cancelled');
                     $cancelled++;
 

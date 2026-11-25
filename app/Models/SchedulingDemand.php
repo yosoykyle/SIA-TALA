@@ -145,4 +145,10 @@ class SchedulingDemand extends Model
     {
         return $this->hasMany(SectionMeeting::class);
     }
+
+    /** @return HasMany<CandidateScheduleRow, $this> */
+    public function candidateRows(): HasMany
+    {
+        return $this->hasMany(CandidateScheduleRow::class, 'scheduling_demand_id');
+    }
 }

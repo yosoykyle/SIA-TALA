@@ -24,6 +24,7 @@ use Carbon\CarbonImmutable;
 use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 
@@ -252,9 +253,10 @@ class ScheduleGenerationRunInfolist
 
     /**
      * @param  array<string, mixed>  $finding
+     * @param  array<string, Collection<int, Model>>  $preloaded
      * @return array{label:string,url:string|null}
      */
-    public static function sourcePresentation(array $finding, ?int $termId = null): array
+    public static function sourcePresentation(array $finding, ?int $termId = null, array $preloaded = []): array
     {
         $type = (string) ($finding['source_type'] ?? 'source');
         $id = is_numeric($finding['source_id'] ?? null) ? (int) $finding['source_id'] : null;
@@ -269,13 +271,13 @@ class ScheduleGenerationRunInfolist
             ? ['termId' => $termId]
             : [];
         $url = match ($type) {
-            'schedule_run' => self::viewUrl(ScheduleGenerationRun::query()->find($id), ScheduleGenerationRunResource::class),
-            'scheduling_demand' => self::viewUrl(SchedulingDemand::query()->find($id), SchedulingDemandResource::class, $context),
-            'room' => self::viewUrl(Room::query()->find($id), RoomResource::class, $context),
-            'term' => self::viewUrl(Term::query()->find($id), TermResource::class),
-            'faculty_qualification' => self::viewUrl(FacultyQualification::query()->find($id), FacultyQualificationResource::class, $context),
-            'faculty_term_load_override' => self::viewUrl(FacultyTermLoadOverride::query()->find($id), FacultyTermLoadOverrideResource::class),
-            'calendar_event' => self::editUrl(CalendarEvent::query()->find($id), CalendarEventResource::class, $termId !== null ? ['termId' => $termId] : []),
+            'schedule_run' => self::viewUrl($preloaded['schedule_run'][$id] ?? ScheduleGenerationRun::query()->find($id), ScheduleGenerationRunResource::class),
+            'scheduling_demand' => self::viewUrl($preloaded['scheduling_demand'][$id] ?? SchedulingDemand::query()->find($id), SchedulingDemandResource::class, $context),
+            'room' => self::viewUrl($preloaded['room'][$id] ?? Room::query()->find($id), RoomResource::class, $context),
+            'term' => self::viewUrl($preloaded['term'][$id] ?? Term::query()->find($id), TermResource::class),
+            'faculty_qualification' => self::viewUrl($preloaded['faculty_qualification'][$id] ?? FacultyQualification::query()->find($id), FacultyQualificationResource::class, $context),
+            'faculty_term_load_override' => self::viewUrl($preloaded['faculty_term_load_override'][$id] ?? FacultyTermLoadOverride::query()->find($id), FacultyTermLoadOverrideResource::class),
+            'calendar_event' => self::editUrl($preloaded['calendar_event'][$id] ?? CalendarEvent::query()->find($id), CalendarEventResource::class, $termId !== null ? ['termId' => $termId] : []),
             default => null,
         };
 
@@ -719,11 +721,25 @@ class ScheduleGenerationRunInfolist
         }
 
         $effectiveTermId = $termId ?? $record->term_id;
+        $validFindings = collect($findings)->filter(fn (mixed $finding): bool => is_array($finding))->values();
+        $idsByType = $validFindings
+            ->filter(fn (array $finding): bool => is_numeric($finding['source_id'] ?? null))
+            ->groupBy(fn (array $finding): string => (string) ($finding['source_type'] ?? 'source'))
+            ->map(fn ($group) => $group->pluck('source_id')->map(fn (mixed $id): int => (int) $id)->unique()->values()->all());
 
-        return collect($findings)
-            ->filter(fn (mixed $finding): bool => is_array($finding))
-            ->map(function (array $finding) use ($effectiveTermId): array {
-                $source = self::sourcePresentation($finding, $effectiveTermId);
+        $preloaded = [
+            'schedule_run' => $idsByType->has('schedule_run') ? ScheduleGenerationRun::query()->whereIn('id', $idsByType->get('schedule_run'))->get()->keyBy('id') : collect(),
+            'scheduling_demand' => $idsByType->has('scheduling_demand') ? SchedulingDemand::query()->whereIn('id', $idsByType->get('scheduling_demand'))->get()->keyBy('id') : collect(),
+            'room' => $idsByType->has('room') ? Room::query()->whereIn('id', $idsByType->get('room'))->get()->keyBy('id') : collect(),
+            'term' => $idsByType->has('term') ? Term::query()->whereIn('id', $idsByType->get('term'))->get()->keyBy('id') : collect(),
+            'faculty_qualification' => $idsByType->has('faculty_qualification') ? FacultyQualification::query()->whereIn('id', $idsByType->get('faculty_qualification'))->get()->keyBy('id') : collect(),
+            'faculty_term_load_override' => $idsByType->has('faculty_term_load_override') ? FacultyTermLoadOverride::query()->whereIn('id', $idsByType->get('faculty_term_load_override'))->get()->keyBy('id') : collect(),
+            'calendar_event' => $idsByType->has('calendar_event') ? CalendarEvent::query()->whereIn('id', $idsByType->get('calendar_event'))->get()->keyBy('id') : collect(),
+        ];
+
+        return $validFindings
+            ->map(function (array $finding) use ($effectiveTermId, $preloaded): array {
+                $source = self::sourcePresentation($finding, $effectiveTermId, $preloaded);
                 $constraint = (string) ($finding['constraint'] ?? '');
 
                 return [
@@ -733,7 +749,6 @@ class ScheduleGenerationRunInfolist
                     'source_url' => $source['url'],
                 ];
             })
-            ->values()
             ->all();
     }
 

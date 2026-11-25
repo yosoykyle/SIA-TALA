@@ -328,6 +328,22 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                         ->orWhereNotIn('id', $this->getViewData()['contextClasses']->pluck('id'))
                         ->orWhereDoesntHave('cohorts')->orWhereDoesntHave('deliveryGroups.schedulingDemands')
                         ->orWhereHas('deliveryGroups.schedulingDemands', fn (Builder $demands) => $demands->where('validation_state', SchedulingDemand::ValidationActionRequired)))),
+                SelectFilter::make('lifecycle_status')
+                    ->label('Class status')
+                    ->options([
+                        'active' => 'Active classes',
+                        'cancelled' => 'Cancelled classes',
+                        'all' => 'All classes',
+                    ])
+                    ->default('active')
+                    ->selectablePlaceholder(false)
+                    ->query(function (Builder $query, array $data): Builder {
+                        return match ($data['value'] ?? 'active') {
+                            'cancelled' => $query->where('state', Section::StateCancelled),
+                            'all' => $query,
+                            default => $query->where('state', '!=', Section::StateCancelled),
+                        };
+                    }),
             ])
             ->columnManager(false)
             ->filtersTriggerAction(fn (Action $action): Action => $action->label('Filter classes')->button()->color('gray')->size('sm'))
@@ -460,12 +476,13 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                 $this->confirmClassAction()->label('Confirm students')->icon(Heroicon::OutlinedCheck)->button()->size('sm')->extraAttributes(['class' => 'whitespace-nowrap'])
                     ->visible(fn (Section $record): bool => $this->canPrepareClass($record) && $this->preparation($record) !== 'Needs active calendar source'),
                 $this->editClassAction()->size('sm')->extraAttributes(['class' => 'whitespace-nowrap']),
+                $this->deleteDraftClassAction()->size('sm')->extraAttributes(['class' => 'whitespace-nowrap']),
                 $this->cancelClassAction()->size('sm')->extraAttributes(['class' => 'whitespace-nowrap']),
                 $this->classDetailsAction('viewClass')->label('Details')->icon(Heroicon::OutlinedEye)->button()->color('gray')->size('sm')->extraAttributes(['class' => 'whitespace-nowrap']),
             ])->recordActionsColumnLabel('Actions')->defaultSort('code')
             ->emptyState(view('filament.partials.collection-empty-state'))
-            ->emptyStateHeading(fn (): string => filled($this->getTableSearch()) || $this->getTable()->getActiveFiltersCount() ? 'No matching classes' : 'No classes added for this term')
-            ->emptyStateDescription(fn (): string => filled($this->getTableSearch()) || $this->getTable()->getActiveFiltersCount()
+            ->emptyStateHeading(fn (): string => $this->hasActiveClassesFilterOrSearch() ? 'No matching classes' : 'No classes added for this term')
+            ->emptyStateDescription(fn (): string => $this->hasActiveClassesFilterOrSearch()
                 ? 'Try another subject or clear the search and filters.'
                 : (auth()->user()?->hasRole(User::StaffRoleAcademicHead) ? 'The Registrar adds student sections and loads classes for this term.' : 'Add student sections first, then load subjects from curriculum or add a class.'))->stackedOnMobile();
     }
@@ -1097,8 +1114,8 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                         || $this->hasComponentType($record, CourseComponent::TypeLecture)
                         || $this->hasComponentType($record, CourseComponent::TypeLaboratory)),
                 Checkbox::make('sync_latest_curriculum')
-                    ->label('Sync latest active subject & curriculum')
-                    ->helperText('Updates this class to use the program’s current active curriculum version and subject revision before refreshing schedule requirements.'),
+                    ->label('Sync latest active subject, curriculum & calendar')
+                    ->helperText('Updates this class to use the current active term calendar, curriculum version, and subject revision before refreshing schedule requirements.'),
                 Repeater::make('cohorts')
                     ->label('Linked student sections')
                     ->schema([
@@ -1330,6 +1347,146 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                     ->success()
                     ->send();
             });
+    }
+
+    public function deleteDraftClassAction(): Action
+    {
+        return Action::make('deleteDraftClass')
+            ->label('Delete draft')
+            ->icon(Heroicon::OutlinedTrash)
+            ->button()
+            ->color('danger')
+            ->requiresConfirmation()
+            ->modalHeading(fn (Section $record): string => 'Delete unconfirmed draft class · '.($record->class_reference ?: $record->code))
+            ->modalDescription('Permanently removes this unconfirmed draft class and its unreferenced scheduling requirements. This cannot be undone.')
+            ->modalSubmitActionLabel('Delete draft class')
+            ->modalCancelActionLabel('Keep draft')
+            ->visible(fn (Section $record): bool => $this->canDeleteDraftClass($record))
+            ->action(function (Section $record): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User && $actor->hasRole(User::StaffRoleRegistrar), 403);
+                Gate::forUser($actor)->authorize('update', $record);
+
+                try {
+                    DB::transaction(function () use ($record, $actor): void {
+                        $term = Term::query()->whereKey($this->termId)->lockForUpdate()->firstOrFail();
+
+                        if ($term->state === Term::StateClosed || $this->hasPublishedTimetable($term)) {
+                            throw ValidationException::withMessages(['class' => 'Draft classes cannot be deleted once the timetable is published or the term is closed.']);
+                        }
+
+                        $section = Section::query()
+                            ->with(['deliveryGroups', 'termOffering'])
+                            ->lockForUpdate()
+                            ->findOrFail($record->id);
+
+                        if (! $this->isUntouchedDraftSection($section)) {
+                            throw ValidationException::withMessages(['class' => 'Only unconfirmed draft classes with no meetings, candidate assignments, or enrollments can be deleted. Cancel the class instead.']);
+                        }
+
+                        $offeringId = $section->term_offering_id;
+                        $sectionCode = $section->code;
+                        $sectionId = $section->id;
+                        $groupIds = $section->deliveryGroups->modelKeys();
+
+                        if ($groupIds !== []) {
+                            SchedulingDemand::query()
+                                ->whereIn('section_delivery_group_id', $groupIds)
+                                ->delete();
+
+                            SectionDeliveryGroup::query()
+                                ->whereIn('id', $groupIds)
+                                ->delete();
+                        }
+
+                        $section->cohorts()->detach();
+                        $section->delete();
+
+                        if ($offeringId !== null
+                            && ! Section::query()->where('term_offering_id', $offeringId)->exists()
+                            && ! SchedulingDemand::query()->where('term_offering_id', $offeringId)->exists()) {
+                            TermOffering::query()
+                                ->whereKey($offeringId)
+                                ->delete();
+                        }
+
+                        ScheduleGenerationRun::query()
+                            ->where('term_id', $term->id)
+                            ->whereIn('status', [
+                                ScheduleGenerationRun::StatusQueued,
+                                ScheduleGenerationRun::StatusDispatching,
+                                ScheduleGenerationRun::StatusUnderReview,
+                            ])
+                            ->update(['candidate_state' => 'Stale', 'updated_at' => now()]);
+
+                        activity()
+                            ->causedBy($actor)
+                            ->event('draft_class_deleted')
+                            ->withProperties(['term_id' => $term->id, 'section_id' => $sectionId, 'code' => $sectionCode])
+                            ->log('Deleted unconfirmed draft class');
+                    }, attempts: 5);
+                } catch (ValidationException $exception) {
+                    $firstMessage = collect($exception->errors())->flatten()->first();
+                    Notification::make()
+                        ->title('Cannot delete draft class')
+                        ->body(is_string($firstMessage) ? $firstMessage : 'This class cannot be deleted.')
+                        ->danger()
+                        ->persistent()
+                        ->send();
+
+                    return;
+                } catch (QueryException) {
+                    Notification::make()
+                        ->title('Cannot delete draft class')
+                        ->body('This class is still referenced by linked records. Cancel it instead.')
+                        ->danger()
+                        ->persistent()
+                        ->send();
+
+                    return;
+                }
+
+                $this->resetClassCaches();
+                Notification::make()
+                    ->title('Draft class deleted')
+                    ->success()
+                    ->send();
+            });
+    }
+
+    private function canDeleteDraftClass(Section $class): bool
+    {
+        return $this->canEditClass($class) && $this->isUntouchedDraftSection($class);
+    }
+
+    private function isUntouchedDraftSection(Section $section): bool
+    {
+        if ($section->confirmed_at !== null
+            || in_array($section->state, [Section::StateCancelled, Section::StateClosed], true)) {
+            return false;
+        }
+
+        if (PublishedTimetableMeeting::query()->where('section_id', $section->id)->exists()
+            || CourseEnrollment::query()->where('section_id', $section->id)->exists()
+            || EnrollmentSeatReservation::query()->where('section_id', $section->id)->exists()) {
+            return false;
+        }
+
+        $groupIds = $section->relationLoaded('deliveryGroups')
+            ? $section->deliveryGroups->modelKeys()
+            : $section->deliveryGroups()->pluck('id')->all();
+
+        if ($groupIds === []) {
+            return true;
+        }
+
+        return ! SchedulingDemand::query()
+            ->whereIn('section_delivery_group_id', $groupIds)
+            ->where(function (Builder $query): void {
+                $query->whereHas('sectionMeetings')
+                    ->orWhereHas('candidateRows');
+            })
+            ->exists();
     }
 
     public function cancelClassAction(): Action
@@ -1753,6 +1910,23 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
 
     private function hasNewerActiveCurriculumOrSubject(Section $class): bool
     {
+        if ($this->termId !== null) {
+            $activePackage = TermCalendarPackage::query()
+                ->where('term_id', $this->termId)
+                ->where('state', TermCalendarPackage::StateActive)
+                ->with(['teachingGridRows', 'datedExceptions'])
+                ->first();
+
+            if ($activePackage instanceof TermCalendarPackage) {
+                $classPackage = $class->calendarPackage;
+                if (! $classPackage instanceof TermCalendarPackage
+                    || ! $classPackage->isActivatedCoreSource()
+                    || $classPackage->coreSignature() !== $activePackage->coreSignature()) {
+                    return true;
+                }
+            }
+        }
+
         $offering = $class->termOffering;
         $currentEntry = $offering?->curriculumEntry;
         $currentSpec = $class->courseRevision ?? $currentEntry?->courseSpecification;
@@ -2242,6 +2416,22 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
             ->filter()
             ->mapWithKeys(fn (int $entryId): array => [$entryId => true])
             ->all();
+    }
+
+    private function hasActiveClassesFilterOrSearch(): bool
+    {
+        if (filled($this->getTableSearch())) {
+            return true;
+        }
+
+        $lifecycleStatus = $this->getTableFilterState('lifecycle_status')['value'] ?? 'active';
+        $activeFilters = $this->getTable()->getActiveFiltersCount();
+
+        if ($lifecycleStatus === 'active' && $this->getTable()->getFilter('lifecycle_status')?->getActiveCount() === 1) {
+            $activeFilters = max(0, $activeFilters - 1);
+        }
+
+        return $activeFilters > 0;
     }
 
     private function yearLevelLabel(?int $yearLevel): ?string

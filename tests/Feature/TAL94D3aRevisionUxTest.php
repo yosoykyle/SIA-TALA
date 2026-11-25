@@ -709,6 +709,34 @@ final class TAL94D3aRevisionUxTest extends TestCase
             ->assertSee('Candidate edits are not recorded in Term revision history');
     }
 
+    public function test_teacher_teaching_load_guard_renders_progress_bar_and_blocks_overloaded_reassignment(): void
+    {
+        $context = $this->context(meetingCount: 1, withPublishedVersion: true);
+        $context['term']->update(['default_max_units' => 2.0]);
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $replacementFaculty = $this->staff(User::StaffRoleFaculty);
+
+        FacultyQualification::factory()
+            ->for($replacementFaculty, 'faculty')
+            ->for($context['course'])
+            ->create(['is_active' => true]);
+
+        Livewire::actingAs($registrar)
+            ->withQueryParams(['termId' => $context['term']->id, 'timetableState' => 'official'])
+            ->test(TermTimetable::class)
+            ->mountAction('revisePublishedSchedule', ['meeting' => $context['meetings'][0]->id])
+            ->setActionData([
+                'change_type' => ScheduleRevisionEvent::ChangeFacultyReassignment,
+                'section_meeting_ids' => [$context['meetings'][0]->id],
+                'replacement_faculty_user_id' => $replacementFaculty->id,
+                'reason' => 'Testing load guard.',
+            ])
+            ->assertMountedActionModalSee('tala-load-guard', escape: false)
+            ->assertMountedActionModalSee('Over limit by 1')
+            ->callMountedAction()
+            ->assertHasActionErrors(['replacement_faculty_user_id']);
+    }
+
     /** @param array<string, mixed> $data */
     private function callRevision(User $registrar, ScheduleGenerationRun $run, array $data): void
     {

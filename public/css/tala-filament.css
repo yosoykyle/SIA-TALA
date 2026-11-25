@@ -392,7 +392,7 @@
     }
 }
 
-@container tala-main (min-width: 52rem) {
+@media (min-width: 68rem) {
     .tala-dashboard-grid {
         grid-template-columns: minmax(0, 2fr) minmax(18rem, 1fr);
     }
@@ -653,17 +653,15 @@
     .tala-record-workspace--framed .tala-handoff-icon { inline-size:2rem; block-size:2rem; padding:.375rem; }
     .tala-record-workspace--framed .tala-handoff-arrow { inset-inline-start:-1.625rem; inset-block-start:50%; transform:translateY(-50%); }
 }
-@media(min-width:48rem) {
-    @container tala-main (max-width:53.999rem) {
-        .tala-record-workspace,
-        .tala-record-workspace--framed { --tala-record-pane-limit:none; grid-template-columns:minmax(0,1fr); }
-        .tala-record-workspace--framed .tala-record-list { max-block-size:none; }
-        .tala-record-detail { grid-column:1; }
-        .tala-record-detail > .tala-record-inspector { overflow:visible; scrollbar-gutter:auto; }
-        .tala-record-mobile-back { display:block; margin-block-end:1rem; }
-        .tala-record-workspace[data-record-view='list'] > .tala-record-detail,
-        .tala-record-workspace[data-record-view='detail'] > :is(.tala-record-browser,.tala-record-toolbar) { display:none; }
-    }
+@media (min-width: 48rem) and (max-width: 69.999rem) {
+    .tala-record-workspace,
+    .tala-record-workspace--framed { --tala-record-pane-limit:none; grid-template-columns:minmax(0,1fr); }
+    .tala-record-workspace--framed .tala-record-list { max-block-size:none; }
+    .tala-record-detail { grid-column:1; }
+    .tala-record-detail > .tala-record-inspector { overflow:visible; scrollbar-gutter:auto; }
+    .tala-record-mobile-back { display:block; margin-block-end:1rem; }
+    .tala-record-workspace[data-record-view='list'] > .tala-record-detail,
+    .tala-record-workspace[data-record-view='detail'] > :is(.tala-record-browser,.tala-record-toolbar) { display:none; }
 }
 @media(max-width:47.99rem) {
     .tala-record-workspace--framed { --tala-record-pane-limit:none; grid-template-columns:minmax(0,1fr); }
@@ -683,11 +681,9 @@
 .tala-companion-body { min-block-size:0; overflow-y:auto; overscroll-behavior:contain; }
 .tala-record-workspace--document > .tala-record-detail { max-block-size:none; }
 .tala-record-workspace--document > .tala-record-detail > .tala-record-inspector { overflow:visible; scrollbar-gutter:auto; }
-@media(min-width:48rem) {
-    @container tala-main (min-width:54rem) {
-        .tala-record-workspace--document > .tala-record-browser { position:sticky; inset-block-start:var(--tala-card-gap); max-block-size:calc(100dvh - var(--tala-card-gap)*2); }
-        .tala-record-workspace--document .tala-record-list { max-block-size:max(10rem,calc(100dvh - 14rem)); }
-    }
+@media (min-width: 70rem) {
+    .tala-record-workspace--document > .tala-record-browser { position:sticky; inset-block-start:var(--tala-card-gap); max-block-size:calc(100dvh - var(--tala-card-gap)*2); }
+    .tala-record-workspace--document .tala-record-list { max-block-size:max(10rem,calc(100dvh - 14rem)); }
 }
 .tala-record-page-header { container-type:inline-size; }
 .tala-record-page-header__layout { display:grid; gap:1.25rem; align-items:end; }
@@ -1158,7 +1154,7 @@
     .tala-tor-queue-head { margin-inline:calc(var(--tala-record-collection-inset) + var(--tala-record-option-inset)); padding-block:.5rem; color:var(--tala-muted); font-size:.75rem; font-weight:var(--tala-weight-emphasis); }
     .tala-tor-queue-status { justify-self:start; text-align:start; }
 }
-@container tala-main (max-width:53.999rem) { .tala-tor-workspace,.tala-graduation-workspace { grid-template-columns:minmax(0,1fr); } }
+@media (max-width: 69.999rem) { .tala-tor-workspace,.tala-graduation-workspace { grid-template-columns:minmax(0,1fr); } }
 @media(max-width:47.99rem) { .tala-tor-workspace,.tala-graduation-workspace { grid-template-columns:minmax(0,1fr); } }
 
 .tala-graduation-workspace .fi-ta-header-toolbar { justify-content:space-between; }
@@ -1469,10 +1465,10 @@ table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
 .tala-term-gate__actions { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:var(--tala-card-gap); }
 .tala-term-gate__actions .fi-btn { min-block-size:2.75rem; }
 .tala-term-gate__note { margin:0; text-align:center; font-size:var(--tala-type-caption); color:var(--tala-muted); line-height:1.5; }
-@container tala-main (min-width:36rem) {
+@media (min-width: 52rem) {
     .tala-term-gate__controls--split { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
-@container tala-main (min-width:52rem) {
+@media (min-width: 68rem) {
     .tala-term-gate.tala-record-picker { min-block-size:max(24rem,calc(100svh - 16rem)); padding:2rem 2rem 3.5rem; }
 }
 
@@ -1530,22 +1526,22 @@ table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
 .tala-workflow-step__action { display:flex; flex-wrap:wrap; gap:var(--tala-card-gap); margin-block-start:auto; padding:var(--tala-card-pad-compact) var(--tala-card-pad); background:var(--tala-surface-sunken); border-block-start:1px solid var(--tala-edge); }
 .tala-workflow-step__action > .fi-btn { inline-size:100%; min-block-size:2.75rem; justify-content:center; white-space:nowrap; }
 
-@container tala-main (min-width:34rem) {
+@media (min-width: 50rem) {
     .tala-workflow-steps { grid-template-columns:repeat(2,minmax(0,1fr)); }
 }
-@container tala-main (min-width:48rem) {
+@media (min-width: 64rem) {
     .tala-workflow-steps--three { grid-template-columns:repeat(3,minmax(0,1fr)); }
 }
-@container tala-main (min-width:56rem) {
+@media (min-width: 72rem) {
     .tala-workflow-steps:not(.tala-workflow-steps--three) { grid-template-columns:repeat(4,minmax(0,1fr)); }
 }
-@container tala-main (min-width:52rem) {
+@media (min-width: 68rem) {
     .fi-header:has(.fi-header-actions-ctn) { align-items:flex-start; gap:1rem 1.5rem; }
     .fi-header:has(.fi-header-actions-ctn) > div:first-child:not(.fi-header-actions-ctn) { flex:1 1 18rem; inline-size:auto; min-inline-size:0; max-inline-size:100%; }
     .fi-header .fi-header-actions-ctn { flex:0 1 auto; max-inline-size:100%; }
     .fi-header .fi-header-actions-ctn > .fi-ac { flex-wrap:wrap; justify-content:flex-start; }
 }
-@container tala-main (min-width:58rem) {
+@media (min-width: 74rem) {
     .fi-header .fi-header-actions-ctn > .fi-ac { justify-content:flex-end; }
 }
 @container tala-scope-bar (max-width:38rem) {
@@ -1589,14 +1585,12 @@ table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
 .tala-record-workspace--sheet > .tala-record-browser { grid-column:1; min-inline-size:0; max-block-size:none; padding:0; overflow:visible; }
 .tala-record-workspace--sheet > .tala-record-detail { grid-column:1; }
 .tala-record-workspace--sheet .tala-record-inspector { padding:var(--tala-card-pad); }
-@media(min-width:48rem) {
-    @container tala-main (min-width:54rem) {
-        .tala-record-workspace--sheet:has(> .tala-record-detail) { grid-template-columns:minmax(0,1.2fr) minmax(24rem,1fr); }
-        .tala-record-workspace--sheet > .tala-record-detail { grid-column:2; position:sticky; inset-block-start:var(--tala-card-gap); max-block-size:calc(100dvh - var(--tala-card-gap) * 2); }
-    }
-    @container tala-main (max-width:53.999rem) {
-        .tala-subject-editor-close { display:none; }
-    }
+@media (min-width: 70rem) {
+    .tala-record-workspace--sheet:has(> .tala-record-detail) { grid-template-columns:minmax(0,1.2fr) minmax(24rem,1fr); }
+    .tala-record-workspace--sheet > .tala-record-detail { grid-column:2; position:sticky; inset-block-start:var(--tala-card-gap); max-block-size:calc(100dvh - var(--tala-card-gap) * 2); }
+}
+@media (min-width: 48rem) and (max-width: 69.999rem) {
+    .tala-subject-editor-close { display:none; }
 }
 @media(max-width:47.99rem) {
     .tala-subject-editor-close { display:none; }
@@ -1616,7 +1610,7 @@ table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
 .tala-add-subjects-modal-body { display:grid; gap:var(--tala-card-gap); }
 .tala-add-subjects-modal-footer { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:.75rem; inline-size:100%; }
 
-@container tala-main (min-width:38rem) {
+@media (min-width: 54rem) {
     .fi-body:has(.fi-layout) .fi-page:has(.tala-curriculum-sheet, .tala-catalog-detail) .fi-header { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.75rem 1.25rem; }
     .fi-body:has(.fi-layout) .fi-page:has(.tala-curriculum-sheet, .tala-catalog-detail) .fi-header > div:first-child:not(.fi-header-actions-ctn) { flex:1 1 16rem; min-inline-size:0; }
     .fi-body:has(.fi-layout) .fi-page:has(.tala-curriculum-sheet, .tala-catalog-detail) .fi-header-actions-ctn { width:auto; flex:0 1 auto; }
@@ -1839,7 +1833,7 @@ table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
 .tala-home-card-footer { margin-block-start:1rem; padding-block-start:.875rem; border-block-start:1px solid var(--tala-edge); display:flex; justify-content:flex-start; }
 
 /* Fee plans table: eliminate dead mid-table gap and align prices directly beneath headers. */
-@container tala-main (min-width:44rem) {
+@media (min-width: 60rem) {
     .accounting-records-table.fee-plans-table .fee-plans-col-program { inline-size:32%; }
     .accounting-records-table.fee-plans-table .fee-plans-col-status { inline-size:20%; max-inline-size:14rem; }
     .accounting-records-table.fee-plans-table :is(th, td).fee-plans-col-money { inline-size:16%; text-align:start; white-space:nowrap; }

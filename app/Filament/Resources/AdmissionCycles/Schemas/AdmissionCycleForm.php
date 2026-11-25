@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\AdmissionCycles\Schemas;
 
 use App\Models\AdmissionCycle;
+use App\Models\Term;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
@@ -27,7 +28,26 @@ class AdmissionCycleForm
                     TextInput::make('code')->label('Internal cycle code')->placeholder('AY2026-2027-SEM1')
                         ->helperText('A unique, stable reference for staff and retained records.')->required()->maxLength(40)->unique(ignoreRecord: true),
                     Select::make('term_id')->label('Target term')->placeholder('Choose the term applicants will enter')
-                        ->helperText('The academic term for this intake.')->relationship('term', 'label')->searchable()->preload()->required(),
+                        ->helperText('The academic term for this intake.')
+                        ->relationship(
+                            name: 'term',
+                            titleAttribute: 'label',
+                            modifyQueryUsing: fn (Builder $query, ?AdmissionCycle $record): Builder => $query
+                                ->with('academicYear')
+                                ->where(function (Builder $terms) use ($record): void {
+                                    $terms->where('terms.state', '!=', Term::StateClosed);
+
+                                    if ($record instanceof AdmissionCycle && $record->term_id !== null) {
+                                        $terms->orWhere('terms.id', $record->term_id);
+                                    }
+                                })
+                                ->orderByDesc('terms.starts_on'),
+                        )
+                        ->getOptionLabelFromRecordUsing(fn (Term $record): string => collect([
+                            $record->label,
+                            $record->academicYear?->label,
+                        ])->filter()->implode(' · '))
+                        ->searchable()->preload()->required(),
                     Select::make('registrar_owner_id')->label('Responsible Registrar')->placeholder('Choose the Registrar responsible for this intake')
                         ->helperText('Required before publication; owns setup and resolves blockers.')->relationship('registrarOwner', 'email')->searchable()->preload(),
                 ])->columns(2)->columnSpanFull(),

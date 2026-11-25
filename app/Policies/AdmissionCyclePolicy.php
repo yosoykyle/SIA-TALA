@@ -3,6 +3,7 @@
 namespace App\Policies;
 
 use App\Models\AdmissionCycle;
+use App\Models\AdmissionRequirementSet;
 use App\Models\User;
 
 class AdmissionCyclePolicy
@@ -43,9 +44,10 @@ class AdmissionCyclePolicy
     {
         return $this->canManage($user)
             && $admissionCycle->state === AdmissionCycle::StateDraft
-            && ! $admissionCycle->events()->exists()
             && ! $admissionCycle->applications()->exists()
-            && ! $admissionCycle->requirementSets()->exists();
+            && ! $admissionCycle->requirementSets()
+                ->where('state', AdmissionRequirementSet::StatePublished)
+                ->exists();
     }
 
     /**

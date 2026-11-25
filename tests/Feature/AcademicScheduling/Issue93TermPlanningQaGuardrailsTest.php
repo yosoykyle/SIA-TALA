@@ -238,7 +238,7 @@ class Issue93TermPlanningQaGuardrailsTest extends TestCase
 
         $run->refresh();
         $this->assertSame(ScheduleGenerationRun::StatusFailed, $run->status);
-        $this->assertSame('Rejected', $run->candidate_state);
+        $this->assertNull($run->candidate_state);
         $this->assertSame('CANCELLED_BY_REGISTRAR', data_get($run->diagnostics, 'solver_dispatch.failure.code'));
     }
 

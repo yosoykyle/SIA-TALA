@@ -984,7 +984,7 @@ class ReviewCurriculumVersion extends Page
         $programDisplay = collect([
             $curriculum->program?->code,
             $curriculum->program?->name,
-        ])->filter()->implode(' — ');
+        ])->filter()->implode(' · ');
         $batchLabel = $curriculum->batchLabel();
         $customName = filled($curriculum->name) && $curriculum->name !== $batchLabel
             ? (string) $curriculum->name
@@ -1377,7 +1377,7 @@ class ReviewCurriculumVersion extends Page
                 return [
                     Checkbox::make('activate_program_if_inactive')
                         ->label('Activate program and proceed')
-                        ->helperText("Marks {$program->code} — {$program->name} Active before publishing this curriculum.")
+                        ->helperText("Marks {$program->code} · {$program->name} Active before publishing this curriculum.")
                         ->default(false)
                         ->accepted(),
                 ];
@@ -3185,7 +3185,7 @@ class ReviewCurriculumVersion extends Page
 
         $specification->loadMissing(['components', 'requirements.relatedCourse']);
         $teaching = $specification->scheduling_treatment === CourseSpecification::SchedulingExternallyArranged
-            ? 'Externally arranged — no class schedule'
+            ? 'Externally arranged (no class schedule)'
             : $specification->components->sortBy('sequence')->map(fn (CourseComponent $component): string => sprintf(
                 '%s %s h/week',
                 CourseComponent::typeOptions()[$component->component_type] ?? $component->component_type,
@@ -3494,7 +3494,7 @@ class ReviewCurriculumVersion extends Page
                         ->label('Schedule type')
                         ->options([
                             CourseSpecification::SchedulingRecurring => 'Weekly scheduled class',
-                            CourseSpecification::SchedulingExternallyArranged => 'Externally arranged — no class schedule',
+                            CourseSpecification::SchedulingExternallyArranged => 'Externally arranged (no class schedule)',
                         ])
                         ->descriptions([
                             CourseSpecification::SchedulingRecurring => 'Assigned fixed weekly days & times on the timetable',
@@ -3749,7 +3749,7 @@ class ReviewCurriculumVersion extends Page
         foreach ($specifications as $specification) {
             $code = trim((string) ($specification->course?->code ?? ''));
             $title = trim((string) $specification->title);
-            $options[$specification->id] = $code !== '' ? "{$code} — {$title}" : $title;
+            $options[$specification->id] = $code !== '' ? "{$code} · {$title}" : $title;
             $descriptions[$specification->id] = $this->describeCatalogSubject($specification);
         }
 

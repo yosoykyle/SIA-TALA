@@ -45,16 +45,23 @@
             </li>
         @endif
         @if ($draftSubjects !== [])
-            <li>
-                It also makes {{ count($draftSubjects) }} draft {{ str('subject')->plural(count($draftSubjects)) }} in this plan active.
-                <details class="tala-activation-impact__list">
-                    <summary>Show {{ count($draftSubjects) === 1 ? 'subject' : 'subjects' }}</summary>
-                    <ul>
-                        @foreach ($draftSubjects as $draftSubjectLabel)
-                            <li>{{ $draftSubjectLabel }}</li>
-                        @endforeach
-                    </ul>
-                </details>
+            <li x-data="{ open: false }">
+                <div class="flex flex-wrap items-center gap-2">
+                    <span>It also makes {{ count($draftSubjects) }} draft {{ str('subject')->plural(count($draftSubjects)) }} in this plan active.</span>
+                    <button
+                        type="button"
+                        class="fi-link text-xs font-medium"
+                        x-on:click="open = ! open"
+                        :aria-expanded="open.toString()"
+                    >
+                        <span x-text="open ? 'Hide {{ count($draftSubjects) === 1 ? 'subject' : 'subjects' }}' : 'Show {{ count($draftSubjects) === 1 ? 'subject' : 'subjects' }}'"></span>
+                    </button>
+                </div>
+                <ul class="tala-activation-impact__list mt-1.5" x-show="open" x-cloak>
+                    @foreach ($draftSubjects as $draftSubjectLabel)
+                        <li>{{ $draftSubjectLabel }}</li>
+                    @endforeach
+                </ul>
             </li>
         @endif
     </ul>

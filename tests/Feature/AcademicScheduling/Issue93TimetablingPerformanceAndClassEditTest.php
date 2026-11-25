@@ -638,7 +638,7 @@ final class Issue93TimetablingPerformanceAndClassEditTest extends TestCase
             ->assertSee('8:00 AM–12:00 PM')
             ->assertSee('12:00 PM–1:00 PM')
             ->assertSee('1:00 PM–5:00 PM')
-            ->assertSee('30-minute slots')
+            ->assertSee('30-minute intervals')
             ->assertDontSee('Approval note: MEMO-2026-09')
             ->assertSee('Activity dates do not block class planning.')->assertDontSee('Times use Asia/Manila.')
             ->assertDontSee('Teaching hours and source details')
@@ -698,12 +698,12 @@ final class Issue93TimetablingPerformanceAndClassEditTest extends TestCase
         $resourcesPage = Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)
             ->assertSeeHtml('tala-navigation tala-navigation-compact')
             ->assertSee('Assign subjects')
-            ->assertSee('Manage in School Resources')
+            ->assertSee('Edit qualified subjects in School Resources')
             ->assertSee('24 units/teacher')
             ->assertDontSeeHtml('style="padding: var(--tala-card-pad);"');
 
         $roomsHtml = $resourcesPage->call('chooseResourceView', 'rooms')->html(true);
-        $this->assertSame(1, substr_count($roomsHtml, 'Manage room catalog'));
+        $this->assertSame(1, substr_count($roomsHtml, 'Edit room catalog in School Resources'));
     }
 
     private function registrar(): User

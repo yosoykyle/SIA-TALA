@@ -87,7 +87,7 @@
                                 · Load limit: <strong>{{ $formattedDefaultMaxUnits }}</strong>
                             </p>
                             <p class="tala-resource-readiness-bar__meta">
-                                Step 3 tracks this term's availability, load overrides, and room closures. School Resources manages school-wide rooms and qualified subjects across all terms.
+                                <strong>This term:</strong> faculty availability, load limits, and room closures. <strong>Shared across terms:</strong> <em>Assign subjects</em> and <em>Subjects</em> update school-wide qualifications (same catalog as School Resources).
                             </p>
                         </div>
                         <div class="tala-resource-readiness-bar__actions">
@@ -128,7 +128,7 @@
                                                     <strong>{{ $impact['faculty_name'] }}</strong> ({{ $impact['mode_label'] }})
                                                     @if (! empty($impact['reason'])) · Reason: “{{ $impact['reason'] }}” @endif
                                                     @if (! empty($impact['affected_meetings']))
-                                                        — {{ collect($impact['affected_meetings'])->map(fn (array $m): string => trim(($m['course_code'] ?? '').' '.($m['section_code'] ?? '').' ('.($m['day_label'] ?? '').' '.($m['time_label'] ?? '').')'))->implode('; ') }}
+                                                        : {{ collect($impact['affected_meetings'])->map(fn (array $m): string => trim(($m['course_code'] ?? '').' '.($m['section_code'] ?? '').' ('.($m['day_label'] ?? '').' '.($m['time_label'] ?? '').')'))->implode('; ') }}
                                                     @endif
                                                 </p>
                                             @endforeach

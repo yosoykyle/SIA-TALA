@@ -746,7 +746,7 @@
 .fee-plans-table .fi-ta-header-toolbar>div:first-child:empty{display:none;}
 .fee-plans-table .fee-plans-col-money{font-variant-numeric:tabular-nums;}
 .fee-plans-table .fi-ta-actions-cell .fi-btn{white-space:nowrap;}
-@container tala-main (min-width:44rem){
+@media (min-width: 60rem){
     .fee-plans-table .fee-plans-col-program{min-inline-size:11rem;inline-size:32%;}
     .fee-plans-table .fee-plans-col-status{inline-size:26%;max-inline-size:17rem;}
     .fee-plans-table .fee-plans-col-status :is(.fi-ta-col-wrp,.fi-ta-text,.fi-ta-text-description){white-space:normal;overflow-wrap:anywhere;}
@@ -845,7 +845,7 @@
 @media(max-width:40rem){.accounting-export-scope{grid-template-columns:minmax(0,1fr);gap:var(--tala-card-gap);padding:var(--tala-card-gap);}.accounting-export-scope>div+div{border-inline-start:0;border-block-start:1px solid var(--tala-edge);padding-inline-start:0;padding-block-start:var(--tala-card-gap);}.accounting-export-table :is(th,td){padding:var(--tala-card-gap);}.accounting-export-columns ol{columns:1;}}
 @container(max-width:32rem){.accounting-obligations>div{gap:var(--tala-card-gap);}.accounting-obligation-balance{flex-shrink:1;}.accounting-recent-records{flex-direction:column;align-items:start;padding:var(--tala-card-gap);}.accounting-context-actions .fi-btn{inline-size:100%;}.accounting-plan-confirmation dl>div{gap:var(--tala-card-gap);}}
 @media(max-width:40rem){.accounting-obligations>div{gap:var(--tala-card-gap);}.accounting-obligation-balance{flex-shrink:1;}.accounting-recent-records{flex-direction:column;align-items:start;padding:var(--tala-card-gap);}.accounting-context-actions .fi-btn{inline-size:100%;}.accounting-plan-confirmation dl>div{gap:var(--tala-card-gap);}}
-@container tala-main (max-width:51.999rem){.accounting-records-table .fi-ta-header-toolbar>div:has(>.fi-ta-search-field){flex-basis:100%;}}
+@media (max-width: 67.999rem){.accounting-records-table .fi-ta-header-toolbar>div:has(>.fi-ta-search-field){flex-basis:100%;}}
 
 .tala-head-enrollments-page .fi-header-heading{font-size:2rem;line-height:1.2;letter-spacing:-.025em;}
 .tala-head-enrollments-page .fi-header-subheading{max-inline-size:70ch;}

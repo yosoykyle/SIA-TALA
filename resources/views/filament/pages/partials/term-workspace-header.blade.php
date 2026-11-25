@@ -31,9 +31,9 @@
     $termStateLabel = $term ? ($isPublishedLive ? 'Published' : (\App\Models\Term::stateOptions()[$term->state] ?? $term->state)) : null;
     $termStateTitle = $term ? match (true) {
         $isPublishedLive => 'Active term with a published official timetable',
-        $term->state === \App\Models\Term::StateActive => 'Active term — timetable not yet published',
-        $term->state === \App\Models\Term::StateDraft => 'Draft term — setup in progress',
-        default => 'Closed term — read-only historical record',
+        $term->state === \App\Models\Term::StateActive => 'Active term: timetable not yet published',
+        $term->state === \App\Models\Term::StateDraft => 'Draft term: setup in progress',
+        default => 'Closed term: read-only historical record',
     } : null;
     $termStartFormatted = $term ? ($term->starts_on->year === $term->ends_on->year ? $term->starts_on->format('M j') : $term->starts_on->format('M j, Y')) : null;
     $switcherOptions = $term ? $this->termSwitcherOptions() : [];

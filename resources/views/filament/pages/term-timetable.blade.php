@@ -41,9 +41,8 @@
             $hasSolverIssue = ! $showOfficial && ($solverFailure || ! empty($solverOutcome['message']) || in_array($reviewEvidence['outcome'] ?? '', ['Infeasible', 'Unknown', 'ModelInvalid', 'TechnicalFailure'], true));
             $plainFailure = $hasSolverIssue ? $this->plainSolverFailureSummary($solverFailure ?? [], $solverOutcome ?? [], $reviewEvidence) : null;
             $canPublishDraft = ! $readOnly && ! $isTermClosed && ! $isPostEnrollmentLocked && $activeRun && ! $showOfficial && $this->canPublishActiveRun();
-            $showToolbarRegenerate = ! $readOnly && ! $isTermClosed && ! $isPostEnrollmentLocked && $activeRun && ! $showOfficial && $this->regenerateTimetableAction->isVisible();
             $showToolbarNewDraft = ! $readOnly && ! $isTermClosed && ($canStartNewDraftAttempt ?? false)
-                && (($isOfficialPublished && ! $hasActiveDraft) || ($isPastAttempt && $scopeMeetingCount > 0));
+                && $isPastAttempt && $scopeMeetingCount > 0;
         @endphp
         <div class="tala-timetable-studio">
             @if ($hasTimetableRecord)
@@ -81,7 +80,7 @@
                         @if ($isOfficialPublished && ! $isTermClosed)
                             <span
                                 class="tala-timetable-status-pill is-official"
-                                title="Official live schedule — use Revise schedule for approved changes"
+                                title="Official live schedule: use Revise schedule for approved changes"
                             >
                                 <x-filament::icon icon="heroicon-m-lock-closed" />
                                 <span>Official · Live · {{ $scopeMeetingCount }} {{ \Illuminate\Support\Str::plural('meeting', $scopeMeetingCount) }}</span>
@@ -89,7 +88,7 @@
                         @elseif ($isOfficialPublished && $isTermClosed)
                             <span
                                 class="tala-timetable-status-pill is-archived"
-                                title="Term is closed — read-only historical official schedule"
+                                title="Term is closed: read-only historical official schedule"
                             >
                                 <x-filament::icon icon="heroicon-m-archive-box" />
                                 <span>Official · Archived · {{ $scopeMeetingCount }} {{ \Illuminate\Support\Str::plural('meeting', $scopeMeetingCount) }}</span>
@@ -97,7 +96,7 @@
                         @elseif ($isOfficialSuperseded)
                             <span
                                 class="tala-timetable-status-pill is-archived"
-                                title="Superseded historical version — read-only"
+                                title="Superseded historical version: read-only"
                             >
                                 <x-filament::icon icon="heroicon-m-clock" />
                                 <span>Historical · Rev {{ $selectedVersion->version }} · {{ $scopeMeetingCount }} {{ \Illuminate\Support\Str::plural('meeting', $scopeMeetingCount) }}</span>
@@ -136,18 +135,16 @@
                     <div class="tala-studio-viewing">
                         @if ($canPublishDraft)
                             {{ $this->publishOfficialTimetableAction->size('sm') }}
-                        @elseif (! $readOnly && ! $isTermClosed && $activeRun && ! $showOfficial && $this->canRetryActiveRun())
+                        @elseif (! $readOnly && ! $isTermClosed && $activeRun && ! $showOfficial && $this->canRetryActiveRun() && $scopeMeetingCount > 0)
                             {{ $this->retrySolverRunAction->size('sm') }}
                         @elseif ($canReviseOfficial)
                             {{ $this->revisePublishedScheduleAction->size('sm') }}
                         @endif
 
-                        @if ($showToolbarRegenerate)
-                            {{ $this->regenerateTimetableAction->size('sm') }}
-                        @elseif ($showToolbarNewDraft)
+                        @if ($showToolbarNewDraft)
                             <x-filament::button
                                 type="button"
-                                :color="$isPastAttempt ? 'primary' : 'gray'"
+                                color="primary"
                                 size="sm"
                                 icon="heroicon-o-sparkles"
                                 wire:click="openGenerateFromDetails"
@@ -240,9 +237,16 @@
                     <section class="tala-studio-context-strip is-neutral" role="status" aria-label="Draft editing notice">
                         <div class="tala-studio-context-strip__body">
                             <x-filament::icon icon="heroicon-o-information-circle" aria-hidden="true" />
-                            <span>Editing unpublished draft — <strong>Official Rev {{ $currentVersion->version }}</strong> stays live until you publish.</span>
+                            <span>Editing unpublished draft: <strong>Official Rev {{ $currentVersion->version }}</strong> stays live until you publish.</span>
                         </div>
                         <x-filament::button color="gray" size="sm" wire:click="chooseTimetable('official:{{ $currentVersion->id }}')">View official</x-filament::button>
+                    </section>
+                @elseif ($isOfficialPublished && ! $isTermClosed && $isPostEnrollmentLocked)
+                    <section class="tala-studio-context-strip is-neutral" role="status" aria-label="Whole-term draft generation locked">
+                        <div class="tala-studio-context-strip__body">
+                            <x-filament::icon icon="heroicon-o-lock-closed" aria-hidden="true" />
+                            <span>Whole-term draft generation is locked because active student enrollments exist for this term. Use <strong>Revise schedule</strong> for approved changes.</span>
+                        </div>
                     </section>
                 @elseif ($isOfficialPublished && ! $isTermClosed && ! $isPostEnrollmentLocked && $activeDraftOption !== null)
                     <section class="tala-studio-context-strip is-warning" role="status" aria-label="Unpublished draft in progress">
@@ -251,6 +255,22 @@
                             <span>Unpublished draft (<strong>Attempt #{{ $activeDraftOption['id'] }}</strong>) is in progress. Official stays live until published.</span>
                         </div>
                         <x-filament::button color="gray" size="sm" wire:click="chooseTimetable('draft:{{ $activeDraftOption['id'] }}')">Open draft</x-filament::button>
+                    </section>
+                @elseif ($isOfficialPublished && ! $isTermClosed && ! $isPostEnrollmentLocked && ! $hasActiveDraft && ($canStartNewDraftAttempt ?? false))
+                    <section class="tala-studio-context-strip is-neutral" role="status" aria-label="Pre-enrollment draft option">
+                        <div class="tala-studio-context-strip__body">
+                            <x-filament::icon icon="heroicon-o-sparkles" aria-hidden="true" />
+                            <span>No active student enrollments yet. Start a new whole-term draft anytime without affecting the live schedule until you publish.</span>
+                        </div>
+                        <x-filament::button
+                            type="button"
+                            color="gray"
+                            size="sm"
+                            icon="heroicon-o-sparkles"
+                            wire:click="openGenerateFromDetails"
+                        >
+                            New draft
+                        </x-filament::button>
                     </section>
                 @elseif ($isPastAttempt && $scopeMeetingCount > 0)
                     <section class="tala-studio-context-strip is-neutral" role="status" aria-label="Past attempt notice">
@@ -292,31 +312,72 @@
                 </section>
             @endif
 
+            @php
+                $isEmptyFailedDraft = ! $showOfficial && $activeRun && ! $pendingGeneration && ! ($timetablePresentation && $scopeMeetingCount);
+                $failureOutcome = (string) ($reviewEvidence['outcome'] ?? '');
+                $failureTechnical = (string) ($plainFailure['technical'] ?? '');
+                $failureRawLower = strtolower($failureTechnical.' '.($solverFailure['code'] ?? '').' '.($solverOutcome['solver_status'] ?? ''));
+                $isConnectionFailure = str_contains($failureRawLower, 'request failed')
+                    || str_contains($failureRawLower, 'authentication failed')
+                    || str_contains($failureRawLower, 'not configured')
+                    || str_contains($failureRawLower, 'probe failed')
+                    || str_contains($failureRawLower, 'timed out')
+                    || str_contains($failureRawLower, 'timeout')
+                    || str_contains($failureRawLower, '503')
+                    || str_contains($failureRawLower, 'unavailable')
+                    || str_contains($failureRawLower, 'transport')
+                    || str_contains($failureRawLower, 'connection');
+                $isErrorSeverity = $isConnectionFailure
+                    || ($activeRun?->status === \App\Models\ScheduleGenerationRun::StatusFailed)
+                    || in_array($failureOutcome, ['TechnicalFailure', 'ModelInvalid'], true);
+                $failureAlertTitle = match (true) {
+                    $isConnectionFailure => 'Scheduling service unavailable',
+                    $failureOutcome === 'Infeasible' => 'No valid timetable found',
+                    $failureOutcome === 'ModelInvalid' => 'Schedule data could not be processed',
+                    $failureOutcome === 'Unknown' => 'Timetable search did not finish',
+                    default => 'Timetable could not be generated',
+                };
+            @endphp
+
             @if ($hasTimetableRecord)
                 @php
-                    $hasDraftValidationWarning = $activeRun && ! $showOfficial && ! $pendingGeneration && ! ($reviewEvidence['validated'] ?? false);
-                    $hasVisibleStatusStrip = $hasDraftValidationWarning
-                        || $plainFailure !== null;
+                    $hasDraftValidationWarning = $activeRun && ! $showOfficial && ! $pendingGeneration && ! $isEmptyFailedDraft && ! ($reviewEvidence['validated'] ?? false);
+                    $showTopFailureCard = $plainFailure !== null && ! $pendingGeneration && ! $isEmptyFailedDraft;
+                    $hasVisibleStatusStrip = $hasDraftValidationWarning || $showTopFailureCard;
                 @endphp
                 <div wire:loading.delay.long wire:target="chooseTimetable,showTimetableView,showTimetableFormat,viewFilter,programFilter,yearFilter,tableSearch,clearViewFilters,moveCandidateMeeting,updateCandidateMeeting,togglePinMeeting,undoLastChangeFromNotification" class="tala-studio-status" role="status"><p class="tala-studio-message"><x-filament::loading-indicator aria-hidden="true" />Updating timetable…</p></div>
                 @if ($hasVisibleStatusStrip)
                     <section class="tala-studio-status" aria-label="Timetable result">
-                        @if ($hasDraftValidationWarning)
-                            <p class="tala-studio-validation"><x-filament::icon icon="heroicon-o-exclamation-triangle" />
-                                <span>{{ \Illuminate\Support\Str::before($reviewEvidence['coverage'], ' independently validated at the recorded check') }} · {{ $reviewEvidence['conflicts'] }}.</span>
-                            </p>
-                            <p class="tala-studio-message" role="status"><x-filament::icon icon="heroicon-o-information-circle" /><span>{{ $reviewEvidence['outcome'] }}. <button type="button" x-on:click="$dispatch('open-modal', { id: 'timetable-review-details' })">View evidence</button></span></p>
-                        @endif
-                        @if ($plainFailure !== null)
-                            <p class="tala-guide-info tala-guide-warning" role="status">
-                                {{ $plainFailure['explanation'] }} {{ $plainFailure['nextStep'] }}
-                            </p>
-                            @if ($plainFailure['technical'] !== '')
-                                <div class="tala-technical-details">
-                                    <span class="tala-technical-details__label">Technical details</span>
-                                    <p class="tala-work-footnote font-mono text-xs mt-1">{{ $plainFailure['technical'] }}</p>
+                        @if ($showTopFailureCard)
+                            <div @class(['tala-studio-alert-card', 'is-error' => $isErrorSeverity, 'is-warning' => ! $isErrorSeverity]) role="alert">
+                                <div class="tala-studio-alert-card__body">
+                                    <span class="tala-studio-alert-card__icon" aria-hidden="true">
+                                        <x-filament::icon icon="heroicon-o-exclamation-triangle" />
+                                    </span>
+                                    <div class="tala-studio-alert-card__copy">
+                                        <p class="tala-studio-alert-card__title">{{ $failureAlertTitle }}</p>
+                                        <p class="tala-studio-alert-card__text">{{ $plainFailure['explanation'] }} {{ $plainFailure['nextStep'] }}</p>
+                                    </div>
                                 </div>
-                            @endif
+                                @if ($failureTechnical !== '')
+                                    <div class="tala-studio-alert-card__footer">
+                                        <span class="tala-studio-alert-card__ref-label">Error reference:</span>
+                                        <code class="tala-studio-alert-card__ref">{{ $failureTechnical }}</code>
+                                    </div>
+                                @endif
+                            </div>
+                        @elseif ($hasDraftValidationWarning)
+                            <div class="tala-studio-alert-card is-warning" role="status">
+                                <div class="tala-studio-alert-card__body">
+                                    <span class="tala-studio-alert-card__icon" aria-hidden="true">
+                                        <x-filament::icon icon="heroicon-o-exclamation-triangle" />
+                                    </span>
+                                    <div class="tala-studio-alert-card__copy">
+                                        <p class="tala-studio-alert-card__title">{{ \Illuminate\Support\Str::before($reviewEvidence['coverage'], ' independently validated at the recorded check') }} · {{ $reviewEvidence['conflicts'] }}.</p>
+                                        <p class="tala-studio-alert-card__text">{{ $reviewEvidence['outcome'] }}. <button type="button" class="tala-studio-alert-card__link" x-on:click="$dispatch('open-modal', { id: 'timetable-review-details' })">View evidence</button></p>
+                                    </div>
+                                </div>
+                            </div>
                         @endif
                     </section>
                 @endif
@@ -324,7 +385,7 @@
 
             <section class="tala-studio-board" aria-label="Scheduled meetings">
                 @if ($pendingGeneration)
-                    <div class="tala-studio-canvas is-generating">
+                    <div class="tala-studio-canvas is-generating" wire:key="timetable-board-generating-{{ $activeRun->id }}">
                         <x-tala-operation-status :run="$activeRun" in-canvas wire:poll.5s.visible>
                             @if ($this->cancelActiveRunAction->isVisible())
                                 <x-slot name="actions">
@@ -335,11 +396,16 @@
                     </div>
                 @elseif ($timetablePresentation && $scopeMeetingCount)
                     @php
+                        $showDockRegenerate = $isEditableDraft && ! $readOnly && ! $isTermClosed && ! $isPostEnrollmentLocked
+                            && $this->regenerateTimetableAction->isVisible();
                         $showDraftDockActions = ! $readOnly && ! $isTermClosed && $activeRun && ! $showOfficial
-                            && ($this->canUndoLastChange() || $this->canResetToSolverDraft());
+                            && ($this->canUndoLastChange() || $this->canResetToSolverDraft() || $showDockRegenerate);
                         $hasDraftDock = $showDraftDockActions;
                     @endphp
-                    <div @class(['tala-studio-canvas', 'is-week' => $timetableFormat === 'week', 'has-draft-dock' => $hasDraftDock])>
+                    <div
+                        @class(['tala-studio-canvas', 'is-week' => $timetableFormat === 'week', 'has-draft-dock' => $hasDraftDock])
+                        wire:key="timetable-board-grid-{{ $showOfficial ? 'official-'.($selectedVersion?->id ?? '0') : 'draft-'.($activeRun?->id ?? '0') }}"
+                    >
                         @if (! count($timetablePresentation['meetings']))
                             <p class="tala-studio-empty-filter">No meetings match this view. <x-filament::button color="gray" size="sm" wire:click="clearViewFilters">Clear filters</x-filament::button></p>
                         @elseif (in_array($timetableView, ['whole', 'section', 'faculty', 'room']) && ($timetableView === 'whole' || $viewFilter))
@@ -365,10 +431,13 @@
                                 @if ($showDraftDockActions)
                                     <x-slot name="draftDock">
                                         @if ($this->canUndoLastChange())
-                                            {{ $this->undoLastChangeAction->size('sm') }}
+                                            {{ $this->undoLastChangeAction->size('sm')->extraAttributes(['class' => 'tala-dock-btn tala-dock-btn--neutral']) }}
                                         @endif
                                         @if ($this->canResetToSolverDraft())
-                                            {{ $this->resetToSolverDraftAction->size('sm') }}
+                                            {{ $this->resetToSolverDraftAction->size('sm')->extraAttributes(['class' => 'tala-dock-btn tala-dock-btn--warning']) }}
+                                        @endif
+                                        @if ($showDockRegenerate)
+                                            {{ $this->regenerateTimetableAction->size('sm')->extraAttributes(['class' => 'tala-dock-btn tala-dock-btn--neutral']) }}
                                         @endif
                                     </x-slot>
                                 @endif
@@ -388,26 +457,104 @@
                                 \App\Models\ScheduleGenerationRun::StatusSuperseded,
                             ], true)
                             || in_array($activeRun->candidate_state, ['Rejected', 'Stale', 'Superseded'], true);
-                        $emptyDescription = $activeRun && ! $showOfficial
+                        $isDraftEmptyHero = (bool) ($activeRun && ! $showOfficial);
+                        $isErrorEmptyHero = $isDraftEmptyHero && (
+                            $isErrorSeverity
+                            || $hasSolverIssue
+                            || in_array($activeRun->status, [
+                                \App\Models\ScheduleGenerationRun::StatusFailed,
+                                \App\Models\ScheduleGenerationRun::StatusBlocked,
+                            ], true)
+                        );
+                        $emptyHeroTone = $isErrorEmptyHero ? ($isErrorSeverity ? 'danger' : 'warning') : ($isDraftEmptyHero ? 'neutral' : 'default');
+                        $emptyStageMood = match ($emptyHeroTone) {
+                            'danger' => 'error',
+                            'warning' => 'stalled',
+                            default => 'calm',
+                        };
+                        $solverJsPath = public_path('js/tala-solver-stage.js');
+                        $solverJsUrl = asset('js/tala-solver-stage.js').'?v='.(is_file($solverJsPath) ? filemtime($solverJsPath) : '1');
+                        $emptyDescription = $isDraftEmptyHero
                             ? ($plainFailure['explanation'] ?? $reviewEvidence['meaning'] ?? 'Inspect the recorded findings and adjust the inputs before trying again.')
                             : ($readiness['ready']
                                 ? 'All term inputs are ready for timetable generation.'
                                 : (count($readinessBlockers) > 1
                                     ? 'Resolve '.count($readinessBlockers).' remaining prerequisites below before generating a whole-term timetable.'
                                     : ($readiness['reason'] ?? 'Complete the remaining prerequisite before generating a timetable.')));
+                        $emptyHeroHeading = $isDraftEmptyHero
+                            ? (in_array($activeRun->status, [\App\Models\ScheduleGenerationRun::StatusQueued, \App\Models\ScheduleGenerationRun::StatusDispatching], true) ? 'Preparing your timetable' : 'No timetable was created')
+                            : 'No timetable yet';
                     @endphp
-                    <div class="tala-guide-empty-work tala-timetable-empty-stage">
-                        <div class="tala-aurora-canvas tala-aurora-canvas--calm" aria-hidden="true">
-                            <span class="tala-aurora-blob tala-aurora-blob--green"></span>
-                            <span class="tala-aurora-blob tala-aurora-blob--gold"></span>
-                            <span class="tala-aurora-blob tala-aurora-blob--sage"></span>
-                        </div>
-                        <x-tala-ambient-backdrop variant="stage" class="tala-ambient--trinkets-only" />
+                    <div
+                        @class([
+                            'tala-guide-empty-work',
+                            'tala-timetable-empty-stage',
+                            'is-error-stage' => $emptyHeroTone === 'danger',
+                            'is-warning-stage' => $emptyHeroTone === 'warning',
+                        ])
+                        wire:key="timetable-board-empty-{{ $activeRun?->id ?? 'none' }}"
+                        data-tala-ambient-stage
+                        data-stage-mood="{{ $emptyStageMood }}"
+                        data-script-url="{{ $solverJsUrl }}"
+                        x-data="{
+                            init() {
+                                if (window.talaAmbientStageMount) {
+                                    window.talaAmbientStageMount(this.$el);
+                                    return;
+                                }
+                                if (!document.querySelector('script[data-tala-solver-stage-loader]')) {
+                                    const script = document.createElement('script');
+                                    script.src = this.$el.dataset.scriptUrl;
+                                    script.dataset.talaSolverStageLoader = 'true';
+                                    script.onload = () => window.talaAmbientStageMount && window.talaAmbientStageMount(this.$el);
+                                    document.head.appendChild(script);
+                                }
+                            }
+                        }"
+                    >
+                        <x-tala-ambient-backdrop variant="stage" wire:ignore />
                         <div class="tala-timetable-empty-stage__content">
-                            <x-servitech-empty-state :illustrated="! ($activeRun && ! $showOfficial)" :heading="$activeRun && ! $showOfficial ? (in_array($activeRun->status, [\App\Models\ScheduleGenerationRun::StatusQueued, \App\Models\ScheduleGenerationRun::StatusDispatching], true) ? 'Preparing the meetings' : 'No meetings are available from this draft.') : 'No timetable yet'" :description="$emptyDescription">
-                                @if ($activeRun && ! $showOfficial)<x-filament::button tag="a" color="gray" icon="heroicon-o-document-text" :href="$this->timetableReviewUrl($activeRun->id)">Open solver report</x-filament::button>@endif
-                                @if ($canStartFreshAttempt && ! $readOnly && ! $this->isTermClosed() && $readiness['ready']){{ $this->generateTimetableAction }}@endif
-                            </x-servitech-empty-state>
+                            @if ($isDraftEmptyHero)
+                                @php
+                                    $canRetryHero = ! $readOnly && ! $isTermClosed && $this->canRetryActiveRun();
+                                    $heroKickerLabel = match (true) {
+                                        $isErrorSeverity => 'Attempt #'.$activeRun->id.' · '.($failureAlertTitle ?? 'Generation failed'),
+                                        $isErrorEmptyHero => 'Attempt #'.$activeRun->id.' · Needs review',
+                                        default => 'Attempt #'.$activeRun->id.' · '.$this->plainAttemptStatusLabel($activeRun),
+                                    };
+                                    $heroCombinedBody = trim($emptyDescription.' '.(($plainFailure !== null && ($plainFailure['nextStep'] ?? '') !== '' && ! str_contains($emptyDescription, (string) $plainFailure['nextStep'])) ? $plainFailure['nextStep'] : ''));
+                                @endphp
+                                <div @class(['tala-error-stage', 'is-danger' => $emptyHeroTone === 'danger', 'is-warning' => $emptyHeroTone === 'warning']) role="status">
+                                    <div class="tala-error-stage__icon" aria-hidden="true">
+                                        <x-filament::icon :icon="$isErrorEmptyHero ? 'heroicon-o-exclamation-triangle' : 'heroicon-o-clock'" />
+                                    </div>
+                                    <p class="tala-error-stage__kicker">{{ $heroKickerLabel }}</p>
+                                    <h2 class="tala-error-stage__heading">{{ $emptyHeroHeading }}</h2>
+                                    <p class="tala-error-stage__body">{{ $heroCombinedBody }}</p>
+                                    <div class="tala-error-stage__actions">
+                                        @if ($canRetryHero)
+                                            {{ $this->retrySolverRunAction }}
+                                        @elseif ($canStartFreshAttempt && ! $readOnly && ! $this->isTermClosed() && $readiness['ready'])
+                                            {{ $this->generateTimetableAction }}
+                                        @endif
+                                        <x-filament::button tag="a" color="gray" icon="heroicon-o-document-text" :href="$this->timetableReviewUrl($activeRun->id)">Open solver report</x-filament::button>
+                                    </div>
+                                    @if ($plainFailure !== null && ($failureTechnical ?? '') !== '')
+                                        <p class="tala-error-stage__ref">
+                                            <span class="tala-error-stage__ref-label">Error reference</span>
+                                            <code class="tala-error-stage__ref-code">{{ $failureTechnical }}</code>
+                                        </p>
+                                    @endif
+                                </div>
+                            @else
+                                <x-servitech-empty-state
+                                    :illustrated="true"
+                                    :heading="$emptyHeroHeading"
+                                    :description="$emptyDescription"
+                                >
+                                    @if ($canStartFreshAttempt && ! $readOnly && ! $this->isTermClosed() && $readiness['ready']){{ $this->generateTimetableAction }}@endif
+                                </x-servitech-empty-state>
+                            @endif
 
                             @if ($canStartFreshAttempt && ! $readOnly && ! $this->isTermClosed() && ! $readiness['ready'] && $readinessBlockers !== [])
                                 @php
@@ -433,9 +580,9 @@
                                         @foreach ($groupedBlockers as $blockerGroup)
                                             @php
                                                 $blockerStepLabel = match ($blockerGroup['label']) {
-                                                    'Term Calendar' => 'Calendar',
-                                                    'Classes' => 'Classes & sections',
-                                                    'Resources' => 'Faculty & rooms',
+                                                    'Term Calendar', 'Term calendar' => 'Calendar',
+                                                    'Classes', 'Classes & sections' => 'Classes & sections',
+                                                    'Resources', 'Faculty & rooms' => 'Faculty & rooms',
                                                     'Timetable' => 'Timetable',
                                                     default => $blockerGroup['label'],
                                                 };
@@ -457,7 +604,7 @@
                                                     tag="a"
                                                     size="sm"
                                                     :color="$loop->first ? 'primary' : 'gray'"
-                                                    :icon="match ($blockerGroup['label']) { 'Classes' => 'heroicon-o-rectangle-group', 'Resources' => 'heroicon-o-users', 'Timetable' => 'heroicon-o-table-cells', default => 'heroicon-o-calendar' }"
+                                                    :icon="match ($blockerGroup['label']) { 'Classes', 'Classes & sections' => 'heroicon-o-rectangle-group', 'Resources', 'Faculty & rooms' => 'heroicon-o-users', 'Timetable' => 'heroicon-o-table-cells', default => 'heroicon-o-calendar' }"
                                                     :href="$blockerGroup['url']"
                                                 >
                                                     {{ $blockerStepLabel }}
@@ -469,6 +616,7 @@
                             @endif
                         </div>
                     </div>
+                    <script src="{{ $solverJsUrl }}" data-navigate-once></script>
                 @endif
             </section>
 
@@ -577,7 +725,7 @@
                                         @if ($showOfficial)
                                             Issued timetable{{ $selectedVersion?->published_at ? ' · '.$selectedVersion->published_at->timezone('Asia/Manila')->format('M j, Y g:i A') : '' }}
                                         @else
-                                            Attempt #{{ $activeRun?->id ?? '—' }} · Not official
+                                            Attempt #{{ $activeRun?->id ?? '-' }} · Not official
                                         @endif
                                         @if ($evidenceRun?->runtime_ms !== null)
                                             · Solved in {{ $runtimeLabel }}
@@ -696,12 +844,23 @@
                                 <p class="tala-work-footnote">Faculty load imbalance includes every eligible teacher captured by the attempt, including teachers with no assignments.</p>
                             </section>
                         @endif
-                        @if ($allRuns->where('status', '!=', 'published')->count() > 1 || $versions->count() > 1)
+                        @php
+                            $historyRuns = ($nonPublishedRuns ?? $allRuns->where('status', '!=', 'published')
+                                ->filter(fn ($run) => ($activeRun?->id === $run->id) || ! \App\Actions\Scheduling\RevertCandidateRun::isIntermediateAdjustmentSnapshot($run)))
+                                ->values();
+                        @endphp
+                        @if ($historyRuns->count() > 1 || $versions->count() > 1)
                             <section class="tala-evidence-surface" aria-label="Earlier timetable history">
                                 <h3>Earlier timetable history</h3>
                                 <p class="tala-work-footnote">Opening an earlier result does not change the official timetable.</p>
-                                <ul class="tala-guide-history">@foreach ($allRuns->where('status', '!=', 'published') as $run)<li><span><strong>Attempt #{{ $run->id }}</strong> · {{ $run->created_at->timezone('Asia/Manila')->format('M j, Y g:i A') }} · {{ $this->plainAttemptStatusLabel($run) }}</span><x-filament::button color="gray" size="sm" wire:click="chooseTimetable('draft:{{ $run->id }}')" x-on:click="$dispatch('close-modal', { id: 'timetable-review-details' })" :disabled="! $showOfficial && $activeRun?->id === $run->id">{{ ! $showOfficial && $activeRun?->id === $run->id ? 'Viewing this attempt' : 'Open attempt' }}</x-filament::button></li>@endforeach
+                                <ul class="tala-guide-history">@foreach ($historyRuns->take(10) as $run)<li><span><strong>Attempt #{{ $run->id }}</strong> · {{ $run->created_at->timezone('Asia/Manila')->format('M j, Y g:i A') }} · {{ $this->plainAttemptStatusLabel($run) }}</span><x-filament::button color="gray" size="sm" wire:click="chooseTimetable('draft:{{ $run->id }}')" x-on:click="$dispatch('close-modal', { id: 'timetable-review-details' })" :disabled="! $showOfficial && $activeRun?->id === $run->id">{{ ! $showOfficial && $activeRun?->id === $run->id ? 'Viewing this attempt' : 'Open attempt' }}</x-filament::button></li>@endforeach
                                 @foreach ($versions as $version)<li><span><strong>{{ $version->state }} v{{ $version->version }}</strong> · {{ $version->published_at?->timezone('Asia/Manila')->format('M j, Y') }}</span><x-filament::button color="gray" size="sm" wire:click="chooseTimetable('official:{{ $version->id }}')" x-on:click="$dispatch('close-modal', { id: 'timetable-review-details' })" :disabled="$showOfficial && $selectedVersion?->id === $version->id">{{ $showOfficial && $selectedVersion?->id === $version->id ? 'Viewing this version' : 'Open version' }}</x-filament::button></li>@endforeach</ul>
+                                @if ($historyRuns->count() > 10)
+                                    <p class="tala-work-footnote">
+                                        Showing latest 10 attempts of {{ $historyRuns->count() }}.
+                                        <a class="fi-link" href="{{ \App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource::getUrl('index', ['termId' => $term?->id]) }}">View full solver history</a>
+                                    </p>
+                                @endif
                             </section>
                         @endif
                     </div>

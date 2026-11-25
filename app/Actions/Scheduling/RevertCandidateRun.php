@@ -155,6 +155,7 @@ final class RevertCandidateRun
                 $nextDiagnostics = $rootDiagnostics;
                 unset($nextDiagnostics['candidate_origin'], $nextDiagnostics['quality_comparison']);
                 $nextDiagnostics['root_solver_run_id'] = (int) $rootSolverRun->id;
+                $nextDiagnostics['manual_edit_count'] = 0;
                 $nextDiagnostics['source_solver_evidence'] = $rootSourceEvidence;
                 $nextDiagnostics['candidate_revert'] = $revertMetadata;
                 $nextDiagnostics['current_revalidation'] = [
@@ -168,6 +169,7 @@ final class RevertCandidateRun
                 unset($nextDiagnostics['solver_result'], $nextDiagnostics['solver_dispatch']);
                 $nextDiagnostics['candidate_origin'] = 'LocalAdjustment';
                 $nextDiagnostics['root_solver_run_id'] = (int) $rootSolverRun->id;
+                $nextDiagnostics['manual_edit_count'] = self::manualEditCount($lockedTarget);
                 $nextDiagnostics['source_solver_evidence'] = $rootSourceEvidence;
                 $nextDiagnostics['candidate_revert'] = $revertMetadata;
                 $nextDiagnostics['current_revalidation'] = [
@@ -336,6 +338,18 @@ final class RevertCandidateRun
             return null;
         }
 
+        $cachedRootId = data_get($run->diagnostics, 'root_solver_run_id');
+        if (is_numeric($cachedRootId) && (int) $cachedRootId > 0 && (int) $cachedRootId !== (int) $run->id) {
+            $cachedRoot = ScheduleGenerationRun::query()
+                ->where('term_id', $run->term_id)
+                ->whereKey((int) $cachedRootId)
+                ->first();
+
+            if ($cachedRoot instanceof ScheduleGenerationRun) {
+                return $cachedRoot;
+            }
+        }
+
         $cursor = $run;
         $visited = [(int) $run->id => true];
         $steps = 0;
@@ -374,6 +388,11 @@ final class RevertCandidateRun
     {
         if (! self::isLocalAdjustment($run)) {
             return 0;
+        }
+
+        $cachedCount = data_get($run->diagnostics, 'manual_edit_count');
+        if (is_numeric($cachedCount) && (int) $cachedCount >= 0) {
+            return (int) $cachedCount;
         }
 
         $cursor = $run;

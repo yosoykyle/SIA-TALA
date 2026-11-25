@@ -4,11 +4,13 @@ namespace App\Actions\Admissions;
 
 use App\Models\AdmissionCycle;
 use App\Models\AdmissionCycleEvent;
+use App\Models\AdmissionRequirementSet;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -217,6 +219,35 @@ class ChangeAdmissionCycle
             );
 
             return $locked->refresh();
+        }, attempts: 3);
+    }
+
+    public function discardDraft(AdmissionCycle $cycle, User $actor): void
+    {
+        $this->authorize($actor);
+
+        DB::transaction(function () use ($cycle, $actor): void {
+            $locked = AdmissionCycle::query()->lockForUpdate()->findOrFail($cycle->id);
+
+            if (! Gate::forUser($actor)->allows('delete', $locked)) {
+                throw ValidationException::withMessages([
+                    'state' => 'Only an unpublished draft Admission Cycle with no applications or published requirement sets can be discarded.',
+                ]);
+            }
+
+            $draftRequirementSets = $locked->requirementSets()
+                ->where('state', AdmissionRequirementSet::StateDraft)
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($draftRequirementSets as $requirementSet) {
+                $requirementSet->requirements()->delete();
+                $requirementSet->delete();
+            }
+
+            $locked->events()->delete();
+            $locked->programs()->detach();
+            $locked->delete();
         }, attempts: 3);
     }
 

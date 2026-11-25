@@ -9,6 +9,7 @@ use App\Actions\Grades\IncDeadlineService;
 use App\Filament\Clusters\Admissions;
 use App\Filament\Clusters\PublicContent;
 use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
+use App\Filament\Components\LiveDatabaseNotifications;
 use App\Filament\Pages\AcademicApprovals;
 use App\Filament\Pages\AssistedAdmissionApplication;
 use App\Filament\Pages\Auth\AccountSecurity;
@@ -134,7 +135,8 @@ class AdminPanelProvider extends PanelProvider
                 isRequired: true,
             )
             ->multiFactorAuthenticationRequiredMiddlewareName(EnsureStaffMfaIsEnabled::class)
-            ->databaseNotifications()
+            ->databaseNotifications(livewireComponent: LiveDatabaseNotifications::class)
+            ->databaseNotificationsPolling('8s')
             ->brandName('Servitech Institute Asia — Staff Workspace')
             ->plugin(
                 AuthDesignerPlugin::make()
@@ -569,6 +571,7 @@ class AdminPanelProvider extends PanelProvider
         if ($request->routeIs(AcademicApprovals::getRouteName())) {
             $activeCalendarTermIds = TermCalendarPackage::query()
                 ->where('state', TermCalendarPackage::StateActive)
+                ->whereHas('term', fn ($query) => $query->where('state', '!=', Term::StateClosed))
                 ->distinct()
                 ->pluck('term_id');
 
@@ -745,6 +748,7 @@ class AdminPanelProvider extends PanelProvider
     {
         $activeCalendarTermIds = TermCalendarPackage::query()
             ->where('state', TermCalendarPackage::StateActive)
+            ->whereHas('term', fn ($query) => $query->where('state', '!=', Term::StateClosed))
             ->distinct()
             ->pluck('term_id');
 
@@ -858,6 +862,7 @@ class AdminPanelProvider extends PanelProvider
         if ($termId <= 0 && ! $request->attributes->has('tala.selected_term_id')) {
             $activeTermIds = TermCalendarPackage::query()
                 ->where('state', TermCalendarPackage::StateActive)
+                ->whereHas('term', fn ($query) => $query->where('state', '!=', Term::StateClosed))
                 ->distinct()
                 ->pluck('term_id');
 

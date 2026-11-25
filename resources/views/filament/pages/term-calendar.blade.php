@@ -30,21 +30,41 @@
                                 <span class="tala-calendar-sheet-heading__meta tabular-nums">Updated {{ $overviewPackage->updated_at->timezone(config('app.display_timezone'))->format('M j, Y') }}</span>
                             @endif
                         </div>
-                        @if (! $readOnly)
-                            <div class="tala-calendar-sheet-heading__action">
-                                @if ($this->isTermClosed($term))
-                                    <span class="tala-work-footnote">This term is closed and read-only.</span>
-                                @elseif ($this->hasPublishedTimetable($term))
-                                    <span class="tala-work-footnote">
-                                        Official timetable is published — schedule changes go through
-                                        <a class="fi-link" href="{{ \App\Filament\Pages\TermTimetable::getUrl(['termId' => $term->id, 'timetableState' => 'official']) }}">Timetable &rarr; Revise official schedule</a>.
-                                    </span>
-                                @else
-                                    {{ $this->saveAndActivateCalendarAction }}
+                        @if (! $readOnly && ! $this->isTermClosed($term) && ! $this->hasPublishedTimetable($term))
+                            <div class="tala-calendar-sheet-heading__action flex flex-wrap items-center gap-2">
+                                @if ($draftPackages->isNotEmpty())
+                                    {{ $this->discardDraftCalendarAction }}
                                 @endif
+                                {{ $this->saveAndActivateCalendarAction }}
                             </div>
                         @endif
                     </header>
+
+                    @if ($this->isTermClosed($term))
+                        <div class="tala-calendar-published-strip" role="status">
+                            <div class="tala-calendar-published-strip__copy">
+                                <x-filament::icon icon="heroicon-o-lock-closed" aria-hidden="true" />
+                                <span>This term is closed and read-only.</span>
+                            </div>
+                        </div>
+                    @elseif (! $readOnly && $this->hasPublishedTimetable($term))
+                        <div class="tala-calendar-published-strip" role="status">
+                            <div class="tala-calendar-published-strip__copy">
+                                <x-filament::icon icon="heroicon-o-lock-closed" aria-hidden="true" />
+                                <span>Official timetable is published. Make schedule changes in Timetable via Revise schedule.</span>
+                            </div>
+                            <x-filament::button
+                                tag="a"
+                                :href="\App\Filament\Pages\TermTimetable::getUrl(['termId' => $term->id, 'timetableState' => 'official'])"
+                                color="gray"
+                                size="sm"
+                                icon="heroicon-m-arrow-right"
+                                icon-position="after"
+                            >
+                                Open Timetable
+                            </x-filament::button>
+                        </div>
+                    @endif
 
                     <dl class="tala-calendar-facts">
                         <div class="tala-calendar-facts__item">
@@ -110,21 +130,41 @@
                             <h2 id="teaching-calendar-heading"><x-filament::icon icon="heroicon-o-calendar" aria-hidden="true" /><span>Teaching schedule &amp; dates</span></h2>
                             <x-filament::badge color="gray" size="sm">Not set</x-filament::badge>
                         </div>
-                        @if (! $readOnly)
-                            <div class="tala-calendar-sheet-heading__action">
-                                @if ($this->isTermClosed($term))
-                                    <span class="tala-work-footnote">This term is closed and read-only.</span>
-                                @elseif ($this->hasPublishedTimetable($term))
-                                    <span class="tala-work-footnote">
-                                        Official timetable is published — schedule changes go through
-                                        <a class="fi-link" href="{{ \App\Filament\Pages\TermTimetable::getUrl(['termId' => $term->id, 'timetableState' => 'official']) }}">Timetable &rarr; Revise official schedule</a>.
-                                    </span>
-                                @else
-                                    {{ $this->saveAndActivateCalendarAction }}
+                        @if (! $readOnly && ! $this->isTermClosed($term) && ! $this->hasPublishedTimetable($term))
+                            <div class="tala-calendar-sheet-heading__action flex flex-wrap items-center gap-2">
+                                @if ($draftPackages->isNotEmpty())
+                                    {{ $this->discardDraftCalendarAction }}
                                 @endif
+                                {{ $this->saveAndActivateCalendarAction }}
                             </div>
                         @endif
                     </header>
+
+                    @if ($this->isTermClosed($term))
+                        <div class="tala-calendar-published-strip" role="status">
+                            <div class="tala-calendar-published-strip__copy">
+                                <x-filament::icon icon="heroicon-o-lock-closed" aria-hidden="true" />
+                                <span>This term is closed and read-only.</span>
+                            </div>
+                        </div>
+                    @elseif (! $readOnly && $this->hasPublishedTimetable($term))
+                        <div class="tala-calendar-published-strip" role="status">
+                            <div class="tala-calendar-published-strip__copy">
+                                <x-filament::icon icon="heroicon-o-lock-closed" aria-hidden="true" />
+                                <span>Official timetable is published. Make schedule changes in Timetable via Revise schedule.</span>
+                            </div>
+                            <x-filament::button
+                                tag="a"
+                                :href="\App\Filament\Pages\TermTimetable::getUrl(['termId' => $term->id, 'timetableState' => 'official'])"
+                                color="gray"
+                                size="sm"
+                                icon="heroicon-m-arrow-right"
+                                icon-position="after"
+                            >
+                                Open Timetable
+                            </x-filament::button>
+                        </div>
+                    @endif
 
                     <dl class="tala-calendar-facts">
                         <div class="tala-calendar-facts__item">

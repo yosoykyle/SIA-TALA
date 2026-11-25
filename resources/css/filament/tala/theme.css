@@ -135,7 +135,6 @@
 }
 .fi-sidebar-nav { overscroll-behavior: contain; }
 .fi-main { min-width: 0; }
-.fi-body:has(.fi-layout) .fi-main { container: tala-main / inline-size; }
 .fi-body:has(.fi-layout) :is(.fi-main-ctn, .fi-page, .fi-page-header-main-ctn, .fi-page-main, .fi-page-content) { min-inline-size: 0; }
 .fi-header-heading, .fi-section-header-heading { overflow-wrap: break-word; }
 
@@ -1183,12 +1182,12 @@
 .fi-simple-layout .fi-simple-main { margin-block: 1rem; }
 .fi-auth-layout .fi-btn, .fi-simple-layout .fi-btn { min-height: 2.75rem; }
 
-.dark :is(.tala-term-planning-page, .tala-term-record-page, .tala-faculty-availability-page, .tala-academic-oversight-page) .fi-btn.fi-color-primary:not(.fi-outlined) {
+.dark :is(.tala-term-planning-page, .tala-term-record-page, .tala-faculty-availability-page, .tala-academic-oversight-page) .fi-btn.fi-color-primary:not(.fi-outlined):not(label) {
     background-color: var(--primary-400);
     color: var(--primary-950);
 }
 
-.dark :is(.tala-term-planning-page, .tala-term-record-page, .tala-faculty-availability-page, .tala-academic-oversight-page) .fi-btn.fi-color-primary:not(.fi-outlined):hover {
+.dark :is(.tala-term-planning-page, .tala-term-record-page, .tala-faculty-availability-page, .tala-academic-oversight-page) .fi-btn.fi-color-primary:not(.fi-outlined):not(label):hover {
     background-color: var(--primary-300);
 }
 
@@ -1690,7 +1689,7 @@
     }
 }
 
-@container tala-main (max-width: 51.999rem) {
+@media (max-width: 67.999rem) {
     .fi-ta-header-toolbar { flex-wrap: wrap; align-items: flex-start; }
     .fi-ta-header-toolbar > div:last-child { display: flex; flex-wrap: nowrap; justify-content: flex-end; width: 100%; gap: var(--tala-card-gap); }
     .fi-ta-header-toolbar .fi-ta-search-field { flex: 1 1 0; width: auto; min-inline-size: 0; }
@@ -1877,20 +1876,74 @@
     .fi-body .fi-tabs:is(.fi-contained, .fi-page-sub-navigation-tabs) .fi-tabs-item.fi-active:not(:disabled) .fi-tabs-item-label { font-weight: var(--tala-weight-emphasis); }
     .fi-body .fi-tabs:is(.fi-contained, .fi-page-sub-navigation-tabs) .fi-tabs-item > .fi-icon { color: inherit; }
 
-    .fi-body:has(:is(.fi-layout, .fi-simple-layout, .tala-auth-main)) .fi-btn.fi-color-primary:not(.fi-outlined) {
+    .fi-body:has(:is(.fi-layout, .fi-simple-layout, .tala-auth-main)) .fi-btn.fi-color-primary:not(.fi-outlined):not(label) {
         background-color: var(--tala-brand-strong);
         background-image: var(--tala-control-gloss);
         color: var(--tala-on-brand);
     }
-    .fi-body:has(:is(.fi-layout, .fi-simple-layout, .tala-auth-main)) .fi-btn.fi-color-primary:not(.fi-outlined):hover {
+    .fi-body:has(:is(.fi-layout, .fi-simple-layout, .tala-auth-main)) .fi-btn.fi-color-primary:not(.fi-outlined):not(label):hover {
         background-color: color-mix(in srgb, var(--tala-brand-strong) 88%, black);
     }
-    .fi-body:has(:is(.fi-layout, .fi-simple-layout, .tala-auth-main)) .fi-btn.fi-color-primary:not(.fi-outlined) > .fi-icon { color: inherit; }
-    .dark .fi-body:has(:is(.fi-layout, .fi-simple-layout, .tala-auth-main)) .fi-btn.fi-color-primary:not(.fi-outlined) {
+    .fi-body:has(:is(.fi-layout, .fi-simple-layout, .tala-auth-main)) .fi-btn.fi-color-primary:not(.fi-outlined):not(label) > .fi-icon { color: inherit; }
+    .dark .fi-body:has(:is(.fi-layout, .fi-simple-layout, .tala-auth-main)) .fi-btn.fi-color-primary:not(.fi-outlined):not(label) {
         background-color: #2f7d3b;
         color: #ffffff;
     }
-    .dark .fi-body:has(:is(.fi-layout, .fi-simple-layout, .tala-auth-main)) .fi-btn.fi-color-primary:not(.fi-outlined):hover { background-color: #389146; }
+    .dark .fi-body:has(:is(.fi-layout, .fi-simple-layout, .tala-auth-main)) .fi-btn.fi-color-primary:not(.fi-outlined):not(label):hover { background-color: #389146; }
+
+    .fi-body:has(:is(.fi-layout, .fi-simple-layout, .tala-auth-main)) .fi-fo-toggle-buttons label.fi-btn {
+        background-color: var(--tala-surface);
+        background-image: none;
+        color: var(--tala-text);
+        border: 1px solid var(--tala-edge-strong);
+        --tw-ring-shadow: 0 0 #0000;
+    }
+    .fi-body:has(:is(.fi-layout, .fi-simple-layout, .tala-auth-main)) .fi-fo-toggle-buttons:not(.fi-btn-group) label.fi-btn {
+        box-shadow: var(--tala-material-detail);
+    }
+    .fi-body:has(:is(.fi-layout, .fi-simple-layout, .tala-auth-main)) .fi-fo-toggle-buttons.fi-btn-group {
+        border: 1px solid var(--tala-edge-strong);
+        border-radius: 0.5rem;
+        overflow: hidden;
+        --tw-ring-shadow: 0 0 #0000;
+    }
+    .fi-body:has(:is(.fi-layout, .fi-simple-layout, .tala-auth-main)) .fi-fo-toggle-buttons.fi-btn-group label.fi-btn {
+        border: 0;
+        margin-inline-end: 0;
+        box-shadow: none;
+    }
+    .fi-body:has(:is(.fi-layout, .fi-simple-layout, .tala-auth-main)) .fi-fo-toggle-buttons.fi-btn-group label.fi-btn:not(:first-of-type) {
+        border-inline-start: 1px solid var(--tala-edge-strong);
+    }
+    .fi-body:has(:is(.fi-layout, .fi-simple-layout, .tala-auth-main)) .fi-fo-toggle-buttons label.fi-btn > .fi-icon {
+        color: var(--tala-muted);
+    }
+    .fi-body:has(:is(.fi-layout, .fi-simple-layout, .tala-auth-main)) .fi-fo-toggle-buttons label.fi-btn:hover {
+        background-color: var(--tala-surface-sunken);
+        color: var(--tala-text);
+    }
+    .fi-body:has(:is(.fi-layout, .fi-simple-layout, .tala-auth-main)) .fi-fo-toggle-buttons input:checked + label.fi-btn,
+    .dark .fi-body:has(:is(.fi-layout, .fi-simple-layout, .tala-auth-main)) .fi-fo-toggle-buttons input:checked + label.fi-btn {
+        background-color: #2f7d3b;
+        background-image: var(--tala-control-gloss);
+        border-color: #256331;
+        color: #ffffff;
+    }
+    .fi-body:has(:is(.fi-layout, .fi-simple-layout, .tala-auth-main)) .fi-fo-toggle-buttons input:checked + label.fi-btn > .fi-icon,
+    .dark .fi-body:has(:is(.fi-layout, .fi-simple-layout, .tala-auth-main)) .fi-fo-toggle-buttons input:checked + label.fi-btn > .fi-icon {
+        color: #ffffff;
+    }
+    .fi-body:has(:is(.fi-layout, .fi-simple-layout, .tala-auth-main)) .fi-fo-toggle-buttons input:checked + label.fi-btn:hover,
+    .dark .fi-body:has(:is(.fi-layout, .fi-simple-layout, .tala-auth-main)) .fi-fo-toggle-buttons input:checked + label.fi-btn:hover {
+        background-color: #256331;
+        color: #ffffff;
+    }
+    .fi-body:has(:is(.fi-layout, .fi-simple-layout, .tala-auth-main)) .fi-fo-toggle-buttons input:focus-visible + label.fi-btn {
+        outline: 2px solid var(--tala-focus);
+        outline-offset: -2px;
+        position: relative;
+        z-index: 1;
+    }
 }
 /* Shared material roles preserve native rings, component states and positioning. */
 @media (forced-colors: none) {

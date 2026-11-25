@@ -5,10 +5,13 @@ namespace App\Filament\Resources\ScheduleGenerationRuns\Schemas;
 use App\Actions\Calendar\TermTeachingGrid;
 use App\Actions\Scheduling\ScheduleRevisionImpact;
 use App\Actions\Scheduling\ScheduleRevisionImpactService;
+use App\Filament\Pages\TermClasses;
+use App\Filament\Pages\TermResources;
 use App\Models\Course;
 use App\Models\CourseComponent;
 use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\FacultyQualification;
+use App\Models\FacultyTermLoadOverride;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\ScheduleRevisionEvent;
@@ -18,6 +21,7 @@ use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Closure;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Hidden;
@@ -39,6 +43,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Livewire\Component as LivewireComponent;
 
 final class PublishedScheduleRevisionForm
 {
@@ -51,7 +56,7 @@ final class PublishedScheduleRevisionForm
     {
         return [
             self::ScopeTemporarySubstitute => 'Temporary substitute / relief coverage',
-            self::ScopePermanentTakeover => 'Permanent takeover — also transfer class grades ownership',
+            self::ScopePermanentTakeover => 'Permanent takeover: also transfer class grades ownership',
         ];
     }
 
@@ -113,8 +118,13 @@ final class PublishedScheduleRevisionForm
                         ->inline()
                         ->grouped()
                         ->required()
+                        ->validationMessages([
+                            'required' => 'Choose what you want to change.',
+                        ])
                         ->live()
-                        ->afterStateUpdated(function (Set $set, ?string $state, Get $get) use ($run): void {
+                        ->afterStateUpdated(function (ToggleButtons $component, LivewireComponent $livewire, Set $set, ?string $state, Get $get) use ($run): void {
+                            $livewire->resetErrorBag($component->getStatePath());
+
                             if ($state === ScheduleRevisionEvent::ChangeFacultyReassignment && blank($get('reassignment_scope'))) {
                                 $set('reassignment_scope', self::ScopeTemporarySubstitute);
                             }
@@ -127,6 +137,14 @@ final class PublishedScheduleRevisionForm
                             }
                         })
                         ->columnSpanFull(),
+                    Placeholder::make('authoritative_modality')
+                        ->hiddenLabel()
+                        ->content(fn (Get $get): HtmlString => self::deliveryModeInset(
+                            $run,
+                            $get('section_meeting_ids'),
+                        ))
+                        ->visible(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeDeliveryModality)
+                        ->columnSpanFull(),
                     Select::make('replacement_room_id')
                         ->label('Replacement room')
                         ->helperText(fn (Get $get): ?string => self::roomRequirementHelper($run, $get('section_meeting_ids')))
@@ -136,11 +154,11 @@ final class PublishedScheduleRevisionForm
                         ->placeholder('Select a replacement room')
                         ->required(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeRoom
                             || ($get('change_type') === ScheduleRevisionEvent::ChangeDeliveryModality
-                                && self::selectedRequiresRoom($run, $get('section_meeting_ids'))))
+                                && self::selectedSyncsToFaceToFace($run, $get('section_meeting_ids'))))
                         ->visible(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeRoom
                             || ($get('change_type') === ScheduleRevisionEvent::ChangeDeliveryModality
-                                && self::selectedRequiresRoom($run, $get('section_meeting_ids'))))
-                        ->columnSpan(fn (Get $get): int => $get('change_type') === ScheduleRevisionEvent::ChangeRoom ? 2 : 1)
+                                && self::selectedSyncsToFaceToFace($run, $get('section_meeting_ids'))))
+                        ->columnSpanFull()
                         ->live(),
                     Select::make('replacement_faculty_user_id')
                         ->label('Replacement teacher')
@@ -150,8 +168,42 @@ final class PublishedScheduleRevisionForm
                         ->placeholder('Select a qualified teacher')
                         ->required(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeFacultyReassignment)
                         ->visible(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeFacultyReassignment)
+                        ->rules([
+                            fn (Get $get): Closure => function (string $attribute, mixed $value, Closure $fail) use ($run, $get): void {
+                                if ($get('change_type') !== ScheduleRevisionEvent::ChangeFacultyReassignment || ! is_numeric($value)) {
+                                    return;
+                                }
+
+                                $summary = self::facultyLoadSummary($run, $get('section_meeting_ids'), (int) $value);
+                                if ($summary === null) {
+                                    return;
+                                }
+
+                                if ($summary['limit'] !== null
+                                    && $summary['limit'] > 0
+                                    && $summary['added'] > 0
+                                    && $summary['is_overloaded']) {
+                                    $fail(sprintf(
+                                        "This reassignment exceeds %s's %s-unit teaching limit by %s units. Approve a Load override in Step 3 (Faculty & rooms) or choose another teacher.",
+                                        $summary['faculty_name'],
+                                        self::formatUnits($summary['limit']),
+                                        self::formatUnits($summary['excess']),
+                                    ));
+                                }
+                            },
+                        ])
                         ->columnSpanFull()
                         ->live(),
+                    Placeholder::make('teacher_load_guard')
+                        ->hiddenLabel()
+                        ->content(fn (Get $get): HtmlString => self::teacherLoadGuardHtml(
+                            $run,
+                            $get('section_meeting_ids'),
+                            is_numeric($get('replacement_faculty_user_id')) ? (int) $get('replacement_faculty_user_id') : null,
+                        ))
+                        ->visible(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeFacultyReassignment
+                            && filled($get('replacement_faculty_user_id')))
+                        ->columnSpanFull(),
                     Radio::make('reassignment_scope')
                         ->label('Reassignment scope')
                         ->options(self::reassignmentScopeOptions())
@@ -209,13 +261,6 @@ final class PublishedScheduleRevisionForm
                         ->required(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeTime)
                         ->visible(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeTime)
                         ->live(),
-                    Placeholder::make('authoritative_modality')
-                        ->label('Delivery mode')
-                        ->content(fn (Get $get): string => self::authoritativeModalitySummary(
-                            $run,
-                            $get('section_meeting_ids'),
-                        ))
-                        ->visible(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeDeliveryModality),
                 ]),
             Step::make('Review & publish')
                 ->icon(Heroicon::OutlinedShieldCheck)
@@ -412,7 +457,7 @@ final class PublishedScheduleRevisionForm
     {
         $count = count(self::selectedMeetingIds($selectedMeetingIds));
         $label = $count === 0
-            ? '0 selected — choose one or more official meetings to continue.'
+            ? '0 selected. Choose one or more official meetings to continue.'
             : sprintf('%d %s selected', $count, Str::plural('meeting', $count));
         $tone = $count > 0 ? 'is-active' : 'is-empty';
 
@@ -484,7 +529,7 @@ final class PublishedScheduleRevisionForm
 
         $statusClass = $impact->passes() ? 'is-pass' : 'is-blocked';
         $status = $impact->passes()
-            ? 'Meeting checks passed — publication rechecks the complete change'
+            ? 'Meeting checks passed: publication rechecks the complete change'
             : 'Change blocked';
         $meetingCount = count($impact->meetingChanges());
         $studentCount = $impact->affectedStudents();
@@ -494,15 +539,98 @@ final class PublishedScheduleRevisionForm
         if ($get('change_type') === ScheduleRevisionEvent::ChangeFacultyReassignment) {
             $scope = self::reassignmentScope($data);
             $scopeSummary = $scope === self::ScopePermanentTakeover
-                ? 'Permanent takeover — also transfers designated class grades ownership to the replacement teacher.'
+                ? 'Permanent takeover: also transfers designated class grades ownership to the replacement teacher.'
                 : ((bool) ($data['add_co_faculty'] ?? false)
-                    ? 'Temporary substitute / relief coverage — adds replacement teacher as co-faculty while keeping the original grading teacher intact.'
-                    : 'Temporary substitute / relief coverage — updates timetable meetings while keeping the original grading teacher intact.');
-            $scopeNote = '<div class="tala-context-inset"><p class="tala-revision-scope-note">'.e($scopeSummary).'</p></div>';
+                    ? 'Temporary substitute / relief coverage: adds replacement teacher as co-faculty while keeping the original grading teacher intact.'
+                    : 'Temporary substitute / relief coverage: updates timetable meetings while keeping the original grading teacher intact.');
+
+            $loadNoteHtml = '';
+            $replacementFacultyId = is_numeric($data['replacement_faculty_user_id'] ?? null)
+                ? (int) $data['replacement_faculty_user_id']
+                : null;
+            $loadSummary = $replacementFacultyId !== null
+                ? self::facultyLoadSummary($run, $data['section_meeting_ids'], $replacementFacultyId)
+                : null;
+
+            if ($loadSummary !== null) {
+                $projectedText = self::formatUnits($loadSummary['projected']);
+                $addedText = self::formatUnits($loadSummary['added']);
+                if ($loadSummary['limit'] !== null) {
+                    $limitText = self::formatUnits($loadSummary['limit']);
+                    $tailText = $loadSummary['is_overloaded']
+                        ? 'over limit by '.self::formatUnits($loadSummary['excess']).' units'
+                        : self::formatUnits((float) $loadSummary['remaining']).' units remaining';
+                    $loadLine = sprintf(
+                        'Projected load for %s: %s / %s units (+%s units · %s).',
+                        $loadSummary['faculty_name'],
+                        $projectedText,
+                        $limitText,
+                        $addedText,
+                        $tailText,
+                    );
+                } else {
+                    $loadLine = sprintf(
+                        'Projected load for %s: %s units (+%s units).',
+                        $loadSummary['faculty_name'],
+                        $projectedText,
+                        $addedText,
+                    );
+                }
+                $loadToneClass = $loadSummary['is_overloaded'] ? ' is-over' : '';
+                $loadNoteHtml = '<p class="tala-revision-load-note'.$loadToneClass.'">'.e($loadLine).'</p>';
+            }
+
+            $scopeNote = '<div class="tala-context-inset"><p class="tala-revision-scope-note">'.e($scopeSummary).'</p>'.$loadNoteHtml.'</div>';
         }
 
-        $meetingRows = collect($impact->meetingChanges())
-            ->map(fn (array $change): string => self::meetingChangeHtml($change))
+        $meetingChanges = $impact->meetingChanges();
+        $meetingIds = collect($meetingChanges)
+            ->pluck('section_meeting_id')
+            ->filter(fn (mixed $id): bool => is_numeric($id))
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values();
+        $preloadedMeetings = $meetingIds->isNotEmpty()
+            ? SectionMeeting::query()
+                ->with('schedulingDemand.sectionDeliveryGroup.section')
+                ->whereIn('id', $meetingIds)
+                ->get()
+                ->keyBy('id')
+            : collect();
+
+        $facultyIds = collect($meetingChanges)
+            ->flatMap(fn (array $change): array => [
+                data_get($change, 'old.faculty_user_id'),
+                data_get($change, 'new.faculty_user_id'),
+            ])
+            ->filter(fn (mixed $id): bool => is_numeric($id))
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values();
+        $preloadedFaculty = $facultyIds->isNotEmpty()
+            ? User::query()->whereIn('id', $facultyIds)->get(['id', 'name'])->keyBy('id')
+            : collect();
+
+        $roomIds = collect($meetingChanges)
+            ->flatMap(fn (array $change): array => [
+                data_get($change, 'old.room_id'),
+                data_get($change, 'new.room_id'),
+            ])
+            ->filter(fn (mixed $id): bool => is_numeric($id))
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values();
+        $preloadedRooms = $roomIds->isNotEmpty()
+            ? Room::query()->whereIn('id', $roomIds)->get(['id', 'code'])->keyBy('id')
+            : collect();
+
+        $meetingRows = collect($meetingChanges)
+            ->map(fn (array $change): string => self::meetingChangeHtml(
+                $change,
+                $preloadedMeetings,
+                $preloadedFaculty,
+                $preloadedRooms,
+            ))
             ->implode('');
         $findingRows = collect($impact->findings())
             ->map(fn (array $finding): string => self::findingHtml($finding))
@@ -532,13 +660,23 @@ final class PublishedScheduleRevisionForm
             HTML);
     }
 
-    /** @param array<string, mixed> $change */
-    private static function meetingChangeHtml(array $change): string
-    {
+    /**
+     * @param  array<string, mixed>  $change
+     * @param  \Illuminate\Support\Collection<int, SectionMeeting>|null  $preloadedMeetings
+     * @param  \Illuminate\Support\Collection<int, User>|null  $preloadedFaculty
+     * @param  \Illuminate\Support\Collection<int, Room>|null  $preloadedRooms
+     */
+    private static function meetingChangeHtml(
+        array $change,
+        ?\Illuminate\Support\Collection $preloadedMeetings = null,
+        ?\Illuminate\Support\Collection $preloadedFaculty = null,
+        ?\Illuminate\Support\Collection $preloadedRooms = null,
+    ): string {
         $meetingId = (int) ($change['section_meeting_id'] ?? 0);
-        $meeting = SectionMeeting::query()
-            ->with('schedulingDemand.sectionDeliveryGroup.section')
-            ->find($meetingId);
+        $meeting = $preloadedMeetings?->get($meetingId)
+            ?? SectionMeeting::query()
+                ->with('schedulingDemand.sectionDeliveryGroup.section')
+                ->find($meetingId);
         $label = $meeting instanceof SectionMeeting ? self::meetingLabel($meeting) : 'Meeting #'.$meetingId;
         $old = is_array($change['old'] ?? null) ? $change['old'] : [];
         $new = is_array($change['new'] ?? null) ? $change['new'] : [];
@@ -546,8 +684,8 @@ final class PublishedScheduleRevisionForm
         return '<div class="tala-revision-change">'
             .'<p class="tala-revision-meeting">'.e($label).'</p>'
             .'<dl class="tala-revision-comparison">'
-            .'<div><dt>Current</dt><dd>'.e(self::snapshotLabel($old)).'</dd></div>'
-            .'<div><dt>Proposed</dt><dd>'.e(self::snapshotLabel($new)).'</dd></div></dl>'
+            .'<div><dt>Current</dt><dd>'.e(self::snapshotLabel($old, $preloadedFaculty, $preloadedRooms)).'</dd></div>'
+            .'<div><dt>Proposed</dt><dd>'.e(self::snapshotLabel($new, $preloadedFaculty, $preloadedRooms)).'</dd></div></dl>'
             .'</div>';
     }
 
@@ -563,13 +701,20 @@ final class PublishedScheduleRevisionForm
         return '<li>'.e($message).' <span class="tala-revision-finding-source">Source: '.$sourceHtml.'</span></li>';
     }
 
-    /** @param array<string, mixed> $snapshot */
-    private static function snapshotLabel(array $snapshot): string
-    {
+    /**
+     * @param  array<string, mixed>  $snapshot
+     * @param  \Illuminate\Support\Collection<int, User>|null  $preloadedFaculty
+     * @param  \Illuminate\Support\Collection<int, Room>|null  $preloadedRooms
+     */
+    private static function snapshotLabel(
+        array $snapshot,
+        ?\Illuminate\Support\Collection $preloadedFaculty = null,
+        ?\Illuminate\Support\Collection $preloadedRooms = null,
+    ): string {
         $facultyId = is_numeric($snapshot['faculty_user_id'] ?? null) ? (int) $snapshot['faculty_user_id'] : null;
         $roomId = is_numeric($snapshot['room_id'] ?? null) ? (int) $snapshot['room_id'] : null;
-        $faculty = $facultyId !== null ? User::query()->find($facultyId) : null;
-        $room = $roomId !== null ? Room::query()->find($roomId) : null;
+        $faculty = $facultyId !== null ? ($preloadedFaculty?->get($facultyId) ?? User::query()->find($facultyId)) : null;
+        $room = $roomId !== null ? ($preloadedRooms?->get($roomId) ?? Room::query()->find($roomId)) : null;
         $day = SectionMeeting::dayOptions()[(int) ($snapshot['day_of_week'] ?? 0)] ?? 'No day';
         $timeWindow = self::formatTimeWindow($snapshot['starts_at'] ?? null, $snapshot['ends_at'] ?? null);
         $modality = TermOffering::modalityOptions()[(string) ($snapshot['modality'] ?? '')]
@@ -681,7 +826,7 @@ final class PublishedScheduleRevisionForm
             return [];
         }
 
-        return FacultyQualification::query()
+        $qualifiedFaculty = FacultyQualification::query()
             ->with('faculty')
             ->where('is_active', true)
             ->whereIn('course_id', $courseIds)
@@ -693,10 +838,284 @@ final class PublishedScheduleRevisionForm
                 $qualification = $qualifications->first();
                 $faculty = $qualification instanceof FacultyQualification ? $qualification->faculty : null;
 
-                return $faculty instanceof User ? [(int) $faculty->id => $faculty->name] : [];
+                return $faculty instanceof User ? [(int) $faculty->id => (string) $faculty->name] : [];
             })
-            ->sort()
+            ->sort();
+
+        if ($qualifiedFaculty->isEmpty()) {
+            return [];
+        }
+
+        $summaries = self::facultyLoadSummaries($run, $meetingIds, $qualifiedFaculty->keys()->map(fn (mixed $id): int => (int) $id)->all());
+
+        return $qualifiedFaculty
+            ->mapWithKeys(function (string $name, int $facultyId) use ($summaries): array {
+                $summary = $summaries[$facultyId] ?? null;
+                if ($summary === null) {
+                    return [$facultyId => $name];
+                }
+
+                $currentText = self::formatUnits($summary['current']);
+                $limit = $summary['limit'];
+
+                if ($limit === null) {
+                    return [$facultyId => sprintf('%s (%s units assigned)', $name, $currentText)];
+                }
+
+                $limitText = self::formatUnits($limit);
+                $currentRemaining = round($limit - $summary['current'], 2);
+
+                if ($summary['current'] > $limit + 0.0001) {
+                    $status = 'Over limit';
+                } elseif ($currentRemaining <= 0.0001) {
+                    $status = 'At limit';
+                } else {
+                    $status = self::formatUnits($currentRemaining).' left';
+                }
+
+                return [$facultyId => sprintf('%s (%s / %s units · %s)', $name, $currentText, $limitText, $status)];
+            })
             ->all();
+    }
+
+    /**
+     * @return array{
+     *     faculty_id: int,
+     *     faculty_name: string,
+     *     current: float,
+     *     added: float,
+     *     projected: float,
+     *     limit: float|null,
+     *     remaining: float|null,
+     *     excess: float,
+     *     is_overloaded: bool,
+     *     has_override: bool,
+     *     percent: int,
+     *     tone: string,
+     * }|null
+     */
+    public static function facultyLoadSummary(ScheduleGenerationRun $run, mixed $selectedMeetingIds, ?int $facultyId = null): ?array
+    {
+        if ($facultyId === null || $facultyId <= 0) {
+            return null;
+        }
+
+        $summaries = self::facultyLoadSummaries($run, self::selectedMeetingIds($selectedMeetingIds), [$facultyId]);
+
+        return $summaries[$facultyId] ?? null;
+    }
+
+    /**
+     * @param  list<int>  $selectedMeetingIds
+     * @param  list<int>  $facultyIds
+     * @return array<int, array{
+     *     faculty_id: int,
+     *     faculty_name: string,
+     *     current: float,
+     *     added: float,
+     *     projected: float,
+     *     limit: float|null,
+     *     remaining: float|null,
+     *     excess: float,
+     *     is_overloaded: bool,
+     *     has_override: bool,
+     *     percent: int,
+     *     tone: string,
+     * }>
+     */
+    private static function facultyLoadSummaries(ScheduleGenerationRun $run, array $selectedMeetingIds, array $facultyIds): array
+    {
+        $facultyIds = array_values(array_unique(array_filter(array_map('intval', $facultyIds), fn (int $id): bool => $id > 0)));
+        if ($facultyIds === []) {
+            return [];
+        }
+
+        $term = $run->term;
+        $defaultLimit = ($term instanceof Term && $term->default_max_units !== null)
+            ? round((float) $term->default_max_units, 2)
+            : null;
+
+        $overrides = $term instanceof Term
+            ? FacultyTermLoadOverride::query()
+                ->where('term_id', $term->id)
+                ->where('is_active', true)
+                ->whereIn('faculty_user_id', $facultyIds)
+                ->latest('id')
+                ->get()
+                ->unique('faculty_user_id')
+                ->keyBy('faculty_user_id')
+            : collect();
+
+        $facultyNames = User::query()
+            ->whereIn('id', $facultyIds)
+            ->pluck('name', 'id');
+
+        $allMeetings = self::meetingsForRun($run);
+        $selectedMeetings = $allMeetings->whereIn('id', $selectedMeetingIds)->values();
+
+        $currentSectionsByFaculty = [];
+        foreach ($allMeetings as $meeting) {
+            $assignedId = (int) ($meeting->faculty_user_id ?? 0);
+            if ($assignedId <= 0 || ! in_array($assignedId, $facultyIds, true)) {
+                continue;
+            }
+            $sectionKey = self::meetingSectionKey($meeting);
+            $units = self::meetingCreditUnits($meeting);
+            $currentSectionsByFaculty[$assignedId][$sectionKey] = max(
+                (float) ($currentSectionsByFaculty[$assignedId][$sectionKey] ?? 0.0),
+                $units,
+            );
+        }
+
+        $results = [];
+        foreach ($facultyIds as $facultyId) {
+            $currentSections = $currentSectionsByFaculty[$facultyId] ?? [];
+            $current = round(array_sum($currentSections), 2);
+
+            $addedSections = [];
+            foreach ($selectedMeetings as $meeting) {
+                $sectionKey = self::meetingSectionKey($meeting);
+                if (array_key_exists($sectionKey, $currentSections)) {
+                    continue;
+                }
+                $units = self::meetingCreditUnits($meeting);
+                $addedSections[$sectionKey] = max(
+                    (float) ($addedSections[$sectionKey] ?? 0.0),
+                    $units,
+                );
+            }
+
+            $added = round(array_sum($addedSections), 2);
+            $projected = round($current + $added, 2);
+
+            /** @var FacultyTermLoadOverride|null $override */
+            $override = $overrides->get($facultyId);
+            $limit = $override instanceof FacultyTermLoadOverride
+                ? round($override->allowedLoadUnits(), 2)
+                : $defaultLimit;
+            $hasOverride = $override instanceof FacultyTermLoadOverride;
+
+            $remaining = $limit !== null ? round($limit - $projected, 2) : null;
+            $isOverloaded = $limit !== null && $projected > $limit + 0.0001;
+            $excess = $isOverloaded ? round($projected - $limit, 2) : 0.0;
+            $rawPercent = ($limit !== null && $limit > 0) ? (($projected / $limit) * 100) : 0.0;
+            $percent = ($limit !== null && $limit > 0) ? (int) round(min(100, max(0, $rawPercent))) : 0;
+            $tone = $isOverloaded ? 'is-over' : (($limit !== null && $limit > 0 && $rawPercent >= 85.0) ? 'is-near' : 'is-ok');
+
+            $results[$facultyId] = [
+                'faculty_id' => $facultyId,
+                'faculty_name' => (string) ($facultyNames->get($facultyId) ?? 'Teacher #'.$facultyId),
+                'current' => $current,
+                'added' => $added,
+                'projected' => $projected,
+                'limit' => $limit,
+                'remaining' => $remaining,
+                'excess' => $excess,
+                'is_overloaded' => $isOverloaded,
+                'has_override' => $hasOverride,
+                'percent' => $percent,
+                'tone' => $tone,
+            ];
+        }
+
+        return $results;
+    }
+
+    private static function teacherLoadGuardHtml(ScheduleGenerationRun $run, mixed $selectedMeetingIds, ?int $facultyId): HtmlString
+    {
+        $summary = self::facultyLoadSummary($run, $selectedMeetingIds, $facultyId);
+        if ($summary === null) {
+            return new HtmlString('');
+        }
+
+        $name = e($summary['faculty_name']);
+        $currentText = self::formatUnits($summary['current']);
+        $addedText = self::formatUnits($summary['added']);
+        $projectedText = self::formatUnits($summary['projected']);
+        $limit = $summary['limit'];
+        $tone = $summary['tone'];
+
+        $badgeText = $limit !== null
+            ? sprintf('Projected: %s / %s units', $projectedText, self::formatUnits($limit))
+            : sprintf('Projected: %s units', $projectedText);
+
+        $progressHtml = '';
+        if ($limit !== null && $limit > 0) {
+            $progressHtml = sprintf(
+                '<div class="tala-load-guard__track" role="progressbar" aria-label="Projected teaching load for %s" aria-valuemin="0" aria-valuenow="%s" aria-valuemax="%s">'
+                .'<span class="tala-load-guard__fill" style="width: %d%%"></span>'
+                .'</div>',
+                $name,
+                e($projectedText),
+                e(self::formatUnits($limit)),
+                $summary['percent'],
+            );
+        }
+
+        $remainingMetric = '';
+        if ($limit !== null) {
+            $remainingMetric = $summary['is_overloaded']
+                ? '<span class="tala-load-guard__metric is-over">Over limit by '.e(self::formatUnits($summary['excess'])).' units</span>'
+                : '<span class="tala-load-guard__metric">Remaining: '.e(self::formatUnits((float) $summary['remaining'])).' units</span>';
+        }
+
+        $alertHtml = '';
+        if ($summary['is_overloaded'] && $limit !== null) {
+            $resourcesUrl = TermResources::getUrl(['termId' => $run->term_id]);
+            $alertHtml = '<p class="tala-load-guard__alert" role="alert">'
+                .'This reassignment exceeds '.$name.'\'s '.e(self::formatUnits($limit)).'-unit teaching limit by '.e(self::formatUnits($summary['excess'])).' units. '
+                .'Approve a Load override in Step 3 (<a class="fi-link" href="'.e($resourcesUrl).'">Faculty &amp; rooms</a>) or choose another teacher.'
+                .'</p>';
+        }
+
+        return new HtmlString(
+            '<div class="tala-load-guard '.$tone.'" role="status" aria-live="polite">'
+            .'<div class="tala-load-guard__head">'
+            .'<strong class="tala-load-guard__title">'.$name.'</strong>'
+            .'<span class="tala-load-guard__badge">'.e($badgeText).'</span>'
+            .'</div>'
+            .$progressHtml
+            .'<div class="tala-load-guard__metrics">'
+            .'<span class="tala-load-guard__metric">Current: '.e($currentText).' units</span>'
+            .'<span class="tala-load-guard__metric">This change: +'.e($addedText).' units</span>'
+            .$remainingMetric
+            .'</div>'
+            .$alertHtml
+            .'</div>',
+        );
+    }
+
+    private static function meetingSectionKey(SectionMeeting $meeting): string
+    {
+        $sectionId = $meeting->schedulingDemand?->sectionDeliveryGroup?->section_id;
+        if (is_numeric($sectionId) && (int) $sectionId > 0) {
+            return 'sec:'.(int) $sectionId;
+        }
+
+        $groupId = $meeting->schedulingDemand?->section_delivery_group_id;
+        if (is_numeric($groupId) && (int) $groupId > 0) {
+            return 'grp:'.(int) $groupId;
+        }
+
+        return 'dem:'.(int) $meeting->scheduling_demand_id;
+    }
+
+    private static function meetingCreditUnits(SectionMeeting $meeting): float
+    {
+        $units = $meeting->schedulingDemand?->courseComponent?->courseSpecification?->credit_units
+            ?? $meeting->schedulingDemand?->termOffering?->courseSpecification()?->credit_units
+            ?? data_get($meeting->schedulingDemand?->source_snapshot, 'load_units')
+            ?? data_get($meeting->schedulingDemand?->source_snapshot, 'credit_units')
+            ?? 0.0;
+
+        return round(max(0.0, (float) $units), 2);
+    }
+
+    private static function formatUnits(float $units): string
+    {
+        $formatted = number_format($units, 2, '.', '');
+
+        return rtrim(rtrim($formatted, '0'), '.');
     }
 
     /** @return array<int, string> */
@@ -883,24 +1302,96 @@ final class PublishedScheduleRevisionForm
             ->all();
     }
 
-    private static function selectedRequiresRoom(ScheduleGenerationRun $run, mixed $selectedMeetingIds): bool
+    private static function selectedSyncsToFaceToFace(ScheduleGenerationRun $run, mixed $selectedMeetingIds): bool
     {
         return self::meetingsForRun($run)
             ->whereIn('id', self::selectedMeetingIds($selectedMeetingIds))
-            ->contains(fn (SectionMeeting $meeting): bool => self::authoritativeModality($meeting) === TermOffering::ModalityFaceToFace);
+            ->contains(function (SectionMeeting $meeting): bool {
+                $authoritative = self::authoritativeModality($meeting);
+
+                return $authoritative === TermOffering::ModalityFaceToFace
+                    && ($meeting->modality !== TermOffering::ModalityFaceToFace || $meeting->room_id === null);
+            });
     }
 
-    private static function authoritativeModalitySummary(ScheduleGenerationRun $run, mixed $selectedMeetingIds): string
+    private static function deliveryModeInset(ScheduleGenerationRun $run, mixed $selectedMeetingIds): HtmlString
     {
-        $modalities = self::meetingsForRun($run)
-            ->whereIn('id', self::selectedMeetingIds($selectedMeetingIds))
+        $meetingIds = self::selectedMeetingIds($selectedMeetingIds);
+        $meetings = $meetingIds !== []
+            ? self::meetingsForRun($run)->whereIn('id', $meetingIds)->values()
+            : collect();
+
+        if ($meetings->isEmpty()) {
+            return new HtmlString(
+                '<div class="tala-context-inset tala-delivery-mode-inset"><p class="tala-work-footnote">Select one or more meetings in Step 1 to check their delivery mode.</p></div>',
+            );
+        }
+
+        $modalityLabels = TermOffering::modalityOptions();
+        $labelFor = static fn (?string $code): string => filled($code)
+            ? ($modalityLabels[(string) $code] ?? Str::headline((string) $code))
+            : 'Not recorded';
+
+        $currentLabels = $meetings
+            ->map(fn (SectionMeeting $meeting): string => $labelFor($meeting->modality))
+            ->unique()
+            ->values()
+            ->implode(', ');
+
+        $authoritativeCodes = $meetings
             ->map(fn (SectionMeeting $meeting): ?string => self::authoritativeModality($meeting))
             ->filter()
             ->unique()
-            ->map(fn (string $modality): string => TermOffering::modalityOptions()[$modality] ?? Str::headline($modality))
             ->values();
 
-        return $modalities->isEmpty() ? 'Select affected meetings.' : $modalities->implode(', ');
+        $authoritativeLabels = $authoritativeCodes->isNotEmpty()
+            ? $authoritativeCodes->map(fn (string $code): string => $labelFor($code))->implode(', ')
+            : 'Not recorded';
+
+        $differingMeetings = $meetings->filter(function (SectionMeeting $meeting): bool {
+            $authoritative = self::authoritativeModality($meeting);
+
+            return $authoritative !== null
+                && ($meeting->modality !== $authoritative
+                    || ($authoritative === TermOffering::ModalityFaceToFace && $meeting->room_id === null));
+        });
+
+        $classesUrl = TermClasses::getUrl(['termId' => $run->term_id]);
+        $isPlural = $meetings->count() > 1;
+
+        if ($differingMeetings->isEmpty()) {
+            $noteHtml = '<p class="tala-delivery-mode-inset__note">'
+                .($isPlural
+                    ? 'These meetings already match the class delivery mode. '
+                    : 'This meeting already matches the class delivery mode. ')
+                .'To switch between Face-to-Face and Online, update the class in Step 2 ('
+                .'<a class="fi-link" href="'.e($classesUrl).'">Classes &amp; sections</a>'
+                .') first, then return here to sync the official timetable.'
+                .'</p>';
+        } else {
+            $targetSummary = $differingMeetings
+                ->map(fn (SectionMeeting $meeting): string => $labelFor(self::authoritativeModality($meeting)))
+                ->unique()
+                ->values()
+                ->implode(', ');
+            $noteHtml = '<p class="tala-delivery-mode-inset__note is-sync">'
+                .e(sprintf(
+                    'Syncing %s to %s to match the updated class delivery mode.',
+                    $differingMeetings->count() === 1 ? 'this meeting' : $differingMeetings->count().' meetings',
+                    $targetSummary,
+                ))
+                .'</p>';
+        }
+
+        return new HtmlString(
+            '<div class="tala-context-inset tala-delivery-mode-inset">'
+            .'<dl class="tala-delivery-mode-inset__grid">'
+            .'<div><dt>Current meeting mode</dt><dd>'.e($currentLabels).'</dd></div>'
+            .'<div><dt>Class delivery mode (Step 2)</dt><dd>'.e($authoritativeLabels).'</dd></div>'
+            .'</dl>'
+            .$noteHtml
+            .'</div>',
+        );
     }
 
     private static function authoritativeModality(SectionMeeting $meeting): ?string
@@ -955,7 +1446,7 @@ final class PublishedScheduleRevisionForm
         $sectionCode = $section instanceof Section ? $section->code : 'Class';
 
         $subject = ($courseTitle !== '' && $courseTitle !== $courseCode)
-            ? "{$courseCode} — {$courseTitle}"
+            ? "{$courseCode} · {$courseTitle}"
             : $courseCode;
 
         return "{$subject} ({$sectionCode})";

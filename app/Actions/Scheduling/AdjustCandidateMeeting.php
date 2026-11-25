@@ -81,6 +81,13 @@ final class AdjustCandidateMeeting
 
             $successor = $run->replicate();
             $diagnostics = is_array($run->diagnostics) ? $run->diagnostics : [];
+            $rootSolverRunId = data_get($diagnostics, 'root_solver_run_id');
+            if (! is_numeric($rootSolverRunId) || (int) $rootSolverRunId <= 0) {
+                $rootSolverRunId = RevertCandidateRun::isLocalAdjustment($run)
+                    ? (RevertCandidateRun::rootSolverRun($run)?->id ?? $run->id)
+                    : $run->id;
+            }
+            $manualEditCount = RevertCandidateRun::manualEditCount($run) + 1;
             $sourceEvidence = [
                 'run_id' => $run->id,
                 'solver_version' => $run->solver_version,
@@ -111,6 +118,8 @@ final class AdjustCandidateMeeting
                 'diagnostics' => [
                     ...$diagnostics,
                     'candidate_origin' => 'LocalAdjustment',
+                    'root_solver_run_id' => (int) $rootSolverRunId,
+                    'manual_edit_count' => $manualEditCount,
                     'source_solver_evidence' => $sourceEvidence,
                     'current_revalidation' => [
                         'status' => 'accepted',

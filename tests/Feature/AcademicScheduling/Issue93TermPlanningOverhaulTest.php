@@ -87,8 +87,8 @@ final class Issue93TermPlanningOverhaulTest extends TestCase
             ->assertActionVisible(TestAction::make('assignSubjects')->table())
             ->mountAction(TestAction::make('editFacultySubjects')->table($faculty))
             ->assertMountedActionModalSee('tala-card-picker')
-            ->assertMountedActionModalSee('CS 201 — Data Structures & Algorithms')
-            ->assertMountedActionModalSee('CS 202 — Discrete Mathematics Draft')
+            ->assertMountedActionModalSee('CS 201 · Data Structures & Algorithms')
+            ->assertMountedActionModalSee('CS 202 · Discrete Mathematics Draft')
             ->setActionData([
                 'course_ids' => [(string) $activeCourse->id, (string) $draftCourse->id],
                 'notes' => 'Global qualification assignment',
@@ -172,7 +172,7 @@ final class Issue93TermPlanningOverhaulTest extends TestCase
         Livewire::withQueryParams(['termId' => $term->id, 'resourceView' => 'faculty'])->test(TermResources::class)
             ->assertOk()
             ->mountTableAction('editFacultySubjects', 'faculty-'.$faculty->id)
-            ->assertMountedActionModalSee('IT 310 — Systems Integration Draft')
+            ->assertMountedActionModalSee('IT 310 · Systems Integration Draft')
             ->assertMountedActionModalSee('Needed this term');
     }
 
@@ -437,7 +437,7 @@ final class Issue93TermPlanningOverhaulTest extends TestCase
             ->mountAction('revisePublishedSchedule')
             ->assertMountedActionModalSee('tala-card-picker')
             ->assertMountedActionModalSee('tala-revision-meeting-checklist')
-            ->assertMountedActionModalSee('IT 401 — Capstone Project 1 (BSIT-4A)')
+            ->assertMountedActionModalSee('IT 401 · Capstone Project 1 (BSIT-4A)')
             ->assertMountedActionModalSee('RM-305 · Elena Cruz · Meeting 1');
 
         $this->assertNotEmpty(PublishedScheduleRevisionForm::schema($run));

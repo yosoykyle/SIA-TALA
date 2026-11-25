@@ -110,6 +110,8 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
     #[Url]
     public ?string $yearFilter = null;
 
+    public ?int $watchingPendingRunId = null;
+
     /** @return array<string, array<string, mixed>> */
     protected function queryString(): array
     {
@@ -130,6 +132,27 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
             $this->timetableState = 'official';
         } elseif ($this->selectedRunId !== null) {
             $this->timetableState = 'draft';
+        } elseif ($this->termId !== null && ! request()->query->has('timetableState')) {
+            $hasPublishedVersion = PublishedTimetableVersion::query()
+                ->where('term_id', $this->termId)
+                ->where('state', PublishedTimetableVersion::StatePublished)
+                ->exists();
+            $hasActiveDraft = ScheduleGenerationRun::query()
+                ->where('term_id', $this->termId)
+                ->whereIn('status', [
+                    ScheduleGenerationRun::StatusQueued,
+                    ScheduleGenerationRun::StatusDispatching,
+                    ScheduleGenerationRun::StatusUnderReview,
+                ])
+                ->where(function ($query): void {
+                    $query->whereNull('candidate_state')
+                        ->orWhereNotIn('candidate_state', ['Stale', 'Superseded', 'Rejected']);
+                })
+                ->exists();
+
+            if ($hasPublishedVersion && ! $hasActiveDraft) {
+                $this->timetableState = 'official';
+            }
         }
         $this->autoSyncTermSchedulingDemands();
     }
@@ -178,6 +201,12 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
     {
         return parent::generateTimetableAction()
             ->modalContent(fn (): HtmlString => $this->renderGenerationScopeContent())
+            ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar)
+                && $this->termId !== null
+                && ! $this->isTermClosed()
+                && ! ($this->hasPublishedTimetable() && $this->hasOfficialStudentEnrollments())
+                && $this->retainedCandidateNextStep() === null
+                && ($this->timetableState === 'official' || ! $this->canRecoverActiveRun()))
             ->hidden(fn (): bool => $this->isTermClosed());
     }
 
@@ -278,7 +307,25 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
     public function acceptCandidateAction(): Action
     {
         return parent::acceptCandidateAction()
+            ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar)
+                && $this->canReviewActiveRun()
+                && $this->activeScheduleRun()?->candidate_state !== 'Accepted')
             ->hidden(fn (): bool => $this->isTermClosed());
+    }
+
+    public function canReviewActiveRun(): bool
+    {
+        $actor = auth()->user();
+        $run = $this->activeScheduleRun();
+
+        return $actor instanceof User
+            && ! $this->isTermClosed()
+            && $run instanceof ScheduleGenerationRun
+            && $run->status === ScheduleGenerationRun::StatusUnderReview
+            && ! in_array($run->candidate_state, ['Rejected', 'Stale', 'Superseded'], true)
+            && ($run->candidate_state !== 'Accepted'
+                || ($run->published_at === null && ! $run->timetableVersions()->exists()))
+            && Gate::forUser($actor)->allows('reviewCandidates', $run);
     }
 
     public function rejectCandidateAction(): Action
@@ -358,7 +405,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
 
                 $run->forceFill([
                     'status' => ScheduleGenerationRun::StatusFailed,
-                    'candidate_state' => 'Rejected',
+                    'candidate_state' => null,
                     'candidate_review_reason' => 'Cancelled while in progress by '.$actor->name.'.',
                     'diagnostics' => $diagnostics,
                 ])->save();
@@ -422,6 +469,18 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
     public function openGenerateFromDetails(): void
     {
         $this->dispatch('close-modal', id: 'timetable-review-details');
+
+        $readiness = $this->generationReadiness();
+        if (! ($readiness['ready'] ?? false)) {
+            Notification::make()
+                ->title('Cannot start a new draft yet')
+                ->body((string) ($readiness['reason'] ?? 'Complete the remaining term prerequisites before generating a new draft.'))
+                ->warning()
+                ->send();
+
+            return;
+        }
+
         $this->mountAction('generateTimetable');
     }
 
@@ -519,7 +578,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         $allRuns = ScheduleGenerationRun::query()
             ->where('term_id', $term->id)
             ->latest('id')
-            ->get(['id', 'term_id', 'status', 'candidate_state', 'diagnostics', 'input_snapshot', 'created_at']);
+            ->get(['id', 'term_id', 'status', 'candidate_state', 'diagnostics', 'created_at']);
 
         $nonPublishedRuns = $allRuns
             ->where('status', '!=', ScheduleGenerationRun::StatusPublished)
@@ -531,13 +590,13 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         $pastAttemptOptions = [];
 
         foreach ($nonPublishedRuns as $run) {
-            $editCount = RevertCandidateRun::manualEditCount($run);
             $statusLabel = $this->plainAttemptStatusLabel($run);
             $isActiveDraft = in_array($run->status, [
                 ScheduleGenerationRun::StatusQueued,
                 ScheduleGenerationRun::StatusDispatching,
                 ScheduleGenerationRun::StatusUnderReview,
             ], true) && ! in_array($run->candidate_state, ['Stale', 'Superseded', 'Rejected'], true);
+            $editCount = $isActiveDraft ? RevertCandidateRun::manualEditCount($run) : 0;
 
             if ($isActiveDraft) {
                 $label = in_array($run->status, [
@@ -580,6 +639,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
             'term' => $term,
             'activeRun' => $activeRun,
             'allRuns' => $allRuns,
+            'nonPublishedRuns' => $nonPublishedRuns,
             'attemptSelectorOptions' => $attemptSelectorOptions,
             'activeDraftOptions' => $activeDraftOptions,
             'pastAttemptOptions' => $visiblePastAttempts,
@@ -620,6 +680,30 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
     private function buildTimetableViewData(): array
     {
         $data = $this->timetableSourceData();
+        $activeRunForWatch = $data['activeRun'] ?? null;
+        $isPendingNow = $activeRunForWatch instanceof ScheduleGenerationRun
+            && in_array($activeRunForWatch->status, [
+                ScheduleGenerationRun::StatusQueued,
+                ScheduleGenerationRun::StatusDispatching,
+            ], true);
+
+        if ($isPendingNow) {
+            $this->watchingPendingRunId = (int) $activeRunForWatch->id;
+        } elseif ($this->watchingPendingRunId !== null) {
+            $watchedStillPending = ScheduleGenerationRun::query()
+                ->whereKey($this->watchingPendingRunId)
+                ->whereIn('status', [
+                    ScheduleGenerationRun::StatusQueued,
+                    ScheduleGenerationRun::StatusDispatching,
+                ])
+                ->exists();
+
+            if (! $watchedStillPending) {
+                $this->watchingPendingRunId = null;
+                $this->dispatch('databaseNotificationsSent');
+            }
+        }
+
         $official = $data['showOfficial'];
         $presentation = $official ? $data['publishedPresentation'] : $data['candidatePresentation'];
         $allMeetings = $presentation['meetings'] ?? [];
@@ -628,46 +712,91 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         if ($allMeetings !== []) {
             $activeRunForSnapshot = $data['activeRun'] ?? null;
             $selectedVersionForSnapshot = $data['selectedVersion'] ?? null;
-            $snapshot = $activeRunForSnapshot instanceof ScheduleGenerationRun && is_array($activeRunForSnapshot->input_snapshot)
-                ? $activeRunForSnapshot->input_snapshot
-                : ($selectedVersionForSnapshot instanceof PublishedTimetableVersion
-                    && $selectedVersionForSnapshot->scheduleRun
-                    && is_array($selectedVersionForSnapshot->scheduleRun->input_snapshot)
-                    ? $selectedVersionForSnapshot->scheduleRun->input_snapshot
-                    : []);
+            $snapshot = [];
+            if ($activeRunForSnapshot instanceof ScheduleGenerationRun) {
+                $loadedSnapshot = $activeRunForSnapshot->input_snapshot;
+                $snapshot = is_array($loadedSnapshot)
+                    ? $loadedSnapshot
+                    : (ScheduleGenerationRun::query()->whereKey($activeRunForSnapshot->id)->first(['id', 'input_snapshot'])?->input_snapshot ?? []);
+            } elseif ($selectedVersionForSnapshot instanceof PublishedTimetableVersion
+                && $selectedVersionForSnapshot->scheduleRun
+                && is_array($selectedVersionForSnapshot->scheduleRun->input_snapshot)) {
+                $snapshot = $selectedVersionForSnapshot->scheduleRun->input_snapshot;
+            }
 
             $capturedCapacities = collect($snapshot['scheduling_demands'] ?? [])
                 ->mapWithKeys(fn (array $demand): array => [
                     (int) ($demand['scheduling_demand_id'] ?? 0) => (int) ($demand['expected_count'] ?? $demand['required_capacity'] ?? $demand['section_capacity'] ?? 0),
                 ]);
 
+            $capturedUnits = collect($snapshot['scheduling_demands'] ?? [])
+                ->mapWithKeys(fn (array $demand): array => [
+                    (int) ($demand['scheduling_demand_id'] ?? 0) => (float) ($demand['load_units'] ?? $demand['credit_units'] ?? 0),
+                ]);
+
+            $capturedSectionIds = collect($snapshot['scheduling_demands'] ?? [])
+                ->mapWithKeys(fn (array $demand): array => [
+                    (int) ($demand['scheduling_demand_id'] ?? 0) => isset($demand['section_id']) ? (int) $demand['section_id'] : null,
+                ]);
+
             $missingDemandIds = collect($allMeetings)
                 ->map(fn (array $meeting): int => (int) ($meeting['schedulingDemandId'] ?? 0))
-                ->filter(fn (int $id): bool => $id > 0 && (int) $capturedCapacities->get($id, 0) <= 0)
+                ->filter(fn (int $id): bool => $id > 0 && (
+                    (int) $capturedCapacities->get($id, 0) <= 0
+                    || (float) $capturedUnits->get($id, 0.0) <= 0.0
+                ))
                 ->unique()
                 ->values()
                 ->all();
 
-            $fallbackCapacities = $missingDemandIds !== []
+            $fallbackDemands = $missingDemandIds !== []
                 ? SchedulingDemand::query()
                     ->whereIn('id', $missingDemandIds)
-                    ->with(['sectionDeliveryGroup:id,section_id,expected_count', 'sectionDeliveryGroup.section:id,capacity'])
-                    ->get()
-                    ->mapWithKeys(fn (SchedulingDemand $demand): array => [
-                        (int) $demand->id => (int) (
-                            $demand->sectionDeliveryGroup?->expected_count
-                            ?? data_get($demand->source_snapshot, 'expected_count')
-                            ?? $demand->sectionDeliveryGroup?->section?->capacity
-                            ?? 0
-                        ),
+                    ->with([
+                        'sectionDeliveryGroup:id,section_id,expected_count',
+                        'sectionDeliveryGroup.section:id,capacity',
+                        'courseComponent.courseSpecification:id,credit_units',
+                        'termOffering.curriculumEntry.courseSpecification:id,credit_units',
                     ])
+                    ->get()
+                    ->keyBy('id')
                 : collect();
 
             foreach ($allMeetings as &$meeting) {
+                $demandId = (int) ($meeting['schedulingDemandId'] ?? 0);
+                /** @var SchedulingDemand|null $fallbackDemand */
+                $fallbackDemand = $demandId > 0 ? $fallbackDemands->get($demandId) : null;
+
                 if (! isset($meeting['requiredCapacity']) || (int) $meeting['requiredCapacity'] <= 0) {
-                    $demandId = (int) ($meeting['schedulingDemandId'] ?? 0);
-                    $meeting['requiredCapacity'] = (int) ($capturedCapacities->get($demandId, 0) ?: $fallbackCapacities->get($demandId, 0));
+                    $fallbackCapacity = $fallbackDemand instanceof SchedulingDemand
+                        ? (int) (
+                            $fallbackDemand->sectionDeliveryGroup?->expected_count
+                            ?? data_get($fallbackDemand->source_snapshot, 'expected_count')
+                            ?? $fallbackDemand->sectionDeliveryGroup?->section?->capacity
+                            ?? 0
+                        )
+                        : 0;
+                    $meeting['requiredCapacity'] = (int) ($capturedCapacities->get($demandId, 0) ?: $fallbackCapacity);
                 }
+
+                if (! isset($meeting['sectionId']) || $meeting['sectionId'] === null) {
+                    $meeting['sectionId'] = $capturedSectionIds->get($demandId)
+                        ?? ($fallbackDemand?->sectionDeliveryGroup?->section_id !== null
+                            ? (int) $fallbackDemand->sectionDeliveryGroup->section_id
+                            : null);
+                }
+
+                $units = (float) $capturedUnits->get($demandId, 0.0);
+                if ($units <= 0.0 && $fallbackDemand instanceof SchedulingDemand) {
+                    $units = (float) (
+                        $fallbackDemand->courseComponent?->courseSpecification?->credit_units
+                        ?? $fallbackDemand->termOffering?->curriculumEntry?->courseSpecification?->credit_units
+                        ?? data_get($fallbackDemand->source_snapshot, 'load_units')
+                        ?? data_get($fallbackDemand->source_snapshot, 'credit_units')
+                        ?? 0.0
+                    );
+                }
+                $meeting['creditUnits'] = round(max(0.0, $units), 2);
             }
             unset($meeting);
         }
@@ -1066,7 +1195,9 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                     $currentRun = $this->activeScheduleRun();
                     if ($currentRun instanceof ScheduleGenerationRun
                         && $currentRun->status === ScheduleGenerationRun::StatusUnderReview
-                        && ! in_array($currentRun->candidate_state, ['Accepted', 'Rejected', 'Stale', 'Superseded'], true)) {
+                        && ! in_array($currentRun->candidate_state, ['Rejected', 'Stale', 'Superseded'], true)
+                        && ($currentRun->candidate_state !== 'Accepted'
+                            || ($currentRun->published_at === null && ! $currentRun->timetableVersions()->exists()))) {
                         app(ReviewTimetableCandidate::class)->reject(
                             $currentRun,
                             $actor,
@@ -1084,6 +1215,13 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                     $this->meetingDetailsViewData = [];
                     $this->resetTable();
 
+                    if (! in_array($newRun->status, [
+                        ScheduleGenerationRun::StatusQueued,
+                        ScheduleGenerationRun::StatusDispatching,
+                    ], true)) {
+                        $this->dispatch('databaseNotificationsSent');
+                    }
+
                     $lockedCount = SchedulingCommitment::query()->where('term_id', $term->id)->count();
                     $body = $lockedCount > 0
                         ? sprintf('Attempt #%d is queued. %d locked %s preserved.', $newRun->id, $lockedCount, Str::plural('slot', $lockedCount))
@@ -1096,13 +1234,19 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                         ->send();
                 } catch (ValidationException $exception) {
                     $message = collect($exception->errors())->flatten()->first();
-                    $plain = TimetableFailureLanguage::forBlockedGeneration(is_string($message) ? $message : '');
+                    $rawMessage = is_string($message) ? $message : '';
+                    $plain = TimetableFailureLanguage::forBlockedGeneration($rawMessage);
+                    $blockingRun = $rawMessage === 'Review or reject the retained candidate, or change its source facts before generating again.'
+                        && isset($term) && $term instanceof Term
+                        ? $this->undecidedDraftRun($term)
+                        : null;
 
                     $this->generationFailure = [
                         'title' => $plain['title'],
                         'explanation' => $plain['explanation'],
                         'nextStep' => $plain['nextStep'],
                         'technical' => is_string($message) ? $message : 'Review the Schedule Requirement findings and try again.',
+                        'blockingRunId' => $blockingRun?->id,
                     ];
                     $this->dispatch('open-modal', id: 'timetable-generation-failure');
                 } catch (Throwable $exception) {
@@ -1693,6 +1837,10 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         $rooms = [];
         $qualifiedTeachersByCourse = [];
         $teacherAvailability = [];
+        $teacherLoadLimits = [];
+        $defaultMaxUnits = ($term instanceof Term && $term->default_max_units !== null)
+            ? round((float) $term->default_max_units, 2)
+            : null;
 
         if ($term instanceof Term) {
             $rooms = Room::query()
@@ -1723,12 +1871,17 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                 ->map(fn (mixed $id): int => (int) $id)
                 ->all();
 
-            $zeroUnitOverrideFacultyIds = FacultyTermLoadOverride::query()
+            $activeLoadOverrides = FacultyTermLoadOverride::query()
                 ->where('term_id', $term->id)
                 ->where('is_active', true)
+                ->latest('id')
                 ->get()
+                ->unique('faculty_user_id')
+                ->keyBy('faculty_user_id');
+
+            $zeroUnitOverrideFacultyIds = $activeLoadOverrides
                 ->filter(fn (FacultyTermLoadOverride $override): bool => $override->allowedLoadUnits() <= 0.0)
-                ->pluck('faculty_user_id')
+                ->keys()
                 ->map(fn (mixed $id): int => (int) $id)
                 ->all();
 
@@ -1741,6 +1894,8 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                 ->with(['faculty:id,name', 'course:id,code'])
                 ->get();
 
+            $allRelevantFacultyIds = [];
+
             foreach ($qualifications as $qualification) {
                 $code = (string) ($qualification->course?->code ?? '');
                 $faculty = $qualification->faculty;
@@ -1749,6 +1904,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                         'id' => (int) $faculty->id,
                         'name' => (string) $faculty->name,
                     ];
+                    $allRelevantFacultyIds[(int) $faculty->id] = true;
                 }
             }
 
@@ -1756,12 +1912,30 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                 $code = (string) ($meeting['courseCode'] ?? '');
                 $fId = $meeting['facultyId'] ?? null;
                 $fName = (string) ($meeting['faculty'] ?? '');
+                if ($fId !== null && (int) $fId > 0) {
+                    $allRelevantFacultyIds[(int) $fId] = true;
+                }
                 if ($code !== '' && $fId !== null && $fName !== '' && $fName !== 'Faculty unassigned' && ! isset($excludedTeacherIds[(int) $fId])) {
                     $qualifiedTeachersByCourse[$code][(int) $fId] ??= [
                         'id' => (int) $fId,
                         'name' => $fName,
                     ];
                 }
+            }
+
+            foreach ($activeLoadOverrides as $facultyId => $override) {
+                $allRelevantFacultyIds[(int) $facultyId] = true;
+            }
+
+            foreach (array_keys($allRelevantFacultyIds) as $facultyId) {
+                /** @var FacultyTermLoadOverride|null $override */
+                $override = $activeLoadOverrides->get($facultyId);
+                $teacherLoadLimits[$facultyId] = [
+                    'limit' => $override instanceof FacultyTermLoadOverride
+                        ? round($override->allowedLoadUnits(), 2)
+                        : $defaultMaxUnits,
+                    'hasOverride' => $override instanceof FacultyTermLoadOverride,
+                ];
             }
 
             $qualifiedTeachersByCourse = collect($qualifiedTeachersByCourse)
@@ -1826,6 +2000,8 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
             'rooms' => $rooms,
             'qualifiedTeachersByCourse' => $qualifiedTeachersByCourse,
             'teacherAvailability' => $teacherAvailability,
+            'teacherLoadLimits' => $teacherLoadLimits,
+            'defaultMaxUnits' => $defaultMaxUnits,
             'sectionOptions' => $allSectionGroups,
             'facultyOptions' => collect($allMeetings)->pluck('faculty')->filter(fn (string $v): bool => $v !== '' && $v !== 'Faculty unassigned')->unique()->sort()->values()->all(),
             'roomOptions' => collect($allMeetings)->pluck('room')->filter(fn (string $v): bool => $v !== '' && $v !== 'Room unassigned')->unique()->sort()->values()->all(),
@@ -2446,7 +2622,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
     private function notifyPendingImpactReview(): void
     {
         Notification::make()
-            ->title('Pending revision saved — student impact review required')
+            ->title('Pending revision saved: student impact review required')
             ->body('The revision is saved as a pending Draft and the current timetable stays in use. Resolve the affected student reviews in Enrollments, then click "Publish pending revision".')
             ->warning()
             ->persistent()

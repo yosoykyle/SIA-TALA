@@ -387,7 +387,7 @@
                         'isMapped' => $isMapped,
                         'error' => $mappingErrors[$fieldKey] ?? null,
                         'help' => ($isPlacementField && $detectedBanners)
-                            ? 'Optional — placements come from Year and Semester headings in your sheet.'
+                            ? 'Optional: placements come from Year and Semester headings in your sheet.'
                             : ($mappingHints[$fieldKey] ?? null),
                     ];
 
@@ -462,7 +462,7 @@
                                                 id="col-map-{{ $item['key'] }}"
                                                 wire:model.live="columnMap.{{ $item['key'] }}"
                                             >
-                                                <option value="ignore">— Ignore / Not in file —</option>
+                                                <option value="ignore">Ignore / Not in file</option>
                                                 @foreach ($headerOptions as $colIdx => $colLabel)
                                                     <option value="{{ (string) $colIdx }}">{{ $colLabel }}</option>
                                                 @endforeach
@@ -516,7 +516,7 @@
                                                     id="col-map-{{ $item['key'] }}"
                                                     wire:model.live="columnMap.{{ $item['key'] }}"
                                                 >
-                                                    <option value="ignore">— Ignore / Not in file —</option>
+                                                    <option value="ignore">Ignore / Not in file</option>
                                                     @foreach ($headerOptions as $colIdx => $colLabel)
                                                         <option value="{{ (string) $colIdx }}">{{ $colLabel }}</option>
                                                     @endforeach

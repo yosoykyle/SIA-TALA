@@ -209,7 +209,7 @@
                                 <div class="flex flex-wrap items-center gap-2 text-sm">
                                     <x-filament::icon icon="heroicon-m-arrows-right-left" class="h-4 w-4 shrink-0" aria-hidden="true" />
                                     <span class="font-medium tabular-nums">
-                                        {{ $movedTotal }} {{ \Illuminate\Support\Str::plural('subject', $movedTotal) }} moved — highlighted below.
+                                        {{ $movedTotal }} {{ \Illuminate\Support\Str::plural('subject', $movedTotal) }} moved (highlighted below).
                                     </span>
                                 </div>
                                 <div class="flex flex-wrap items-center gap-2">
@@ -369,7 +369,7 @@
                                                                             <x-filament::badge size="sm" color="gray">{{ $row['elective_label'] }}</x-filament::badge>
                                                                         @endif
                                                                         @if ($row['is_externally_arranged'])
-                                                                            <x-filament::badge size="sm" color="warning">Externally arranged — no class schedule</x-filament::badge>
+                                                                            <x-filament::badge size="sm" color="warning">Externally arranged (no class schedule)</x-filament::badge>
                                                                         @elseif ($row['room_summary'])
                                                                             <x-filament::badge size="sm" color="gray">{{ $row['room_summary'] }}</x-filament::badge>
                                                                         @endif
@@ -544,7 +544,7 @@
                                                                         <x-filament::badge size="sm" color="gray">{{ $row['elective_label'] }}</x-filament::badge>
                                                                     @endif
                                                                     @if ($row['is_externally_arranged'])
-                                                                        <x-filament::badge size="sm" color="warning">Externally arranged — no class schedule</x-filament::badge>
+                                                                        <x-filament::badge size="sm" color="warning">Externally arranged (no class schedule)</x-filament::badge>
                                                                     @elseif ($row['room_summary'])
                                                                         <x-filament::badge size="sm" color="gray">{{ $row['room_summary'] }}</x-filament::badge>
                                                                     @endif

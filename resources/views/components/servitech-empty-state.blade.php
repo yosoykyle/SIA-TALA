@@ -4,13 +4,23 @@
     'note' => null,
     'illustrated' => false,
     'icon' => 'heroicon-o-document-text',
+    'iconColor' => 'primary',
+    'tone' => 'default',
+    'hero' => false,
     'contained' => false,
     'headingTag' => 'h2',
 ])
 
-<div {{ $attributes->class(['servitech-empty-state', 'servitech-empty-state--illustrated' => $illustrated]) }}>
+<div {{ $attributes->class([
+    'servitech-empty-state',
+    'servitech-empty-state--illustrated' => $illustrated,
+    'servitech-empty-state--hero' => $hero,
+    'servitech-empty-state--tone-danger' => $tone === 'danger',
+    'servitech-empty-state--tone-warning' => $tone === 'warning',
+    'servitech-empty-state--tone-neutral' => $tone === 'neutral',
+]) }}>
     <div class="servitech-empty-state__layout">
-        <x-filament::empty-state :heading="$heading" :description="$description" :icon="$illustrated ? null : $icon" :compact="! $illustrated" :contained="$contained" :heading-tag="$headingTag">
+        <x-filament::empty-state :heading="$heading" :description="$description" :icon="$illustrated ? null : $icon" :icon-color="$iconColor" :compact="! $illustrated && ! $hero" :contained="$contained" :heading-tag="$headingTag">
             @if ($slot->isNotEmpty() || $note)
                 <x-slot:footer><div class="servitech-empty-state__footer">@if ($slot->isNotEmpty())<div class="servitech-empty-state__actions">{{ $slot }}</div>@endif @if ($note)<p class="servitech-empty-state__note">{{ $note }}</p>@endif</div></x-slot:footer>
             @endif

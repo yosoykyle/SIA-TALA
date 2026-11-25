@@ -2,7 +2,13 @@
 
 namespace App\Policies;
 
+use App\Models\CalendarEvent;
+use App\Models\CandidateScheduleRow;
+use App\Models\PublishedTimetableMeeting;
 use App\Models\Room;
+use App\Models\SchedulingCommitment;
+use App\Models\SchedulingDemand;
+use App\Models\SectionMeeting;
 use App\Models\User;
 
 class RoomPolicy
@@ -45,6 +51,23 @@ class RoomPolicy
     public function delete(User $user, Room $room): bool
     {
         return false;
+    }
+
+    /**
+     * Determine whether the Registrar can permanently delete an unreferenced room.
+     */
+    public function deleteUnusedRoom(User $user, Room $room): bool
+    {
+        if (! $this->canManage($user)) {
+            return false;
+        }
+
+        return ! SectionMeeting::query()->where('room_id', $room->id)->exists()
+            && ! CandidateScheduleRow::query()->where('room_id', $room->id)->exists()
+            && ! PublishedTimetableMeeting::query()->where('room_id', $room->id)->exists()
+            && ! CalendarEvent::query()->where('room_id', $room->id)->exists()
+            && ! SchedulingCommitment::query()->where('room_id', $room->id)->exists()
+            && ! SchedulingDemand::query()->where('fixed_room_id', $room->id)->exists();
     }
 
     /**
