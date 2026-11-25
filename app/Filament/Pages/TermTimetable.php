@@ -385,7 +385,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
 
                 $run->forceFill([
                     'status' => ScheduleGenerationRun::StatusFailed,
-                    'candidate_state' => 'Rejected',
+                    'candidate_state' => null,
                     'candidate_review_reason' => 'Cancelled while in progress by '.$actor->name.'.',
                     'diagnostics' => $diagnostics,
                 ])->save();

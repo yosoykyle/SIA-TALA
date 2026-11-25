@@ -1821,6 +1821,157 @@ html.dark .fi-body .fi-section.tala-term-settings-identity.tala-term-settings-id
     box-shadow: none;
 }
 
+/* Dead-Centered Cohesive Error / Past-Attempt Stage (DESIGN.md Zero-Blue 4-Role Palette) */
+.tala-error-stage {
+    display: grid;
+    justify-items: center;
+    text-align: center;
+    gap: 0.75rem;
+    inline-size: min(100%, 36rem);
+    margin-inline: auto;
+    padding: 0.5rem 0;
+}
+
+.tala-error-stage__icon {
+    display: inline-grid;
+    place-items: center;
+    inline-size: 3.25rem;
+    block-size: 3.25rem;
+    border-radius: 0.875rem;
+    border: 1px solid var(--tala-edge-strong);
+    background: color-mix(in srgb, var(--tala-surface) 90%, var(--tala-surface-sunken));
+    color: var(--tala-muted);
+    box-shadow: var(--tala-material-detail);
+}
+
+.tala-error-stage__icon .fi-icon {
+    inline-size: 1.5rem;
+    block-size: 1.5rem;
+}
+
+.tala-error-stage.is-danger .tala-error-stage__icon {
+    background: rgb(185 28 28 / 10%);
+    border-color: rgb(185 28 28 / 28%);
+    color: #b91c1c;
+}
+
+.dark .tala-error-stage.is-danger .tala-error-stage__icon,
+[data-theme='dark'] .tala-error-stage.is-danger .tala-error-stage__icon {
+    background: rgb(239 68 68 / 16%);
+    border-color: rgb(239 68 68 / 36%);
+    color: #fca5a5;
+}
+
+.tala-error-stage.is-warning .tala-error-stage__icon {
+    background: rgb(201 151 44 / 14%);
+    border-color: rgb(201 151 44 / 36%);
+    color: #92400e;
+}
+
+.dark .tala-error-stage.is-warning .tala-error-stage__icon,
+[data-theme='dark'] .tala-error-stage.is-warning .tala-error-stage__icon {
+    background: rgb(245 158 11 / 16%);
+    border-color: rgb(245 158 11 / 36%);
+    color: #fcd34d;
+}
+
+.tala-error-stage__kicker {
+    display: inline-flex;
+    align-items: center;
+    margin: 0;
+    padding: 0.2rem 0.65rem;
+    border-radius: 9999px;
+    border: 1px solid var(--tala-edge-strong);
+    background: color-mix(in srgb, var(--tala-surface) 84%, transparent);
+    color: var(--tala-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.35;
+    font-variant-numeric: tabular-nums;
+}
+
+.tala-error-stage.is-danger .tala-error-stage__kicker {
+    border-color: rgb(185 28 28 / 26%);
+    background: color-mix(in srgb, var(--tala-surface) 86%, rgb(185 28 28 / 10%));
+    color: #991b1b;
+}
+
+.dark .tala-error-stage.is-danger .tala-error-stage__kicker,
+[data-theme='dark'] .tala-error-stage.is-danger .tala-error-stage__kicker {
+    border-color: rgb(239 68 68 / 34%);
+    background: color-mix(in srgb, var(--tala-surface) 84%, rgb(239 68 68 / 14%));
+    color: #fecaca;
+}
+
+.tala-error-stage.is-warning .tala-error-stage__kicker {
+    border-color: rgb(201 151 44 / 36%);
+    background: color-mix(in srgb, var(--tala-surface) 86%, rgb(201 151 44 / 12%));
+    color: #92400e;
+}
+
+.dark .tala-error-stage.is-warning .tala-error-stage__kicker,
+[data-theme='dark'] .tala-error-stage.is-warning .tala-error-stage__kicker {
+    border-color: rgb(245 158 11 / 36%);
+    background: color-mix(in srgb, var(--tala-surface) 84%, rgb(245 158 11 / 14%));
+    color: #fde68a;
+}
+
+.tala-error-stage__heading {
+    margin: 0.125rem 0 0;
+    font-family: var(--tala-font-heading);
+    font-size: clamp(1.375rem, 2.2vw, 1.75rem);
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    line-height: 1.2;
+    color: var(--tala-text);
+    text-wrap: balance;
+}
+
+.tala-error-stage__body {
+    margin: 0;
+    max-inline-size: 48ch;
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    color: var(--tala-muted);
+    text-wrap: pretty;
+}
+
+.tala-error-stage__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-block-start: 0.5rem;
+}
+
+.tala-error-stage__ref {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    margin: 0.5rem 0 0;
+    padding: 0.375rem 0.75rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--tala-edge);
+    background: color-mix(in srgb, var(--tala-surface-sunken) 82%, transparent);
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: var(--tala-muted);
+}
+
+.tala-error-stage__ref-label {
+    font-weight: 600;
+    color: var(--tala-muted);
+}
+
+.tala-error-stage__ref-code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.75rem;
+    color: var(--tala-text);
+}
+
 /* Bold, Unmistakable Failed / Past-Attempt Hero inside Empty Stage */
 .tala-timetable-empty-stage .servitech-empty-state.servitech-empty-state--hero .fi-empty-state {
     padding: 0.25rem 0;

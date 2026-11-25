@@ -135,7 +135,7 @@
                     <div class="tala-studio-viewing">
                         @if ($canPublishDraft)
                             {{ $this->publishOfficialTimetableAction->size('sm') }}
-                        @elseif (! $readOnly && ! $isTermClosed && $activeRun && ! $showOfficial && $this->canRetryActiveRun())
+                        @elseif (! $readOnly && ! $isTermClosed && $activeRun && ! $showOfficial && $this->canRetryActiveRun() && $scopeMeetingCount > 0)
                             {{ $this->retrySolverRunAction->size('sm') }}
                         @elseif ($canReviseOfficial)
                             {{ $this->revisePublishedScheduleAction->size('sm') }}
@@ -495,37 +495,46 @@
                             <x-tala-ambient-backdrop variant="stage" class="tala-ambient--trinkets-only" />
                         @endif
                         <div class="tala-timetable-empty-stage__content">
-                            <x-servitech-empty-state
-                                :illustrated="! $isDraftEmptyHero"
-                                :hero="$isDraftEmptyHero"
-                                :tone="$emptyHeroTone"
-                                :icon="$isErrorEmptyHero ? 'heroicon-o-exclamation-triangle' : 'heroicon-o-clock'"
-                                :icon-color="$emptyHeroTone === 'danger' ? 'danger' : ($emptyHeroTone === 'warning' ? 'warning' : 'gray')"
-                                :heading="$emptyHeroHeading"
-                                :description="$emptyDescription"
-                            >
-                                @if ($isDraftEmptyHero)<x-filament::button tag="a" color="gray" icon="heroicon-o-document-text" :href="$this->timetableReviewUrl($activeRun->id)">Open solver report</x-filament::button>@endif
-                                @if ($canStartFreshAttempt && ! $readOnly && ! $this->isTermClosed() && $readiness['ready']){{ $this->generateTimetableAction }}@endif
-                            </x-servitech-empty-state>
-
-                            @if ($isDraftEmptyHero && $plainFailure !== null)
-                                <div @class(['tala-studio-alert-card', 'is-in-hero', 'is-error' => $isErrorSeverity, 'is-warning' => ! $isErrorSeverity]) role="alert">
-                                    <div class="tala-studio-alert-card__body">
-                                        <span class="tala-studio-alert-card__icon" aria-hidden="true">
-                                            <x-filament::icon icon="heroicon-o-exclamation-triangle" />
-                                        </span>
-                                        <div class="tala-studio-alert-card__copy">
-                                            <p class="tala-studio-alert-card__title">{{ $failureAlertTitle }}</p>
-                                            <p class="tala-studio-alert-card__text">{{ $plainFailure['nextStep'] !== '' ? $plainFailure['nextStep'] : 'Your schedule data is intact. Retry in a moment or contact your system administrator if this persists.' }}</p>
-                                        </div>
+                            @if ($isDraftEmptyHero)
+                                @php
+                                    $canRetryHero = ! $readOnly && ! $isTermClosed && $this->canRetryActiveRun();
+                                    $heroKickerLabel = match (true) {
+                                        $isErrorSeverity => 'Attempt #'.$activeRun->id.' · '.($failureAlertTitle ?? 'Generation failed'),
+                                        $isErrorEmptyHero => 'Attempt #'.$activeRun->id.' · Needs review',
+                                        default => 'Attempt #'.$activeRun->id.' · '.$this->plainAttemptStatusLabel($activeRun),
+                                    };
+                                    $heroCombinedBody = trim($emptyDescription.' '.(($plainFailure !== null && ($plainFailure['nextStep'] ?? '') !== '' && ! str_contains($emptyDescription, (string) $plainFailure['nextStep'])) ? $plainFailure['nextStep'] : ''));
+                                @endphp
+                                <div @class(['tala-error-stage', 'is-danger' => $emptyHeroTone === 'danger', 'is-warning' => $emptyHeroTone === 'warning']) role="status">
+                                    <div class="tala-error-stage__icon" aria-hidden="true">
+                                        <x-filament::icon :icon="$isErrorEmptyHero ? 'heroicon-o-exclamation-triangle' : 'heroicon-o-clock'" />
                                     </div>
-                                    @if ($failureTechnical !== '')
-                                        <div class="tala-studio-alert-card__footer">
-                                            <span class="tala-studio-alert-card__ref-label">Error reference:</span>
-                                            <code class="tala-studio-alert-card__ref">{{ $failureTechnical }}</code>
-                                        </div>
+                                    <p class="tala-error-stage__kicker">{{ $heroKickerLabel }}</p>
+                                    <h2 class="tala-error-stage__heading">{{ $emptyHeroHeading }}</h2>
+                                    <p class="tala-error-stage__body">{{ $heroCombinedBody }}</p>
+                                    <div class="tala-error-stage__actions">
+                                        @if ($canRetryHero)
+                                            {{ $this->retrySolverRunAction }}
+                                        @elseif ($canStartFreshAttempt && ! $readOnly && ! $this->isTermClosed() && $readiness['ready'])
+                                            {{ $this->generateTimetableAction }}
+                                        @endif
+                                        <x-filament::button tag="a" color="gray" icon="heroicon-o-document-text" :href="$this->timetableReviewUrl($activeRun->id)">Open solver report</x-filament::button>
+                                    </div>
+                                    @if ($plainFailure !== null && ($failureTechnical ?? '') !== '')
+                                        <p class="tala-error-stage__ref">
+                                            <span class="tala-error-stage__ref-label">Error reference</span>
+                                            <code class="tala-error-stage__ref-code">{{ $failureTechnical }}</code>
+                                        </p>
                                     @endif
                                 </div>
+                            @else
+                                <x-servitech-empty-state
+                                    :illustrated="true"
+                                    :heading="$emptyHeroHeading"
+                                    :description="$emptyDescription"
+                                >
+                                    @if ($canStartFreshAttempt && ! $readOnly && ! $this->isTermClosed() && $readiness['ready']){{ $this->generateTimetableAction }}@endif
+                                </x-servitech-empty-state>
                             @endif
 
                             @if ($canStartFreshAttempt && ! $readOnly && ! $this->isTermClosed() && ! $readiness['ready'] && $readinessBlockers !== [])
