@@ -145,6 +145,8 @@ The completion lifecycle is:
 | `CompletionOverdue` | The current deadline has elapsed and no successor result exists | Registrar may append an authorized deadline extension; otherwise the original result remains `INC` with no credit and the Student must retake the course |
 | `Resolved` | Registrar has released the authorized completion or replacement result | Read current result and history; later change uses grade correction |
 
+Irregular-student wording (#99 Scope 11, approved Nov 25, 2026): an overdue `INC` is never converted to a failing grade. While `CompletionOpen` the Student sees *comply by <date> to avoid a retake*; once `CompletionOverdue` the Student sees *INC – deadline passed, retake required*, the subject is a mandatory retake in the irregular enrollment request, and the curriculum checklist shows it as Dropped/INC (yellow).
+
 - The original INC event stores its completion note, original Term end, calculated deadline, release actor, release time, and source version.
 - Registrar may correct the deadline before final resolution only by appending a deadline amendment. The form asks for the new deadline and a 10–1,000-character reason; TALA derives the prior deadline, authenticated Registrar and recording time. External reference/date inputs and their database columns are unnecessary for SIA's stated workflow and are removed. Actor, recording time, reason and prior/new deadlines supply the audit facts; TALA never invents an external approval date. The latest valid amendment controls the current state; every earlier value remains visible.
 - An amendment may correct an already-overdue deadline. A later future deadline returns the derived state to `CompletionOpen`; a past or elapsed corrected date remains `CompletionOverdue`.

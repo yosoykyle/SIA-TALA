@@ -27,7 +27,6 @@
                 <strong><time datetime="{{ $activeCalendar->classes_start_on?->toDateString() }}">{{ $activeCalendar->classes_start_on?->format('M j, Y') ?? 'Start date missing' }}</time> <x-filament::icon icon="heroicon-o-arrow-long-right" /><time datetime="{{ $activeCalendar->classes_end_on?->toDateString() }}">{{ $activeCalendar->classes_end_on?->format('M j, Y') ?? 'End date missing' }}</time></strong>
             </div>
             @include('filament.pages.partials.term-teaching-week')
-            <p class="tala-work-footnote tala-term-settings-timezone">Times use Asia/Manila.</p>
         @else
             <p class="tala-term-settings-calendar-empty">Awaiting core calendar activation</p>
         @endif

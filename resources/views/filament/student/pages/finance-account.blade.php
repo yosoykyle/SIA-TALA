@@ -146,6 +146,6 @@
             @foreach (data_get($accountData, 'state.coverages', []) as $coverage)<article class="student-receipt-row"><div><h3>{{ $coverage['source'] }}</h3><p>{{ str($coverage['state'])->headline() }}@if ($coverage['effective_date'] ?? null) · {{ $coverage['effective_date'] }}@endif</p></div><strong>{{ $coverage['amount'] }}</strong></article>@endforeach
         </section>
     @endif
-    <p class="student-finance-secondary">Updated {{ $date($position['as_of'] ?? null) }} · Asia/Manila</p>
+    <p class="student-finance-secondary">Updated {{ $date($position['as_of'] ?? null) }}</p>
     @endif
 </div>

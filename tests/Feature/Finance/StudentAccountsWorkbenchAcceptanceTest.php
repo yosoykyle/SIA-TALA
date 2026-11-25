@@ -792,7 +792,7 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
             'Assessment version',
             'Assessment basis',
             'Approval reference',
-            'As of (Asia/Manila)',
+            'As of',
         ], str_getcsv($lines[0], ',', '"', '\\'));
         $this->assertStringContainsString("'=FORMULA", $contents);
 
@@ -862,7 +862,7 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
         $this->assertSame('9000.00', $row['Remaining term fees (PHP)']);
         $this->assertSame('Payment due', $row['Account status']);
         $this->assertSame('Published Fee Plan', $row['Assessment basis']);
-        $this->assertSame('2026-10-18T10:00:00+08:00', $row['As of (Asia/Manila)']);
+        $this->assertSame('2026-10-18T10:00:00+08:00', $row['As of']);
         $this->assertSame(CreateContextualFinanceExport::AccountStatusPurpose, $export->purpose);
 
         $obligation->update(['due_at' => now()->addMonth(), 'required_for_enrollment' => false]);
@@ -1031,8 +1031,8 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
             'Amount (PHP)',
             'Channel',
             'Masked external reference',
-            'Payment or refund at (Asia/Manila)',
-            'Verified at (Asia/Manila)',
+            'Payment or refund at',
+            'Verified at',
             'Reverses payment reference',
             'Verification basis',
         ], str_getcsv($lines[0], ',', '"', '\\'));
@@ -1126,13 +1126,13 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
         $this->assertSame('750.00', $raw['Amount (PHP)']);
         $this->assertSame('Reversal', $raw['Entry type']);
         $this->assertSame('PAY-ORIGINAL', $raw['Reverses payment reference']);
-        $this->assertSame('2026-10-17T09:00:00+08:00', $raw['Payment or refund at (Asia/Manila)']);
-        $this->assertSame('2026-10-18T00:00:00+08:00', $raw['Verified at (Asia/Manila)']);
+        $this->assertSame('2026-10-17T09:00:00+08:00', $raw['Payment or refund at']);
+        $this->assertSame('2026-10-18T00:00:00+08:00', $raw['Verified at']);
         $this->assertSame('Independent Source Check', $raw['Verification basis']);
         $this->assertSame('••••5678', $raw['Masked external reference']);
         $row = $this->accountStatusCsvRows($export)[0];
         $this->assertSame("'=APP-RECONCILE", $row['Student / applicant number']);
-        $this->assertSame($raw['Verified at (Asia/Manila)'], $row['Verified at (Asia/Manila)']);
+        $this->assertSame($raw['Verified at'], $row['Verified at']);
         $this->assertSame(CreateContextualFinanceExport::VerifiedPaymentsPurpose, $export->purpose);
         $this->assertStringNotContainsString('SECRET-BANK', Storage::disk('local')->get($export->path));
         $empty = $service->verifiedPaymentsPreview($accounting, $fixture['account'], ['from' => '2027-01-01']);

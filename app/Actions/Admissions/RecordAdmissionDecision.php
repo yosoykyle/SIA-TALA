@@ -263,7 +263,7 @@ class RecordAdmissionDecision
 
         return [
             ...$papers->values()->all(),
-            ...($deadline !== null ? ['Pass the physical papers to the Registrar by '.Carbon::parse($deadline)->timezone((string) config('app.display_timezone'))->format('M j, Y g:i A').' (Asia/Manila).'] : []),
+            ...($deadline !== null ? ['Pass the physical papers to the Registrar by '.Carbon::parse($deadline)->timezone((string) config('app.display_timezone'))->format('M j, Y g:i A').'.'] : []),
         ];
     }
 }

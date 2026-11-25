@@ -64,7 +64,7 @@ class TranscriptPreviewController extends Controller
         $content['document'] = [
             'reference' => $transcriptRequest->template_version === TranscriptRequest::TemplateServitechV2 ? $this->confirmations->nextReference($transcriptRequest) : 'PREVIEW — '.$transcriptRequest->external_request_reference,
             'template_version' => $transcriptRequest->template_version,
-            'generated_at' => now('Asia/Manila')->format('F j, Y g:i A').' Asia/Manila',
+            'generated_at' => now('Asia/Manila')->format('F j, Y g:i A'),
             'generation_reference' => 'TALA-GEN-'.strtoupper(substr($content['source_fingerprint'], 0, 16)),
         ];
         $content['embedded'] = true;

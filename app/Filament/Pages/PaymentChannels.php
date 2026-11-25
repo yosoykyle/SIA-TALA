@@ -689,7 +689,7 @@ class PaymentChannels extends Page
         }
 
         return Section::make('Weekly cashier operating hours')
-            ->description('Set weekly campus cashier hours (Asia/Manila).')
+            ->description('Set weekly campus cashier hours.')
             ->compact()
             ->extraAttributes(['class' => 'payment-channels-subpanel payment-channels-weekly-section'])
             ->afterHeader([

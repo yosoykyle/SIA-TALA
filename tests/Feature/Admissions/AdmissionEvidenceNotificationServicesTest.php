@@ -8,6 +8,7 @@ use App\Actions\Admissions\AdmissionReviewGuard;
 use App\Actions\Admissions\DiscardAdmissionApplication;
 use App\Actions\Admissions\RecordAdmissionDecision;
 use App\Actions\Admissions\ReviewPreliminaryEvidence;
+use App\Mail\AdmissionsTransactionalMail;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
 use App\Models\AdmissionDecision;
@@ -23,6 +24,7 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Permission;
@@ -337,6 +339,28 @@ class AdmissionEvidenceNotificationServicesTest extends TestCase
     }
 
     /** @return array{AdmissionApplication, AdmissionRequirement, ApplicationSubmissionVersion} */
+    public function test_a_copy_marked_action_needed_emails_the_applicant_with_the_remark(): void
+    {
+        Mail::fake();
+        [$application, $requirement, $submission] = $this->applicationRequirementAndSubmission(preDecision: true);
+        $application->forceFill(['application_state' => AdmissionApplication::StateSubmitted])->save();
+        $registrar = User::factory()->create(['status' => User::StatusActive]);
+        $registrar->assignRole(User::StaffRoleRegistrar);
+        $evidence = DocumentEvidence::factory()->canonical($application, $requirement, $submission)->create();
+        app(AdmissionReviewGuard::class)->start($application->fresh(), $registrar, $application->current_submission_version_id);
+
+        $review = app(ReviewPreliminaryEvidence::class)->execute($evidence, $registrar, PreliminaryEvidenceReview::ResultActionNeeded, 'The birth date is unreadable.');
+
+        $event = OperationalEvent::query()->where('event_type', OperationalEvent::TypeAdmissionDocumentNeedsAction)->sole();
+        $this->assertSame($application->user_id, $event->user_id);
+        $this->assertSame('The birth date is unreadable.', $event->payload['remark'] ?? null);
+        Mail::assertQueued(AdmissionsTransactionalMail::class, fn (AdmissionsTransactionalMail $mail): bool => $mail->hasTo($application->user->email)
+            && in_array('Registrar remark: The birth date is unreadable.', $mail->safeLines, true));
+
+        app(ReviewPreliminaryEvidence::class)->execute($evidence, $registrar, PreliminaryEvidenceReview::ResultAccepted, null, $review->id);
+        $this->assertSame(1, OperationalEvent::query()->where('event_type', OperationalEvent::TypeAdmissionDocumentNeedsAction)->count());
+    }
+
     private function applicationRequirementAndSubmission(bool $preDecision = false): array
     {
         $application = AdmissionApplication::factory()->create([

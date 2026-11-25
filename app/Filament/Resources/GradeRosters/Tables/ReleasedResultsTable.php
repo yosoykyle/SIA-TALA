@@ -67,7 +67,7 @@ class ReleasedResultsTable
                             ->description(fn (GradeRosterRow $record): string => $record->current_outcome_code === 'INC' ? 'Incomplete grade' : 'Released grade'),
                         TextColumn::make('inc_state')->label('INC status')
                             ->state(fn (GradeRosterRow $record): ?string => self::followUp($record)['completion_status'] ?? null)
-                            ->description(fn (GradeRosterRow $record): ?string => ($followUp = self::followUp($record)) ? $followUp['state'].' · Until '.$followUp['deadline'].' · Manila' : null)
+                            ->description(fn (GradeRosterRow $record): ?string => ($followUp = self::followUp($record)) ? $followUp['state'].' · Until '.$followUp['deadline'] : null)
                             ->wrap(),
                     ])->grow(false)->space(2),
                 ])->from('sm'),
@@ -80,7 +80,7 @@ class ReleasedResultsTable
                 TextColumn::make('inc_state')
                     ->label('INC status')
                     ->state(fn (GradeRosterRow $record): ?string => self::followUp($record)['completion_status'] ?? null)
-                    ->description(fn (GradeRosterRow $record): ?string => ($followUp = self::followUp($record)) ? $followUp['state'].' · Until '.$followUp['deadline'].' · Manila' : null)
+                    ->description(fn (GradeRosterRow $record): ?string => ($followUp = self::followUp($record)) ? $followUp['state'].' · Until '.$followUp['deadline'] : null)
                     ->placeholder('Not applicable'),
                 TextColumn::make('released_at')->label('Released')->dateTime()->visible(! $includeClass),
             ])
@@ -115,7 +115,7 @@ class ReleasedResultsTable
                                 ])->filter()->implode(' · ')),
                             TextEntry::make('completion_result')->label('Official result after release')
                                 ->state(fn (GradeRosterRow $record): string => 'INC → '.self::submittedCompletion($record)?->proposed_result),
-                            TextEntry::make('completion_submitted_at')->label('Faculty submitted (Asia/Manila)')
+                            TextEntry::make('completion_submitted_at')->label('Faculty submitted')
                                 ->state(fn (GradeRosterRow $record): ?string => self::submittedCompletion($record)?->submitted_at?->timezone('Asia/Manila')->format('M j, Y · g:i A')),
                         ]),
                         TextEntry::make('completion_note')->label('Faculty completion note')
@@ -180,7 +180,7 @@ class ReleasedResultsTable
                     ->modalWidth(Width::TwoExtraLarge)
                     ->stickyModalHeader()
                     ->stickyModalFooter()
-                    ->modalDescription(fn (GradeRosterRow $record): ?string => ($inc = self::unresolvedInc($record)) ? 'Current deadline: '.app(IncDeadlineService::class)->currentDeadline($inc)->format('M j, Y').' (Asia/Manila). Choose the new deadline and explain the change. Your name and time are recorded; earlier deadlines remain in history.' : null)
+                    ->modalDescription(fn (GradeRosterRow $record): ?string => ($inc = self::unresolvedInc($record)) ? 'Current deadline: '.app(IncDeadlineService::class)->currentDeadline($inc)->format('M j, Y').'. Choose the new deadline and explain the change. Your name and time are recorded; earlier deadlines remain in history.' : null)
                     ->modalSubmitActionLabel('Record deadline change')
                     ->visible(fn (GradeRosterRow $record): bool => auth()->user()?->hasRole(User::StaffRoleRegistrar)
                         && self::unresolvedInc($record) instanceof GradeOutcomeEvent)

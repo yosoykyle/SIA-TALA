@@ -6,7 +6,7 @@
     <span id="course-result-{{ $result['course_enrollment']->id }}">{{ $result['result'] ?? 'Not released' }}</span>
 @endif
 @if ($result['result'] === 'INC' && $showDetails)
-    <span class="student-academic-secondary">{{ ($result['inc_state'] ?? null) === \App\Actions\Grades\IncDeadlineService::StateCompletionOverdue ? 'Completion overdue' : 'Completion pending' }}@if ($result['inc_deadline'] ?? null) · Until {{ $result['inc_deadline']->format('M j, Y') }} (Asia/Manila)@endif</span>
+    <span class="student-academic-secondary">{{ ($result['inc_state'] ?? null) === \App\Actions\Grades\IncDeadlineService::StateCompletionOverdue ? 'Completion overdue' : 'Completion pending' }}@if ($result['inc_deadline'] ?? null) · Until {{ $result['inc_deadline']->format('M j, Y') }}@endif</span>
     <x-supporting-details summary="INC details and next step" inset>
         <x-student-inc-guidance :$result />
     </x-supporting-details>

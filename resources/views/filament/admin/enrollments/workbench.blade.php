@@ -39,16 +39,10 @@
             </nav>
         </section>
     </div>
-    <div class="tala-workspace-launcher__split">
-        <section class="registrar-records-entry tala-task-surface" aria-labelledby="registrar-records-heading">
-            <div><h2 id="registrar-records-heading">Enrollment records</h2><p>Find an enrollment, registration certificate, or previous change.</p></div>
-            <x-filament::button tag="a" :href="$queueUrl('all_cases')" color="gray" icon="heroicon-o-magnifying-glass">Find a record</x-filament::button>
-        </section>
-        <section class="registrar-records-entry tala-task-surface" aria-labelledby="registrar-period-heading">
-            <div><h2 id="registrar-period-heading">Enrollment period</h2><p>Choose who can enroll during the published dates.</p></div>
-            {{ $windowAction->button()->color('gray')->label('Edit enrollment period') }}
-        </section>
-    </div>
+    <section class="registrar-records-entry tala-task-surface" aria-labelledby="registrar-records-heading">
+        <div><h2 id="registrar-records-heading">Enrollment records</h2><p>Find an enrollment, registration certificate, or previous change.</p></div>
+        <x-filament::button tag="a" :href="$queueUrl('all_cases')" color="gray" icon="heroicon-o-magnifying-glass">Find a record</x-filament::button>
+    </section>
 </div>
 
 <x-filament-actions::modals />

@@ -5,6 +5,7 @@ namespace App\Filament\Resources\StudentProfiles\Pages;
 use App\Actions\Academics\AcademicEnrollmentGuidance;
 use App\Actions\Academics\CumulativeGwaProjection;
 use App\Actions\Academics\CurriculumEvaluation;
+use App\Actions\Academics\IrregularStudentReasons;
 use App\Actions\Academics\OfficialCourseResultProjection;
 use App\Actions\Academics\TermWeightedAverageProjection;
 use App\Actions\Enrollment\CorrectRegistrationCreditEvaluation;
@@ -18,6 +19,7 @@ use App\Filament\Resources\Enrollments\Schemas\TransferCreditingForm;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
 use App\Filament\Resources\GradeRosters\Tables\ReleasedResultsTable;
 use App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResource;
+use App\Filament\Resources\StudentProfiles\IrregularReviewActions;
 use App\Filament\Resources\StudentProfiles\RelationManagers\ChecklistItemsRelationManager;
 use App\Filament\Resources\StudentProfiles\RelationManagers\HoldsRelationManager;
 use App\Filament\Resources\StudentProfiles\StudentAcademicActions;
@@ -260,7 +262,7 @@ class ViewStudentProfile extends ViewRecord
                 && RegistrationCreditEvaluation::effectiveForStudent($this->studentProfile()) !== null)
             ->modalHeading('Correct transfer crediting')
             ->modalDescription('Record a corrected crediting. It counts immediately for the study plan, enrollment and TOR; the earlier crediting stays in history. Subjects already passed or being taken at SIA are marked.')
-            ->modalWidth(Width::SevenExtraLarge)
+            ->modalWidth(Width::Screen)->extraModalWindowAttributes(['class' => 'tala-crediting-modal'])
             ->stickyModalHeader()
             ->stickyModalFooter()
             ->modalSubmitActionLabel('Save crediting')
@@ -270,12 +272,15 @@ class ViewStudentProfile extends ViewRecord
 
                 return [
                     'same_curriculum' => TransferCreditingForm::sameCurriculumState($current),
-                    'rows' => TransferCreditingForm::rowsState($current?->curriculum_version_id, $current),
+                    'rows' => TransferCreditingForm::rowsState($current?->curriculum_version_id, $current, $current?->same_curriculum === true),
                     'authority_reference' => null,
                     'approved_on' => null,
                 ];
             })
-            ->schema(fn (): array => TransferCreditingForm::components(fn (): ?int => $this->studentProfile()->curriculum_version_id, $this->studentProfile()))
+            ->schema(fn (): array => TransferCreditingForm::withTorPreview(
+                TransferCreditingForm::components(fn (): ?int => $this->studentProfile()->curriculum_version_id, $this->studentProfile()),
+                RegistrationCreditEvaluation::effectiveForStudent($this->studentProfile())?->enrollment?->admissionApplication,
+            ))
             ->action(function (array $data, Action $action): void {
                 $actor = auth()->user();
                 abort_unless($actor instanceof User, 403);
@@ -307,6 +312,32 @@ class ViewStudentProfile extends ViewRecord
         return StudentAcademicActions::recordAcademicDecision($this->record)
             ->visible(fn (): bool => $this->isRegistrarActor())
             ->authorize(fn (): bool => $this->isRegistrarActor());
+    }
+
+    public function confirmIrregularAction(): Action
+    {
+        return IrregularReviewActions::confirm(fn (): StudentProfile => $this->studentProfile());
+    }
+
+    public function keepRegularAction(): Action
+    {
+        return IrregularReviewActions::keepRegular(fn (): StudentProfile => $this->studentProfile());
+    }
+
+    /**
+     * Irregular status and its named reasons for the Registrar record view (#99 Scope 11).
+     *
+     * @return array<string, mixed>
+     */
+    #[Computed]
+    public function irregularReview(): array
+    {
+        $reasons = app(IrregularStudentReasons::class);
+
+        return [
+            ...$reasons->forStudent($this->studentProfile()),
+            'needs_review' => $reasons->needsReview($this->studentProfile()),
+        ];
     }
 
     public function recordExternalCompetencyAction(): Action

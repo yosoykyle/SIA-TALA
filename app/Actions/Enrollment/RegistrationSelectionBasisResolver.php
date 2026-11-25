@@ -3,6 +3,7 @@
 namespace App\Actions\Enrollment;
 
 use App\Actions\Academics\AcademicEnrollmentEffect;
+use App\Actions\Academics\IrregularStudentReasons;
 use App\Models\AcademicDecision;
 use App\Models\AdmissionApplication;
 use App\Models\Enrollment;
@@ -13,7 +14,10 @@ use Illuminate\Validation\ValidationException;
 
 class RegistrationSelectionBasisResolver
 {
-    public function __construct(private readonly AcademicEnrollmentEffect $academicEffect) {}
+    public function __construct(
+        private readonly AcademicEnrollmentEffect $academicEffect,
+        private readonly IrregularStudentReasons $irregularReasons,
+    ) {}
 
     public function forApplicant(AdmissionApplication $application): string
     {
@@ -40,7 +44,19 @@ class RegistrationSelectionBasisResolver
                 ->where('type', StudentLifecycleChange::TypeProgramShift)->where('state', StudentLifecycleChange::StateApplied)
                 ->where('target_curriculum_version_id', $studentProfile->curriculum_version_id)
                 ->when($term, fn ($query) => $query->where('term_id', $term->id))->exists()
+            || ($this->decidedByRecords($effect) && $this->irregularReasons->isReturnee($studentProfile))
             ? Enrollment::SelectionIndividuallyAdvised
             : Enrollment::SelectionStandardCurriculum;
+    }
+
+    /**
+     * A returnee is advised unless the Registrar recorded a decision (for example "Keep regular") (#99 Scope 11).
+     *
+     * @param  array{effect: string, source: string}  $effect
+     */
+    private function decidedByRecords(array $effect): bool
+    {
+        return $effect['effect'] === AcademicDecision::EffectAllowed
+            && $effect['source'] === AcademicEnrollmentEffect::SourceReleasedRecords;
     }
 }

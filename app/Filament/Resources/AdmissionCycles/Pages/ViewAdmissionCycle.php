@@ -171,9 +171,9 @@ class ViewAdmissionCycle extends ViewRecord
                         ->timezone('Asia/Manila')
                         ->prefixIcon('heroicon-o-clock')
                         ->placeholder('Select date and time')
-                        ->helperText(fn (): string => 'Current correction boundary: '.($this->cycle()->correction_closes_at?->timezone('Asia/Manila')->format('M j, Y · g:i A') ?? 'Not set').' (Asia/Manila). The proposed boundary must be strictly after the current boundary.')
+                        ->helperText(fn (): string => 'Current correction boundary: '.($this->cycle()->correction_closes_at?->timezone('Asia/Manila')->format('M j, Y · g:i A') ?? 'Not set').'. The proposed boundary must be strictly after the current boundary.')
                         ->native(false)
-                        ->minDate(fn (): ?string => $this->cycle()->correction_closes_at?->copy()->addSecond()->timezone((string) config('app.display_timezone'))->toIso8601String())
+                        ->minDate(fn (): ?string => $this->cycle()->correction_closes_at?->copy()->timezone((string) config('app.display_timezone'))->startOfDay()->format('Y-m-d H:i:s'))
                         ->required(),
                     ...$this->authoritySchema(),
                 ])
@@ -195,7 +195,7 @@ class ViewAdmissionCycle extends ViewRecord
                 ->modalSubmitActionLabel('Save deadlines')
                 ->color('gray')->outlined()
                 ->icon('heroicon-o-calendar-days')
-                ->modalDescription('Physical papers and the enrollment payment must be done by these times, or the application expires until the Registrar extends it. When the admission period ends, unfinished applications close for good and applicants create a new account for a later term. Times are Asia/Manila; leave a date blank if the school has not set it.')
+                ->modalDescription('Physical papers and the enrollment payment must be done by these times, or the application expires until the Registrar extends it. When the admission period ends, unfinished applications close for good and applicants create a new account for a later term. Leave a date blank if the school has not set it.')
                 ->modalWidth(Width::ThreeExtraLarge)
                 ->stickyModalHeader()
                 ->stickyModalFooter()
@@ -292,9 +292,9 @@ class ViewAdmissionCycle extends ViewRecord
                         ->timezone('Asia/Manila')
                         ->prefixIcon('heroicon-o-calendar')
                         ->placeholder('Select date and time')
-                        ->helperText(fn (): string => 'Current public closing: '.($this->cycle()->closes_at?->timezone('Asia/Manila')->format('M j, Y · g:i A') ?? 'Not set').' (Asia/Manila).')
+                        ->helperText(fn (): string => 'Current public closing: '.($this->cycle()->closes_at?->timezone('Asia/Manila')->format('M j, Y · g:i A') ?? 'Not set').'.')
                         ->native(false)
-                        ->minDate(fn (): string => now((string) config('app.display_timezone'))->toIso8601String())
+                        ->minDate(fn (): string => now((string) config('app.display_timezone'))->startOfDay()->format('Y-m-d H:i:s'))
                         ->required(),
                     DateTimePicker::make('correction_closes_at')
                         ->label('New correction requests end (if needed)')
@@ -302,7 +302,7 @@ class ViewAdmissionCycle extends ViewRecord
                         ->timezone('Asia/Manila')
                         ->prefixIcon('heroicon-o-clock')
                         ->placeholder('Select date and time')
-                        ->helperText(fn (): string => 'Current correction boundary: '.($this->cycle()->correction_closes_at?->timezone('Asia/Manila')->format('M j, Y · g:i A') ?? 'Not set').' (Asia/Manila). Required only when the new public closing would pass the current correction boundary.')
+                        ->helperText(fn (): string => 'Current correction boundary: '.($this->cycle()->correction_closes_at?->timezone('Asia/Manila')->format('M j, Y · g:i A') ?? 'Not set').'. Required only when the new public closing would pass the current correction boundary.')
                         ->native(false),
                 ]),
             ...$this->authoritySchema(),

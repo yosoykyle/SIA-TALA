@@ -29,7 +29,7 @@
         ? (($entryWindow['basis'] ?? '') === 'Authorized late grade entry' ? 'Authorized late grade entry open' : 'Grade entry open')
         : ($closesAt ? 'Grade entry closed' : 'Grade entry not open');
     $entryTimeText = $closesAt
-        ? ($isEntryOpen ? 'Closes ' : 'Closed ').$closesAt->copy()->timezone('Asia/Manila')->format('M j, Y, g:i A').' (Asia/Manila)'
+        ? ($isEntryOpen ? 'Closes ' : 'Closed ').$closesAt->copy()->timezone('Asia/Manila')->format('M j, Y, g:i A')
         : 'Dates not configured';
     $designatedName = $roster->teachingAssignment?->faculty?->name ?? $roster->faculty?->name ?? 'Not recorded';
 @endphp

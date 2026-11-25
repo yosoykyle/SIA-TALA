@@ -22,6 +22,5 @@
     <span class="tala-clock__part">
         <x-filament::icon icon="heroicon-o-clock" class="tala-clock__icon" />
         <time datetime="{{ $now->toIso8601String() }}" x-bind:datetime="now.toISOString()" x-text="format(time)">{{ $now->format('g:i A') }}</time>
-        <span class="tala-clock__zone">Asia/Manila</span>
     </span>
 </div>

@@ -191,6 +191,6 @@ class RevisionEventsRelationManager extends RelationManager
 
     private static function recordedBy(ScheduleRevisionEvent $record): string
     {
-        return self::actorLabel($record).' · Recorded '.($record->created_at?->timezone('Asia/Manila')->format('M j, Y, g:i A') ?? 'time unavailable').' (Asia/Manila)';
+        return self::actorLabel($record).' · Recorded '.($record->created_at?->timezone('Asia/Manila')->format('M j, Y, g:i A') ?? 'time unavailable');
     }
 }

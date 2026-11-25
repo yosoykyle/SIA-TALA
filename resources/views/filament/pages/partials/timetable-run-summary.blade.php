@@ -151,7 +151,7 @@
                             </dd>
                         </div>
                         <div class="tala-solver-kv-item">
-                            <dt>Published date (Asia/Manila)</dt>
+                            <dt>Published date</dt>
                             <dd><span class="tala-solver-kv-primary tabular-nums">{{ $report['publishedAtFormatted'] }}</span></dd>
                         </div>
                     @else
@@ -167,7 +167,7 @@
                             </dd>
                         </div>
                         <div class="tala-solver-kv-item">
-                            <dt>Last checked (Asia/Manila)</dt>
+                            <dt>Last checked</dt>
                             <dd><span class="tala-solver-kv-primary tabular-nums">{{ $report['validatedAtFormatted'] }}</span></dd>
                         </div>
                     @endif

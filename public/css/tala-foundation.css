@@ -1842,3 +1842,64 @@ html:not(.dark) :is(.tala-access-card h1, .tala-auth-main .fi-simple-header-head
 @media (forced-colors: active) {
     :root { scrollbar-color: auto; }
 }
+
+/* #99 Scope 11: irregular status reasons, shared by Registrar and Student Hub. */
+.tala-irregular-reasons{display:grid;gap:.5rem;}
+.tala-irregular-reasons__list{display:grid;gap:.5rem;margin:0;padding:0;list-style:none;}
+.tala-irregular-reasons__item{padding:.5rem .75rem;border-inline-start:3px solid var(--warning-500,#f59e0b);background:var(--tala-surface-sunken);border-radius:.375rem;}
+.tala-irregular-reasons__item--failed{border-inline-start-color:var(--danger-600,#dc2626);}
+.tala-irregular-reasons__label{font-size:.875rem;}
+.tala-irregular-reasons__details{font-size:.875rem;color:var(--tala-muted);}
+.tala-irregular-review__actions{display:flex;flex-wrap:wrap;gap:.5rem;}
+
+/* Review application: one compact row per submitted copy (name · result · view/download). */
+.tala-copy-review-row{padding-block:.5rem;border-block-end:1px solid var(--tala-edge,rgb(0 0 0 / .08));row-gap:.5rem;}
+.tala-copy-review-row:last-child{border-block-end:0;}
+
+/* Process evaluation: submitted documents and their review status. */
+.tala-process-documents{display:grid;gap:.375rem;margin:.625rem 0 0;padding:0;list-style:none;}
+.tala-process-documents>li{display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.375rem .625rem;border:1px solid var(--tala-edge,rgb(0 0 0 / .08));border-radius:.5rem;font-size:.8125rem;}
+.tala-process-documents>li>span{min-inline-size:0;overflow-wrap:anywhere;}
+
+/* Applicant Home: Registrar remark on a checklist row, and the Updates from the Registrar list. */
+.tala-checklist__note{display:block;margin-block-start:.125rem;font-size:.75rem;font-weight:400;color:var(--warning-700,#b45309);}
+.dark .tala-checklist__note{color:var(--warning-300,#fcd34d);}
+.tala-checklist__fix{font-weight:600;text-decoration:underline;}
+.tala-home-updates__list{display:grid;gap:.75rem;margin:0;padding:0;list-style:none;}
+.tala-home-updates__item{display:grid;grid-template-columns:.625rem minmax(0,1fr);gap:.625rem;align-items:start;}
+.tala-home-updates__dot{inline-size:.5rem;block-size:.5rem;margin-block-start:.375rem;border-radius:999px;background:var(--gray-400,#9ca3af);}
+.tala-home-updates__dot--success{background:var(--success-600,#16a34a);}
+.tala-home-updates__dot--warning{background:var(--warning-500,#f59e0b);}
+.tala-home-updates__dot--danger{background:var(--danger-600,#dc2626);}
+.tala-home-updates__dot--info{background:var(--primary-500,#22c55e);}
+.tala-home-updates__title{font-size:.875rem;font-weight:600;}
+.tala-home-updates__detail{font-size:.8125rem;color:var(--tala-muted);}
+.tala-home-updates__time{font-size:.75rem;color:var(--tala-muted);}
+
+/* #99: full-screen Credit subjects modal, sticky TOR preview 3/5 on the left and the crediting table 2/5. */
+/* Reserve the scrollbar: a toggling modal scrollbar changed the preview width and looped the PDF redraw. */
+.fi-body .fi-modal > .fi-modal-window-ctn > .fi-modal-window.tala-crediting-modal:not(.tala-mfa-modal) > .fi-modal-content{scrollbar-gutter:stable;}
+/* Only the content scrolls: focusing a radio deep in the table used to scroll the window itself, hiding header and table. */
+.fi-body .fi-modal.fi-width-screen > .fi-modal-window-ctn > .fi-modal-window.tala-crediting-modal.tala-crediting-modal:not(.tala-mfa-modal){overflow:clip;}
+@media (min-width:64rem){
+    .tala-crediting-split{align-items:start;}
+    /* Fixed height that fills the modal: redraws on resize/full screen can no longer change the layout. */
+    .tala-crediting-preview{position:sticky;top:0;block-size:calc(100dvh - 15rem);min-block-size:24rem;display:flex;flex-direction:column;}
+}
+.tala-crediting-preview{border:1px solid var(--tala-edge,rgb(0 0 0 / .1));border-radius:.75rem;background:var(--tala-surface-sunken,transparent);padding:.75rem;min-block-size:16rem;}
+.tala-crediting-preview__body{display:flex;flex-direction:column;gap:.5rem;min-block-size:0;flex:1;}
+.tala-crediting-preview__tabs{display:flex;flex-wrap:wrap;gap:.375rem;}
+.tala-crediting-preview__tab{padding:.25rem .625rem;border:1px solid var(--tala-edge,rgb(0 0 0 / .1));border-radius:999px;font-size:.8125rem;}
+.tala-crediting-preview__tab.is-active{border-color:var(--primary-600,#16a34a);color:var(--primary-700,#15803d);font-weight:600;}
+.tala-crediting-preview__doc{display:flex;flex-direction:column;gap:.5rem;min-block-size:0;flex:1;}
+.tala-crediting-preview__head{display:flex;justify-content:space-between;gap:.5rem;align-items:baseline;}
+.tala-crediting-preview__title{font-weight:600;font-size:.875rem;}
+.tala-crediting-preview__links{font-size:.8125rem;white-space:nowrap;}
+.tala-crediting-preview__links a{text-decoration:underline;}
+.tala-crediting-preview .tala-document-viewer-inline{display:flex;flex-direction:column;gap:.5rem;flex:1;min-block-size:0;overflow:hidden;}
+/* The document scrolls inside its box; a stable gutter keeps the width (and so the PDF redraw) from flip-flopping. */
+.tala-crediting-preview .tala-document-preview{flex:1;min-block-size:0;max-block-size:none;overflow-y:auto;scrollbar-gutter:stable;}
+.tala-crediting-preview .student-proof-privacy{flex:none;}
+.tala-crediting-preview__empty{display:grid;justify-items:center;gap:.5rem;padding:2rem 1rem;text-align:center;color:var(--tala-muted);font-size:.875rem;}
+/* Crediting source fields: one-line labels in the narrow 3/5 column. */
+.tala-crediting-source .fi-fo-field-label-content{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}

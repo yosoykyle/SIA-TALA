@@ -15,7 +15,7 @@
     @forelse ($historyGroups as $kind => $group)
         <section class="accounting-history-group" aria-labelledby="account-history-{{ $kind }}-heading">
             <h3 id="account-history-{{ $kind }}-heading"><x-filament::icon :icon="$group['icon']" aria-hidden="true" />{{ $group['title'] }}</h3>
-            <x-data-table :label="$group['title'].' · newest first · Asia/Manila'" class="accounting-history-table" records>
+            <x-data-table :label="$group['title'].' · newest first'" class="accounting-history-table" records>
                 <thead><tr><th scope="col">Recorded on</th><th scope="col">{{ $group['recordLabel'] }}</th>@if ($group['amountLabel'] !== '')<th scope="col" class="tala-data-table-number">{{ $group['amountLabel'] }}</th>@endif</tr></thead>
                 <tbody>
                     @foreach ($group['records'] as $entry)

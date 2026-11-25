@@ -77,7 +77,7 @@
                             @else
                                 <p class="tala-application-next-action">{{ $this->nextAction($application) }}</p>
                                 @if ($activeCorrection)
-                                    <p><strong>{{ $activeCorrection->isOverdue() ? 'Correction overdue:' : 'Correction due:' }}</strong> {{ $activeCorrection->due_at->timezone(config('app.display_timezone'))->format('M j, Y, g:i A') }} (Asia/Manila)<br>{{ $activeCorrection->applicant_instruction }}</p>
+                                    <p><strong>{{ $activeCorrection->isOverdue() ? 'Correction overdue:' : 'Correction due:' }}</strong> {{ $activeCorrection->due_at->timezone(config('app.display_timezone'))->format('M j, Y, g:i A') }}<br>{{ $activeCorrection->applicant_instruction }}</p>
                                 @elseif (($projection['clearance_result'] ?? null) === 'ActionNeeded')
                                     <p>{{ collect($projection['blockers'])->firstWhere('source', 'Registrar enrollment clearance')['recovery'] ?? '' }}</p>
                                 @endif
@@ -98,7 +98,7 @@
                                 <a class="tala-home-link" {{ \Filament\Support\generate_href_html(\App\Filament\Applicant\Pages\Application::getUrl(['application' => $application->id])) }}>Inspect saved draft</a>
                             @elseif (in_array($application->application_state, [\App\Models\AdmissionApplication::StateDraft, \App\Models\AdmissionApplication::StateActionNeeded], true))
                                 <x-filament::button :href="\App\Filament\Applicant\Pages\Application::getUrl(['application' => $application->id])" tag="a" icon="heroicon-m-arrow-right" icon-position="after">
-                                    {{ $application->application_state === \App\Models\AdmissionApplication::StateDraft ? 'Continue application' : 'Respond to correction' }}
+                                    {{ $application->application_state === \App\Models\AdmissionApplication::StateDraft ? 'Continue application' : 'Fix correction' }}
                                 </x-filament::button>
                             @elseif ($application->allowsSubmittedEdit())
                                 <x-filament::button :href="\App\Filament\Applicant\Pages\Application::getUrl(['application' => $application->id])" tag="a" icon="heroicon-m-arrow-right" icon-position="after">
@@ -128,7 +128,7 @@
                                             <x-filament::icon icon="heroicon-m-exclamation-triangle" class="size-3" />
                                         @endif
                                     </span>
-                                    <span class="tala-checklist__label">{{ $item['label'] }}</span>
+                                    <span class="tala-checklist__label">{{ $item['label'] }}@if (filled($item['note'] ?? null))<span class="tala-checklist__note">Registrar: {{ $item['note'] }}@if ($item['fix_url'] ?? null) <a href="{{ $item['fix_url'] }}" class="tala-checklist__fix">Fix this</a>@endif</span>@endif</span>
                                     <span class="tala-checklist__badges">
                                         @foreach ($item['badges'] as $badge)
                                             @unless ($loop->first)<span class="tala-checklist__badge-sep" aria-hidden="true">/</span>@endunless
@@ -143,12 +143,13 @@
                     @endif
                 </x-filament::section>
 
+
                 <x-filament::section class="tala-home-deadline-card" icon="heroicon-o-calendar-days" icon-color="primary">
                     <x-slot name="heading">Application deadline</x-slot>
                     <div class="tala-home-deadline">
                         <p class="tala-home-deadline__label">{{ $deadline['label'] }}</p>
                         <p class="tala-home-deadline__value">{{ $deadline['value'] ?? 'No deadline' }}</p>
-                        <p class="tala-home-deadline__note">{{ $deadline['note'] }}</p>
+                        @if (filled($deadline['note'] ?? null))<p class="tala-home-deadline__note">{{ $deadline['note'] }}</p>@endif
                     </div>
                 </x-filament::section>
 

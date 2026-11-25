@@ -684,7 +684,6 @@ class ListEnrollments extends ListRecords
                     'applicantAction' => $this->getAction('readyApplicants', isMounting: false),
                     'continuingAction' => $this->getAction('startContinuingEnrollment', isMounting: false),
                     'lateContinuingAction' => $this->getAction('startLateContinuingEnrollment', isMounting: false),
-                    'windowAction' => $this->getAction('enrollmentApplicability', isMounting: false),
                 ]),
             ]);
         }

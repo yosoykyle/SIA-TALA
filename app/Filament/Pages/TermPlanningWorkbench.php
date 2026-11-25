@@ -1403,7 +1403,7 @@ class TermPlanningWorkbench extends Page
                         ->suffixIcon(Heroicon::OutlinedCalendar)
                         ->required()
                         ->afterOrEqual('opens_on'),
-                    TimePicker::make('cutoff_at')->label('Close time (Asia/Manila)')->timezone('UTC')->seconds(false),
+                    TimePicker::make('cutoff_at')->label('Close time')->timezone('UTC')->seconds(false),
                 ])
                 ->columns(2)
                 ->reorderable(false)
@@ -1510,7 +1510,7 @@ class TermPlanningWorkbench extends Page
                     ->multiple()
                     ->searchable(),
                 DateTimePicker::make('due_at')
-                    ->label('Reply by (Asia/Manila)')
+                    ->label('Reply by')
                     ->timezone('Asia/Manila')
                     ->seconds(false)
                     ->live()

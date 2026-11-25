@@ -331,7 +331,7 @@ class CandidateRowsRelationManager extends RelationManager
     private static function assignmentFacts(CandidateScheduleRow $record): array
     {
         return [
-            (SectionMeeting::dayOptions()[$record->day_of_week] ?? 'Day not recorded').' · '.(filled($record->starts_at) && filled($record->ends_at) ? self::timeRange($record) : 'Time not recorded').' · Asia/Manila',
+            (SectionMeeting::dayOptions()[$record->day_of_week] ?? 'Day not recorded').' · '.(filled($record->starts_at) && filled($record->ends_at) ? self::timeRange($record) : 'Time not recorded'),
             'Teacher: '.($record->faculty?->name ?? 'Not recorded'),
             'Room: '.($record->room?->code ?? 'No room assigned'),
         ];

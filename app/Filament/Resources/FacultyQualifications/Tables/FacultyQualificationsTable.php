@@ -50,7 +50,7 @@ class FacultyQualificationsTable
                 TextColumn::make('recorded_at')
                     ->label('Recorded')
                     ->dateTime('M j, Y')
-                    ->description(fn (FacultyQualification $record): string => collect([$record->recorder?->name, $record->recorded_at?->timezone('Asia/Manila')->format('g:i A').' (Asia/Manila)'])->filter()->implode(' · '))
+                    ->description(fn (FacultyQualification $record): string => collect([$record->recorder?->name, $record->recorded_at?->timezone('Asia/Manila')->format('g:i A')])->filter()->implode(' · '))
                     ->timezone('Asia/Manila')
                     ->sortable(),
             ])

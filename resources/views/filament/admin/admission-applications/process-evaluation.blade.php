@@ -35,6 +35,14 @@
                     </div>
                     <p class="tala-process-summary">{{ $step['summary'] }}</p>
 
+                    @if (($step['documents'] ?? []) !== [])
+                        <ul class="tala-process-documents" aria-label="Submitted documents for {{ $step['label'] }}">
+                            @foreach ($step['documents'] as $document)
+                                <li><span>{{ $document['label'] }}</span><x-filament::badge :color="$document['color']" size="sm">{{ $document['status'] }}</x-filament::badge></li>
+                            @endforeach
+                        </ul>
+                    @endif
+
                     @if (filled($step['blocker']))
                         <p class="tala-process-blocker">{{ $step['blocker'] }}</p>
                     @endif

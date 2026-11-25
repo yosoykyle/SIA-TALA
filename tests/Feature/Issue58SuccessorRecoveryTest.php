@@ -173,7 +173,7 @@ class Issue58SuccessorRecoveryTest extends TestCase
         $packageBefore = $package->fresh()->getAttributes();
 
         $component = Livewire::actingAs($registrar)->test(TermResources::class, ['termId' => $package->term_id])
-            ->assertSee('Nov 1, 2026 · 1:00 AM')->assertSee('Asia/Manila')
+            ->assertSee('Nov 1, 2026 · 1:00 AM')
             ->mountAction('sendAvailabilityReminder');
         $component->setActionData(['faculty_user_ids' => [], 'authority_reference' => 'Deadline reviewed without time change', 'correction_reason' => 'Confirm the existing approved deadline']);
         $schema = $component->instance()->getSchema($component->instance()->getMountedActionSchemaName());
@@ -200,7 +200,7 @@ class Issue58SuccessorRecoveryTest extends TestCase
 
         $event = app(FacultyAvailabilityRequestService::class)->request($package->fresh(), [$faculty->id], $registrar)->sole();
 
-        Mail::assertQueued(FacultyAvailabilityRequestedMail::class, fn (FacultyAvailabilityRequestedMail $mail): bool => $mail->operationalEventId === $event->id && $mail->dueAt === 'Aug 15, 2026 5:00 PM Asia/Manila');
+        Mail::assertQueued(FacultyAvailabilityRequestedMail::class, fn (FacultyAvailabilityRequestedMail $mail): bool => $mail->operationalEventId === $event->id && $mail->dueAt === 'Aug 15, 2026 5:00 PM');
         $this->assertSame('2026-08-15T09:00:00+00:00', $event->payload['due_at']);
         app(RecordFacultyAvailabilityDeadline::class)->execute($package->term, $registrar, '2026-08-20 09:00:00', 'Corrected memo', 'Approved extension', $deadline->id);
         $event->update(['status' => OperationalEvent::StatusFailed]);
@@ -208,7 +208,7 @@ class Issue58SuccessorRecoveryTest extends TestCase
 
         app(FacultyAvailabilityRequestService::class)->resend($event->fresh(), $registrar);
 
-        Mail::assertQueued(FacultyAvailabilityRequestedMail::class, fn (FacultyAvailabilityRequestedMail $mail): bool => $mail->operationalEventId === $event->id && $mail->dueAt === 'Aug 15, 2026 5:00 PM Asia/Manila');
+        Mail::assertQueued(FacultyAvailabilityRequestedMail::class, fn (FacultyAvailabilityRequestedMail $mail): bool => $mail->operationalEventId === $event->id && $mail->dueAt === 'Aug 15, 2026 5:00 PM');
         $this->assertSame('2026-08-15T09:00:00+00:00', $event->fresh()->payload['due_at']);
     }
 

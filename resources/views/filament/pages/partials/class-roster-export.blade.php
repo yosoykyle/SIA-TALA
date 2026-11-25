@@ -18,7 +18,7 @@
             </table>
         </div>
         <p class="accounting-export-note">Preview of the first {{ count($rows) }} {{ str('learner')->plural(count($rows)) }}, ordered by legal name. Current membership is checked again on download.</p>
-        <p class="accounting-export-note">CSV ({{ count($headers) }} columns) includes current official learner identifiers, legal name, program, section, and enrollment status (Asia/Manila).</p>
+        <p class="accounting-export-note">CSV ({{ count($headers) }} columns) includes current official learner identifiers, legal name, program, section, and enrollment status.</p>
     @endif
-    <p class="accounting-export-note">Current as of {{ \App\Support\DisplayDateTime::format($generatedAt, 'M j, Y · g:i A') }} (Asia/Manila).<br>Restricted to authorized class and Registrar access.</p>
+    <p class="accounting-export-note">Current as of {{ \App\Support\DisplayDateTime::format($generatedAt, 'M j, Y · g:i A') }}.<br>Restricted to authorized class and Registrar access.</p>
 </div>

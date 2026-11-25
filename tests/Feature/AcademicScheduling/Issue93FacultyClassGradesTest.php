@@ -183,7 +183,6 @@ class Issue93FacultyClassGradesTest extends TestCase
             ->assertSee('Export class list')
             ->assertSee('Submit class grades')
             ->assertSee('Grade entry open')
-            ->assertSee('Asia/Manila')
             ->assertDontSee('All classes')
             ->assertDontSee('Class details')
             ->assertDontSee('Calendar or entry approval')

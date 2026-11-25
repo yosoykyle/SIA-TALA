@@ -80,7 +80,7 @@
                             @endif
                             <p class="tala-resource-readiness-bar__meta tabular-nums">
                                 @if ($facultyDeadline)
-                                    Reply by: <strong>{{ $facultyDeadline->copy()->timezone('Asia/Manila')->format('M j, Y · g:i A') }}</strong> (Asia/Manila)
+                                    Reply by: <strong>{{ $facultyDeadline->copy()->timezone('Asia/Manila')->format('M j, Y · g:i A') }}</strong>
                                 @else
                                     Reply by: <strong>No due date set</strong>
                                 @endif

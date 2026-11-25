@@ -10,6 +10,7 @@ use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
 use App\Models\EnrollmentSeatReservation;
+use App\Models\IrregularEnrollmentRequest;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
 use App\Models\RegistrationCreditEvaluation;
@@ -315,6 +316,14 @@ class PrepareRegistrationProposal
             }
 
             $locked->update(['current_proposal_version_id' => $proposal->id, 'lock_version' => $locked->lock_version + 1]);
+
+            // #99 Scope 11: the Registrar's proposal answers the student's irregular enrollment request.
+            if ($actor->hasRole(User::StaffRoleRegistrar)) {
+                IrregularEnrollmentRequest::query()
+                    ->where('enrollment_id', $locked->id)
+                    ->where('state', IrregularEnrollmentRequest::StateSubmitted)
+                    ->update(['state' => IrregularEnrollmentRequest::StateAccepted, 'accepted_at' => now(), 'accepted_by' => $actor->id]);
+            }
 
             return $proposal->load('items');
         }, attempts: 3);

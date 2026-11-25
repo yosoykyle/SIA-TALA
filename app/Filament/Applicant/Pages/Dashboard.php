@@ -489,7 +489,7 @@ class Dashboard extends BaseDashboard implements HasTable
      */
     public function importantDates(AdmissionApplication $application): array
     {
-        $format = fn ($instant): string => $instant->timezone(config('app.display_timezone'))->format('M j, Y, g:i A').' (Asia/Manila)';
+        $format = fn ($instant): string => $instant->timezone(config('app.display_timezone'))->format('M j, Y, g:i A');
         $cycle = $application->admissionCycle;
         $correction = $application->correctionRequests
             ->where('state', ApplicationCorrectionRequest::StateActive)
@@ -585,7 +585,7 @@ class Dashboard extends BaseDashboard implements HasTable
             return [
                 'label' => $correction->isOverdue() ? 'Correction overdue' : 'Correction due',
                 'value' => $format($correction->due_at),
-                'note' => $correction->isOverdue() ? 'Still accepted. Respond as soon as you can.' : 'Asia/Manila time',
+                'note' => $correction->isOverdue() ? 'Still accepted. Respond as soon as you can.' : null,
             ];
         }
 
@@ -598,21 +598,21 @@ class Dashboard extends BaseDashboard implements HasTable
                 ->value('closes_at');
 
             return $closesAt
-                ? ['label' => 'Applications close', 'value' => $format(Carbon::parse($closesAt)), 'note' => 'Asia/Manila time']
+                ? ['label' => 'Applications close', 'value' => $format(Carbon::parse($closesAt)), 'note' => null]
                 : ['label' => 'Applications close', 'value' => null, 'note' => 'No admission cycle is open right now.'];
         }
 
         if ($application->application_state === AdmissionApplication::StateDraft && $application->admissionCycle?->closes_at) {
             return app(ReadyApplicantProjectionQuery::class)->draftCycleIsOpen($application)
-                ? ['label' => 'Applications close', 'value' => $format($application->admissionCycle->closes_at), 'note' => 'Submit before this time (Asia/Manila).']
+                ? ['label' => 'Applications close', 'value' => $format($application->admissionCycle->closes_at), 'note' => 'Submit before this time.']
                 : ['label' => 'Applications closed', 'value' => $format($application->admissionCycle->closes_at), 'note' => 'This draft can no longer be submitted.'];
         }
 
         $closesAt = $application->admissionCycle?->closes_at;
         if ($application->application_state === AdmissionApplication::StateSubmitted && $closesAt?->isFuture()) {
             return ['label' => 'Applications close', 'value' => $format($closesAt), 'note' => $application->allowsSubmittedEdit()
-                ? 'You can still update your application until review starts (Asia/Manila).'
-                : 'Asia/Manila time'];
+                ? 'You can still update your application until review starts.'
+                : null];
         }
 
         if ($application->application_state === AdmissionApplication::StateAdmitted) {
@@ -622,11 +622,11 @@ class Dashboard extends BaseDashboard implements HasTable
             $paymentDue = $deadlines->paymentDeadline($application);
 
             if ($projection['clearance_result'] !== 'Cleared' && $papersDue?->isFuture()) {
-                return ['label' => 'Physical papers due', 'value' => $format($papersDue), 'note' => 'Bring the papers listed in your checklist to the Registrar (Asia/Manila).'];
+                return ['label' => 'Physical papers due', 'value' => $format($papersDue), 'note' => 'Bring the papers listed in your checklist to the Registrar.'];
             }
 
             if ($projection['clearance_result'] === 'Cleared' && $paymentDue?->isFuture()) {
-                return ['label' => 'Enrollment payment due', 'value' => $format($paymentDue), 'note' => 'Accounting must verify your payment by this time (Asia/Manila).'];
+                return ['label' => 'Enrollment payment due', 'value' => $format($paymentDue), 'note' => 'Accounting must verify your payment by this time.'];
             }
         }
 
@@ -651,6 +651,10 @@ class Dashboard extends BaseDashboard implements HasTable
                     'requirement_id' => (int) $row['requirement']->id,
                     'label' => $row['requirement']->label,
                     'onsite' => false,
+                    // The Registrar's remark for a copy that needs action, and where to fix it.
+                    'note' => in_array($row['result'], [PreliminaryEvidenceReview::ResultActionNeeded, PreliminaryEvidenceReview::ResultUnderReview], true) && filled($row['instruction'])
+                        ? (string) $row['instruction'] : null,
+                    'fix_url' => ($row['action'] ?? false) ? Application::getUrl(['application' => $application->id]) : null,
                     ...match ($row['result']) {
                         PreliminaryEvidenceReview::ResultAccepted => ['state' => 'Accepted', 'color' => 'success'],
                         PreliminaryEvidenceReview::ResultActionNeeded => ['state' => 'Needs action', 'color' => 'warning'],
@@ -772,6 +776,27 @@ class Dashboard extends BaseDashboard implements HasTable
         return app(ApplicantEntryReadinessService::class)->officialReferences();
     }
 
+    /** Fix what the Registrar named, by the correction's due date. */
+    private function correctionNextAction(AdmissionApplication $application): string
+    {
+        $correction = $application->correctionRequests()->where('state', ApplicationCorrectionRequest::StateActive)->latest('sequence')->first();
+        if ($correction === null) {
+            return 'Fix the items the Registrar named, then submit again.';
+        }
+
+        return 'Fix what the Registrar asked'.($correction->due_at ? ' by '.$correction->due_at->timezone(config('app.display_timezone'))->format('M j, Y, g:i A') : '').': '.$correction->applicant_instruction;
+    }
+
+    /** @return list<string> Labels of current copies whose latest review is Action needed. */
+    private function copiesNeedingAction(AdmissionApplication $application): array
+    {
+        return collect(app(Requirements::class)->preliminaryRows($application))
+            ->filter(fn (array $row): bool => $row['result'] === PreliminaryEvidenceReview::ResultActionNeeded)
+            ->map(fn (array $row): string => (string) $row['requirement']->label)
+            ->values()
+            ->all();
+    }
+
     public function nextAction(AdmissionApplication $application): string
     {
         $deadline = $this->deadlineStatus($application);
@@ -793,10 +818,12 @@ class Dashboard extends BaseDashboard implements HasTable
 
         return match ($application->application_state) {
             AdmissionApplication::StateDraft => app(ReadyApplicantProjectionQuery::class)->draftNextAction($application),
-            AdmissionApplication::StateActionNeeded => 'Respond only to the scoped correction items.',
-            AdmissionApplication::StateSubmitted => $application->allowsSubmittedEdit()
-                ? 'Awaiting Registrar review. Open Application to commit a complete update before review starts.'
-                : 'Wait for Registrar review; monitor Requirements for an instruction.',
+            AdmissionApplication::StateActionNeeded => $this->correctionNextAction($application),
+            AdmissionApplication::StateSubmitted => match (true) {
+                $application->allowsSubmittedEdit() => 'Awaiting Registrar review. Open Application to commit a complete update before review starts.',
+                $this->copiesNeedingAction($application) !== [] => 'The Registrar marked '.implode(', ', $this->copiesNeedingAction($application)).' for correction. You can upload a new copy once the Registrar sends the correction.',
+                default => 'The Registrar is reviewing your application.',
+            },
             AdmissionApplication::StateNotAdmitted => 'Read the Registrar\'s reason. This decision is final.',
             AdmissionApplication::StateWithdrawn => 'Contact the Registrar only if an authorized reopening is needed.',
             default => 'Review the current Application record.',

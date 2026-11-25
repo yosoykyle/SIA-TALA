@@ -29,7 +29,7 @@ class ScheduleView extends Page
 
     protected static ?string $title = 'Class schedule';
 
-    protected ?string $subheading = 'Your registered classes and published meeting times, all in Asia/Manila.';
+    protected ?string $subheading = 'Your registered classes and published meeting times.';
 
     protected string $view = 'filament.student.pages.schedule-view';
 

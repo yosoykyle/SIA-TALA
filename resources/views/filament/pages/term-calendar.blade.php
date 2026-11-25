@@ -62,7 +62,7 @@
                         <div class="tala-calendar-facts__item">
                             <dt>Schedule increments</dt>
                             <dd class="tabular-nums">{{ $scheduleSummary['grid_slots'] }}</dd>
-                            <dd class="tala-calendar-facts__note">{{ $scheduleSummary['grid_slots_note'] }}</dd>
+                            @if (filled($scheduleSummary['grid_slots_note'] ?? null))<dd class="tala-calendar-facts__note">{{ $scheduleSummary['grid_slots_note'] }}</dd>@endif
                         </div>
                     </dl>
 
@@ -142,7 +142,7 @@
                         <div class="tala-calendar-facts__item">
                             <dt>Schedule increments</dt>
                             <dd class="tabular-nums">{{ $scheduleSummary['grid_slots'] }}</dd>
-                            <dd class="tala-calendar-facts__note">{{ $scheduleSummary['grid_slots_note'] }}</dd>
+                            @if (filled($scheduleSummary['grid_slots_note'] ?? null))<dd class="tala-calendar-facts__note">{{ $scheduleSummary['grid_slots_note'] }}</dd>@endif
                         </div>
                     </dl>
 
@@ -242,7 +242,7 @@
                                 @if ($item['window'])
                                     <div class="tala-calendar-activity-period">
                                         <strong class="tabular-nums"><time datetime="{{ $item['window']->opens_on->toDateString() }}">{{ $item['window']->opens_on->format('M j') }}</time> – <time datetime="{{ $item['window']->closes_on->toDateString() }}">{{ $item['window']->closes_on->format('M j, Y') }}</time></strong>
-                                        @if ($item['window']->cutoff_at)<small class="tabular-nums">{{ $item['type'] === \App\Models\TermCalendarWindow::TypeExaminationPeriod ? 'Ends' : 'Closes' }} {{ \Carbon\CarbonImmutable::parse($item['window']->cutoff_at)->format('g:i A') }} · Asia/Manila</small>@endif
+                                        @if ($item['window']->cutoff_at)<small class="tabular-nums">{{ $item['type'] === \App\Models\TermCalendarWindow::TypeExaminationPeriod ? 'Ends' : 'Closes' }} {{ \Carbon\CarbonImmutable::parse($item['window']->cutoff_at)->format('g:i A') }}</small>@endif
                                     </div>
                                     <x-filament::badge :color="$item['status'] === 'Open' ? 'success' : 'gray'" size="sm">{{ $item['status'] }}</x-filament::badge>
                                 @else
@@ -253,7 +253,7 @@
                     @endforeach
                 </dl>
 
-                <p class="tala-work-footnote tala-calendar-footnote">Times use Asia/Manila. Activity dates do not block class planning.</p>
+                <p class="tala-work-footnote tala-calendar-footnote">Activity dates do not block class planning.</p>
             </section>
         </div>
     @else
