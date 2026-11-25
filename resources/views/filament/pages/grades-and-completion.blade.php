@@ -7,14 +7,14 @@
             <nav class="tala-workspace-launcher__main" aria-label="Grade work">
                 <x-workspace-card :featured="$classGradesPriority" :action-color="$classGradesPriority ? 'primary' : 'gray'" :href="$overviewCounts['submitted'] > 0 ? $this::getUrl(['viewTab' => 'grade-review', 'filters' => ['state' => ['value' => \App\Models\GradeRoster::StateSubmitted]]]) : $this::getUrl(['viewTab' => 'grade-review'])" icon="heroicon-o-document-check" label="Class grades"
                     :figure="$overviewCounts['submitted']" :figure-label="\Illuminate\Support\Str::plural('class roster', $overviewCounts['submitted']).' awaiting review'"
-                    description="Review Faculty submissions; return results for changes or release the complete roster." action="Review class grades">
+                    description="Review, return, or release submitted class rosters." action="Review class grades">
                     @if ($overviewCounts['submitted'] === 0)<p class="tala-workspace-card__note">No class submissions waiting.</p>@endif
                 </x-workspace-card>
                 <x-workspace-card :featured="$incPriority" :action-color="$incPriority ? 'primary' : 'gray'" :href="$this::getUrl(['viewTab' => 'inc-corrections'])" icon="heroicon-o-arrow-path-rounded-square" :label="'INC & Corrections'"
                     :figure="$overviewCounts['incomplete']" :figure-label="'incomplete course '.\Illuminate\Support\Str::plural('result', $overviewCounts['incomplete'])"
-                    description="Faculty records completion; Registrar reviews and releases it." note="INC means incomplete." action="Open results" />
+                    description="Review and release INC completions and grade corrections." note="INC means incomplete." action="Open results" />
                 <x-workspace-card :action-color="'gray'" :href="$this::getUrl(['viewTab' => 'academic-progress'])" icon="heroicon-o-identification" label="Student records"
-                    description="Released grades and averages across classes and terms." note="Find a student’s academic record." action="Find a student" />
+                    description="View released grades, averages, and academic progress." note="Find a student’s academic record." action="Find a student" />
             </nav>
             <section class="tala-workspace-launcher__supporting" aria-labelledby="other-records-title">
                 <h2 id="other-records-title">Other records</h2>
