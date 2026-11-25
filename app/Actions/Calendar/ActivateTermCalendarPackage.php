@@ -102,6 +102,14 @@ final class ActivateTermCalendarPackage
                 $active->forceFill(['state' => TermCalendarPackage::StateClosed, 'closed_at' => now()])->save();
             }
 
+            $otherDraftPackages = $packages
+                ->where('state', TermCalendarPackage::StateDraft)
+                ->where('id', '!=', $locked->id);
+
+            foreach ($otherDraftPackages as $staleDraft) {
+                $staleDraft->forceFill(['state' => TermCalendarPackage::StateClosed, 'closed_at' => now()])->save();
+            }
+
             $locked->forceFill(['state' => TermCalendarPackage::StateActive, 'recorded_by' => $actor->id, 'activated_at' => now()])->save();
 
             if ($previousCoreSignature !== null && $previousCoreSignature !== $newCoreSignature) {

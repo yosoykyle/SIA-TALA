@@ -207,7 +207,8 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                         ->orderBy('name')
                         ->pluck('name', 'id')
                         ->all())
-                    ->native(true)
+                    ->searchable()
+                    ->preload()
                     ->required()
                     ->live()
                     ->afterStateUpdated(function (Get $get, Set $set, mixed $state): void {

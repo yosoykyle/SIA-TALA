@@ -2,6 +2,7 @@
 
 namespace App\Actions\Admissions;
 
+use App\Models\AdmissionCycle;
 use App\Models\AdmissionRequirementSet;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -35,9 +36,15 @@ class PublishAdmissionRequirementSet
             $replaces,
         ): AdmissionRequirementSet {
             $locked = AdmissionRequirementSet::query()
-                ->with('requirements')
+                ->with(['requirements', 'admissionCycle'])
                 ->lockForUpdate()
                 ->findOrFail($requirementSet->id);
+
+            if ($locked->admissionCycle?->state === AdmissionCycle::StateCancelled) {
+                throw ValidationException::withMessages([
+                    'state' => 'Requirement sets cannot be published on a cancelled Admission Cycle.',
+                ]);
+            }
 
             if ($locked->state !== AdmissionRequirementSet::StateDraft) {
                 throw ValidationException::withMessages([
@@ -93,6 +100,19 @@ class PublishAdmissionRequirementSet
                 'published_by' => $actor->id,
                 'published_at' => $publishedAt,
             ])->save();
+
+            $supersededDrafts = AdmissionRequirementSet::query()
+                ->where('admission_cycle_id', $locked->admission_cycle_id)
+                ->where('application_path', $locked->application_path)
+                ->where('state', AdmissionRequirementSet::StateDraft)
+                ->whereKeyNot($locked->id)
+                ->lockForUpdate()
+                ->get();
+
+            foreach ($supersededDrafts as $staleDraft) {
+                $staleDraft->requirements()->delete();
+                $staleDraft->delete();
+            }
 
             return $locked->refresh();
         }, attempts: 3);

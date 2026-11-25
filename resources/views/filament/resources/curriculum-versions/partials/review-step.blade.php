@@ -200,7 +200,7 @@
                                                                     <x-filament::badge size="sm" color="gray">{{ $row['elective_label'] }}</x-filament::badge>
                                                                 @endif
                                                                 @if ($row['is_externally_arranged'])
-                                                                    <x-filament::badge size="sm" color="warning">Externally arranged — no class schedule</x-filament::badge>
+                                                                    <x-filament::badge size="sm" color="warning">Externally arranged (no class schedule)</x-filament::badge>
                                                                 @elseif ($row['room_summary'])
                                                                     <x-filament::badge size="sm" color="gray">{{ $row['room_summary'] }}</x-filament::badge>
                                                                 @endif

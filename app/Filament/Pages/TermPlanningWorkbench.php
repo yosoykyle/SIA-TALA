@@ -23,6 +23,7 @@ use App\Models\AcademicYear;
 use App\Models\AdmissionCycle;
 use App\Models\CandidateScheduleRow;
 use App\Models\CourseEnrollment;
+use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
 use App\Models\FacultyAvailabilityDeadline;
 use App\Models\FacultyAvailabilityDeclaration;
@@ -133,7 +134,7 @@ class TermPlanningWorkbench extends Page
     #[Url]
     public ?int $selectedVersionId = null;
 
-    /** @var array{title: string, explanation: string, nextStep: string, technical: string}|null */
+    /** @var array{title: string, explanation: string, nextStep: string, technical: string, blockingRunId?: int|null}|null */
     public ?array $generationFailure = null;
 
     /** @var list<string> */
@@ -256,6 +257,7 @@ class TermPlanningWorkbench extends Page
     {
         $activeCalendarTermIds = TermCalendarPackage::query()
             ->where('state', TermCalendarPackage::StateActive)
+            ->whereHas('term', fn ($query) => $query->where('state', '!=', Term::StateClosed))
             ->distinct()
             ->pluck('term_id');
 
@@ -295,10 +297,20 @@ class TermPlanningWorkbench extends Page
             Term::StateClosed => 2,
         ];
 
-        return Term::query()
+        $terms = Term::query()
             ->with('academicYear')
             ->latest('starts_on')
-            ->get()
+            ->limit(25)
+            ->get();
+
+        if ($this->termId !== null && ! $terms->contains('id', $this->termId)) {
+            $selected = Term::query()->with('academicYear')->find($this->termId);
+            if ($selected instanceof Term) {
+                $terms->push($selected);
+            }
+        }
+
+        return $terms
             ->sortBy(fn (Term $term): string => sprintf('%d-%s', $stateOrder[$term->state] ?? 9, str_pad((string) (99999999 - (int) $term->starts_on->format('Ymd')), 8, '0', STR_PAD_LEFT)))
             ->mapWithKeys(function (Term $term): array {
                 $parts = array_filter([
@@ -329,6 +341,7 @@ class TermPlanningWorkbench extends Page
                 Select::make('academic_year_id')
                     ->label('Academic year')
                     ->options(fn (): array => AcademicYear::query()
+                        ->where('state', '!=', AcademicYear::StateClosed)
                         ->orderByDesc('starts_on')
                         ->get()
                         ->mapWithKeys(fn (AcademicYear $record): array => [$record->id => $record->state === AcademicYear::StateActive ? (string) $record->label : $record->displayLabel()])
@@ -336,7 +349,21 @@ class TermPlanningWorkbench extends Page
                     ->searchable()
                     ->preload()
                     ->live()
-                    ->default(fn (): ?int => $this->termId !== null ? Term::query()->whereKey($this->termId)->value('academic_year_id') : AcademicYear::query()->latest('starts_on')->value('id'))
+                    ->default(function (): ?int {
+                        if ($this->termId !== null) {
+                            $currentAyId = Term::query()->whereKey($this->termId)->value('academic_year_id');
+                            if ($currentAyId !== null && AcademicYear::query()->whereKey($currentAyId)->where('state', '!=', AcademicYear::StateClosed)->exists()) {
+                                return (int) $currentAyId;
+                            }
+                        }
+
+                        $fallback = AcademicYear::query()
+                            ->where('state', '!=', AcademicYear::StateClosed)
+                            ->latest('starts_on')
+                            ->value('id');
+
+                        return $fallback !== null ? (int) $fallback : null;
+                    })
                     ->createOptionAction(fn (Action $action): Action => $action->label('Add academic year')->modalHeading('Add academic year')->modalSubmitActionLabel('Create academic year'))
                     ->createOptionForm([
                         TextInput::make('label')->label('Academic year')->required()->maxLength(255)->unique('academic_years', 'label'),
@@ -509,9 +536,15 @@ class TermPlanningWorkbench extends Page
             && ! $resolved->enrollments()->exists()
             && ! $resolved->timetableVersions()->exists()
             && ! $resolved->hasActivatedCalendar()
+            && ! $resolved->calendarEvents()->exists()
             && ! TermCohort::query()->where('term_id', $resolved->id)->exists()
             && ! AdmissionCycle::query()->where('term_id', $resolved->id)->exists()
             && ! FeePlan::query()->where('term_id', $resolved->id)->exists()
+            && ! FacultyTermLoadOverride::query()->where('term_id', $resolved->id)->exists()
+            && ! FacultyAvailabilityDeclaration::query()->where('term_id', $resolved->id)->exists()
+            && ! FacultyAvailabilityDeadline::query()->where('term_id', $resolved->id)->exists()
+            && ! SchedulingCommitment::query()->where('term_id', $resolved->id)->exists()
+            && ! CurriculumVersion::query()->where('effective_entry_term_id', $resolved->id)->exists()
             && ! $resolved->scheduleGenerationRuns()->exists();
     }
 
@@ -789,7 +822,7 @@ class TermPlanningWorkbench extends Page
                         $lifecycleComponents[] = Placeholder::make('close_term_consequence')
                             ->hiddenLabel()
                             ->content(new HtmlString(
-                                '<p class="text-sm text-gray-600 dark:text-gray-300"><strong>Close term</strong> — Marks this term as Closed and locks its calendar, classes, staffing, timetable, enrollment, and grading as a read-only historical record. Closed terms remain viewable in Term Planning under the Closed filter. Active solver runs, draft timetable revisions, and open admission cycles must be resolved first.</p>'
+                                '<p class="text-sm text-gray-600 dark:text-gray-300"><strong>Close term:</strong> Marks this term as Closed and locks its calendar, classes, staffing, timetable, enrollment, and grading as a read-only historical record. Closed terms remain viewable in Term Planning under the Closed filter. Active solver runs, draft timetable revisions, and open admission cycles must be resolved first.</p>'
                             ));
                     }
 
@@ -797,7 +830,7 @@ class TermPlanningWorkbench extends Page
                         $lifecycleComponents[] = Placeholder::make('delete_draft_consequence')
                             ->hiddenLabel()
                             ->content(new HtmlString(
-                                '<p class="text-sm text-gray-600 dark:text-gray-300"><strong>Delete draft term</strong> — Permanently removes this unused draft term and any draft calendar rows. This cannot be undone.</p>'
+                                '<p class="text-sm text-gray-600 dark:text-gray-300"><strong>Delete draft term:</strong> Permanently removes this unused draft term and any draft calendar rows. This cannot be undone.</p>'
                             ));
                     }
 
@@ -1080,6 +1113,15 @@ class TermPlanningWorkbench extends Page
                         }
 
                         $term->update(['state' => Term::StateClosed]);
+
+                        TermCalendarPackage::query()
+                            ->where('term_id', $term->id)
+                            ->whereIn('state', [TermCalendarPackage::StateActive, TermCalendarPackage::StateDraft])
+                            ->update([
+                                'state' => TermCalendarPackage::StateClosed,
+                                'closed_at' => now(),
+                                'updated_at' => now(),
+                            ]);
                     }, attempts: 3);
                 } catch (ValidationException $exception) {
                     $message = collect($exception->errors())->flatten()->first();
@@ -1841,7 +1883,9 @@ class TermPlanningWorkbench extends Page
             ];
         }
 
-        $demands = SchedulingDemand::query()->whereHas('termOffering', fn ($query) => $query->where('term_id', $term->id));
+        $demands = SchedulingDemand::query()
+            ->whereHas('termOffering', fn ($query) => $query->where('term_id', $term->id))
+            ->whereHas('sectionDeliveryGroup.section', fn ($query) => $query->whereNotIn('state', [Section::StateCancelled, Section::StateClosed]));
         $resourceFindingKeys = [
             'missing_active_faculty_qualification',
             'missing_suitable_room',
@@ -1998,6 +2042,9 @@ class TermPlanningWorkbench extends Page
                     $run = app(ScheduleGenerationService::class)->generate($term, $actor);
 
                     $this->selectedRunId = $run->id;
+                    if (! in_array($run->status, [ScheduleGenerationRun::StatusQueued, ScheduleGenerationRun::StatusDispatching], true)) {
+                        $this->dispatch('databaseNotificationsSent');
+                    }
                     if ($this instanceof TermTimetable) {
                         $this->timetableState = 'draft';
                         $this->viewFilter = null;
@@ -2109,14 +2156,26 @@ class TermPlanningWorkbench extends Page
                 ]);
             }
 
+            $readiness = $this->generationReadiness();
+            if (! $readiness['ready']) {
+                throw ValidationException::withMessages([
+                    'term' => $readiness['reason'] ?? 'Resolve the recorded schedule readiness blockers before generating a new timetable.',
+                ]);
+            }
+
             $blockingRun = ScheduleGenerationRun::query()
                 ->where('term_id', $term->id)
                 ->whereKey($runId)
                 ->first();
 
-            if ($blockingRun instanceof ScheduleGenerationRun
+            $canDiscardBlocking = $blockingRun instanceof ScheduleGenerationRun
                 && $blockingRun->status === ScheduleGenerationRun::StatusUnderReview
-                && ! in_array($blockingRun->candidate_state, ['Accepted', 'Rejected', 'Stale', 'Superseded'], true)) {
+                && ! in_array($blockingRun->candidate_state, ['Rejected', 'Stale', 'Superseded'], true)
+                && ($blockingRun->candidate_state !== 'Accepted'
+                    || ($blockingRun->published_at === null
+                        && ! PublishedTimetableVersion::query()->where('schedule_generation_run_id', $blockingRun->id)->exists()));
+
+            if ($canDiscardBlocking) {
                 app(ReviewTimetableCandidate::class)->reject(
                     $blockingRun,
                     $actor,
@@ -2129,6 +2188,10 @@ class TermPlanningWorkbench extends Page
             $this->generationFailure = null;
             $this->dispatch('close-modal', id: 'timetable-generation-failure');
             $this->selectedRunId = $newRun->id;
+
+            if (! in_array($newRun->status, [ScheduleGenerationRun::StatusQueued, ScheduleGenerationRun::StatusDispatching], true)) {
+                $this->dispatch('databaseNotificationsSent');
+            }
 
             if ($this instanceof TermTimetable) {
                 $this->timetableState = 'draft';
@@ -2392,7 +2455,7 @@ class TermPlanningWorkbench extends Page
                     ->maxLength(2000)
                     ->required(fn (): bool => $this->publicationReasonRequirement() !== null)
                     ->helperText(fn (): string => $this->publicationReasonRequirement()
-                        ?? 'Optional for optimal candidate without quality warnings. TALA records the publishing Registrar and time automatically.'),
+                        ?? 'Optional for optimal draft without quality warnings. TALA records the publishing Registrar and time automatically.'),
             ])
 
             ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar) && $this->canPublishActiveRun())
@@ -2813,12 +2876,16 @@ class TermPlanningWorkbench extends Page
 
         })->values();
 
+        $isTimetableView = $this instanceof TermTimetable;
+
         $activeRun = $term instanceof Term ? $this->activeScheduleRun() : null;
 
         $allRuns = $term instanceof Term
-
-            ? ScheduleGenerationRun::query()->where('term_id', $term->id)->latest('id')->get()
-
+            ? ScheduleGenerationRun::query()
+                ->where('term_id', $term->id)
+                ->when(! $isTimetableView, fn ($query) => $query->select(['id', 'term_id', 'status', 'candidate_state', 'created_at']))
+                ->latest('id')
+                ->get()
             : collect();
 
         $allCandidateRows = collect();
@@ -2843,7 +2910,7 @@ class TermPlanningWorkbench extends Page
 
         $publicationSummary = ['assignments' => 0, 'warnings' => 0, 'conflicts' => 0];
 
-        if ($activeRun instanceof ScheduleGenerationRun) {
+        if ($activeRun instanceof ScheduleGenerationRun && $isTimetableView) {
 
             $diagnostics = is_array($activeRun->diagnostics) ? $activeRun->diagnostics : [];
 
@@ -2992,7 +3059,7 @@ class TermPlanningWorkbench extends Page
 
         }
 
-        $publishedMeetings = $selectedVersion instanceof PublishedTimetableVersion
+        $publishedMeetings = $isTimetableView && $selectedVersion instanceof PublishedTimetableVersion
 
             ? $selectedVersion->meetings()
 
@@ -3105,7 +3172,7 @@ class TermPlanningWorkbench extends Page
             }
         }
 
-        $nextTask = $needsAttention[0] ?? ['tab' => $activeRun ? 'generate' : 'generate', 'title' => $activeRun ? 'Review the latest timetable result' : 'Generate a timetable candidate', 'detail' => 'Generation validates the captured inputs. Review and publication are separate decisions.'];
+        $nextTask = $needsAttention[0] ?? ['tab' => 'generate', 'title' => $activeRun ? 'Review the latest timetable result' : 'Generate a timetable draft', 'detail' => 'Generation validates the captured inputs. Review and publication are separate decisions.'];
 
         $selectedVersion?->loadMissing('scheduleRun');
 
@@ -3135,9 +3202,9 @@ class TermPlanningWorkbench extends Page
 
             'nextTask' => $nextTask,
 
-            'candidatePresentation' => $activeRun ? TimetablePresentation::forCandidate($activeRun, $allCandidateRows) : null,
+            'candidatePresentation' => $isTimetableView && $activeRun ? TimetablePresentation::forCandidate($activeRun, $allCandidateRows) : null,
 
-            'publishedPresentation' => $selectedVersion ? TimetablePresentation::forPublished($selectedVersion, $publishedMeetings) : null,
+            'publishedPresentation' => $isTimetableView && $selectedVersion ? TimetablePresentation::forPublished($selectedVersion, $publishedMeetings) : null,
 
             'terms' => $terms,
 

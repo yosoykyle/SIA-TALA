@@ -398,11 +398,23 @@ class CurriculumVersionsTable
             ->implode(', ');
     }
 
+    /** @var array<int, Collection<int, Term>> */
+    private static array $usedTermsCache = [];
+
     /**
      * @return Collection<int, Term>
      */
     private static function usedTerms(CurriculumVersion $record): Collection
     {
+        $cacheKey = spl_object_id($record);
+        if (isset(self::$usedTermsCache[$cacheKey])) {
+            return self::$usedTermsCache[$cacheKey];
+        }
+
+        if (count(self::$usedTermsCache) > 200) {
+            self::$usedTermsCache = [];
+        }
+
         $offeringTerms = $record->entries
             ->flatMap(fn (CurriculumEntry $entry): Collection => $entry->termOfferings)
             ->map(fn (TermOffering $offering): ?Term => $offering->term)
@@ -413,7 +425,7 @@ class CurriculumVersionsTable
             ->whereHas('enrollments.studentProfile', fn (Builder $query): Builder => $query->where('curriculum_version_id', $record->id))
             ->get();
 
-        return $offeringTerms
+        return self::$usedTermsCache[$cacheKey] = $offeringTerms
             ->merge($enrollmentTerms)
             ->unique('id')
             ->sortByDesc(fn (Term $term): string => (string) ($term->starts_on?->toDateString() ?? ''))

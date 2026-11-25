@@ -346,7 +346,7 @@ class ViewProgram extends ViewRecord
                     : $copyable->first()?->id;
 
                 return [
-                    'program_display' => "{$program->code} — {$program->name}",
+                    'program_display' => "{$program->code} · {$program->name}",
                     'starting_academic_year_id' => $suggested?->id,
                     'creation_mode' => $mode,
                     'source_curriculum_version_id' => $sourceId,
@@ -370,7 +370,7 @@ class ViewProgram extends ViewRecord
 
                         return [
                             $cv->id => sprintf(
-                                '%s — %s (%d %s)',
+                                '%s · %s (%d %s)',
                                 $cv->batchLabel(),
                                 $stateLabel,
                                 (int) $cv->entries_count,
@@ -460,7 +460,7 @@ class ViewProgram extends ViewRecord
 
                 $short = CurriculumVersion::formatBatchShort($startingBatch);
                 $versionCode = $this->generateUniqueVersionCode($program, $short);
-                $name = "{$program->code} Curriculum — Batch {$short}";
+                $name = "{$program->code} Curriculum · Batch {$short}";
                 $effectiveEntryTermId = $this->resolveFirstTermIdForAcademicYear($startingBatch);
                 $lifecycle = app(CurriculumVersionLifecycleService::class);
 

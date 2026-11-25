@@ -221,7 +221,8 @@ class ScheduleGenerationRun extends Model
         return ($unknown || ($this->status === self::StatusFailed
             && ($failure['retryable'] ?? false) === true
               && ($failure['final'] ?? false) === true
-              && ! in_array($failure['code'] ?? null, ['INFEASIBLE', 'MODEL_INVALID'], true)))
+              && data_get($this->diagnostics, 'solver_dispatch.status') !== 'cancelled'
+              && ! in_array($failure['code'] ?? null, ['INFEASIBLE', 'MODEL_INVALID', 'CANCELLED_BY_REGISTRAR'], true)))
             && blank($this->candidate_key)
             && $this->published_at === null
             && ! self::query()->where('term_id', $this->term_id)->where('id', '>', $this->id)->exists()
@@ -250,11 +251,11 @@ class ScheduleGenerationRun extends Model
         $count = $validated ? ($summary['validated_meeting_count'] ?? $this->candidateRows()->count()) : null;
         $meaning = match ($outcome) {
             'Optimal' => 'The solver proved the best result for the captured model and objective.',
-            'Feasible' => 'A valid candidate was found; optimality was not proved. Publication requires a reason.',
+            'Feasible' => 'A valid draft schedule was found; optimality was not proved. Publication requires a reason.',
             'Infeasible' => 'No schedule satisfies all modeled hard rules for this input. Correct the evidenced source constraints.',
-            'Unknown' => 'No candidate or infeasibility proof was obtained. You may retry the search.',
+            'Unknown' => 'No timetable or infeasibility proof was obtained. You may retry the search.',
             'ModelInvalid' => 'The scheduling model could not be validated. The System Administrator must correct the model before a new run.',
-            'TechnicalFailure' => 'The request did not produce a trusted candidate. Inspect validation or service findings and the permitted recovery.',
+            'TechnicalFailure' => 'The request did not produce a trusted draft. Inspect validation or service findings and the permitted recovery.',
             'Local adjustment' => 'This successor was checked for hard validity. Its optimization quality has not been measured.',
             'Generating' => 'The whole-Term request is queued or processing. Return here for its result.',
             default => 'Outcome evidence is unavailable. Inspect the recorded request and validation.',
@@ -265,9 +266,9 @@ class ScheduleGenerationRun extends Model
         if (! $this->isPublished() && $this->published_at === null && in_array($this->candidate_state, ['Accepted', 'Rejected', 'Stale', 'Superseded'], true)) {
             $meaning = match ($this->candidate_state) {
                 'Accepted' => 'Review accepted. Publish after the current complete scope passes revalidation.',
-                'Rejected' => 'Review rejected. Record a successor request or correct the source; this candidate cannot be published.',
-                'Stale' => 'Source facts changed. Prepare a current candidate before publication.',
-                default => 'A successor replaced this candidate. Inspect the current version.',
+                'Rejected' => 'Draft discarded. Start a new request or correct the source; this attempt cannot be published.',
+                'Stale' => 'Source facts changed. Prepare a current draft before publication.',
+                default => 'A successor replaced this draft. Inspect the current version.',
             }.' '.$meaning;
         }
 

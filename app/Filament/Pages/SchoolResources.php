@@ -43,6 +43,7 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -350,6 +351,50 @@ final class SchoolResources extends Page implements HasTable
                             ->success()
                             ->send();
                     }),
+                Action::make('deleteRoom')
+                    ->label('Delete')
+                    ->icon(Heroicon::OutlinedTrash)
+                    ->button()
+                    ->color('danger')
+                    ->size('sm')
+                    ->extraAttributes(['class' => 'whitespace-nowrap'])
+                    ->requiresConfirmation()
+                    ->modalHeading(fn (Room $record): string => 'Delete '.$record->code.'?')
+                    ->modalDescription(fn (Room $record): string => "Permanently deletes {$record->code} because it has no meetings, closures, commitments, or scheduling requirements. This cannot be undone.")
+                    ->modalSubmitActionLabel('Delete room')
+                    ->visible(fn (Room $record): bool => ! $this->isReadOnly() && RoomResource::canDelete($record))
+                    ->action(function (Room $record): void {
+                        $actor = auth()->user();
+                        abort_unless($actor instanceof User && $actor->hasRole(User::StaffRoleRegistrar) && RoomResource::canDelete($record), 403);
+
+                        $code = $record->code;
+
+                        try {
+                            DB::transaction(function () use ($record): void {
+                                $locked = Room::query()->whereKey($record->id)->lockForUpdate()->firstOrFail();
+                                $locked->features()->delete();
+                                $locked->delete();
+                            }, attempts: 3);
+                        } catch (QueryException) {
+                            Notification::make()
+                                ->title("Cannot delete {$code}")
+                                ->body("{$code} is already referenced by scheduling records. Deactivate it instead.")
+                                ->danger()
+                                ->persistent()
+                                ->send();
+
+                            return;
+                        }
+
+                        $this->refreshActiveTermScheduling($actor);
+                        $this->flushCachedTableRecords();
+
+                        Notification::make()
+                            ->title("{$code} deleted")
+                            ->body('Unused room removed from the shared campus catalog.')
+                            ->success()
+                            ->send();
+                    }),
                 Action::make('inspectRoom')
                     ->label('Details')
                     ->icon(Heroicon::OutlinedEye)
@@ -556,7 +601,8 @@ final class SchoolResources extends Page implements HasTable
                         ->orderBy('name')
                         ->pluck('name', 'id')
                         ->all())
-                    ->native(true)
+                    ->searchable()
+                    ->preload()
                     ->required()
                     ->live()
                     ->afterStateUpdated(function (Get $get, Set $set, mixed $state): void {

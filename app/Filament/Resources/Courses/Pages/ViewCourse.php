@@ -15,6 +15,7 @@ use App\Models\CourseRequirement;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
+use App\Models\Section;
 use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
@@ -197,7 +198,55 @@ class ViewCourse extends ViewRecord
             $this->editCourseDetailsAction(),
             $this->retireCourseAction(),
             $this->reactivateCourseAction(),
+            $this->deleteCourseAction(),
         ];
+    }
+
+    public function deleteCourseAction(): Action
+    {
+        return Action::make('deleteCourse')
+            ->label('Delete')
+            ->color('danger')
+            ->icon(Heroicon::OutlinedTrash)
+            ->requiresConfirmation()
+            ->modalHeading(fn (): string => ($course = $this->getRecord()) instanceof Course ? "Delete draft {$course->code}?" : 'Delete draft subject?')
+            ->modalDescription('Only unused, unpublished draft subjects can be permanently deleted. Published (Active), retired, or referenced subjects cannot be deleted.')
+            ->modalSubmitActionLabel('Delete draft subject')
+            ->authorize(fn (): bool => ($course = $this->getRecord()) instanceof Course
+                && (auth()->user()?->can('create', Course::class) ?? false)
+                && CourseResource::canDeleteUnusedSubject($course))
+            ->visible(fn (): bool => ($course = $this->getRecord()) instanceof Course
+                && (auth()->user()?->can('create', Course::class) ?? false)
+                && CourseResource::canDeleteUnusedSubject($course))
+            ->action(function (): void {
+                $course = $this->getRecord();
+                $actor = auth()->user();
+                abort_unless($course instanceof Course, 404);
+                abort_unless($actor instanceof User, 403);
+
+                try {
+                    CourseResource::deleteUnusedSubject($course, $actor);
+                } catch (ValidationException $exception) {
+                    Notification::make()
+                        ->title('Subject cannot be deleted')
+                        ->body(collect($exception->errors())->flatten()->implode(' '))
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                Notification::make()
+                    ->title('Subject deleted')
+                    ->success()
+                    ->send();
+
+                $params = array_filter([
+                    'oversightTermId' => $this->oversightTermId,
+                ], fn (mixed $value): bool => $value !== null);
+
+                $this->redirect(CourseResource::getUrl('index', $params));
+            });
     }
 
     public function editCourseDetailsAction(): Action
@@ -533,7 +582,8 @@ class ViewCourse extends ViewRecord
             return false;
         }
 
-        return ! $spec->curriculumEntries()->exists();
+        return ! $spec->curriculumEntries()->exists()
+            && ! Section::query()->where('course_specification_id', $spec->id)->exists();
     }
 
     /**

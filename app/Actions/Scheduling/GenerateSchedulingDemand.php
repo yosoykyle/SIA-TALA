@@ -321,13 +321,14 @@ class GenerateSchedulingDemand
             }
 
             $obsoleteComponentDemandIds = $existingDemands
-                ->filter(function (SchedulingDemand $demand) use ($validComponentIdsByGroup, $validComponentIdsByOffering): bool {
-                    $validIds = $validComponentIdsByGroup[(int) $demand->section_delivery_group_id]
-                        ?? $validComponentIdsByOffering[(int) $demand->term_offering_id]
-                        ?? [];
+                ->filter(function (SchedulingDemand $demand) use ($validComponentIdsByGroup): bool {
+                    $groupId = (int) $demand->section_delivery_group_id;
 
-                    return $validIds !== []
-                        && ! in_array((int) $demand->course_component_id, $validIds, true);
+                    if (! array_key_exists($groupId, $validComponentIdsByGroup)) {
+                        return true;
+                    }
+
+                    return ! in_array((int) $demand->course_component_id, $validComponentIdsByGroup[$groupId], true);
                 })
                 ->map(fn (SchedulingDemand $demand): int => (int) $demand->id)
                 ->values()
@@ -337,6 +338,7 @@ class GenerateSchedulingDemand
                 SchedulingDemand::query()
                     ->whereIn('id', $obsoleteComponentDemandIds)
                     ->whereDoesntHave('sectionMeetings')
+                    ->whereDoesntHave('candidateRows')
                     ->delete();
             }
 

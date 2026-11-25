@@ -2,8 +2,11 @@
 
 namespace App\Filament\Resources\AdmissionCycles\Pages;
 
+use App\Actions\Admissions\ChangeAdmissionCycle;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
+use App\Models\AdmissionCycle;
+use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ViewAction;
@@ -26,7 +29,7 @@ class EditAdmissionCycle extends EditRecord
 
     public function getTitle(): string
     {
-        return 'Edit cycle — '.$this->getRecord()->label;
+        return 'Edit cycle · '.$this->getRecord()->label;
     }
 
     public function getBreadcrumbs(): array
@@ -47,8 +50,15 @@ class EditAdmissionCycle extends EditRecord
                 ->stickyModalHeader()
                 ->stickyModalFooter()
                 ->modalHeading('Discard cycle draft?')
-                ->modalDescription('This removes the unreferenced cycle draft. Published cycles and drafts with applications, requirements or retained events cannot be discarded.')
-                ->modalSubmitActionLabel('Discard draft'),
+                ->modalDescription('Permanently removes this unpublished draft cycle and any draft requirement sets. Published cycles and cycles with applications or published requirement sets cannot be discarded.')
+                ->modalSubmitActionLabel('Discard draft')
+                ->using(function (AdmissionCycle $record): bool {
+                    $actor = auth()->user();
+                    abort_unless($actor instanceof User, 403);
+                    app(ChangeAdmissionCycle::class)->discardDraft($record, $actor);
+
+                    return true;
+                }),
         ];
     }
 }

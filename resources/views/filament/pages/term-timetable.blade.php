@@ -580,9 +580,9 @@
                                         @foreach ($groupedBlockers as $blockerGroup)
                                             @php
                                                 $blockerStepLabel = match ($blockerGroup['label']) {
-                                                    'Term Calendar' => 'Calendar',
-                                                    'Classes' => 'Classes & sections',
-                                                    'Resources' => 'Faculty & rooms',
+                                                    'Term Calendar', 'Term calendar' => 'Calendar',
+                                                    'Classes', 'Classes & sections' => 'Classes & sections',
+                                                    'Resources', 'Faculty & rooms' => 'Faculty & rooms',
                                                     'Timetable' => 'Timetable',
                                                     default => $blockerGroup['label'],
                                                 };
@@ -604,7 +604,7 @@
                                                     tag="a"
                                                     size="sm"
                                                     :color="$loop->first ? 'primary' : 'gray'"
-                                                    :icon="match ($blockerGroup['label']) { 'Classes' => 'heroicon-o-rectangle-group', 'Resources' => 'heroicon-o-users', 'Timetable' => 'heroicon-o-table-cells', default => 'heroicon-o-calendar' }"
+                                                    :icon="match ($blockerGroup['label']) { 'Classes', 'Classes & sections' => 'heroicon-o-rectangle-group', 'Resources', 'Faculty & rooms' => 'heroicon-o-users', 'Timetable' => 'heroicon-o-table-cells', default => 'heroicon-o-calendar' }"
                                                     :href="$blockerGroup['url']"
                                                 >
                                                     {{ $blockerStepLabel }}
@@ -844,12 +844,23 @@
                                 <p class="tala-work-footnote">Faculty load imbalance includes every eligible teacher captured by the attempt, including teachers with no assignments.</p>
                             </section>
                         @endif
-                        @if ($allRuns->where('status', '!=', 'published')->count() > 1 || $versions->count() > 1)
+                        @php
+                            $historyRuns = ($nonPublishedRuns ?? $allRuns->where('status', '!=', 'published')
+                                ->filter(fn ($run) => ($activeRun?->id === $run->id) || ! \App\Actions\Scheduling\RevertCandidateRun::isIntermediateAdjustmentSnapshot($run)))
+                                ->values();
+                        @endphp
+                        @if ($historyRuns->count() > 1 || $versions->count() > 1)
                             <section class="tala-evidence-surface" aria-label="Earlier timetable history">
                                 <h3>Earlier timetable history</h3>
                                 <p class="tala-work-footnote">Opening an earlier result does not change the official timetable.</p>
-                                <ul class="tala-guide-history">@foreach ($allRuns->where('status', '!=', 'published') as $run)<li><span><strong>Attempt #{{ $run->id }}</strong> · {{ $run->created_at->timezone('Asia/Manila')->format('M j, Y g:i A') }} · {{ $this->plainAttemptStatusLabel($run) }}</span><x-filament::button color="gray" size="sm" wire:click="chooseTimetable('draft:{{ $run->id }}')" x-on:click="$dispatch('close-modal', { id: 'timetable-review-details' })" :disabled="! $showOfficial && $activeRun?->id === $run->id">{{ ! $showOfficial && $activeRun?->id === $run->id ? 'Viewing this attempt' : 'Open attempt' }}</x-filament::button></li>@endforeach
+                                <ul class="tala-guide-history">@foreach ($historyRuns->take(10) as $run)<li><span><strong>Attempt #{{ $run->id }}</strong> · {{ $run->created_at->timezone('Asia/Manila')->format('M j, Y g:i A') }} · {{ $this->plainAttemptStatusLabel($run) }}</span><x-filament::button color="gray" size="sm" wire:click="chooseTimetable('draft:{{ $run->id }}')" x-on:click="$dispatch('close-modal', { id: 'timetable-review-details' })" :disabled="! $showOfficial && $activeRun?->id === $run->id">{{ ! $showOfficial && $activeRun?->id === $run->id ? 'Viewing this attempt' : 'Open attempt' }}</x-filament::button></li>@endforeach
                                 @foreach ($versions as $version)<li><span><strong>{{ $version->state }} v{{ $version->version }}</strong> · {{ $version->published_at?->timezone('Asia/Manila')->format('M j, Y') }}</span><x-filament::button color="gray" size="sm" wire:click="chooseTimetable('official:{{ $version->id }}')" x-on:click="$dispatch('close-modal', { id: 'timetable-review-details' })" :disabled="$showOfficial && $selectedVersion?->id === $version->id">{{ $showOfficial && $selectedVersion?->id === $version->id ? 'Viewing this version' : 'Open version' }}</x-filament::button></li>@endforeach</ul>
+                                @if ($historyRuns->count() > 10)
+                                    <p class="tala-work-footnote">
+                                        Showing latest 10 attempts of {{ $historyRuns->count() }}.
+                                        <a class="fi-link" href="{{ \App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource::getUrl('index', ['termId' => $term?->id]) }}">View full solver history</a>
+                                    </p>
+                                @endif
                             </section>
                         @endif
                     </div>

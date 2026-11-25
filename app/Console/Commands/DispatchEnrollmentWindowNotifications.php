@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Actions\Enrollment\RegistrationNotificationLedger;
 use App\Models\StudentProfile;
+use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermCalendarWindow;
 use App\Models\User;
@@ -36,7 +37,9 @@ class DispatchEnrollmentWindowNotifications extends Command
             ->where('window_type', TermCalendarWindow::TypeEnrollment)
             ->whereDate('opens_on', '<=', $today)
             ->whereDate('closes_on', '>=', $today)
-            ->whereHas('package', fn ($query) => $query->where('state', TermCalendarPackage::StateActive))
+            ->whereHas('package', fn ($query) => $query
+                ->where('state', TermCalendarPackage::StateActive)
+                ->whereHas('term', fn ($term) => $term->where('state', '!=', Term::StateClosed)))
             ->orderBy('id')
             ->get();
         $queued = 0;

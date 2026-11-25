@@ -854,9 +854,12 @@
                         <div class="sr-only" role="status" aria-live="polite" aria-atomic="true" x-text="moveAnnouncement"></div>
                     @endif
         @elseif (! $controlled)
-        <details class="tala-timetable-filters">
-            <summary>Filter by faculty, room, class or modality</summary>
-            <div class="tala-timetable-filter-fields">
+        <div class="tala-timetable-filters" x-data="{ open: false }">
+            <button type="button" class="fi-btn fi-color-gray fi-outlined fi-size-sm" x-on:click="open = ! open" x-bind:aria-expanded="open.toString()">
+                <x-filament::icon icon="heroicon-o-funnel" class="h-4 w-4" aria-hidden="true" />
+                <span>Filter by teacher, room, class or modality</span>
+            </button>
+            <div class="tala-timetable-filter-fields" x-cloak x-show="open">
                 @foreach (['faculty' => 'Teacher', 'room' => 'Room', 'class' => 'Class', 'modality' => 'Modality'] as $field => $label)
                     <label>
                         <span>{{ $label }}</span>
@@ -872,7 +875,7 @@
                 @endforeach
                 <x-filament::button color="gray" x-on:click="filters = {faculty: '', room: '', class: '', modality: ''}; selected = null">Clear filters</x-filament::button>
             </div>
-        </details>
+        </div>
         @endif
         @if (! $embedded)<p class="tala-timetable-guide">
             <span aria-live="polite"><span x-text="visibleCount">{{ count($renderMeetings) }}</span> of {{ count($renderMeetings) }} meetings shown.</span>
@@ -913,7 +916,7 @@
                             </span>
                         </template>
                         @if ($editable)
-                            <span class="tala-inspector-state-pill is-draft">Draft candidate · Editable</span>
+                            <span class="tala-inspector-state-pill is-draft">Draft · Editable</span>
                         @elseif ($isOfficial)
                             <span class="tala-inspector-state-pill is-official">Official · Locked</span>
                         @endif

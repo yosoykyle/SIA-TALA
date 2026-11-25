@@ -50,10 +50,17 @@ final class ReviewTimetableCandidate
             $locked = ScheduleGenerationRun::query()->whereKey($run->id)->lockForUpdate()->firstOrFail();
             Gate::forUser($actor)->authorize('reviewCandidates', $locked);
 
+            $canDiscardAccepted = $decision === 'Rejected'
+                && $locked->candidate_state === 'Accepted'
+                && $locked->published_at === null
+                && ! $locked->timetableVersions()->exists();
+
             if ($locked->status !== ScheduleGenerationRun::StatusUnderReview
-                || in_array($locked->candidate_state, ['Accepted', 'Rejected', 'Stale', 'Superseded'], true)) {
+                || (! $canDiscardAccepted && in_array($locked->candidate_state, ['Accepted', 'Rejected', 'Stale', 'Superseded'], true))) {
                 throw ValidationException::withMessages([
-                    'candidate_state' => 'Only a current, unreviewed candidate can be accepted or rejected.',
+                    'candidate_state' => $decision === 'Rejected' && $locked->candidate_state === 'Accepted'
+                        ? 'A published timetable cannot be discarded.'
+                        : 'Only a current, unreviewed candidate can be accepted or rejected.',
                 ]);
             }
 

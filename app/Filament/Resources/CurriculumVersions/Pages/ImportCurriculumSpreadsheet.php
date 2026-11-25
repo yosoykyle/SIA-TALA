@@ -123,7 +123,7 @@ class ImportCurriculumSpreadsheet extends Page
 
     public function getTitle(): string
     {
-        return 'Import spreadsheet — '.$this->loadedCurriculum()->batchLabel();
+        return 'Import spreadsheet · '.$this->loadedCurriculum()->batchLabel();
     }
 
     public function getHeading(): string|Htmlable
@@ -137,7 +137,7 @@ class ImportCurriculumSpreadsheet extends Page
         $programDisplay = collect([
             $curriculum->program?->code,
             $curriculum->program?->name,
-        ])->filter()->implode(' — ');
+        ])->filter()->implode(' · ');
 
         return collect([
             $programDisplay !== '' ? $programDisplay : null,

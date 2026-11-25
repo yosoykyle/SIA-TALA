@@ -312,7 +312,7 @@
                                         </x-filament::badge>
                                     @else
                                         <x-filament::badge size="sm" color="success">
-                                            Fixed — {{ $row['status_label'] }}
+                                            Fixed: {{ $row['status_label'] }}
                                         </x-filament::badge>
                                     @endif
 

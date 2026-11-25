@@ -37,7 +37,7 @@ final class CandidateScheduleReviewForm
             Hidden::make('scheduling_demand_id')
                 ->dehydrated(false),
             Section::make('Requested assignment')
-                ->description('Choose the teacher, room and time for this meeting. TALA checks the complete candidate before recording an updated draft.')
+                ->description('Choose the teacher, room and time for this meeting. TALA checks the complete draft timetable before recording an updated draft.')
                 ->schema(self::assignmentFields($run))
                 ->columns(['default' => 1, 'md' => 2]),
             Section::make('Reason')
@@ -52,7 +52,7 @@ final class CandidateScheduleReviewForm
         return [
             Repeater::make('assignments')
                 ->label('Complete replacement assignments')
-                ->helperText('Every required demand meeting is listed. TALA validates the complete set before replacing any candidate rows.')
+                ->helperText('Every required demand meeting is listed. TALA validates the complete set before replacing any draft rows.')
                 ->schema([
                     Hidden::make('scheduling_demand_id'),
                     Hidden::make('meeting_sequence'),
@@ -187,7 +187,7 @@ final class CandidateScheduleReviewForm
         return [
             Textarea::make('override_reason')
                 ->label('Reason')
-                ->helperText('Explain why this candidate adjustment is needed. The complete candidate must pass validation before acceptance or publication. TALA records the actor and timestamp automatically.')
+                ->helperText('Explain why this draft adjustment is needed. The complete draft timetable must pass validation before acceptance or publication. TALA records the actor and timestamp automatically.')
                 ->rows(3)
                 ->maxLength(2000)
                 ->required()

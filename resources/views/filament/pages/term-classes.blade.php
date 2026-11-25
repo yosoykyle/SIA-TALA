@@ -37,7 +37,7 @@
                             </h2>
                         </div>
                         <p class="tala-resource-readiness-bar__meta">
-                            All confirmed classes across every program are scheduled together so shared rooms and teachers never conflict — filter by program or year below.
+                            All confirmed classes across every program are scheduled together so shared rooms and teachers never conflict. Filter by program or year below.
                         </p>
                     </div>
                 </div>

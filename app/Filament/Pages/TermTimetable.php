@@ -307,7 +307,25 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
     public function acceptCandidateAction(): Action
     {
         return parent::acceptCandidateAction()
+            ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar)
+                && $this->canReviewActiveRun()
+                && $this->activeScheduleRun()?->candidate_state !== 'Accepted')
             ->hidden(fn (): bool => $this->isTermClosed());
+    }
+
+    public function canReviewActiveRun(): bool
+    {
+        $actor = auth()->user();
+        $run = $this->activeScheduleRun();
+
+        return $actor instanceof User
+            && ! $this->isTermClosed()
+            && $run instanceof ScheduleGenerationRun
+            && $run->status === ScheduleGenerationRun::StatusUnderReview
+            && ! in_array($run->candidate_state, ['Rejected', 'Stale', 'Superseded'], true)
+            && ($run->candidate_state !== 'Accepted'
+                || ($run->published_at === null && ! $run->timetableVersions()->exists()))
+            && Gate::forUser($actor)->allows('reviewCandidates', $run);
     }
 
     public function rejectCandidateAction(): Action
@@ -560,7 +578,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         $allRuns = ScheduleGenerationRun::query()
             ->where('term_id', $term->id)
             ->latest('id')
-            ->get(['id', 'term_id', 'status', 'candidate_state', 'diagnostics', 'input_snapshot', 'created_at']);
+            ->get(['id', 'term_id', 'status', 'candidate_state', 'diagnostics', 'created_at']);
 
         $nonPublishedRuns = $allRuns
             ->where('status', '!=', ScheduleGenerationRun::StatusPublished)
@@ -572,13 +590,13 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         $pastAttemptOptions = [];
 
         foreach ($nonPublishedRuns as $run) {
-            $editCount = RevertCandidateRun::manualEditCount($run);
             $statusLabel = $this->plainAttemptStatusLabel($run);
             $isActiveDraft = in_array($run->status, [
                 ScheduleGenerationRun::StatusQueued,
                 ScheduleGenerationRun::StatusDispatching,
                 ScheduleGenerationRun::StatusUnderReview,
             ], true) && ! in_array($run->candidate_state, ['Stale', 'Superseded', 'Rejected'], true);
+            $editCount = $isActiveDraft ? RevertCandidateRun::manualEditCount($run) : 0;
 
             if ($isActiveDraft) {
                 $label = in_array($run->status, [
@@ -621,6 +639,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
             'term' => $term,
             'activeRun' => $activeRun,
             'allRuns' => $allRuns,
+            'nonPublishedRuns' => $nonPublishedRuns,
             'attemptSelectorOptions' => $attemptSelectorOptions,
             'activeDraftOptions' => $activeDraftOptions,
             'pastAttemptOptions' => $visiblePastAttempts,
@@ -693,13 +712,17 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         if ($allMeetings !== []) {
             $activeRunForSnapshot = $data['activeRun'] ?? null;
             $selectedVersionForSnapshot = $data['selectedVersion'] ?? null;
-            $snapshot = $activeRunForSnapshot instanceof ScheduleGenerationRun && is_array($activeRunForSnapshot->input_snapshot)
-                ? $activeRunForSnapshot->input_snapshot
-                : ($selectedVersionForSnapshot instanceof PublishedTimetableVersion
-                    && $selectedVersionForSnapshot->scheduleRun
-                    && is_array($selectedVersionForSnapshot->scheduleRun->input_snapshot)
-                    ? $selectedVersionForSnapshot->scheduleRun->input_snapshot
-                    : []);
+            $snapshot = [];
+            if ($activeRunForSnapshot instanceof ScheduleGenerationRun) {
+                $loadedSnapshot = $activeRunForSnapshot->input_snapshot;
+                $snapshot = is_array($loadedSnapshot)
+                    ? $loadedSnapshot
+                    : (ScheduleGenerationRun::query()->whereKey($activeRunForSnapshot->id)->first(['id', 'input_snapshot'])?->input_snapshot ?? []);
+            } elseif ($selectedVersionForSnapshot instanceof PublishedTimetableVersion
+                && $selectedVersionForSnapshot->scheduleRun
+                && is_array($selectedVersionForSnapshot->scheduleRun->input_snapshot)) {
+                $snapshot = $selectedVersionForSnapshot->scheduleRun->input_snapshot;
+            }
 
             $capturedCapacities = collect($snapshot['scheduling_demands'] ?? [])
                 ->mapWithKeys(fn (array $demand): array => [
@@ -1172,7 +1195,9 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                     $currentRun = $this->activeScheduleRun();
                     if ($currentRun instanceof ScheduleGenerationRun
                         && $currentRun->status === ScheduleGenerationRun::StatusUnderReview
-                        && ! in_array($currentRun->candidate_state, ['Accepted', 'Rejected', 'Stale', 'Superseded'], true)) {
+                        && ! in_array($currentRun->candidate_state, ['Rejected', 'Stale', 'Superseded'], true)
+                        && ($currentRun->candidate_state !== 'Accepted'
+                            || ($currentRun->published_at === null && ! $currentRun->timetableVersions()->exists()))) {
                         app(ReviewTimetableCandidate::class)->reject(
                             $currentRun,
                             $actor,
@@ -1189,6 +1214,13 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                     $this->yearFilter = null;
                     $this->meetingDetailsViewData = [];
                     $this->resetTable();
+
+                    if (! in_array($newRun->status, [
+                        ScheduleGenerationRun::StatusQueued,
+                        ScheduleGenerationRun::StatusDispatching,
+                    ], true)) {
+                        $this->dispatch('databaseNotificationsSent');
+                    }
 
                     $lockedCount = SchedulingCommitment::query()->where('term_id', $term->id)->count();
                     $body = $lockedCount > 0

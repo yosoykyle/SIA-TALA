@@ -583,8 +583,54 @@ final class PublishedScheduleRevisionForm
             $scopeNote = '<div class="tala-context-inset"><p class="tala-revision-scope-note">'.e($scopeSummary).'</p>'.$loadNoteHtml.'</div>';
         }
 
-        $meetingRows = collect($impact->meetingChanges())
-            ->map(fn (array $change): string => self::meetingChangeHtml($change))
+        $meetingChanges = $impact->meetingChanges();
+        $meetingIds = collect($meetingChanges)
+            ->pluck('section_meeting_id')
+            ->filter(fn (mixed $id): bool => is_numeric($id))
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values();
+        $preloadedMeetings = $meetingIds->isNotEmpty()
+            ? SectionMeeting::query()
+                ->with('schedulingDemand.sectionDeliveryGroup.section')
+                ->whereIn('id', $meetingIds)
+                ->get()
+                ->keyBy('id')
+            : collect();
+
+        $facultyIds = collect($meetingChanges)
+            ->flatMap(fn (array $change): array => [
+                data_get($change, 'old.faculty_user_id'),
+                data_get($change, 'new.faculty_user_id'),
+            ])
+            ->filter(fn (mixed $id): bool => is_numeric($id))
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values();
+        $preloadedFaculty = $facultyIds->isNotEmpty()
+            ? User::query()->whereIn('id', $facultyIds)->get(['id', 'name'])->keyBy('id')
+            : collect();
+
+        $roomIds = collect($meetingChanges)
+            ->flatMap(fn (array $change): array => [
+                data_get($change, 'old.room_id'),
+                data_get($change, 'new.room_id'),
+            ])
+            ->filter(fn (mixed $id): bool => is_numeric($id))
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values();
+        $preloadedRooms = $roomIds->isNotEmpty()
+            ? Room::query()->whereIn('id', $roomIds)->get(['id', 'code'])->keyBy('id')
+            : collect();
+
+        $meetingRows = collect($meetingChanges)
+            ->map(fn (array $change): string => self::meetingChangeHtml(
+                $change,
+                $preloadedMeetings,
+                $preloadedFaculty,
+                $preloadedRooms,
+            ))
             ->implode('');
         $findingRows = collect($impact->findings())
             ->map(fn (array $finding): string => self::findingHtml($finding))
@@ -614,13 +660,23 @@ final class PublishedScheduleRevisionForm
             HTML);
     }
 
-    /** @param array<string, mixed> $change */
-    private static function meetingChangeHtml(array $change): string
-    {
+    /**
+     * @param  array<string, mixed>  $change
+     * @param  \Illuminate\Support\Collection<int, SectionMeeting>|null  $preloadedMeetings
+     * @param  \Illuminate\Support\Collection<int, User>|null  $preloadedFaculty
+     * @param  \Illuminate\Support\Collection<int, Room>|null  $preloadedRooms
+     */
+    private static function meetingChangeHtml(
+        array $change,
+        ?\Illuminate\Support\Collection $preloadedMeetings = null,
+        ?\Illuminate\Support\Collection $preloadedFaculty = null,
+        ?\Illuminate\Support\Collection $preloadedRooms = null,
+    ): string {
         $meetingId = (int) ($change['section_meeting_id'] ?? 0);
-        $meeting = SectionMeeting::query()
-            ->with('schedulingDemand.sectionDeliveryGroup.section')
-            ->find($meetingId);
+        $meeting = $preloadedMeetings?->get($meetingId)
+            ?? SectionMeeting::query()
+                ->with('schedulingDemand.sectionDeliveryGroup.section')
+                ->find($meetingId);
         $label = $meeting instanceof SectionMeeting ? self::meetingLabel($meeting) : 'Meeting #'.$meetingId;
         $old = is_array($change['old'] ?? null) ? $change['old'] : [];
         $new = is_array($change['new'] ?? null) ? $change['new'] : [];
@@ -628,8 +684,8 @@ final class PublishedScheduleRevisionForm
         return '<div class="tala-revision-change">'
             .'<p class="tala-revision-meeting">'.e($label).'</p>'
             .'<dl class="tala-revision-comparison">'
-            .'<div><dt>Current</dt><dd>'.e(self::snapshotLabel($old)).'</dd></div>'
-            .'<div><dt>Proposed</dt><dd>'.e(self::snapshotLabel($new)).'</dd></div></dl>'
+            .'<div><dt>Current</dt><dd>'.e(self::snapshotLabel($old, $preloadedFaculty, $preloadedRooms)).'</dd></div>'
+            .'<div><dt>Proposed</dt><dd>'.e(self::snapshotLabel($new, $preloadedFaculty, $preloadedRooms)).'</dd></div></dl>'
             .'</div>';
     }
 
@@ -645,13 +701,20 @@ final class PublishedScheduleRevisionForm
         return '<li>'.e($message).' <span class="tala-revision-finding-source">Source: '.$sourceHtml.'</span></li>';
     }
 
-    /** @param array<string, mixed> $snapshot */
-    private static function snapshotLabel(array $snapshot): string
-    {
+    /**
+     * @param  array<string, mixed>  $snapshot
+     * @param  \Illuminate\Support\Collection<int, User>|null  $preloadedFaculty
+     * @param  \Illuminate\Support\Collection<int, Room>|null  $preloadedRooms
+     */
+    private static function snapshotLabel(
+        array $snapshot,
+        ?\Illuminate\Support\Collection $preloadedFaculty = null,
+        ?\Illuminate\Support\Collection $preloadedRooms = null,
+    ): string {
         $facultyId = is_numeric($snapshot['faculty_user_id'] ?? null) ? (int) $snapshot['faculty_user_id'] : null;
         $roomId = is_numeric($snapshot['room_id'] ?? null) ? (int) $snapshot['room_id'] : null;
-        $faculty = $facultyId !== null ? User::query()->find($facultyId) : null;
-        $room = $roomId !== null ? Room::query()->find($roomId) : null;
+        $faculty = $facultyId !== null ? ($preloadedFaculty?->get($facultyId) ?? User::query()->find($facultyId)) : null;
+        $room = $roomId !== null ? ($preloadedRooms?->get($roomId) ?? Room::query()->find($roomId)) : null;
         $day = SectionMeeting::dayOptions()[(int) ($snapshot['day_of_week'] ?? 0)] ?? 'No day';
         $timeWindow = self::formatTimeWindow($snapshot['starts_at'] ?? null, $snapshot['ends_at'] ?? null);
         $modality = TermOffering::modalityOptions()[(string) ($snapshot['modality'] ?? '')]

@@ -36,6 +36,7 @@ class RegistrationEntryContext
         if ($profile instanceof StudentProfile) {
             $terms = $requestedTerm instanceof Term ? collect([$requestedTerm]) : Term::query()
                 ->with('academicYear')
+                ->where('state', '!=', Term::StateClosed)
                 ->whereHas('calendarPackages', fn ($query) => $query->where('state', TermCalendarPackage::StateActive)
                     ->whereHas('windows', fn ($window) => $window->where('window_type', TermCalendarWindow::TypeEnrollment)))
                 ->orderBy('starts_on')->get()->filter(function (Term $candidate) use ($profile): bool {

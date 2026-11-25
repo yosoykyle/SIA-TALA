@@ -605,6 +605,75 @@ class TermCalendar extends TermPlanningWorkbench implements HasTable
             });
     }
 
+    public function discardDraftCalendarAction(): Action
+    {
+        return Action::make('discardDraftCalendar')
+            ->label('Discard draft')
+            ->icon(Heroicon::OutlinedTrash)
+            ->color('danger')
+            ->size('sm')
+            ->requiresConfirmation()
+            ->modalHeading('Discard draft calendar?')
+            ->modalDescription('Removes this unactivated draft calendar so the active calendar remains the only current teaching schedule. This cannot be undone.')
+            ->modalSubmitActionLabel('Discard draft')
+            ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar)
+                && $this->termId !== null
+                && ! $this->hasPublishedTimetable()
+                && ! $this->isTermClosed()
+                && $this->latestDraftCalendarPackage() instanceof TermCalendarPackage)
+            ->action(function (): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User && $actor->hasRole(User::StaffRoleRegistrar), 403);
+
+                $term = $this->selectedTerm();
+                Gate::forUser($actor)->authorize('update', $term);
+
+                if ($this->isTermClosed($term) || $this->hasPublishedTimetable($term)) {
+                    throw ValidationException::withMessages([
+                        'draft' => 'Draft calendars cannot be discarded once the official timetable is published or the term is closed.',
+                    ]);
+                }
+
+                $removed = 0;
+
+                DB::transaction(function () use ($term, &$removed): void {
+                    $drafts = TermCalendarPackage::query()
+                        ->where('term_id', $term->id)
+                        ->where('state', TermCalendarPackage::StateDraft)
+                        ->lockForUpdate()
+                        ->get();
+
+                    foreach ($drafts as $draft) {
+                        $hasSections = Section::query()
+                            ->where('term_calendar_package_id', $draft->id)
+                            ->exists();
+
+                        if ($hasSections) {
+                            $draft->update([
+                                'state' => TermCalendarPackage::StateClosed,
+                                'closed_at' => now(),
+                            ]);
+                        } else {
+                            $draft->windows()->delete();
+                            $draft->teachingGridRows()->delete();
+                            $draft->datedExceptions()->delete();
+                            $draft->delete();
+                        }
+
+                        $removed++;
+                    }
+                }, attempts: 3);
+
+                if ($removed > 0) {
+                    Notification::make()
+                        ->title('Draft calendar discarded')
+                        ->body('The unactivated draft calendar was removed.')
+                        ->success()
+                        ->send();
+                }
+            });
+    }
+
     /** @return array<string, mixed> */
     public function defaultCalendarFormData(Term $term): array
     {

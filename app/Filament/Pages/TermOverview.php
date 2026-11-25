@@ -115,7 +115,12 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
         return $table
             ->query(
                 Term::query()
-                    ->with(['academicYear', 'calendarPackages', 'timetableVersions', 'scheduleGenerationRuns'])
+                    ->with([
+                        'academicYear',
+                        'calendarPackages',
+                        'timetableVersions',
+                        'scheduleGenerationRuns' => fn ($query) => $query->select(['id', 'term_id', 'status', 'candidate_state']),
+                    ])
                     ->orderByDesc('starts_on')
                     ->orderByDesc('id')
             )

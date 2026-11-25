@@ -245,9 +245,45 @@ class ViewAdmissionCycle extends ViewRecord
                     'Admission Cycle cancelled',
                     $action,
                 )),
+            Action::make('discardDraft')
+                ->label('Discard draft')
+                ->icon('heroicon-o-trash')
+                ->color('danger')
+                ->outlined()
+                ->requiresConfirmation()
+                ->modalWidth(Width::Large)
+                ->stickyModalHeader()
+                ->stickyModalFooter()
+                ->modalHeading('Discard cycle draft?')
+                ->modalDescription(fn (): string => "Permanently removes {$this->cycle()->label} ({$this->cycle()->code}) and any draft requirement sets. Published cycles and cycles with applications or published requirement sets cannot be discarded.")
+                ->modalSubmitActionLabel('Discard draft')
+                ->visible(fn (): bool => auth()->user()?->can('delete', $this->cycle()) ?? false)
+                ->action(function (): void {
+                    $actor = auth()->user();
+                    abort_unless($actor instanceof User, 403);
+
+                    try {
+                        app(ChangeAdmissionCycle::class)->discardDraft($this->cycle(), $actor);
+                    } catch (ValidationException $exception) {
+                        Notification::make()
+                            ->title('Draft cycle cannot be discarded')
+                            ->body($exception->validator->errors()->first())
+                            ->danger()
+                            ->send();
+
+                        return;
+                    }
+
+                    Notification::make()
+                        ->title('Draft cycle discarded')
+                        ->success()
+                        ->send();
+
+                    $this->redirect(AdmissionCycleResource::getUrl('index'));
+                }),
         ];
 
-        return [$actions[0], $actions[1], $actions[3], $actions[4], $actions[5], $actions[6], $actions[2], $actions[7]];
+        return [$actions[0], $actions[1], $actions[3], $actions[4], $actions[5], $actions[6], $actions[2], $actions[7], $actions[8]];
     }
 
     private function deadlinePicker(string $name, string $label, string $icon): DateTimePicker

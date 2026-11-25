@@ -38,6 +38,15 @@ class CourseSpecificationLifecycleService
 
             if (CourseSpecification::query()
                 ->where('course_id', $lockedSource->course_id)
+                ->where('state', CourseSpecification::StateDraft)
+                ->exists()) {
+                throw ValidationException::withMessages([
+                    'course_specification' => 'A draft revision already exists for this subject. Open or discard the existing draft before creating another.',
+                ]);
+            }
+
+            if (CourseSpecification::query()
+                ->where('course_id', $lockedSource->course_id)
                 ->where('revision_code', $normalizedRevisionCode)
                 ->exists()) {
                 throw ValidationException::withMessages([

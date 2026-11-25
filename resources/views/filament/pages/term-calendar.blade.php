@@ -31,7 +31,10 @@
                             @endif
                         </div>
                         @if (! $readOnly && ! $this->isTermClosed($term) && ! $this->hasPublishedTimetable($term))
-                            <div class="tala-calendar-sheet-heading__action">
+                            <div class="tala-calendar-sheet-heading__action flex flex-wrap items-center gap-2">
+                                @if ($draftPackages->isNotEmpty())
+                                    {{ $this->discardDraftCalendarAction }}
+                                @endif
                                 {{ $this->saveAndActivateCalendarAction }}
                             </div>
                         @endif
@@ -128,7 +131,10 @@
                             <x-filament::badge color="gray" size="sm">Not set</x-filament::badge>
                         </div>
                         @if (! $readOnly && ! $this->isTermClosed($term) && ! $this->hasPublishedTimetable($term))
-                            <div class="tala-calendar-sheet-heading__action">
+                            <div class="tala-calendar-sheet-heading__action flex flex-wrap items-center gap-2">
+                                @if ($draftPackages->isNotEmpty())
+                                    {{ $this->discardDraftCalendarAction }}
+                                @endif
                                 {{ $this->saveAndActivateCalendarAction }}
                             </div>
                         @endif

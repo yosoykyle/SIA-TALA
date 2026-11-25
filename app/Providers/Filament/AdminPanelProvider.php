@@ -571,6 +571,7 @@ class AdminPanelProvider extends PanelProvider
         if ($request->routeIs(AcademicApprovals::getRouteName())) {
             $activeCalendarTermIds = TermCalendarPackage::query()
                 ->where('state', TermCalendarPackage::StateActive)
+                ->whereHas('term', fn ($query) => $query->where('state', '!=', Term::StateClosed))
                 ->distinct()
                 ->pluck('term_id');
 
@@ -747,6 +748,7 @@ class AdminPanelProvider extends PanelProvider
     {
         $activeCalendarTermIds = TermCalendarPackage::query()
             ->where('state', TermCalendarPackage::StateActive)
+            ->whereHas('term', fn ($query) => $query->where('state', '!=', Term::StateClosed))
             ->distinct()
             ->pluck('term_id');
 
@@ -860,6 +862,7 @@ class AdminPanelProvider extends PanelProvider
         if ($termId <= 0 && ! $request->attributes->has('tala.selected_term_id')) {
             $activeTermIds = TermCalendarPackage::query()
                 ->where('state', TermCalendarPackage::StateActive)
+                ->whereHas('term', fn ($query) => $query->where('state', '!=', Term::StateClosed))
                 ->distinct()
                 ->pluck('term_id');
 

@@ -78,6 +78,12 @@ class LiveDatabaseNotifications extends DatabaseNotifications
             $cursor = CarbonImmutable::now();
         }
 
+        $replayFloor = CarbonImmutable::now()->subMinutes(2);
+        if ($cursor->lessThan($replayFloor)) {
+            $cursor = $replayFloor;
+            session()->put($cursorKey, $cursor->toIso8601String());
+        }
+
         /** @var array<int, string> $toastedIds */
         $toastedIds = array_values(array_filter(
             (array) session()->get($idsKey, []),

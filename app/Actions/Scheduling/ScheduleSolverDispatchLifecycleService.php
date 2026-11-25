@@ -5,8 +5,12 @@ namespace App\Actions\Scheduling;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverTransportException;
 use App\Models\OperationalEvent;
 use App\Models\ScheduleGenerationRun;
+use App\Models\User;
 use Carbon\CarbonImmutable;
+use Filament\Actions\Action;
+use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
 
 final class ScheduleSolverDispatchLifecycleService
 {
@@ -145,7 +149,7 @@ final class ScheduleSolverDispatchLifecycleService
         int $durationMs,
         bool $final,
     ): void {
-        DB::transaction(function () use ($run, $event, $exception, $durationMs, $final): void {
+        $failedRun = DB::transaction(function () use ($run, $event, $exception, $durationMs, $final): ?ScheduleGenerationRun {
             /** @var ScheduleGenerationRun $lockedRun */
             $lockedRun = ScheduleGenerationRun::query()->lockForUpdate()->findOrFail($run->id);
             /** @var OperationalEvent $lockedEvent */
@@ -159,7 +163,7 @@ final class ScheduleSolverDispatchLifecycleService
             $eventDiagnostics = $this->arrayValue($lockedEvent->getAttribute('diagnostics'));
 
             if ($lockedEvent->status === OperationalEvent::StatusProcessed) {
-                return;
+                return null;
             }
 
             $lockedEvent->forceFill([
@@ -177,7 +181,7 @@ final class ScheduleSolverDispatchLifecycleService
                 || filled($lockedRun->candidate_key)
                 || $lockedRun->candidateRows()->exists()
                 || (int) ($eventDiagnostics['cycle'] ?? 1) !== $lockedRun->dispatchCycle()) {
-                return;
+                return null;
             }
 
             $diagnostics = $this->arrayValue($lockedRun->getAttribute('diagnostics'));
@@ -199,7 +203,13 @@ final class ScheduleSolverDispatchLifecycleService
                     : ScheduleGenerationRun::StatusQueued,
                 'diagnostics' => $diagnostics,
             ])->save();
+
+            return $final ? $lockedRun : null;
         }, 3);
+
+        if ($failedRun instanceof ScheduleGenerationRun) {
+            $this->notifyFailure($failedRun, $exception);
+        }
     }
 
     public function finalizeUnhandledFailure(
@@ -314,6 +324,54 @@ final class ScheduleSolverDispatchLifecycleService
     private function externalId(ScheduleGenerationRun $run, int $cycle, int $attempt): string
     {
         return "schedule-solver:run:{$run->id}:cycle:{$cycle}:attempt:{$attempt}";
+    }
+
+    private function notifyFailure(
+        ScheduleGenerationRun $run,
+        SchedulingSolverTransportException $exception,
+    ): void {
+        if ($run->status !== ScheduleGenerationRun::StatusFailed
+            || data_get($run->diagnostics, 'solver_dispatch.status') === 'cancelled'
+            || data_get($run->diagnostics, 'solver_dispatch.failure.code') === 'CANCELLED_BY_REGISTRAR') {
+            return;
+        }
+
+        $run->loadMissing(['requester', 'term']);
+        $requester = $run->requester;
+
+        if (! $requester instanceof User) {
+            return;
+        }
+
+        $termLabel = trim((string) $run->term?->label) !== ''
+            ? (string) $run->term->label
+            : 'selected term';
+        $plain = TimetableFailureLanguage::forSolverFailureMessage($exception->getMessage());
+        $fallback = TimetableFailureLanguage::fallback();
+        $explanation = $plain['explanation'] !== $fallback['explanation']
+            ? $plain['explanation']
+            : ($exception->classification() === SchedulingSolverTransportException::ClassificationTimeout
+                ? 'Timetable generation timed out before finishing. Your schedule data is not the problem. Try generating again.'
+                : 'The scheduling service could not complete this timetable request. Try generating again or contact your system administrator.');
+
+        $notification = Notification::make()
+            ->title("Timetable generation failed ({$termLabel})")
+            ->body("Attempt #{$run->id}: {$explanation}")
+            ->danger();
+
+        if (Route::has('filament.admin.term-planning.pages.timetable')) {
+            $notification->actions([
+                Action::make('openTimetable')
+                    ->label('Open timetable')
+                    ->url(route('filament.admin.term-planning.pages.timetable', [
+                        'termId' => (int) $run->term_id,
+                        'timetableState' => 'draft',
+                        'selectedRunId' => (int) $run->id,
+                    ], absolute: false)),
+            ]);
+        }
+
+        $notification->sendToDatabase($requester);
     }
 
     /** @return array<string, mixed> */

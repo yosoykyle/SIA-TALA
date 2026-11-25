@@ -2368,8 +2368,8 @@
 .tala-timetable-master-mobile {display:none;gap:1rem;}
 @media(max-width:40rem) {.tala-timetable-master-grid {display:none;}.tala-timetable-master-mobile {display:grid;}}
 
-.tala-timetable-master-meeting summary {cursor:pointer;min-block-size:2.75rem;line-height:1.5;overflow-wrap:anywhere;}
-.tala-timetable-master-meeting summary:focus-visible {outline:3px solid var(--tala-focus);outline-offset:2px;}
+.tala-timetable-master-meeting__toggle {display:block;width:100%;text-align:start;background:transparent;border:0;padding:0;color:inherit;font:inherit;cursor:pointer;min-block-size:2.75rem;line-height:1.5;overflow-wrap:anywhere;}
+.tala-timetable-master-meeting__toggle:focus-visible {outline:3px solid var(--tala-focus);outline-offset:2px;}
 
 /* Connected working grid: quiet geometry, readable course/time/location. */
 .tala-timetable-focused .tala-timetable-weekly { border:1px solid var(--tala-edge); border-radius:.5rem; padding-block-end:0; }

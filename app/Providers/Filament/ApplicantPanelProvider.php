@@ -8,6 +8,7 @@ use App\Filament\Applicant\Pages\ApplicationHistory;
 use App\Filament\Applicant\Pages\Auth\ApplicantEmailVerification;
 use App\Filament\Applicant\Pages\Auth\RegisterApplicant;
 use App\Filament\Applicant\Pages\Dashboard;
+use App\Filament\Components\LiveDatabaseNotifications;
 use App\Filament\Pages\Auth\AccountSecurity;
 use App\Filament\Pages\Auth\ContextualLogin;
 use App\Filament\Pages\Auth\RequestPasswordReset;
@@ -82,6 +83,8 @@ class ApplicantPanelProvider extends PanelProvider
                 isRequired: true,
             )
             ->multiFactorAuthenticationRequiredMiddlewareName(EnsureStaffMfaIsEnabled::class)
+            ->databaseNotifications(livewireComponent: LiveDatabaseNotifications::class)
+            ->databaseNotificationsPolling('8s')
             ->brandName('Servitech Institute Asia')
             ->plugin(
                 AuthDesignerPlugin::make()

@@ -35,9 +35,9 @@
                         @foreach ($modalBlockers as $blocker)
                             @php
                                 $blockerStepLabel = match ($blocker['label'] ?? '') {
-                                    'Term Calendar' => 'Calendar',
-                                    'Classes' => 'Classes & sections',
-                                    'Resources' => 'Faculty & rooms',
+                                    'Term Calendar', 'Term calendar' => 'Calendar',
+                                    'Classes', 'Classes & sections' => 'Classes & sections',
+                                    'Resources', 'Faculty & rooms' => 'Faculty & rooms',
                                     'Timetable' => 'Timetable',
                                     default => (string) ($blocker['label'] ?? 'Review prerequisite'),
                                 };

@@ -7,19 +7,24 @@ use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class ScheduleGenerationRunsTable
 {
     public static function configure(Table $table): Table
     {
         return $table
-            ->poll('5s')
+            ->poll(fn (): ?string => ScheduleGenerationRun::query()
+                ->whereIn('status', [ScheduleGenerationRun::StatusQueued, ScheduleGenerationRun::StatusDispatching])
+                ->exists() ? '5s' : null)
             ->modifyQueryUsing(fn ($query) => $query
                 ->select([
                     'schedule_runs.id',
                     'schedule_runs.term_id',
                     'schedule_runs.status',
+                    'schedule_runs.candidate_state',
                     'schedule_runs.requested_by',
                     'schedule_runs.solver_version',
                     'schedule_runs.model_version',
@@ -27,6 +32,9 @@ class ScheduleGenerationRunsTable
                     'schedule_runs.created_at',
                     'schedule_runs.updated_at',
                 ])
+                ->selectRaw("JSON_UNQUOTE(JSON_EXTRACT(diagnostics, '$.solver_dispatch.status')) as dispatch_status_flag")
+                ->selectRaw("JSON_UNQUOTE(JSON_EXTRACT(diagnostics, '$.solver_result.solver_status')) as solver_status_flag")
+                ->selectRaw("JSON_UNQUOTE(JSON_EXTRACT(diagnostics, '$.candidate_origin')) as candidate_origin_flag")
                 ->with(['term', 'requester'])
                 ->withCount('candidateRows'))
             ->columns([
@@ -36,13 +44,13 @@ class ScheduleGenerationRunsTable
                     ->sortable(),
                 TextColumn::make('result_summary')
                     ->label('Result')
-                    ->state(fn (ScheduleGenerationRun $record): string => ScheduleGenerationRun::statusOptions()[$record->status] ?? str($record->status)->headline())
+                    ->state(fn (ScheduleGenerationRun $record): string => self::resultLabel($record))
                     ->badge()
-                    ->color(fn (ScheduleGenerationRun $record): string => ScheduleGenerationRun::statusColors()[$record->status] ?? 'gray')
+                    ->color(fn (ScheduleGenerationRun $record): string => self::resultColor($record))
                     ->searchable(['status']),
                 TextColumn::make('assignment_summary')
                     ->label('Assignments')
-                    ->state(fn (ScheduleGenerationRun $record): string => "{$record->candidate_rows_count} candidate assignments"),
+                    ->state(fn (ScheduleGenerationRun $record): string => "{$record->candidate_rows_count} assignments"),
                 TextColumn::make('requester.name')
                     ->label('Requested By')
                     ->placeholder('-'),
@@ -77,6 +85,21 @@ class ScheduleGenerationRunsTable
                     ->preload(),
                 SelectFilter::make('status')
                     ->options(ScheduleGenerationRun::statusOptions()),
+                TernaryFilter::make('hide_manual_adjustments')
+                    ->label('Attempt scope')
+                    ->placeholder('Hide superseded draft edits (default)')
+                    ->trueLabel('Show all including draft edit snapshots')
+                    ->falseLabel('Only manual draft edit snapshots')
+                    ->default(null)
+                    ->queries(
+                        true: fn (Builder $query): Builder => $query,
+                        false: fn (Builder $query): Builder => $query->where('diagnostics->candidate_origin', 'LocalAdjustment'),
+                        blank: fn (Builder $query): Builder => $query->where(function (Builder $inner): void {
+                            $inner->whereNull('diagnostics->candidate_origin')
+                                ->orWhere('diagnostics->candidate_origin', '!=', 'LocalAdjustment')
+                                ->orWhere('status', '!=', ScheduleGenerationRun::StatusSuperseded);
+                        }),
+                    ),
             ])
             ->defaultSort('created_at', 'desc')
             ->filtersTriggerAction(fn (Action $action): Action => $action->button()->label('Filter')->color('gray')->labeledFrom(null))
@@ -89,5 +112,42 @@ class ScheduleGenerationRunsTable
             ->emptyStateHeading('No generated timetables are recorded')
             ->emptyStateDescription('Prepare the Term inputs, then generate a timetable from Timetable.')
             ->emptyState(view('filament.partials.collection-empty-state'));
+    }
+
+    private static function resultLabel(ScheduleGenerationRun $record): string
+    {
+        if ($record->status === ScheduleGenerationRun::StatusFailed
+            && $record->getAttribute('dispatch_status_flag') === 'cancelled') {
+            return 'Cancelled';
+        }
+
+        if ($record->candidate_state === 'Stale') {
+            return 'Stale';
+        }
+
+        if ($record->candidate_state === 'Rejected') {
+            return 'Discarded';
+        }
+
+        if ($record->status === ScheduleGenerationRun::StatusBlocked
+            && $record->getAttribute('solver_status_flag') === 'infeasible') {
+            return 'Infeasible';
+        }
+
+        return ScheduleGenerationRun::statusOptions()[$record->status] ?? str($record->status)->headline();
+    }
+
+    private static function resultColor(ScheduleGenerationRun $record): string
+    {
+        if ($record->status === ScheduleGenerationRun::StatusFailed
+            && $record->getAttribute('dispatch_status_flag') === 'cancelled') {
+            return 'gray';
+        }
+
+        if (in_array($record->candidate_state, ['Stale', 'Rejected'], true)) {
+            return $record->candidate_state === 'Stale' ? 'warning' : 'gray';
+        }
+
+        return ScheduleGenerationRun::statusColors()[$record->status] ?? 'gray';
     }
 }

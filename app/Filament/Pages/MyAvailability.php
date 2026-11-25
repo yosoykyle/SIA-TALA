@@ -86,6 +86,7 @@ class MyAvailability extends Page
         if ($this->termId === null) {
             $activeTermIds = TermCalendarPackage::query()
                 ->where('state', TermCalendarPackage::StateActive)
+                ->whereHas('term', fn ($query) => $query->where('state', '!=', Term::StateClosed))
                 ->distinct()
                 ->pluck('term_id');
 
@@ -364,7 +365,7 @@ class MyAvailability extends Page
 
             Notification::make()
                 ->title(sprintf(
-                    'Availability saved — conflicts with %d published %s',
+                    'Availability saved: conflicts with %d published %s',
                     $conflictCount,
                     Str::plural('class', $conflictCount),
                 ))

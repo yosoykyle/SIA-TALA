@@ -539,11 +539,25 @@ final class CatalogCurriculaWorkbench extends Page implements HasTable
      */
     private function availableTerms(): Collection
     {
-        return $this->termsCache ??= Term::query()
+        if ($this->termsCache !== null) {
+            return $this->termsCache;
+        }
+
+        $terms = Term::query()
             ->with('academicYear')
             ->orderByDesc('starts_on')
             ->orderByDesc('id')
+            ->limit(25)
             ->get();
+
+        if ($this->oversightTermId !== null && ! $terms->contains('id', $this->oversightTermId)) {
+            $oversightTerm = Term::query()->with('academicYear')->find($this->oversightTermId);
+            if ($oversightTerm instanceof Term) {
+                $terms->push($oversightTerm);
+            }
+        }
+
+        return $this->termsCache = $terms;
     }
 
     private function formatTermOptionLabel(Term $term): string
