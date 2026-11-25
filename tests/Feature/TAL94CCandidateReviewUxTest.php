@@ -51,14 +51,14 @@ final class TAL94CCandidateReviewUxTest extends TestCase
 
         $page = Livewire::actingAs($registrar)->test(ViewScheduleGenerationRun::class, [
             'record' => $context['run']->id,
-        ])->assertSee('Waiting for the timetable worker')
+        ])->assertSee('Preparing your timetable')
             ->assertDontSee('Meeting available after generation');
 
         $context['run']->update(['status' => ScheduleGenerationRun::StatusUnderReview]);
         $this->candidate($context);
 
         $page->call('refreshScheduleRun')
-            ->assertDontSee('Waiting for the timetable worker')
+            ->assertDontSee('Preparing your timetable')
             ->assertSee('Meeting available after generation');
     }
 

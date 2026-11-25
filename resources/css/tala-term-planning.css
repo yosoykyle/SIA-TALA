@@ -1760,7 +1760,7 @@ html.dark .fi-body .fi-section.tala-term-settings-identity.tala-term-settings-id
     }
 }
 
-/* Ambient Empty State Stage (Image 7) */
+/* Ambient Empty & Failed Hero Stage */
 .tala-timetable-empty-stage,
 .tala-timetable-studio .tala-timetable-empty-stage {
     position: relative;
@@ -1774,6 +1774,19 @@ html.dark .fi-body .fi-section.tala-term-settings-identity.tala-term-settings-id
     border-radius: 0.75rem;
     background: var(--tala-surface);
     box-shadow: var(--tala-material-detail);
+}
+
+.tala-timetable-empty-stage.is-error-stage {
+    border-color: color-mix(in srgb, #b91c1c 30%, var(--tala-edge));
+}
+
+.dark .tala-timetable-empty-stage.is-error-stage,
+[data-theme='dark'] .tala-timetable-empty-stage.is-error-stage {
+    border-color: color-mix(in srgb, #ef4444 36%, var(--tala-edge));
+}
+
+.tala-timetable-empty-stage.is-warning-stage {
+    border-color: color-mix(in srgb, #c9972c 38%, var(--tala-edge));
 }
 
 .tala-timetable-studio .tala-timetable-empty-stage {
@@ -1808,6 +1821,112 @@ html.dark .fi-body .fi-section.tala-term-settings-identity.tala-term-settings-id
     box-shadow: none;
 }
 
+/* Bold, Unmistakable Failed / Past-Attempt Hero inside Empty Stage */
+.tala-timetable-empty-stage .servitech-empty-state.servitech-empty-state--hero .fi-empty-state {
+    padding: 0.25rem 0;
+}
+
+.tala-timetable-empty-stage .servitech-empty-state.servitech-empty-state--hero .fi-empty-state-content {
+    display: grid;
+    justify-items: center;
+    align-items: center;
+    gap: 0.875rem;
+    inline-size: 100%;
+    max-inline-size: none;
+    margin: 0;
+    text-align: center;
+}
+
+.tala-timetable-empty-stage .servitech-empty-state.servitech-empty-state--hero .fi-empty-state-icon-bg {
+    display: inline-grid;
+    place-items: center;
+    inline-size: 3.5rem;
+    block-size: 3.5rem;
+    margin: 0;
+    padding: 0;
+    border-radius: 1rem;
+    border: 1px solid var(--tala-edge-strong);
+    background: color-mix(in srgb, var(--tala-surface) 88%, var(--tala-surface-sunken));
+    color: var(--tala-muted);
+    box-shadow: var(--tala-material-detail);
+}
+
+.tala-timetable-empty-stage .servitech-empty-state.servitech-empty-state--hero .fi-empty-state-icon-bg .fi-icon {
+    inline-size: 1.75rem;
+    block-size: 1.75rem;
+}
+
+.tala-timetable-empty-stage .servitech-empty-state.servitech-empty-state--tone-danger .fi-empty-state-icon-bg {
+    background: rgb(185 28 28 / 12%);
+    border-color: rgb(185 28 28 / 30%);
+    color: #b91c1c;
+}
+
+.dark .tala-timetable-empty-stage .servitech-empty-state.servitech-empty-state--tone-danger .fi-empty-state-icon-bg,
+[data-theme='dark'] .tala-timetable-empty-stage .servitech-empty-state.servitech-empty-state--tone-danger .fi-empty-state-icon-bg {
+    background: rgb(239 68 68 / 18%);
+    border-color: rgb(239 68 68 / 38%);
+    color: #fca5a5;
+}
+
+.tala-timetable-empty-stage .servitech-empty-state.servitech-empty-state--tone-warning .fi-empty-state-icon-bg {
+    background: rgb(201 151 44 / 16%);
+    border-color: rgb(201 151 44 / 38%);
+    color: #92400e;
+}
+
+.dark .tala-timetable-empty-stage .servitech-empty-state.servitech-empty-state--tone-warning .fi-empty-state-icon-bg,
+[data-theme='dark'] .tala-timetable-empty-stage .servitech-empty-state.servitech-empty-state--tone-warning .fi-empty-state-icon-bg {
+    background: rgb(245 158 11 / 18%);
+    border-color: rgb(245 158 11 / 38%);
+    color: #fcd34d;
+}
+
+.tala-timetable-empty-stage .servitech-empty-state.servitech-empty-state--hero .fi-empty-state-text-ctn {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    align-content: center;
+    gap: 0.5rem;
+    max-inline-size: 40rem;
+    margin-inline: auto;
+    text-align: center;
+}
+
+.tala-timetable-empty-stage .servitech-empty-state.servitech-empty-state--hero .fi-empty-state-heading {
+    grid-column: 1;
+    margin: 0;
+    font-size: clamp(1.375rem, 2.2vw, 1.75rem);
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    line-height: 1.2;
+    color: var(--tala-text);
+    text-wrap: balance;
+}
+
+.tala-timetable-empty-stage .servitech-empty-state.servitech-empty-state--hero .fi-empty-state-description {
+    grid-column: 1;
+    margin: 0;
+    max-inline-size: 54ch;
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    color: var(--tala-muted);
+    text-wrap: pretty;
+}
+
+.tala-timetable-empty-stage .servitech-empty-state.servitech-empty-state--hero .fi-empty-state-footer {
+    grid-column: 1;
+    grid-row: auto;
+    justify-self: center;
+    margin-block-start: 0.625rem;
+}
+
+.tala-timetable-empty-stage .servitech-empty-state.servitech-empty-state--hero .servitech-empty-state__footer,
+.tala-timetable-empty-stage .servitech-empty-state.servitech-empty-state--hero .servitech-empty-state__actions {
+    justify-content: center;
+    gap: 0.75rem;
+}
+
 .tala-timetable-empty-stage .tala-timetable-prerequisites {
     background: color-mix(in srgb, var(--tala-surface) 80%, transparent);
     -webkit-backdrop-filter: blur(8px);
@@ -1827,7 +1946,7 @@ html.dark .fi-body .fi-section.tala-term-settings-identity.tala-term-settings-id
     }
 }
 
-/* Living Servitech Brand-Color-Shifting Aurora Canvas (Empty State + Solver Stage - Zero-Blue) */
+/* Living Servitech Stage-Driven & Health-Driven Aurora Canvas (Zero-Blue 4-Role Palette) */
 .tala-ambient--trinkets-only :is(.tala-ambient-wash, .tala-ambient-glow, .tala-ambient-edge) {
     display: none;
 }
@@ -1838,6 +1957,7 @@ html.dark .fi-body .fi-section.tala-term-settings-identity.tala-term-settings-id
     z-index: 0;
     overflow: hidden;
     pointer-events: none;
+    transition: background 600ms ease, opacity 400ms ease;
     background:
         radial-gradient(105% 85% at 12% 14%, rgb(47 125 59 / 17%), transparent 60%),
         radial-gradient(95% 85% at 88% 84%, rgb(217 164 52 / 19%), transparent 58%),
@@ -1852,16 +1972,145 @@ html.dark .fi-body .fi-section.tala-term-settings-identity.tala-term-settings-id
         linear-gradient(135deg, color-mix(in srgb, var(--tala-surface) 80%, #173d1e) 0%, var(--tala-surface) 50%, color-mix(in srgb, var(--tala-surface) 82%, #3a2a0b) 100%);
 }
 
+/* Stage 1: saved (Soft Pure Zinc + gentle Forest Green center radial bloom) */
+.tala-aurora-canvas--saved {
+    background:
+        radial-gradient(66% 62% at 50% 42%, rgb(47 125 59 / 15%), transparent 68%),
+        linear-gradient(180deg, color-mix(in srgb, var(--tala-surface) 90%, #f4f4f5) 0%, var(--tala-surface) 60%, color-mix(in srgb, var(--tala-surface) 92%, #e4e4e7) 100%);
+}
+
+.dark .tala-aurora-canvas--saved,
+[data-theme='dark'] .tala-aurora-canvas--saved {
+    background:
+        radial-gradient(66% 62% at 50% 42%, rgb(106 203 124 / 20%), transparent 68%),
+        linear-gradient(180deg, color-mix(in srgb, var(--tala-surface) 88%, #18181b) 0%, var(--tala-surface) 60%, color-mix(in srgb, var(--tala-surface) 88%, #27272a) 100%);
+}
+
+/* Stage 2: queued (Calm pale Sage + soft Warm Gold gentle horizontal sway) */
+.tala-aurora-canvas--queued {
+    background:
+        radial-gradient(95% 75% at 20% 24%, rgb(90 198 112 / 14%), transparent 62%),
+        radial-gradient(90% 75% at 82% 76%, rgb(201 151 44 / 14%), transparent 62%),
+        linear-gradient(135deg, color-mix(in srgb, var(--tala-surface) 90%, #e4f3e8) 0%, var(--tala-surface) 52%, color-mix(in srgb, var(--tala-surface) 90%, #f8edd2) 100%);
+}
+
+.dark .tala-aurora-canvas--queued,
+[data-theme='dark'] .tala-aurora-canvas--queued {
+    background:
+        radial-gradient(95% 75% at 20% 24%, rgb(106 203 124 / 18%), transparent 62%),
+        radial-gradient(90% 75% at 82% 76%, rgb(238 188 78 / 15%), transparent 62%),
+        linear-gradient(135deg, color-mix(in srgb, var(--tala-surface) 86%, #193822) 0%, var(--tala-surface) 52%, color-mix(in srgb, var(--tala-surface) 88%, #34270d) 100%);
+}
+
+/* Stage 3: optimizing (Vibrant Servitech Forest Green + Warm Gold dual-orbital) */
+.tala-aurora-canvas--optimizing {
+    background:
+        radial-gradient(105% 85% at 14% 16%, rgb(47 125 59 / 22%), transparent 58%),
+        radial-gradient(95% 85% at 86% 82%, rgb(201 151 44 / 23%), transparent 56%),
+        linear-gradient(135deg, color-mix(in srgb, var(--tala-surface) 82%, #d5eedb) 0%, var(--tala-surface) 48%, color-mix(in srgb, var(--tala-surface) 82%, #fae7bc) 100%);
+}
+
+.dark .tala-aurora-canvas--optimizing,
+[data-theme='dark'] .tala-aurora-canvas--optimizing {
+    background:
+        radial-gradient(105% 85% at 14% 16%, rgb(62 178 86 / 32%), transparent 58%),
+        radial-gradient(95% 85% at 86% 82%, rgb(232 180 68 / 28%), transparent 56%),
+        linear-gradient(135deg, color-mix(in srgb, var(--tala-surface) 76%, #143f1c) 0%, var(--tala-surface) 50%, color-mix(in srgb, var(--tala-surface) 78%, #3f2d0a) 100%);
+}
+
+/* Stage 4: validating (Focused crisp emerald Forest Green precision wave) */
+.tala-aurora-canvas--validating {
+    background:
+        radial-gradient(90% 80% at 50% 18%, rgb(31 125 59 / 19%), transparent 62%),
+        linear-gradient(180deg, color-mix(in srgb, var(--tala-surface) 84%, #d6efe0) 0%, var(--tala-surface) 64%, color-mix(in srgb, var(--tala-surface) 92%, #e4e4e7) 100%);
+}
+
+.dark .tala-aurora-canvas--validating,
+[data-theme='dark'] .tala-aurora-canvas--validating {
+    background:
+        radial-gradient(90% 80% at 50% 18%, rgb(74 196 96 / 26%), transparent 62%),
+        linear-gradient(180deg, color-mix(in srgb, var(--tala-surface) 78%, #12391d) 0%, var(--tala-surface) 64%, color-mix(in srgb, var(--tala-surface) 90%, #1e2024) 100%);
+}
+
+.tala-aurora-canvas--validating::after {
+    content: '';
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: -35%;
+    inline-size: 42%;
+    background: linear-gradient(90deg, transparent 0%, rgb(47 125 59 / 16%) 48%, rgb(106 203 124 / 22%) 56%, transparent 100%);
+    pointer-events: none;
+}
+
+.dark .tala-aurora-canvas--validating::after,
+[data-theme='dark'] .tala-aurora-canvas--validating::after {
+    background: linear-gradient(90deg, transparent 0%, rgb(106 203 124 / 16%) 48%, rgb(141 230 152 / 22%) 56%, transparent 100%);
+}
+
+/* Health: stalled / delayed (Warm Amber / Deep Gold + Muted Zinc — ZERO green) */
+.tala-aurora-canvas--stalled {
+    background:
+        radial-gradient(95% 80% at 18% 18%, rgb(201 151 44 / 22%), transparent 60%),
+        radial-gradient(90% 80% at 84% 82%, rgb(180 83 9 / 16%), transparent 58%),
+        linear-gradient(135deg, color-mix(in srgb, var(--tala-surface) 84%, #f6e4bc) 0%, var(--tala-surface) 52%, color-mix(in srgb, var(--tala-surface) 88%, #e4e4e7) 100%);
+}
+
+.dark .tala-aurora-canvas--stalled,
+[data-theme='dark'] .tala-aurora-canvas--stalled {
+    background:
+        radial-gradient(95% 80% at 18% 18%, rgb(245 158 11 / 24%), transparent 60%),
+        radial-gradient(90% 80% at 84% 82%, rgb(180 83 9 / 22%), transparent 58%),
+        linear-gradient(135deg, color-mix(in srgb, var(--tala-surface) 78%, #3f2806) 0%, var(--tala-surface) 52%, color-mix(in srgb, var(--tala-surface) 86%, #27272a) 100%);
+}
+
+/* Health: error / failed (Institutional Crimson + Muted Zinc stillness — ZERO green/gold) */
+.tala-aurora-canvas--error {
+    background:
+        radial-gradient(95% 82% at 50% 14%, rgb(185 28 28 / 16%), transparent 62%),
+        radial-gradient(85% 75% at 84% 86%, rgb(113 113 122 / 12%), transparent 58%),
+        linear-gradient(180deg, color-mix(in srgb, var(--tala-surface) 88%, #fee2e2) 0%, var(--tala-surface) 54%, color-mix(in srgb, var(--tala-surface) 92%, #e4e4e7) 100%);
+}
+
+.dark .tala-aurora-canvas--error,
+[data-theme='dark'] .tala-aurora-canvas--error {
+    background:
+        radial-gradient(95% 82% at 50% 14%, rgb(239 68 68 / 22%), transparent 62%),
+        radial-gradient(85% 75% at 84% 86%, rgb(82 82 91 / 18%), transparent 58%),
+        linear-gradient(180deg, color-mix(in srgb, var(--tala-surface) 82%, #3b0d0d) 0%, var(--tala-surface) 54%, color-mix(in srgb, var(--tala-surface) 90%, #18181b) 100%);
+}
+
 .tala-aurora-blob {
     position: absolute;
     border-radius: 9999px;
     filter: blur(48px);
     will-change: transform, opacity;
     opacity: 0.64;
+    transition: background 500ms ease, opacity 400ms ease;
 }
 
-.tala-aurora-canvas--calm .tala-aurora-blob {
-    opacity: 0.48;
+.tala-aurora-canvas--calm .tala-aurora-blob,
+.tala-aurora-canvas--queued .tala-aurora-blob {
+    opacity: 0.46;
+}
+
+.tala-aurora-canvas--saved .tala-aurora-blob {
+    opacity: 0.44;
+}
+
+.tala-aurora-canvas--optimizing .tala-aurora-blob {
+    opacity: 0.74;
+}
+
+.tala-aurora-canvas--validating .tala-aurora-blob {
+    opacity: 0.56;
+}
+
+.tala-aurora-canvas--stalled .tala-aurora-blob {
+    opacity: 0.54;
+}
+
+.tala-aurora-canvas--error .tala-aurora-blob {
+    opacity: 0.42;
 }
 
 .tala-aurora-blob--green {
@@ -1903,6 +2152,107 @@ html.dark .fi-body .fi-section.tala-term-settings-identity.tala-term-settings-id
     background: radial-gradient(circle at 50% 50%, rgb(106 203 124 / 30%) 0%, rgb(238 188 78 / 18%) 54%, transparent 75%);
 }
 
+/* Saved blobs: soft Zinc + centered Forest Green bloom */
+.tala-aurora-canvas--saved .tala-aurora-blob--green {
+    inset-inline-start: 22%;
+    inset-block-start: 8%;
+    background: radial-gradient(circle at 50% 50%, rgb(47 125 59 / 46%) 0%, rgb(113 113 122 / 18%) 56%, transparent 76%);
+}
+
+.tala-aurora-canvas--saved .tala-aurora-blob--gold,
+.tala-aurora-canvas--saved .tala-aurora-blob--sage {
+    background: radial-gradient(circle at 50% 50%, rgb(113 113 122 / 26%) 0%, rgb(47 125 59 / 14%) 54%, transparent 76%);
+}
+
+/* Validating blobs: pure crisp emerald Forest Green */
+.tala-aurora-canvas--validating .tala-aurora-blob--gold {
+    background: radial-gradient(circle at 50% 50%, rgb(47 125 59 / 52%) 0%, rgb(90 198 112 / 24%) 54%, transparent 76%);
+}
+
+.tala-aurora-canvas--validating .tala-aurora-blob--sage {
+    background: radial-gradient(circle at 50% 50%, rgb(67 184 90 / 48%) 0%, rgb(47 125 59 / 22%) 56%, transparent 76%);
+}
+
+/* Stalled blobs: Warm Amber + Deep Gold + Muted Zinc (ZERO green) */
+.tala-aurora-canvas--stalled .tala-aurora-blob--green {
+    background: radial-gradient(circle at 40% 40%, rgb(201 151 44 / 64%) 0%, rgb(180 83 9 / 28%) 52%, transparent 74%);
+}
+
+.tala-aurora-canvas--stalled .tala-aurora-blob--gold {
+    background: radial-gradient(circle at 55% 55%, rgb(180 83 9 / 52%) 0%, rgb(201 151 44 / 30%) 52%, transparent 76%);
+}
+
+.tala-aurora-canvas--stalled .tala-aurora-blob--sage {
+    background: radial-gradient(circle at 50% 50%, rgb(161 138 106 / 38%) 0%, rgb(201 151 44 / 24%) 54%, transparent 75%);
+}
+
+.dark .tala-aurora-canvas--stalled .tala-aurora-blob--green,
+[data-theme='dark'] .tala-aurora-canvas--stalled .tala-aurora-blob--green {
+    background: radial-gradient(circle at 40% 40%, rgb(245 158 11 / 42%) 0%, rgb(180 83 9 / 24%) 52%, transparent 74%);
+}
+
+.dark .tala-aurora-canvas--stalled .tala-aurora-blob--gold,
+[data-theme='dark'] .tala-aurora-canvas--stalled .tala-aurora-blob--gold {
+    background: radial-gradient(circle at 55% 55%, rgb(217 119 6 / 38%) 0%, rgb(146 64 14 / 22%) 54%, transparent 76%);
+}
+
+.dark .tala-aurora-canvas--stalled .tala-aurora-blob--sage,
+[data-theme='dark'] .tala-aurora-canvas--stalled .tala-aurora-blob--sage {
+    background: radial-gradient(circle at 50% 50%, rgb(161 161 170 / 22%) 0%, rgb(245 158 11 / 18%) 54%, transparent 75%);
+}
+
+/* Error blobs: Institutional Crimson + Muted Zinc (ZERO green/gold) */
+.tala-aurora-canvas--error .tala-aurora-blob--green {
+    inset-inline-start: 16%;
+    inset-block-start: -18%;
+    background: radial-gradient(circle at 50% 40%, rgb(185 28 28 / 48%) 0%, rgb(153 27 27 / 20%) 52%, transparent 74%);
+}
+
+.tala-aurora-canvas--error .tala-aurora-blob--gold {
+    background: radial-gradient(circle at 55% 55%, rgb(113 113 122 / 32%) 0%, rgb(185 28 28 / 16%) 54%, transparent 76%);
+}
+
+.tala-aurora-canvas--error .tala-aurora-blob--sage {
+    background: radial-gradient(circle at 50% 50%, rgb(185 28 28 / 26%) 0%, rgb(113 113 122 / 16%) 54%, transparent 75%);
+}
+
+.dark .tala-aurora-canvas--error .tala-aurora-blob--green,
+[data-theme='dark'] .tala-aurora-canvas--error .tala-aurora-blob--green {
+    background: radial-gradient(circle at 50% 40%, rgb(239 68 68 / 38%) 0%, rgb(153 27 27 / 22%) 52%, transparent 74%);
+}
+
+.dark .tala-aurora-canvas--error .tala-aurora-blob--gold,
+[data-theme='dark'] .tala-aurora-canvas--error .tala-aurora-blob--gold {
+    background: radial-gradient(circle at 55% 55%, rgb(113 113 122 / 24%) 0%, rgb(239 68 68 / 14%) 54%, transparent 76%);
+}
+
+.dark .tala-aurora-canvas--error .tala-aurora-blob--sage,
+[data-theme='dark'] .tala-aurora-canvas--error .tala-aurora-blob--sage {
+    background: radial-gradient(circle at 50% 50%, rgb(239 68 68 / 24%) 0%, rgb(82 82 91 / 16%) 54%, transparent 75%);
+}
+
+@keyframes tala-aurora-bloom {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(0.95); opacity: 0.38; }
+    50% { transform: translate3d(0, -3%, 0) scale(1.04); opacity: 0.56; }
+}
+
+@keyframes tala-aurora-wait-drift {
+    0%, 100% { transform: translate3d(-8%, 0, 0) scale(0.98); opacity: 0.42; }
+    50% { transform: translate3d(10%, 3%, 0) scale(1.06); opacity: 0.58; }
+}
+
+@keyframes tala-aurora-optimize-a {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.66; }
+    35% { transform: translate3d(28%, 18%, 0) scale(1.22); opacity: 0.88; }
+    70% { transform: translate3d(10%, 26%, 0) scale(0.96); opacity: 0.6; }
+}
+
+@keyframes tala-aurora-optimize-b {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1.02); opacity: 0.62; }
+    40% { transform: translate3d(-26%, -20%, 0) scale(1.24); opacity: 0.84; }
+    75% { transform: translate3d(-10%, -8%, 0) scale(0.94); opacity: 0.54; }
+}
+
 @keyframes tala-aurora-drift-green {
     0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.62; }
     35% { transform: translate3d(24%, 18%, 0) scale(1.18); opacity: 0.82; }
@@ -1920,15 +2270,65 @@ html.dark .fi-body .fi-section.tala-term-settings-identity.tala-term-settings-id
     50% { transform: translate3d(14%, -14%, 0) scale(1.22); opacity: 0.7; }
 }
 
+@keyframes tala-aurora-validate-sweep {
+    0% { transform: translateX(0); opacity: 0.25; }
+    50% { opacity: 0.85; }
+    100% { transform: translateX(340%); opacity: 0.25; }
+}
+
+@keyframes tala-aurora-stalled-pulse {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(0.97); opacity: 0.36; }
+    45% { transform: translate3d(4%, -2%, 0) scale(1.05); opacity: 0.66; }
+    70% { transform: translate3d(2%, 0, 0) scale(1.01); opacity: 0.48; }
+}
+
+@keyframes tala-aurora-error-still {
+    0%, 100% { transform: scale(0.98); opacity: 0.34; }
+    50% { transform: scale(1.02); opacity: 0.46; }
+}
+
 @media (prefers-reduced-motion: no-preference) {
+    .tala-aurora-canvas--saved .tala-aurora-blob {
+        animation: tala-aurora-bloom 12s ease-in-out infinite;
+    }
+    .tala-aurora-canvas--saved .tala-aurora-blob--gold {
+        animation-delay: -4s;
+    }
+    .tala-aurora-canvas--queued .tala-aurora-blob--green {
+        animation: tala-aurora-wait-drift 16s ease-in-out infinite;
+    }
+    .tala-aurora-canvas--queued .tala-aurora-blob--gold {
+        animation: tala-aurora-wait-drift 18s ease-in-out -7s infinite reverse;
+    }
+    .tala-aurora-canvas--queued .tala-aurora-blob--sage {
+        animation: tala-aurora-wait-drift 20s ease-in-out -11s infinite;
+    }
+    .tala-aurora-canvas--optimizing .tala-aurora-blob--green,
     .tala-aurora-canvas--active .tala-aurora-blob--green {
-        animation: tala-aurora-drift-green 7.2s ease-in-out infinite;
+        animation: tala-aurora-optimize-a 6.5s ease-in-out infinite;
     }
+    .tala-aurora-canvas--optimizing .tala-aurora-blob--gold,
     .tala-aurora-canvas--active .tala-aurora-blob--gold {
-        animation: tala-aurora-drift-gold 8.6s ease-in-out infinite;
+        animation: tala-aurora-optimize-b 8s ease-in-out infinite;
     }
+    .tala-aurora-canvas--optimizing .tala-aurora-blob--sage,
     .tala-aurora-canvas--active .tala-aurora-blob--sage {
-        animation: tala-aurora-drift-sage 9.8s ease-in-out infinite;
+        animation: tala-aurora-drift-sage 7.4s ease-in-out infinite;
+    }
+    .tala-aurora-canvas--validating .tala-aurora-blob {
+        animation: tala-aurora-bloom 9s ease-in-out infinite;
+    }
+    .tala-aurora-canvas--validating::after {
+        animation: tala-aurora-validate-sweep 4.8s ease-in-out infinite;
+    }
+    .tala-aurora-canvas--stalled .tala-aurora-blob {
+        animation: tala-aurora-stalled-pulse 5.5s ease-in-out infinite;
+    }
+    .tala-aurora-canvas--stalled .tala-aurora-blob--gold {
+        animation-delay: -2.2s;
+    }
+    .tala-aurora-canvas--error .tala-aurora-blob {
+        animation: tala-aurora-error-still 14s ease-in-out infinite;
     }
     .tala-aurora-canvas--calm .tala-aurora-blob--green {
         animation: tala-aurora-drift-green 15s ease-in-out infinite;
@@ -2270,6 +2670,12 @@ html.dark .fi-body .fi-section.tala-term-settings-identity.tala-term-settings-id
     border-radius: 999px;
     background: linear-gradient(90deg, var(--solver-accent), var(--solver-gold), var(--solver-accent));
     background-size: 200% 100%;
+    transition: inline-size 400ms ease, background 400ms ease;
+}
+
+.tala-operation-status__bar-fill.is-saved {
+    inline-size: 22cqi;
+    background: linear-gradient(90deg, var(--solver-accent), color-mix(in srgb, var(--solver-accent) 72%, var(--tala-surface)));
 }
 
 .tala-operation-status__bar-fill.is-queued {
@@ -2278,6 +2684,27 @@ html.dark .fi-body .fi-section.tala-term-settings-identity.tala-term-settings-id
 
 .tala-operation-status__bar-fill.is-solving {
     inline-size: 38cqi;
+}
+
+.tala-operation-status__bar-fill.is-validating {
+    inline-size: 78cqi;
+    background: linear-gradient(90deg, #1f5f2c, #48ab58, #6acb7c);
+    background-size: 200% 100%;
+}
+
+.tala-operation-status__bar-fill.is-stalled {
+    inline-size: 36cqi;
+    background: linear-gradient(90deg, #b45309, #c9972c, #d97706);
+}
+
+.tala-operation-status__bar-fill.is-error {
+    inline-size: 100cqi;
+    background: #b91c1c;
+}
+
+.dark .tala-operation-status__bar-fill.is-error,
+[data-theme='dark'] .tala-operation-status__bar-fill.is-error {
+    background: #ef4444;
 }
 
 .tala-operation-status__stages {
@@ -2368,6 +2795,134 @@ html.dark .fi-body .fi-section.tala-term-settings-identity.tala-term-settings-id
     color: var(--tala-on-brand-tint);
 }
 
+.tala-operation-status__stages li.is-stalled {
+    border-color: var(--tala-status-warning-border);
+    color: var(--tala-status-warning-fg);
+}
+
+.tala-operation-status__stages li.is-stalled > .tala-operation-status__step-node {
+    border-color: var(--tala-status-warning-border);
+    background: var(--tala-status-warning-bg);
+    color: var(--tala-status-warning-fg);
+}
+
+/* Health & Stage Semantic Overrides on Solver Stage */
+.tala-operation-status[data-tala-solver-stage] {
+    transition: border-color 400ms ease, background-color 400ms ease;
+}
+
+.tala-operation-status[data-solver-health='stalled'] {
+    --solver-accent: #b45309;
+    --solver-accent-strong: #92400e;
+    --solver-accent-soft: rgb(201 151 44 / 18%);
+    border-color: color-mix(in srgb, #c9972c 42%, var(--tala-edge));
+}
+
+.dark .tala-operation-status[data-solver-health='stalled'],
+[data-theme='dark'] .tala-operation-status[data-solver-health='stalled'] {
+    --solver-accent: #f59e0b;
+    --solver-accent-strong: #fcd34d;
+    --solver-accent-soft: rgb(245 158 11 / 20%);
+    border-color: color-mix(in srgb, #f59e0b 40%, var(--tala-edge));
+}
+
+.tala-operation-status[data-solver-health='stalled'] .tala-solver-kicker {
+    border-color: var(--tala-status-warning-border);
+    background: color-mix(in srgb, var(--tala-surface) 74%, var(--tala-status-warning-bg));
+    color: var(--tala-status-warning-fg);
+}
+
+.tala-operation-status[data-solver-health='stalled'] .tala-solver-pulse-dot {
+    box-shadow: 0 0 0 0 rgb(201 151 44 / 45%);
+}
+
+.tala-operation-status[data-solver-health='stalled'] .tala-solver-matrix {
+    border-color: color-mix(in srgb, #c9972c 44%, var(--tala-edge-strong));
+    box-shadow:
+        0 0 0 1px rgb(201 151 44 / 16%),
+        0 10px 28px -8px rgb(180 83 9 / 20%);
+}
+
+.tala-operation-status[data-solver-health='stalled'] .tala-solver-matrix__block {
+    opacity: 0.56;
+    filter: saturate(0.45);
+    box-shadow: none;
+}
+
+.tala-operation-status[data-solver-health='stalled'] .tala-ambient.tala-ambient--stage {
+    --ambient-green: #b45309;
+    --ambient-gold: #c9972c;
+    opacity: 0.55;
+}
+
+.tala-operation-status[data-solver-health='error'] {
+    --solver-accent: #b91c1c;
+    --solver-accent-strong: #991b1b;
+    --solver-accent-soft: rgb(185 28 28 / 16%);
+    border-color: color-mix(in srgb, #b91c1c 36%, var(--tala-edge));
+}
+
+.dark .tala-operation-status[data-solver-health='error'],
+[data-theme='dark'] .tala-operation-status[data-solver-health='error'] {
+    --solver-accent: #ef4444;
+    --solver-accent-strong: #fca5a5;
+    --solver-accent-soft: rgb(239 68 68 / 20%);
+    border-color: color-mix(in srgb, #ef4444 40%, var(--tala-edge));
+}
+
+.tala-operation-status[data-solver-health='error'] .tala-solver-kicker {
+    border-color: color-mix(in srgb, #b91c1c 38%, var(--tala-edge));
+    background: color-mix(in srgb, var(--tala-surface) 84%, #fee2e2);
+    color: #991b1b;
+}
+
+.dark .tala-operation-status[data-solver-health='error'] .tala-solver-kicker,
+[data-theme='dark'] .tala-operation-status[data-solver-health='error'] .tala-solver-kicker {
+    border-color: color-mix(in srgb, #ef4444 42%, var(--tala-edge));
+    background: color-mix(in srgb, var(--tala-surface) 80%, #450a0a);
+    color: #fca5a5;
+}
+
+.tala-operation-status[data-solver-health='error'] .tala-solver-matrix {
+    border-color: color-mix(in srgb, #b91c1c 36%, var(--tala-edge));
+    box-shadow: none;
+}
+
+.tala-operation-status[data-solver-health='error'] .tala-solver-matrix__block {
+    opacity: 0.42;
+    filter: grayscale(0.6);
+    box-shadow: none;
+}
+
+.tala-operation-status[data-solver-health='error'] .tala-ambient--stage {
+    display: none;
+}
+
+/* Saved & Queued calm matrix presentation */
+.tala-operation-status[data-solver-stage='saved'] .tala-solver-matrix,
+.tala-operation-status[data-solver-stage='queued'][data-solver-health='normal'] .tala-solver-matrix {
+    border-color: color-mix(in srgb, var(--solver-accent) 28%, var(--tala-edge-strong));
+    box-shadow:
+        0 0 0 1px rgb(47 125 59 / 10%),
+        0 8px 22px -10px rgb(47 125 59 / 16%);
+}
+
+/* Validating stage crisp emerald verified blocks */
+.tala-operation-status[data-solver-stage='validating'] .tala-solver-matrix {
+    border-color: color-mix(in srgb, var(--solver-accent) 56%, var(--tala-edge-strong));
+    box-shadow:
+        0 0 0 1px rgb(47 125 59 / 20%),
+        0 10px 28px -6px rgb(47 125 59 / 28%);
+}
+
+.tala-operation-status[data-solver-stage='validating'] .tala-solver-matrix__block.is-verified {
+    background: linear-gradient(135deg, #256331, #48ab58);
+    opacity: 1;
+    box-shadow:
+        0 0 0 1.5px rgb(47 125 59 / 60%),
+        0 0 14px rgb(74 196 96 / 38%);
+}
+
 .tala-operation-status__footer {
     display: flex;
     flex-wrap: wrap;
@@ -2416,9 +2971,25 @@ html.dark .fi-body .fi-section.tala-term-settings-identity.tala-term-settings-id
     50% { opacity: 1; }
 }
 
+@keyframes tala-progress-stalled {
+    0%, 100% { opacity: 0.42; }
+    45% { opacity: 0.92; }
+    70% { opacity: 0.58; }
+}
+
 @keyframes tala-progress-slide {
     0% { transform: translateX(-38cqi); }
     100% { transform: translateX(100cqi); }
+}
+
+@keyframes tala-progress-validate {
+    0% { background-position: 200% 0; }
+    100% { background-position: 0% 0; }
+}
+
+@keyframes tala-solver-dot-stalled {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgb(201 151 44 / 45%); opacity: 0.72; }
+    50% { transform: scale(1.1); box-shadow: 0 0 0 5px rgb(201 151 44 / 0%); opacity: 1; }
 }
 
 @keyframes tala-matrix-breathe {
@@ -2430,32 +3001,69 @@ html.dark .fi-body .fi-section.tala-term-settings-identity.tala-term-settings-id
     .tala-solver-pulse-dot {
         animation: tala-solver-dot-pulse 1.9s ease-in-out infinite;
     }
-    .tala-operation-status[data-solver-phase='solving'] .tala-solver-matrix {
-        animation: tala-matrix-halo 4.6s ease-in-out infinite;
+    .tala-operation-status[data-solver-health='stalled'] .tala-solver-pulse-dot {
+        animation: tala-solver-dot-stalled 2.8s ease-in-out infinite;
     }
-    .tala-operation-status[data-solver-phase='solving'] .tala-solver-matrix::before {
-        animation: tala-matrix-sweep 3.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    .tala-operation-status[data-solver-health='error'] .tala-solver-pulse-dot {
+        animation: none;
     }
-    .tala-operation-status[data-solver-phase='solving'] .tala-solver-matrix__block:nth-child(odd) {
+    .tala-operation-status[data-solver-stage='queued'][data-solver-health='normal'] .tala-solver-matrix__block {
+        animation: tala-matrix-breathe 4.2s ease-in-out infinite;
+    }
+    .tala-operation-status[data-solver-stage='optimizing'][data-solver-health='normal'] .tala-solver-matrix {
+        animation: tala-matrix-halo 4.4s ease-in-out infinite;
+    }
+    .tala-operation-status[data-solver-stage='optimizing'][data-solver-health='normal'] .tala-solver-matrix::before {
+        animation: tala-matrix-sweep 3s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    }
+    .tala-operation-status[data-solver-stage='optimizing'][data-solver-health='normal'] .tala-solver-matrix__block:nth-child(odd) {
         animation: tala-matrix-breathe 2.6s ease-in-out infinite;
     }
+    .tala-operation-status[data-solver-stage='validating'][data-solver-health='normal'] .tala-solver-matrix::before {
+        animation: tala-matrix-sweep 2.4s linear infinite;
+    }
+    .tala-operation-status__bar-fill.is-saved {
+        animation: tala-progress-pulse 2.6s ease-in-out infinite;
+    }
     .tala-operation-status__bar-fill.is-queued {
-        animation: tala-progress-pulse 1.8s ease-in-out infinite;
+        animation: tala-progress-pulse 2s ease-in-out infinite;
     }
     .tala-operation-status__bar-fill.is-solving {
-        animation: tala-progress-slide 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        animation: tala-progress-slide 1.7s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    }
+    .tala-operation-status__bar-fill.is-validating {
+        animation: tala-progress-validate 2.2s linear infinite;
+    }
+    .tala-operation-status__bar-fill.is-stalled {
+        animation: tala-progress-stalled 3.2s ease-in-out infinite;
     }
 }
 
 @media (prefers-reduced-motion: reduce) {
+    .tala-aurora-canvas,
+    .tala-aurora-canvas::after,
     .tala-aurora-blob,
     .tala-solver-pulse-dot,
     .tala-solver-matrix,
     .tala-solver-matrix::before,
     .tala-solver-matrix__block,
+    .tala-operation-status,
     .tala-operation-status__bar-fill {
         animation: none !important;
         transition: none !important;
+    }
+    .tala-operation-status__bar-fill.is-saved {
+        inline-size: 25cqi;
+    }
+    .tala-operation-status__bar-fill.is-queued,
+    .tala-operation-status__bar-fill.is-stalled {
+        inline-size: 42cqi;
+    }
+    .tala-operation-status__bar-fill.is-solving {
+        inline-size: 62cqi;
+    }
+    .tala-operation-status__bar-fill.is-validating {
+        inline-size: 84cqi;
     }
 }
 
@@ -2465,6 +3073,12 @@ html.dark .fi-body .fi-section.tala-term-settings-identity.tala-term-settings-id
     }
     .tala-solver-matrix__block {
         border: 1px solid CanvasText;
+    }
+    .tala-timetable-empty-stage .servitech-empty-state.servitech-empty-state--hero .fi-empty-state-icon-bg {
+        background: Canvas;
+        color: CanvasText;
+        border-color: CanvasText;
+        box-shadow: none;
     }
 }
 

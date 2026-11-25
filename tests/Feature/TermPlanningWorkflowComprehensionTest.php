@@ -405,15 +405,15 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
         ]);
         $this->actingAs($registrar);
         $component = Livewire::withQueryParams(['termId' => $term->id])->test(TermTimetable::class)
-            ->assertSee('Waiting for the timetable worker')->assertSeeHtml('wire:poll.5s.visible')
-            ->assertDontSee('No meetings are available from this draft')
+            ->assertSee('Preparing your timetable')->assertSeeHtml('wire:poll.5s.visible')
+            ->assertDontSee('No timetable was created')
             ->assertActionHidden('retrySolverRun')->assertActionHidden('acceptCandidate')
             ->assertActionHidden('publishOfficialTimetable');
 
         $run->update(['status' => ScheduleGenerationRun::StatusDispatching]);
         $component->call('$refresh')->assertSee('Building your whole-term timetable')
             ->assertSeeHtml('wire:poll.5s.visible')
-            ->assertDontSee('No meetings are available from this draft')
+            ->assertDontSee('No timetable was created')
             ->assertActionHidden('retrySolverRun');
 
         $run->update([
@@ -430,7 +430,7 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
             ->assertDontSeeHtml('wire:poll.5s.visible')->assertActionHidden('acceptCandidate')
             ->assertActionHidden('publishOfficialTimetable')->assertActionVisible('retrySolverRun')
             ->assertSee('Synthetic transport failure; no solver was dispatched.')
-            ->assertSee('No meetings are available from this draft')
+            ->assertSee('No timetable was created')
             ->assertSee('Open solver report');
         $component->assertSeeHtml('href="'.e($component->instance()->timetableReviewUrl($run->id)).'"');
         $this->assertSame(ScheduleGenerationRun::StatusFailed, $run->fresh()->status);

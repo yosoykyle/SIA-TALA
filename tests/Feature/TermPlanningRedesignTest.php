@@ -350,7 +350,7 @@ final class TermPlanningRedesignTest extends TestCase
             ->assertActionEnabled('generateTimetable')->callAction('generateTimetable')->assertHasNoActionErrors()
             ->assertSet('timetableState', 'draft')->assertSet('selectedRunId', $queued->id)
             ->assertSet('programFilter', null)->assertSet('yearFilter', null)->assertSet('viewFilter', null)
-            ->assertViewHas('showOfficial', false)->assertSee('Timetable generation in progress')->assertSee('Waiting for the timetable worker')
+            ->assertViewHas('showOfficial', false)->assertSee('Timetable generation in progress')->assertSee('Preparing your timetable')
             ->assertSee('wire:poll.5s.visible', false);
         $this->assertSame(PublishedTimetableVersion::StatePublished, PublishedTimetableVersion::findOrFail($fixture['published_version_id'])->state);
         Mail::assertNothingOutgoing();
