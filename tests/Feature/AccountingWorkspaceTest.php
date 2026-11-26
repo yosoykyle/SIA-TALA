@@ -16,10 +16,12 @@ use App\Filament\Resources\FeePlans\Pages\ListFeePlans;
 use App\Filament\Resources\FeePlans\Pages\ViewFeePlan;
 use App\Filament\Resources\StudentLifecycleChanges\Pages\ListStudentLifecycleChanges;
 use App\Models\Assessment;
+use App\Models\AssessmentObligation;
 use App\Models\Enrollment;
 use App\Models\FeePlan;
 use App\Models\PaymentEvidenceVersion;
 use App\Models\Program;
+use App\Models\RegistrationProposalVersion;
 use App\Models\StudentLifecycleChange;
 use App\Models\Term;
 use App\Models\TermAccount;
@@ -398,6 +400,64 @@ class AccountingWorkspaceTest extends TestCase
         $this->assertSame(1, $counts['student_changes']);
         $this->assertSame(1, $page->instance()->accountingUniqueReviewCount());
         $this->assertSame(1, $page->instance()->accountingOverviewSummary()['uniqueReviewCount']);
+    }
+
+    public function test_assessed_enrollment_waiting_for_payment_stays_in_an_accounting_queue_until_paid(): void
+    {
+        $actor = $this->accounting();
+        $term = Term::factory()->create(['state' => Term::StateActive]);
+        $awaitingCase = $this->assessedInProgressEnrollment($term, $actor);
+        $receiptCase = $this->assessedInProgressEnrollment($term, $actor);
+        PaymentEvidenceVersion::factory()->create([
+            'term_account_id' => $receiptCase->termAccount->id,
+            'assessment_id' => $receiptCase->termAccount->assessments->first()->id,
+            'submitted_by' => $receiptCase->credential_user_id,
+        ]);
+        $officialCase = $this->assessedInProgressEnrollment($term, $actor);
+        $officialCase->forceFill(['canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled])->save();
+
+        $page = Livewire::actingAs($actor)->test(ListEnrollments::class)
+            ->assertSee('Waiting for payment')
+            ->assertSee('Record payments');
+
+        $counts = $page->instance()->accountingWorkCounts();
+        $this->assertSame(1, $counts['payment']);
+        $this->assertSame(1, $counts['proof']);
+        $this->assertSame(0, $counts['assessment']);
+
+        Livewire::actingAs($actor)->withQueryParams(['tab' => 'awaiting_payment', 'scope' => 'all'])
+            ->test(ListEnrollments::class)
+            ->assertSet('activeTab', 'awaiting_payment')
+            ->assertCanSeeTableRecords([$awaitingCase])
+            ->assertCanNotSeeTableRecords([$receiptCase, $officialCase]);
+    }
+
+    private function assessedInProgressEnrollment(Term $term, User $actor): Enrollment
+    {
+        $enrollment = Enrollment::factory()->create([
+            'term_id' => $term->id,
+            'canonical_outcome' => Enrollment::OutcomeInProgress,
+        ]);
+        $proposal = RegistrationProposalVersion::factory()->for($enrollment)->create();
+        $enrollment->forceFill(['current_proposal_version_id' => $proposal->id])->save();
+        $account = TermAccount::factory()->create([
+            'enrollment_id' => $enrollment->id,
+            'credential_user_id' => $enrollment->credential_user_id,
+            'term_id' => $term->id,
+        ]);
+        $assessment = Assessment::factory()->create([
+            'enrollment_id' => $enrollment->id,
+            'term_account_id' => $account->id,
+            'source_proposal_version_id' => $proposal->id,
+            'activated_by' => $actor->id,
+        ]);
+        AssessmentObligation::factory()->create([
+            'assessment_id' => $assessment->id,
+            'amount' => '1000.00',
+            'required_for_enrollment' => true,
+        ]);
+
+        return $enrollment->fresh(['termAccount.assessments']);
     }
 
     public function test_accounting_tab_normalization_and_bounded_query_count_protect_overview_and_gated_accounts(): void

@@ -7,12 +7,14 @@
     $proofCount = (int) ($counts['proof'] ?? 0);
     $changesCount = (int) ($counts['student_changes'] ?? 0);
     $paymentCount = $proofCount;
+    $awaitingPaymentCount = (int) ($counts['payment'] ?? 0);
     $uniqueReviewCount = array_key_exists('uniqueReviewCount', $summary)
         ? (int) $summary['uniqueReviewCount']
-        : ($assessmentCount + $paymentCount + $changesCount);
+        : ($assessmentCount + $paymentCount + $awaitingPaymentCount + $changesCount);
     $hasPendingWork = $uniqueReviewCount > 0;
     $priorityStep = match (true) {
         $paymentCount > 0 => 'payments',
+        $awaitingPaymentCount > 0 => 'awaiting_payment',
         $assessmentCount > 0 => 'assessment',
         $changesCount > 0 => 'student_changes',
         default => null,
@@ -98,6 +100,23 @@
                 </div>
                 <div class="tala-workflow-step__action tala-workspace-feature__action">
                     <x-filament::button tag="a" :href="$queueUrl('payment_proof')" :color="$priorityStep === 'payments' ? 'primary' : 'gray'" icon="heroicon-m-arrow-right" icon-position="after">Review receipts</x-filament::button>
+                </div>
+            </li>
+            <li @class(['tala-workflow-step', 'tala-workflow-step--priority' => $priorityStep === 'awaiting_payment', 'tala-workflow-step--active' => $awaitingPaymentCount > 0 && $priorityStep !== 'awaiting_payment', 'tala-workflow-step--caught-up' => $awaitingPaymentCount === 0])>
+                <div class="accounting-step-body">
+                    <div class="tala-workflow-step__head">
+                        <span class="tala-workspace-card__icon" aria-hidden="true">
+                            <x-filament::icon icon="heroicon-o-banknotes" />
+                        </span>
+                    </div>
+                    <h3 class="tala-workflow-step__title">Waiting for payment</h3>
+                    <div class="tala-workflow-step__figure">
+                        <x-workspace-figure :value="$awaitingPaymentCount" :label="\Illuminate\Support\Str::plural('account', $awaitingPaymentCount)" />
+                    </div>
+                    <p class="tala-workflow-step__desc">Assessed enrollments. Record the payment to finish enrollment.</p>
+                </div>
+                <div class="tala-workflow-step__action tala-workspace-feature__action">
+                    <x-filament::button tag="a" :href="$queueUrl('awaiting_payment')" :color="$priorityStep === 'awaiting_payment' ? 'primary' : 'gray'" icon="heroicon-m-arrow-right" icon-position="after">Record payments</x-filament::button>
                 </div>
             </li>
             <li @class(['tala-workflow-step', 'tala-workflow-step--priority' => $priorityStep === 'student_changes', 'tala-workflow-step--active' => $changesCount > 0 && $priorityStep !== 'student_changes', 'tala-workflow-step--caught-up' => $changesCount === 0])>

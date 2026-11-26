@@ -7,6 +7,7 @@ use App\Actions\Enrollment\EnrollmentContinuationSummary;
 use App\Actions\Enrollment\RegistrationWindowApplicability;
 use App\Actions\Enrollment\StartRegistrationCase;
 use App\Actions\Finance\CreateContextualFinanceExport;
+use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
 use App\Actions\Finance\IndividualAssessmentSources;
 use App\Actions\Finance\TermAccountProjection;
 use App\Actions\StudentLifecycle\LifecycleAccountingReview;
@@ -71,6 +72,7 @@ class ListEnrollments extends ListRecords
         'accounts',
         'assessment_required',
         'payment_proof',
+        'awaiting_payment',
         'student_changes',
     ];
 
@@ -307,7 +309,7 @@ class ListEnrollments extends ListRecords
     /** @return array{label:string,icon:string} */
     public function accountingRecordSummary(Enrollment $case): array
     {
-        $matchingQueues = collect(['student_changes', 'proof', 'assessment'])
+        $matchingQueues = collect(['student_changes', 'proof', 'payment', 'assessment'])
             ->filter(fn (string $kind): bool => in_array($case->id, $this->accountingCaseIds($kind), true))
             ->values();
         $extraSuffix = $matchingQueues->count() > 1
@@ -325,6 +327,7 @@ class ListEnrollments extends ListRecords
         }
         foreach ([
             'proof' => ['Receipts to review', 'heroicon-o-document-magnifying-glass'],
+            'payment' => ['Waiting for payment', 'heroicon-o-banknotes'],
             'assessment' => ['Assessment review', 'heroicon-o-document-currency-dollar'],
         ] as $kind => [$label, $icon]) {
             if ($matchingQueues->contains($kind)) {
@@ -401,7 +404,7 @@ class ListEnrollments extends ListRecords
     private function accountingCaseIds(string $kind): array
     {
         if ($this->accountingWorkIds === null) {
-            $this->accountingWorkIds = ['assessment' => [], 'proof' => [],
+            $this->accountingWorkIds = ['assessment' => [], 'proof' => [], 'payment' => [],
                 'student_changes' => $this->accountingPendingLifecycleIds()];
             $cases = Enrollment::query()->with([
                 'term',
@@ -431,8 +434,11 @@ class ListEnrollments extends ListRecords
                         }
                     }
                 }
-                if ($case->termAccount?->paymentEvidenceVersions->contains('state', PaymentEvidenceVersion::StateSubmitted)) {
+                $hasSubmittedProof = (bool) $case->termAccount?->paymentEvidenceVersions->contains('state', PaymentEvidenceVersion::StateSubmitted);
+                if ($hasSubmittedProof) {
                     $this->accountingWorkIds['proof'][] = (int) $case->id;
+                } elseif ($this->awaitsEnrollmentPayment($case, $assessment)) {
+                    $this->accountingWorkIds['payment'][] = (int) $case->id;
                 }
             }
         }
@@ -440,19 +446,40 @@ class ListEnrollments extends ListRecords
         return $this->accountingWorkIds[$kind];
     }
 
+    /**
+     * An in-progress enrollment whose current subjects are assessed but whose
+     * enrollment payment is not yet verified stays visible to Accounting so the
+     * payment can be recorded and the enrollment can finalize.
+     */
+    private function awaitsEnrollmentPayment(Enrollment $case, ?Assessment $assessment): bool
+    {
+        if ($case->canonical_outcome !== Enrollment::OutcomeInProgress
+            || $case->termAccount === null
+            || $assessment === null
+            || (int) $assessment->source_proposal_version_id !== (int) $case->current_proposal_version_id
+            || in_array((int) $case->id, $this->accountingWorkIds['assessment'], true)) {
+            return false;
+        }
+
+        $requirement = app(EnrollmentPaymentRequirementProjection::class)
+            ->forEnrollment($case, activeAssessment: $assessment, useLoadedRelations: true);
+
+        return $requirement['state'] === 'ActionNeeded';
+    }
+
     /** @return array<string, int> */
     public function accountingWorkCounts(): array
     {
         abort_unless($this->isAccounting(), 403);
 
-        return collect(['assessment', 'proof', 'student_changes'])->mapWithKeys(fn (string $kind): array => [$kind => count($this->accountingCaseIds($kind))])->all();
+        return collect(['assessment', 'proof', 'payment', 'student_changes'])->mapWithKeys(fn (string $kind): array => [$kind => count($this->accountingCaseIds($kind))])->all();
     }
 
     public function accountingUniqueReviewCount(): int
     {
         abort_unless($this->isAccounting(), 403);
 
-        return collect(['assessment', 'proof', 'student_changes'])
+        return collect(['assessment', 'proof', 'payment', 'student_changes'])
             ->flatMap(fn (string $kind): array => $this->accountingCaseIds($kind))
             ->unique()
             ->count();
@@ -479,7 +506,7 @@ class ListEnrollments extends ListRecords
     {
         abort_unless($this->isAccounting(), 403);
 
-        $pendingIds = collect(['assessment', 'proof', 'student_changes'])
+        $pendingIds = collect(['assessment', 'proof', 'payment', 'student_changes'])
             ->flatMap(fn (string $kind): array => $this->accountingCaseIds($kind))
             ->unique()
             ->values()
@@ -502,6 +529,7 @@ class ListEnrollments extends ListRecords
         $kind = match ($this->activeTab) {
             'assessment_required' => 'assessment',
             'payment_proof' => 'proof',
+            'awaiting_payment' => 'payment',
             'student_changes' => 'student_changes',
             default => null,
         };
@@ -746,6 +774,7 @@ class ListEnrollments extends ListRecords
                     ? 'Select a term or search for a student before loading full account records.'
                     : 'Search and filter student account records by term or program.',
                 'payment_proof' => 'Verify submitted payment receipts and record verification results across all terms.',
+                'awaiting_payment' => 'Assessed enrollments waiting for the enrollment payment. Record an onsite payment or wait for a receipt.',
                 'assessment_required' => 'Review unassessed enrollments, adjusted subjects and earlier payments across all terms.',
                 'student_changes' => 'Review recorded student status changes and confirm account updates across all terms.',
                 default => 'Find a student and review their account work.',
@@ -832,6 +861,7 @@ class ListEnrollments extends ListRecords
                 fn (Builder $query): Builder => $query->whereIn('id', $this->accountingCaseIds('assessment')),
             ),
             'payment_proof' => Tab::make('Review receipts')->modifyQueryUsing(fn (Builder $query): Builder => $query->whereIn('id', $this->accountingCaseIds('proof'))),
+            'awaiting_payment' => Tab::make('Waiting for payment')->modifyQueryUsing(fn (Builder $query): Builder => $query->whereIn('id', $this->accountingCaseIds('payment'))),
             'student_changes' => Tab::make('Student status changes')->modifyQueryUsing(fn (Builder $query): Builder => $query->whereIn('id', $this->accountingCaseIds('student_changes'))),
         ];
     }

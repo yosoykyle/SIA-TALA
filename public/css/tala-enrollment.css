@@ -377,8 +377,11 @@
     .accounting-records-launcher .accounting-record-link+.accounting-record-link{border-block-start:0;border-inline-start:1px solid var(--tala-edge);}
 }
 @container(min-width:51.5rem){
-    .accounting-workbench .tala-workflow-steps{grid-template-columns:repeat(4,minmax(0,1fr));}
+    .accounting-workbench .tala-workflow-steps{grid-template-columns:repeat(3,minmax(0,1fr));}
     .accounting-workbench .tala-workflow-step__title{min-block-size:0;}
+}
+@container(min-width:68rem){
+    .accounting-workbench .tala-workflow-steps{grid-template-columns:repeat(5,minmax(0,1fr));}
 }
 @media(pointer:coarse){
     .accounting-workbench .tala-workflow-step .tala-workspace-text-link,.accounting-workbench .tala-workflow-step__action>.fi-btn{min-block-size:2.75rem;}
