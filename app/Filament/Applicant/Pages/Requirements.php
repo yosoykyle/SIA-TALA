@@ -127,7 +127,7 @@ class Requirements extends Page implements HasTable
                             ->badge()
                             ->color(fn (AdmissionRequirement $record): string => $this->resultColor($row($record)['result'] ?? 'NotSubmitted')),
                         TextColumn::make('last_review_update')
-                            ->label('Last update (Asia/Manila)')
+                            ->label('Last update')
                             ->state(fn (AdmissionRequirement $record) => $row($record)['updated_at'] ?? null)
                             ->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')
                             ->placeholder('No copy submitted'),
@@ -240,7 +240,7 @@ class Requirements extends Page implements HasTable
             ...match (true) {
                 $held->has($requirement->id) => ['state' => 'On hold', 'color' => 'warning'],
                 $isCleared && $requirement->due_stage !== AdmissionRequirement::DuePostEnrollmentFollowUp => ['state' => 'Passed on-site', 'color' => 'success'],
-                default => ['state' => 'To be passed on-site', 'color' => 'gray'],
+                default => ['state' => 'To be passed on-site', 'color' => 'info'],
             },
         ])->values()->all();
     }

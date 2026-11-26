@@ -110,7 +110,7 @@
                         <div><dt>Term calendar</dt><dd>{{ $calendar ? 'Active · Updated '.($calendar->updated_at ?? $calendar->created_at)?->timezone(config('app.display_timezone'))->format('M j, Y') : 'No active calendar' }}</dd></div>
                         <div><dt>Exam period</dt><dd>{{ $examination['status'] === 'Available' ? $examination['opens_on']->format('M j, Y').' – '.$examination['closes_on']->format('M j, Y') : 'Exam period unavailable' }} · Informational</dd></div>
                         @if (filled($examination['authority_reference']))<div><dt>Approval note / memo</dt><dd>{{ $examination['authority_reference'] }}</dd></div>@endif
-                        <div><dt>Source checked</dt><dd>{{ $examination['as_of']->format('j M Y, g:i A') }} · Asia/Manila</dd></div>
+                        <div><dt>Source checked</dt><dd>{{ $examination['as_of']->format('j M Y, g:i A') }}</dd></div>
                     </dl>
                     <p>{{ $examination['message'] }}</p>
                 </x-supporting-details>
@@ -193,6 +193,6 @@
             </nav>
         </section>
     </div>
-    <p class="oversight-checked">Checked {{ $checkedAt->format('j M Y, g:i A') }} · Asia/Manila · Read-only source records</p>
+    <p class="oversight-checked">Checked {{ $checkedAt->format('j M Y, g:i A') }} · Read-only source records</p>
     @endif
 </x-filament-panels::page>

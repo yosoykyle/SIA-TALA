@@ -302,7 +302,11 @@ class RegistrationAcademicEligibilityQuery
         if ($enrollment->admissionApplication?->application_path === AdmissionApplication::PathTransferee && $evaluation === null) {
             throw ValidationException::withMessages(['evaluation' => 'Academic evaluation required. Registrar must record the approved result.']);
         }
-        $creditEntryIds = array_merge($evaluation?->credited_curriculum_entry_ids ?? [], $profile instanceof StudentProfile ? RegistrationCreditEvaluation::creditedEntryIdsForStudent($profile) : []);
+        $creditEntryIds = array_values(array_unique(array_merge(
+            $evaluation?->credited_curriculum_entry_ids ?? [],
+            $profile instanceof StudentProfile ? RegistrationCreditEvaluation::creditedEntryIdsForStudent($profile) : [],
+            $profile instanceof StudentProfile ? $this->acceptedProgramShiftCreditEntryIds($profile) : [],
+        )));
         $transferCourseIds = CurriculumEntry::query()
             ->with('courseSpecification')
             ->whereIn('id', $creditEntryIds)
@@ -376,6 +380,23 @@ class RegistrationAcademicEligibilityQuery
         } catch (ValidationException) {
             return false;
         }
+    }
+
+    /** @return list<int> */
+    public function acceptedProgramShiftCreditEntryIds(StudentProfile $profile): array
+    {
+        if ($profile->curriculum_version_id === null) {
+            return [];
+        }
+
+        return $this->acceptedCredits($profile)
+            ->filter(fn (ProgramShiftCreditEntry $credit): bool => $credit->numeric_grade === null || (float) $credit->numeric_grade <= 4.00)
+            ->pluck('curriculum_entry_id')
+            ->filter()
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
     }
 
     /** @return Collection<int, ProgramShiftCreditEntry> */

@@ -140,13 +140,15 @@ class NavigationBadgeCounts
             ->groupBy('application_state')
             ->pluck('aggregate', 'application_state');
 
-        $readyIds = app(ReadyApplicantProjectionQuery::class)->readyApplicationIds()->all();
+        $readyApplicants = app(ReadyApplicantProjectionQuery::class);
+        $readyIds = $readyApplicants->readyApplicationIds()->all();
         $notActive = [...$closedIds, ...$expiredIds];
+        $notAwaitingClearance = [...$readyIds, ...$readyApplicants->officiallyEnrolledApplicationIds(), ...$notActive];
 
         $clearanceCount = AdmissionApplication::query()
             ->canonical()
             ->where('application_state', AdmissionApplication::StateAdmitted)
-            ->when([...$readyIds, ...$notActive] !== [], fn (Builder $query): Builder => $query->whereNotIn('id', [...$readyIds, ...$notActive]))
+            ->when($notAwaitingClearance !== [], fn (Builder $query): Builder => $query->whereNotIn('id', $notAwaitingClearance))
             ->count();
 
         $readyCount = $readyIds === []

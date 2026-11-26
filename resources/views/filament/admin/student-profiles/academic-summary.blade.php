@@ -17,7 +17,7 @@
                     @foreach ($item['average']['exclusions'] as $exclusion)<p class="text-sm text-gray-600 dark:text-gray-300">{{ $exclusion }}</p>@endforeach
                 </div>
             @empty <p class="text-sm">No official course registrations are recorded.</p> @endforelse
-            <p class="text-sm text-gray-600 dark:text-gray-300">As of {{ \Illuminate\Support\Carbon::parse($cumulative['as_of'])->timezone('Asia/Manila')->format('M j, Y g:i A') }} · Asia/Manila<br>{{ $effect['source'] }} · {{ $curriculum['completed_units'] }} completed curriculum units · {{ $curriculum['deficiency_count'] }} remaining requirements</p>
+            <p class="text-sm text-gray-600 dark:text-gray-300">As of {{ \Illuminate\Support\Carbon::parse($cumulative['as_of'])->timezone('Asia/Manila')->format('M j, Y g:i A') }}<br>{{ $effect['source'] }} · {{ $curriculum['completed_units'] }} completed curriculum units · {{ $curriculum['deficiency_count'] }} remaining requirements</p>
         </div>
     </x-supporting-details>
 </div>

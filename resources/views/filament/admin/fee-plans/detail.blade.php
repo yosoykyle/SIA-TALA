@@ -103,7 +103,6 @@
             <section class="accounting-fee-plan-panel tala-task-surface" aria-labelledby="fee-plan-payments">
                 <div class="accounting-fee-plan-panel__header">
                     <h2 id="fee-plan-payments">Payment schedule</h2>
-                    <p class="accounting-fee-plan-meta">Dates use {{ config('app.display_timezone', 'Asia/Manila') }}</p>
                 </div>
                 <ol class="accounting-fee-plan-payments">
                     @forelse ($plan->obligations as $payment)
@@ -154,7 +153,7 @@
                         </div>
                         <div>
                             <dt>Published on</dt>
-                            <dd>{{ $plan->published_at ? \App\Actions\Finance\AccountingDisplay::dateTime($plan->published_at).' · '.config('app.display_timezone', 'Asia/Manila') : 'Not recorded' }}</dd>
+                            <dd>{{ $plan->published_at ? \App\Actions\Finance\AccountingDisplay::dateTime($plan->published_at) : 'Not recorded' }}</dd>
                         </div>
                         @if (filled($plan->authority_reference))
                             <div>

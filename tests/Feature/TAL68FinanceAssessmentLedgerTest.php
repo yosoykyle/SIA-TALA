@@ -181,6 +181,19 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
         $this->assertSame(0, FeePlan::query()->where('program_id', $program->id)->where('term_id', $term->id)->count());
     }
 
+    public function test_new_draft_modal_has_somewhere_to_open_while_the_term_gate_hides_the_table(): void
+    {
+        $accounting = $this->staff(User::StaffRoleAccounting);
+        Term::factory()->count(2)->create();
+
+        $page = Livewire::actingAs($accounting)->test(ListFeePlans::class);
+
+        $this->assertTrue($page->instance()->feePlanGateActive());
+        $page->assertSeeHtml('wire:partial="action-modals"')
+            ->mountAction('createDraft')
+            ->assertActionMounted('createDraft');
+    }
+
     public function test_fee_plan_action_requires_program_term_and_fixed_lines(): void
     {
         $accounting = $this->staff(User::StaffRoleAccounting);

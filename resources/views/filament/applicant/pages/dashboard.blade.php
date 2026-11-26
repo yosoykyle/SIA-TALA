@@ -77,7 +77,7 @@
                             @else
                                 <p class="tala-application-next-action">{{ $this->nextAction($application) }}</p>
                                 @if ($activeCorrection)
-                                    <p><strong>{{ $activeCorrection->isOverdue() ? 'Correction overdue:' : 'Correction due:' }}</strong> {{ $activeCorrection->due_at->timezone(config('app.display_timezone'))->format('M j, Y, g:i A') }} (Asia/Manila)<br>{{ $activeCorrection->applicant_instruction }}</p>
+                                    <p><strong>{{ $activeCorrection->isOverdue() ? 'Correction overdue:' : 'Correction due:' }}</strong> {{ $activeCorrection->due_at->timezone(config('app.display_timezone'))->format('M j, Y, g:i A') }}<br>{{ $activeCorrection->applicant_instruction }}</p>
                                 @elseif (($projection['clearance_result'] ?? null) === 'ActionNeeded')
                                     <p>{{ collect($projection['blockers'])->firstWhere('source', 'Registrar enrollment clearance')['recovery'] ?? '' }}</p>
                                 @endif
@@ -98,7 +98,7 @@
                                 <a class="tala-home-link" {{ \Filament\Support\generate_href_html(\App\Filament\Applicant\Pages\Application::getUrl(['application' => $application->id])) }}>Inspect saved draft</a>
                             @elseif (in_array($application->application_state, [\App\Models\AdmissionApplication::StateDraft, \App\Models\AdmissionApplication::StateActionNeeded], true))
                                 <x-filament::button :href="\App\Filament\Applicant\Pages\Application::getUrl(['application' => $application->id])" tag="a" icon="heroicon-m-arrow-right" icon-position="after">
-                                    {{ $application->application_state === \App\Models\AdmissionApplication::StateDraft ? 'Continue application' : 'Respond to correction' }}
+                                    {{ $application->application_state === \App\Models\AdmissionApplication::StateDraft ? 'Continue application' : 'Fix correction' }}
                                 </x-filament::button>
                             @elseif ($application->allowsSubmittedEdit())
                                 <x-filament::button :href="\App\Filament\Applicant\Pages\Application::getUrl(['application' => $application->id])" tag="a" icon="heroicon-m-arrow-right" icon-position="after">
@@ -120,7 +120,7 @@
                             @foreach ($checklist['items'] as $item)
                                 <li @class(['tala-checklist__item', 'tala-checklist__item--onsite' => $item['onsite'], 'tala-checklist__item--onsite-start' => $item['onsite'] && ! $loop->first && ! ($checklist['items'][$loop->index - 1]['onsite'] ?? false)])>
                                     <span class="tala-checklist__mark tala-checklist__mark--{{ $item['color'] }}" aria-hidden="true">
-                                        @if ($item['onsite'] && $item['color'] !== 'success')
+                                        @if ($item['pending_onsite'])
                                             <x-filament::icon icon="heroicon-m-building-office-2" class="size-3.5" />
                                         @elseif (in_array($item['color'], ['success', 'info'], true))
                                             <x-filament::icon icon="heroicon-m-check" class="size-3.5" />
@@ -128,8 +128,13 @@
                                             <x-filament::icon icon="heroicon-m-exclamation-triangle" class="size-3" />
                                         @endif
                                     </span>
-                                    <span class="tala-checklist__label">{{ $item['label'] }}</span>
-                                    <x-filament::badge size="sm" :color="$item['color']">{{ $item['state'] }}</x-filament::badge>
+                                    <span class="tala-checklist__label">{{ $item['label'] }}@if (filled($item['note'] ?? null))<span class="tala-checklist__note">Registrar: {{ $item['note'] }}@if ($item['fix_url'] ?? null) <a href="{{ $item['fix_url'] }}" class="tala-checklist__fix">Fix this</a>@endif</span>@endif</span>
+                                    <span class="tala-checklist__badges">
+                                        @foreach ($item['badges'] as $badge)
+                                            @unless ($loop->first)<span class="tala-checklist__badge-sep" aria-hidden="true">/</span>@endunless
+                                            <x-filament::badge size="sm" :color="$badge['color']">{{ $badge['state'] }}</x-filament::badge>
+                                        @endforeach
+                                    </span>
                                 </li>
                             @endforeach
                         </ul>
@@ -138,12 +143,13 @@
                     @endif
                 </x-filament::section>
 
+
                 <x-filament::section class="tala-home-deadline-card" icon="heroicon-o-calendar-days" icon-color="primary">
                     <x-slot name="heading">Application deadline</x-slot>
                     <div class="tala-home-deadline">
                         <p class="tala-home-deadline__label">{{ $deadline['label'] }}</p>
                         <p class="tala-home-deadline__value">{{ $deadline['value'] ?? 'No deadline' }}</p>
-                        <p class="tala-home-deadline__note">{{ $deadline['note'] }}</p>
+                        @if (filled($deadline['note'] ?? null))<p class="tala-home-deadline__note">{{ $deadline['note'] }}</p>@endif
                     </div>
                 </x-filament::section>
 
@@ -179,13 +185,15 @@
                         <div class="tala-home-help__copy">
                             <h2 id="tala-home-help-title">Need help?</h2>
                             <p>Questions about your application? Contact admissions support.</p>
-                            <p class="tala-home-help__contact">
-                                @if ($support['href'] === $supportModalRoute)
-                                    <a class="tala-home-link" href="#" x-on:click.prevent="$dispatch('open-modal', { id: 'applicant-support-contact' })">{{ $support['text'] }}</a>
-                                @else
-                                    <a class="tala-home-link" href="{{ $support['href'] }}">{{ $support['text'] }}</a>
-                                @endif
-                            </p>
+                            @if (preg_match('/[\pL\pN]/u', $support['text']))
+                                <p class="tala-home-help__contact">
+                                    @if ($support['href'] === $supportModalRoute)
+                                        <a class="tala-home-link" href="#" x-on:click.prevent="$dispatch('open-modal', { id: 'applicant-support-contact' })">{{ $support['text'] }}</a>
+                                    @else
+                                        <a class="tala-home-link" href="{{ $support['href'] }}">{{ $support['text'] }}</a>
+                                    @endif
+                                </p>
+                            @endif
                         </div>
                         <x-filament::button color="gray" icon="heroicon-m-chat-bubble-left-right" x-on:click="$dispatch('open-modal', { id: 'applicant-support-contact' })">Contact support</x-filament::button>
                     </section>

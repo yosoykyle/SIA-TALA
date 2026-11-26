@@ -8,6 +8,7 @@ use App\Filament\Resources\AdmissionCycles\Pages\CreateAdmissionCycle;
 use App\Filament\Resources\AdmissionCycles\Pages\EditAdmissionCycle;
 use App\Filament\Resources\AdmissionCycles\Pages\ListAdmissionCycles;
 use App\Filament\Resources\AdmissionCycles\Pages\ViewAdmissionCycle;
+use App\Filament\Resources\AdmissionCycles\Schemas\AdmissionCycleInfolist;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
 use App\Models\Term;
@@ -90,7 +91,17 @@ class Issue57AdmissionCycleDraftWorkflowTest extends TestCase
         $this->actingAs($registrar);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Livewire::test(ViewAdmissionCycle::class, ['record' => $cycle->id])
-            ->assertActionDisabled('publish');
+            ->assertActionDisabled('publish')
+            ->assertSeeInOrder(['Publication checks', 'items to fix before this cycle can be published.',
+                'The target term, opening, public closing, or correction boundary is invalid.', 'Owner: Registrar', 'To fix', 'Correct the cycle term and dates.'])
+            ->assertDontSee('Admission Cycle and active academic term →')
+            ->assertSeeHtml(e(AdmissionCycleResource::getUrl('edit', ['record' => $cycle])))
+            ->assertSee('Fix term and dates');
+        $this->assertSame(
+            ['label' => 'Open requirement sets', 'url' => AdmissionCycleResource::getUrl('view', ['record' => $cycle, 'relation' => '0'])],
+            AdmissionCycleInfolist::fixLink(['code' => 'requirement_set_transferee'], $cycle),
+        );
+        $this->assertNull(AdmissionCycleInfolist::fixLink(['code' => 'private_evidence_storage'], $cycle));
 
         try {
             app(PublishAdmissionCycle::class)->execute($cycle, $registrar, 'ROUND3-APPROVED-SOURCE');
@@ -101,6 +112,17 @@ class Issue57AdmissionCycleDraftWorkflowTest extends TestCase
 
         $this->assertSame(AdmissionCycle::StateDraft, $cycle->fresh()->state);
         $this->assertSame(0, $cycle->events()->count());
+    }
+
+    public function test_deadlines_action_is_only_offered_once_the_cycle_is_no_longer_an_editable_draft(): void
+    {
+        $this->actingAs($this->registrar());
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $draft = AdmissionCycle::factory()->create();
+        $published = AdmissionCycle::factory()->create(['state' => AdmissionCycle::StatePublished]);
+
+        Livewire::test(ViewAdmissionCycle::class, ['record' => $draft->id])->assertActionHidden('setDeadlines');
+        Livewire::test(ViewAdmissionCycle::class, ['record' => $published->id])->assertActionVisible('setDeadlines');
     }
 
     public function test_resuming_and_saving_draft_keeps_exact_existing_boundary_seconds(): void

@@ -150,6 +150,14 @@ class ListAdmissionApplications extends ListRecords
         return collect(AdmissionQueueCounts::labels())->mapWithKeys(fn (string $label, string $queue): array => [
             $queue => Tab::make($label)
                 ->badge(fn (): ?int => $queues->count($queue) ?: null)
+                ->badgeColor(match ($queue) {
+                    AdmissionQueueCounts::NeedsReview => AdmissionApplication::stateColor(AdmissionApplication::StateSubmitted),
+                    AdmissionQueueCounts::WaitingForApplicant => AdmissionApplication::stateColor(AdmissionApplication::StateActionNeeded),
+                    AdmissionQueueCounts::RegistrarClearance => 'warning',
+                    AdmissionQueueCounts::ReadyForEnrollment => AdmissionApplication::stateColor(AdmissionApplication::StateAdmitted),
+                    AdmissionQueueCounts::Expired => AdmissionApplication::stateColor('Expired'),
+                    default => 'gray',
+                })
                 ->modifyQueryUsing(fn (Builder $query): Builder => $queues->scope($query, $queue)),
         ])->all();
     }
@@ -177,7 +185,8 @@ class ListAdmissionApplications extends ListRecords
             return 'Applicants who missed their paper or payment deadline while the admission period is open. Re-admit with a new deadline, or leave them until the period ends.';
         }
 
-        $count = app(AdmissionQueueCounts::class)->count($this->activeTab ?? AdmissionQueueCounts::NeedsReview);
+        $studentType = $this->tableFilters['application_path']['value'] ?? null;
+        $count = app(AdmissionQueueCounts::class)->count($this->activeTab ?? AdmissionQueueCounts::NeedsReview, filled($studentType) ? $studentType : null);
 
         return $count === 1 ? '1 application' : $count.' applications';
     }

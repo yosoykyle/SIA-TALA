@@ -19,6 +19,8 @@ use App\Models\AdmissionRequirement;
 use App\Models\AdmissionRequirementSet;
 use App\Models\ApplicationCorrectionItem;
 use App\Models\ApplicationSubmissionVersion;
+use App\Models\DocumentEvidence;
+use App\Models\PreliminaryEvidenceReview;
 use App\Models\Program;
 use App\Models\PublicNotice;
 use App\Models\RegistrarEnrollmentClearance;
@@ -133,7 +135,7 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
         $this->home($applicant, $application->fresh())
             ->assertSee('The Registrar asked you to correct part of your application.')
             ->assertSee('Correction due')
-            ->assertSee('Respond to correction')
+            ->assertSee('Fix correction')
             ->assertSee('Action Needed');
     }
 
@@ -214,7 +216,7 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
         $queueList = $this->actingAs($registrar)
             ->get(ListAdmissionApplications::getUrl(['tab' => AdmissionQueueCounts::NeedsReview], panel: 'admin'))
             ->assertOk()
-            ->assertSeeInOrder(['Admissions', 'Needs review', 'Waiting for applicant', 'Registrar clearance', 'Ready for enrollment', 'Closed applications', 'Students &amp; Enrollment'], false)
+            ->assertSeeInOrder(['Admissions', 'Needs review', 'Waiting for applicant', 'Registrar clearance', 'Ready for enrollment', 'Students &amp; Enrollment'], false)
             ->assertSee(ListAdmissionApplications::getUrl(['tab' => AdmissionQueueCounts::RegistrarClearance], panel: 'admin'));
         $this->assertGreaterThanOrEqual(2, $needsReview);
         $this->assertStringContainsString('>'.$needsReview.'<', preg_replace('/\s+/', '', (string) $queueList->getContent()));
@@ -248,7 +250,7 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
                 ->assertSee('Your application journey')
                 ->assertDontSee('Continue application')
                 ->assertDontSee('Update application')
-                ->assertDontSee('Respond to correction')
+                ->assertDontSee('Fix correction')
                 ->assertDontSee('Review requirements');
         }
     }
@@ -263,7 +265,7 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
             ->assertDontSee('Continue application');
     }
 
-    public function test_overdue_correction_still_offers_one_respond_action(): void
+    public function test_overdue_correction_still_offers_one_fix_action(): void
     {
         [$application, $applicant] = $this->application();
         $registrar = $this->registrar();
@@ -275,7 +277,7 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
 
         $this->home($applicant, $application->fresh())
             ->assertSee('Correction overdue')
-            ->assertSee('Respond to correction');
+            ->assertSee('Fix correction');
     }
 
     public function test_submitted_application_shows_the_open_cycle_closing_time(): void
@@ -284,7 +286,7 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
 
         $this->home($applicant, $application)
             ->assertSee('Applications close')
-            ->assertSee('You can still update your application until review starts (Asia/Manila).')
+            ->assertSee('You can still update your application until review starts.')
             ->assertDontSee('Nothing is due from you right now.');
     }
 
@@ -417,6 +419,43 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
             ->assertSee('2 documents required');
     }
 
+    public function test_requirements_checklist_shows_a_paper_with_an_online_copy_and_on_site_hand_over_once(): void
+    {
+        [$application, $applicant] = $this->application(extraRequirements: [
+            ['label' => 'Grade 12 report card', 'requires_preliminary_evidence' => true, 'official_submission_method' => AdmissionRequirement::SubmissionInPerson,
+                'due_stage' => AdmissionRequirement::DueEnrollmentReadiness],
+        ]);
+
+        $checklist = $this->home($applicant, $application)
+            ->assertSeeInOrder(['Grade 12 report card', 'Not submitted', '/', 'To be passed on-site'])
+            ->instance()->requirementChecklist($application->fresh());
+
+        $rows = collect($checklist['items'])->where('label', 'Grade 12 report card');
+        $this->assertCount(1, $rows);
+        $this->assertSame([['state' => 'Not submitted', 'color' => 'gray'], ['state' => 'To be passed on-site', 'color' => 'info']], $rows->first()['badges']);
+    }
+
+    public function test_home_shows_the_registrar_remark_and_correction_next_step_for_a_copy_that_needs_action(): void
+    {
+        [$application, $applicant] = $this->application(preliminaryEvidence: true);
+        $requirement = $application->currentSubmissionVersion->requirementSet->requirements->firstWhere('label', 'School review copy');
+        $evidence = DocumentEvidence::factory()->canonical($application, $requirement, $application->currentSubmissionVersion)->create();
+        PreliminaryEvidenceReview::factory()->create([
+            'document_evidence_id' => $evidence->id,
+            'result' => PreliminaryEvidenceReview::ResultActionNeeded,
+            'reason' => 'The birth date is unreadable. Upload a clear copy.',
+            'reviewed_by' => $this->registrar()->id,
+            'reviewed_at' => now(),
+        ]);
+
+        $this->home($applicant, $application->fresh())
+            ->assertSee('Needs action')
+            ->assertSee('Registrar: The birth date is unreadable. Upload a clear copy.')
+            ->assertSee('The Registrar marked School review copy for correction.')
+            ->assertDontSee('Updates from the Registrar')
+            ->assertDontSee('monitor Requirements for an instruction');
+    }
+
     public function test_applicant_pages_show_a_date_and_time_top_bar_without_account_controls(): void
     {
         [$application, $applicant] = $this->application(submitted: false);
@@ -429,7 +468,6 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
             ->assertSeeInOrder(['tala-applicant-topbar__person', 'Ana Reyes', 'tala-applicant-topbar__end', 'data-tala-clock'], false)
             ->assertDontSee('tala-brand__person', false)
             ->assertSee(now()->timezone('Asia/Manila')->format('D, M j, Y'))
-            ->assertSee('Asia/Manila')
             ->assertDontSee('fi-topbar-ctn', false);
     }
 
@@ -461,6 +499,12 @@ class Issue61ApplicantHomeDashboardTest extends TestCase
             ->assertSee('mailto:admissions@servitech.example', false)
             ->assertSee('Contact support')
             ->assertSee('applicant-support-contact', false);
+
+        $application->admissionCycle->forceFill(['support_contact' => '.'])->saveQuietly();
+        $this->home($applicant, $application->fresh())
+            ->assertSee('Need help?')
+            ->assertSee('Contact support')
+            ->assertDontSee('tala-home-help__contact', false);
 
         $application->admissionCycle->forceFill(['support_contact' => ''])->saveQuietly();
         $this->home($applicant, $application->fresh())->assertDontSee('Need help?');

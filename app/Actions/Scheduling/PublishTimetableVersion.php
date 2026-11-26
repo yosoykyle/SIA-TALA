@@ -15,6 +15,8 @@ use Illuminate\Validation\ValidationException;
 
 final class PublishTimetableVersion
 {
+    public function __construct(private readonly SyncTeachingAssignmentsFromTimetable $teachingAssignments) {}
+
     /**
      * The caller owns the surrounding Term/run transaction and row locks.
      *
@@ -105,6 +107,8 @@ final class PublishTimetableVersion
         if ($current instanceof PublishedTimetableVersion) {
             $current->forceFill(['state' => PublishedTimetableVersion::StateSuperseded])->save();
         }
+
+        $this->teachingAssignments->apply($version, $publisher);
 
         return $version->fresh('meetings');
     }

@@ -10,7 +10,7 @@
         $case !== null && $case->canonical_outcome !== \App\Models\Enrollment::OutcomeInProgress => 'Ask the Registrar about this enrollment',
         $context['reason'] !== null => 'Your enrollment needs an office update',
         $case?->currentProposalVersion?->state === \App\Models\RegistrationProposalVersion::StateIssued => 'Your subjects are ready to review',
-        $case?->currentProposalVersion?->confirmation !== null && ($requirement['state'] ?? '') === 'Cleared' => 'The Registrar can now finalize your enrollment',
+        $case?->currentProposalVersion?->confirmation !== null && ($requirement['state'] ?? '') === 'Cleared' => 'Your enrollment needs Registrar attention',
         $case !== null => 'The Registrar is preparing your enrollment',
         default => 'Start your next enrollment',
     };
@@ -55,12 +55,26 @@
         @if ($showNotice)
             <section class="student-tile student-tile-wide student-tile-attention" aria-label="Needs your attention">
                 <p class="student-tile-kicker"><x-filament::icon icon="heroicon-o-information-circle" />Needs your attention</p>
+                @if ($irregular = $notice['irregular'] ?? null)
+                    <h2>{{ $irregular['confirmed'] ? 'Status: '.$irregular['status_label'] : 'Flagged for irregular review' }}</h2>
+                    <p class="student-tile-meta">{{ $notice['scope_label'] }}</p>
+                    <x-irregular-reasons :review="$irregular" audience="student" class="student-tile-irregular" />
+                    @if ($notice['required_action'])<p>{{ $notice['required_action'] }}</p>@endif
+                    <ol class="student-tile-steps" aria-label="What happens next">
+                        <li @if (! $irregular['confirmed']) aria-current="step" @endif>Registrar confirms</li>
+                        <li @if ($irregular['confirmed']) aria-current="step" @endif>Apply as irregular</li>
+                        <li>Registrar approval</li>
+                        <li>Assessment and payment</li>
+                        <li>Enrolled</li>
+                    </ol>
+                @else
                 <h2>{{ $notice['tier'] }}</h2>
                 @if ($notice['tier'] === 'Academic Guidance')<p class="student-tile-meta">{{ $notice['scope_label'] }}</p>@endif
                 <p>{{ $notice['student_reason'] }}</p>
                 @if ($notice['required_action'])<p>{{ $notice['required_action'] }}</p>@endif
+                @endif
                 @if ($notice['tier'] === 'Academic Guidance')
-                    @if ($notice['academic_effect'] === 'ADVISING_REQUIRED')
+                    @if ($notice['academic_effect'] === 'ADVISING_REQUIRED' && ! ($notice['irregular'] ?? null))
                         <ol class="student-tile-steps" aria-label="What happens next"><li aria-current="step">You ask the Registrar</li><li>Registrar prepares your subjects</li><li>You review them</li></ol>
                     @endif
                     <div class="student-tile-actions">

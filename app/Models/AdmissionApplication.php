@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Database\Factories\AdmissionApplicationFactory;
+use Filament\Support\Colors\Color;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -122,6 +123,26 @@ class AdmissionApplication extends Model
             self::CredentialAlsAe => 'ALS Accreditation and Equivalency',
             self::CredentialPept => 'Philippine Educational Placement Test',
         ];
+    }
+
+    /**
+     * Distinct Filament badge color for every admission state. The panel maps "info" to neutral gray,
+     * so Submitted uses Color::Stone instead of "info" to stay visually distinct from Draft.
+     *
+     * @return string|array<int|string, string>
+     */
+    public static function stateColor(?string $state): string|array
+    {
+        return match ($state) {
+            self::StateDraft => 'gray',
+            self::StateSubmitted => Color::Stone,
+            self::StateActionNeeded => 'warning',
+            self::StateAdmitted => 'success',
+            self::StateNotAdmitted => 'danger',
+            self::StateWithdrawn => Color::Rose,
+            'Expired', 'expired' => Color::Orange,
+            default => 'gray',
+        };
     }
 
     /** @return array<string, string> */

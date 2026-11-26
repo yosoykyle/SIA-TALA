@@ -32,9 +32,9 @@ class SynchronizeOfficialGradeRoster
         }
     }
 
-    public function execute(Section $section, ?User $actor = null): GradeRoster
+    public function execute(Section $section, ?User $actor = null, bool $notifySubmissionRequired = true): GradeRoster
     {
-        return DB::transaction(function () use ($section, $actor): GradeRoster {
+        return DB::transaction(function () use ($section, $actor, $notifySubmissionRequired): GradeRoster {
             $section = Section::query()->lockForUpdate()->findOrFail($section->id);
             $assignment = ClassOfferingTeachingAssignment::query()
                 ->where('section_id', $section->id)
@@ -106,7 +106,9 @@ class SynchronizeOfficialGradeRoster
                 'lock_version' => $changed ? $roster->lock_version + 1 : $roster->lock_version,
             ]);
 
-            $this->notifications->recordSubmissionRequiredAfterCommit($roster->fresh('teachingAssignment'));
+            if ($notifySubmissionRequired && $membershipIds->isNotEmpty()) {
+                $this->notifications->recordSubmissionRequiredAfterCommit($roster->fresh('teachingAssignment'));
+            }
 
             return $roster->fresh(['rows.courseEnrollment', 'teachingAssignment']);
         }, attempts: 3);

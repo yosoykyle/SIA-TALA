@@ -476,7 +476,7 @@ final class PaymentChannelsAndOnsitePaymentTest extends TestCase
             ])
             ->callMountedAction()
             ->assertHasNoActionErrors()
-            ->assertNotified('Onsite payment recorded and applied to this account.');
+            ->assertNotified('Onsite payment recorded · Needs Registrar attention');
 
         $payment = Payment::query()->where('term_account_id', $fixture['account']->id)->sole();
         $this->assertNull($payment->student_profile_id);

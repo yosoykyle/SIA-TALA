@@ -1085,7 +1085,7 @@
         @endif
         @if (! $embedded)<p class="tala-timetable-guide">
             <span aria-live="polite"><span x-text="visibleCount">{{ count($renderMeetings) }}</span> of {{ count($renderMeetings) }} meetings shown.</span>
-            Select a meeting to see its details. Times are in Asia/Manila.
+            Select a meeting to see its details.
             @if (! $presentation['snapshotAvailable'])
                 Recorded calendar geometry is unavailable; the overview uses recorded meeting days and times.
             @endif
@@ -1320,7 +1320,7 @@
         @endif
 
         @if ($presentation['slots'] > 0 && $presentation['days'] !== [])
-            @if ($showWindow)<p x-show="mode === 'weekly'" class="tala-timetable-window">Recorded teaching window · {{ $presentation['ticks'][0]['label'] }}–{{ $presentation['ticks'][count($presentation['ticks']) - 1]['label'] }} · Asia/Manila</p>@endif
+            @if ($showWindow)<p x-show="mode === 'weekly'" class="tala-timetable-window">Recorded teaching window · {{ $presentation['ticks'][0]['label'] }}–{{ $presentation['ticks'][count($presentation['ticks']) - 1]['label'] }}</p>@endif
             <div x-show="mode === 'weekly'" class="tala-timetable-weekly" tabindex="0" role="region" aria-label="Weekly calendar, full recorded teaching window. Scroll to later hours." style="--timetable-days: {{ count($presentation['days']) }}; --timetable-slots: {{ $presentation['slots'] }};">
                 <div class="tala-timetable-axis" aria-hidden="true">
                     <div class="tala-timetable-day-heading tala-timetable-axis-heading">Time</div>
@@ -1891,7 +1891,7 @@
                             <strong x-text="currentScopeLabel">Whole term</strong>
                             <template x-if="programFilter"><span> · <span x-text="programFilter"></span></span></template>
                             <template x-if="yearFilter"><span> · <span x-text="yearFilter"></span></span></template>
-                            · <span x-text="visibleCount">{{ count($renderMeetings) }}</span>/{{ count($renderMeetings) }} · Asia/Manila
+                            · <span x-text="visibleCount">{{ count($renderMeetings) }}</span>/{{ count($renderMeetings) }}
                         </p>
                     </section>
 

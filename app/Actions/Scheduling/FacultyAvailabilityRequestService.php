@@ -308,7 +308,7 @@ class FacultyAvailabilityRequestService
                 termLabel: (string) $package->term?->label,
                 dueAt: CarbonImmutable::parse((string) ($payload['due_at'] ?? ''))
                     ->timezone(config('app.display_timezone'))
-                    ->format('M j, Y g:i A').' Asia/Manila',
+                    ->format('M j, Y g:i A'),
                 availabilityUrl: (string) ($payload['availability_url'] ?? MyAvailability::getUrl(['termId' => $package->term_id])),
             ));
         } catch (Throwable $exception) {

@@ -20,7 +20,7 @@ class PaymentPostedNotificationService
 {
     public function __construct(private readonly DecimalMoney $money) {}
 
-    public function record(Payment $payment): void
+    public function record(Payment $payment, bool $suppressRegistrarAlert = false): void
     {
         $payment->loadMissing(['studentProfile.user', 'termAccount.credentialUser', 'term']);
         $profile = $payment->studentProfile;
@@ -67,7 +67,7 @@ class PaymentPostedNotificationService
             return;
         }
 
-        $this->sendDatabaseNotifications($payment, $recipient);
+        $this->sendDatabaseNotifications($payment, $recipient, $suppressRegistrarAlert);
 
         $email = trim((string) $recipient->email);
 
@@ -108,7 +108,7 @@ class PaymentPostedNotificationService
         ])->save();
     }
 
-    private function sendDatabaseNotifications(Payment $payment, User $recipient): void
+    private function sendDatabaseNotifications(Payment $payment, User $recipient, bool $suppressRegistrarAlert = false): void
     {
         $formattedAmount = 'PHP '.number_format((float) $this->money->normalize((string) $payment->amount), 2);
         $termLabel = $payment->term instanceof Term ? (string) $payment->term->label : 'your current term';
@@ -132,6 +132,10 @@ class PaymentPostedNotificationService
             }
 
             $studentNotification->sendToDatabase($recipient);
+        }
+
+        if ($suppressRegistrarAlert) {
+            return;
         }
 
         $enrollment = $payment->termAccount?->enrollment;

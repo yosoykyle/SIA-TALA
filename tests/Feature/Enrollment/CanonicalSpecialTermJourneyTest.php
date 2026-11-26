@@ -293,7 +293,13 @@ final class CanonicalSpecialTermJourneyTest extends TestCase
         $this->assertSame('2000.00', $clearance['coverage_applied']);
         $this->assertSame('1000.00', $clearance['payment_applied']);
 
-        $official = app(FinalizeOfficialEnrollment::class)->execute($enrollment->fresh(), $registrar);
+        // Auto-finalized immediately on verifying the payment that cleared Mixed requirement.
+        $autoOfficial = $enrollment->fresh();
+        $this->assertSame(Enrollment::OutcomeOfficiallyEnrolled, $autoOfficial->canonical_outcome);
+        $this->assertSame(Enrollment::FinalizationModeAutomatic, $autoOfficial->finalization_mode);
+        $this->assertNull($autoOfficial->finalized_by);
+
+        $official = app(FinalizeOfficialEnrollment::class)->execute($autoOfficial, $registrar);
         $this->assertSame(Enrollment::OutcomeOfficiallyEnrolled, $official->canonical_outcome);
         $this->assertSame('6000.00', data_get($official->currentCorVersion->snapshot, 'assessment_total'));
         $this->assertSame($term->id, data_get($official->currentCorVersion->snapshot, 'term_id'));

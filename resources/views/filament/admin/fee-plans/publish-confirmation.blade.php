@@ -27,7 +27,6 @@
         <div class="accounting-fee-plan-confirmation__group">
             <div class="accounting-fee-plan-confirmation__group-head">
                 <h4>Payment schedule</h4>
-                <span class="accounting-fee-plan-meta">Dates use {{ config('app.display_timezone', 'Asia/Manila') }}</span>
             </div>
             <dl>
                 @foreach ($reviewed['payments'] as $payment)

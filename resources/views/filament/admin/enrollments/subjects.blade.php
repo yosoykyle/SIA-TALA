@@ -1,12 +1,12 @@
 <div class="tala-data-table-scroll registrar-subject-table-wrap" role="region" aria-label="Selected subjects and classes" tabindex="0">
     <table class="tala-data-table registrar-subject-table">
         <caption class="sr-only">Selected subjects and classes</caption>
-        <thead><tr><th scope="col">Subject</th><th scope="col">Section</th><th scope="col">Units</th></tr></thead>
+        <thead><tr><th scope="col">Subject</th><th scope="col">Class reference</th><th scope="col">Units</th></tr></thead>
         <tbody>
             @foreach ($proposal->items as $item)
                 <tr wire:key="{{ $sourceKey }}-subject-{{ $item->id }}">
                     <th scope="row">{{ $item->course_title_snapshot }}<span>{{ $item->course_code_snapshot }}</span></th>
-                    <td>{{ $item->section?->code ?? 'Not assigned' }}</td>
+                    <td>{{ $item->section?->displayReference() ?? 'Not assigned' }}</td>
                     <td>{{ (float) $item->units_snapshot }}</td>
                 </tr>
             @endforeach

@@ -9,6 +9,7 @@ use App\Actions\Enrollment\RegistrationShortageProjection;
 use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\Enrollments\Pages\ListEnrollments;
+use App\Models\AdmissionCycle;
 use App\Models\Enrollment;
 use App\Models\Program;
 use App\Models\RegistrationProposalVersion;
@@ -59,6 +60,7 @@ class EnrollmentsTable
                     ->description(fn (Enrollment $record): ?string => $record->studentProfile?->student_number
                         ?? $record->admissionApplication?->application_reference)
                     ->wrap(),
+                self::studentTypeColumn(),
                 TextColumn::make('case_reference')
                     ->label('Registration reference')
                     ->toggleable(isToggledHiddenByDefault: true)
@@ -298,6 +300,25 @@ class EnrollmentsTable
         };
     }
 
+    /**
+     * The case's Student type as a badge: Freshman or Transferee from the admission, Continuing otherwise (#99 Scope 10).
+     */
+    public static function studentTypeColumn(): TextColumn
+    {
+        return TextColumn::make('student_type_badge')
+            ->label('Student type')
+            ->badge()
+            ->state(fn (Enrollment $record): string => $record->admission_application_id === null
+                ? 'Continuing'
+                : AdmissionCycle::studentTypeLabel($record->admissionApplication?->application_path))
+            ->color(fn (Enrollment $record): string|array => $record->admission_application_id === null
+                ? 'gray'
+                : AdmissionCycle::studentTypeColor($record->admissionApplication?->application_path))
+            ->icon(fn (Enrollment $record): string => $record->admission_application_id === null
+                ? 'heroicon-m-user'
+                : AdmissionCycle::studentTypeIcon($record->admissionApplication?->application_path));
+    }
+
     public static function stage(Enrollment $enrollment): string
     {
         if ($enrollment->canonical_outcome === Enrollment::OutcomeOfficiallyEnrolled) {
@@ -363,9 +384,9 @@ class EnrollmentsTable
             'Prepare subjects' => 'Prepare subjects for learner confirmation.',
             'Waiting for learner' => 'Subjects issued for confirmation.',
             'Placement required' => 'Assign available classes from the published schedule.',
-            'Payment or fee review' => 'Accounting reviews the required fees and payment.',
-            'Source review required' => 'Review the changed enrollment requirements.',
-            'Ready to finalize' => 'Review and make enrollment official.',
+            'Payment or fee review' => 'Accounting reviews the required fees and payment; auto-enrolls once cleared.',
+            'Source review required' => 'Review the changed enrollment requirements or paid-blocked issue.',
+            'Ready to finalize' => 'Review and finalize using the manual fallback.',
             'Officially enrolled' => 'View subjects and registration.',
             default => 'View enrollment history and available actions.',
         };

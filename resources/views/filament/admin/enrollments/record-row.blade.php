@@ -26,6 +26,7 @@
         'Ready to finalize' => 'Review and finalize',
         default => 'Review enrollment',
     };
+    $showStatusBadge = strcasecmp(trim($status), trim($action)) !== 0;
     $program = $case->currentProposalVersion?->curriculumVersion?->program?->name
         ?? $case->admissionApplication?->program?->name
         ?? $case->studentProfile?->program?->name
@@ -36,7 +37,10 @@
 @endphp
 <article class="registrar-enrollment-record">
     <div class="registrar-enrollment-person">
-        <h2>{{ $learner }}</h2>
+        <div class="registrar-enrollment-person-head">
+            <h2>{{ $learner }}</h2>
+            <x-student-type-badge :path="$case->admissionApplication?->application_path" :continuing="$case->admission_application_id === null" />
+        </div>
         <p class="registrar-enrollment-identifier">{{ $case->studentProfile?->student_number ?? $case->admissionApplication?->application_reference ?? 'Number not assigned' }}</p>
     </div>
     <div class="registrar-enrollment-studies">
@@ -44,7 +48,9 @@
         <p class="registrar-enrollment-term">{{ collect([$case->term?->label, $case->term?->academicYear?->label])->filter()->implode(' · ') ?: 'Term not assigned' }}</p>
     </div>
     <div class="registrar-enrollment-status">
-        <x-filament::badge :color="$color">{{ $status }}</x-filament::badge>
+        @if ($showStatusBadge)
+            <x-filament::badge :color="$color">{{ $status }}</x-filament::badge>
+        @endif
         @if (! $lookup)
             @if ($stage === 'Placement required' && $deadline?->isPast())
                 <p>Temporary seats expired · {{ $deadline->timezone(config('app.display_timezone'))->format('M j, g:i A') }}</p>

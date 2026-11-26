@@ -28,15 +28,15 @@ class CreateContextualFinanceExport
 
     public const VerifiedPaymentsHeaders = [
         'Payment reference', 'Account reference', 'Student / applicant number', 'Student / applicant name', 'Term', 'Entry type',
-        'Amount (PHP)', 'Channel', 'Masked external reference', 'Payment or refund at (Asia/Manila)',
-        'Verified at (Asia/Manila)', 'Reverses payment reference', 'Verification basis',
+        'Amount (PHP)', 'Channel', 'Masked external reference', 'Payment or refund at',
+        'Verified at', 'Reverses payment reference', 'Verification basis',
     ];
 
     public const AccountStatusHeaders = [
         'Account reference', 'Student / applicant number', 'Student / applicant name', 'Program', 'Term', 'Assessed charges (PHP)',
         'Verified payments applied (PHP)', 'Approved coverage applied (PHP)', 'Due now (PHP)',
         'Later fees (PHP)', 'Remaining term fees (PHP)', 'Account status', 'Assessment version',
-        'Assessment basis', 'Approval reference', 'As of (Asia/Manila)',
+        'Assessment basis', 'Approval reference', 'As of',
     ];
 
     public function __construct(

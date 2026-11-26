@@ -2,6 +2,7 @@
 
 namespace App\Actions\StudentProfiles;
 
+use App\Actions\Academics\IrregularStudentReasons;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\PriorAcademicCredit;
@@ -9,6 +10,7 @@ use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class RecordPriorAcademicCredits
@@ -40,7 +42,7 @@ class RecordPriorAcademicCredits
             return ['created' => 0, 'skipped_duplicates' => 0];
         }
 
-        return DB::transaction(function () use ($profile, $items, $actor): array {
+        $result = DB::transaction(function () use ($profile, $items, $actor): array {
             $curriculumEntriesBySpec = $profile->curriculum_version_id !== null
                 ? CurriculumEntry::query()
                     ->where('curriculum_version_id', $profile->curriculum_version_id)
@@ -145,6 +147,12 @@ class RecordPriorAcademicCredits
 
             return ['created' => $created, 'skipped_duplicates' => $skipped];
         }, attempts: 3);
+
+        if ($result['created'] > 0) {
+            Cache::forget(IrregularStudentReasons::ReviewCountCacheKey);
+        }
+
+        return $result;
     }
 
     /**
@@ -166,7 +174,7 @@ class RecordPriorAcademicCredits
 
         $selectedIds = array_values(array_unique(array_filter(array_map('intval', $selectedEntryIds), fn (int $id): bool => $id > 0)));
 
-        return DB::transaction(function () use ($profile, $selectedIds, $actor, $academicYearLabel, $sourceSchool): array {
+        $result = DB::transaction(function () use ($profile, $selectedIds, $actor, $academicYearLabel, $sourceSchool): array {
             $entries = CurriculumEntry::query()
                 ->with('courseSpecification')
                 ->where('curriculum_version_id', $profile->curriculum_version_id)
@@ -253,6 +261,12 @@ class RecordPriorAcademicCredits
 
             return ['added' => $added, 'revoked' => $revoked];
         }, attempts: 3);
+
+        if ($result['added'] > 0 || $result['revoked'] > 0) {
+            Cache::forget(IrregularStudentReasons::ReviewCountCacheKey);
+        }
+
+        return $result;
     }
 
     private function dedupeKey(int $courseSpecId, ?int $termId, ?string $academicYearLabel, ?string $termLabel): string

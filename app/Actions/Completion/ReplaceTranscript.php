@@ -104,7 +104,7 @@ class ReplaceTranscript
             $content['document'] = [
                 'reference' => $reference,
                 'template_version' => $locked->template_version,
-                'generated_at' => $issuedAt->copy()->timezone('Asia/Manila')->format('F j, Y g:i A').' Asia/Manila',
+                'generated_at' => $issuedAt->copy()->timezone('Asia/Manila')->format('F j, Y g:i A'),
                 'generation_reference' => 'TALA-GEN-'.strtoupper(substr($content['source_fingerprint'], 0, 16)),
             ];
             view(TranscriptRequest::outputViewFor($content['request']->template_version), $content)->render();

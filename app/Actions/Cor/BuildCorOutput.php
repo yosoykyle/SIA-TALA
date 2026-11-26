@@ -279,6 +279,7 @@ class BuildCorOutput
                 'total_units' => number_format($totalUnits, 2, '.', ''),
                 'status' => 'Available',
                 'notice' => $state['notice'],
+                'finalization_mode' => $snapshot['finalization_mode'] ?? Enrollment::FinalizationModeManual,
                 'issued_by' => $snapshot['issued_by_name'] ?? 'Not recorded',
                 'issued_at' => $snapshot['issued_at'] ?? $corVersion->issued_at?->toIso8601String(),
             ],

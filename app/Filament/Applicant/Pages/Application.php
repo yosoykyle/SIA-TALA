@@ -723,10 +723,12 @@ class Application extends Page
         } catch (ValidationException $exception) {
             $this->showValidationErrors($exception);
             $this->saveStatus = 'failed';
-            $this->saveStatusMessage = $factsSaved
-                ? 'Save incomplete. Some answers may have saved before a copy failed. Your entered work remains here; correct the identified item before continuing.'
-                : 'Draft could not be saved. Your entered work remains here; correct the identified item before continuing.';
-            SafeUserNotification::sendValidationError();
+            // Name the step and the reason: the failing field may sit on another step (e.g. a copy on Review copies).
+            $problem = $this->firstValidationProblem($exception);
+            $this->saveStatusMessage = ($factsSaved
+                ? 'Your answers were saved, but a copy was not: '
+                : 'Draft could not be saved: ').$problem.' Your entered work remains here.';
+            SafeUserNotification::sendValidationError(body: $problem);
         } catch (Throwable $exception) {
             report($exception);
             $recoveryLocation = $this->failureRecoveryLocation();
@@ -798,8 +800,8 @@ class Application extends Page
 
             $this->showValidationErrors($exception);
             $this->saveStatus = 'failed';
-            $this->saveStatusMessage = $exception->validator->errors()->first();
-            SafeUserNotification::sendValidationError();
+            $this->saveStatusMessage = $this->firstValidationProblem($exception);
+            SafeUserNotification::sendValidationError(body: $this->saveStatusMessage);
         } catch (Throwable $exception) {
             report($exception);
             if ($this->redirectToRecordedSubmission(followUpFailed: true)) {
@@ -1353,6 +1355,21 @@ class Application extends Page
     private function credentialBasisOptions(string $path): array
     {
         return AdmissionApplication::admissionQualificationOptions($path);
+    }
+
+    /** "Review copies: <reason>" for the first failing field, so an error on another step is still visible. */
+    private function firstValidationProblem(ValidationException $exception): string
+    {
+        $key = (string) array_key_first($exception->errors());
+        $message = (string) ($exception->errors()[$key][0] ?? 'Check the highlighted fields.');
+        $step = match (true) {
+            str_contains($key, 'evidence') => 'Review copies (Step 4)',
+            str_contains($key, 'prior_school') || str_contains($key, 'lrn') || str_contains($key, 'credential') => 'Education (Step 3)',
+            str_contains($key, 'program') || str_contains($key, 'application_path') => 'Program and type (Step 1)',
+            default => null,
+        };
+
+        return ($step !== null ? $step.': ' : '').rtrim($message, '.').'.';
     }
 
     private function showValidationErrors(ValidationException $exception): void

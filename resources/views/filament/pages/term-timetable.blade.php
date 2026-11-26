@@ -988,7 +988,7 @@
                                 <section class="tala-evidence-surface" aria-label="Publication facts">
                                     <h3>Official record <x-filament::badge :color="$selectedVersion->state === 'Published' ? 'success' : 'gray'">{{ $selectedVersion->state }}</x-filament::badge></h3>
                                     <dl class="tala-evidence-facts">
-                                        <div><dt>Published (Asia/Manila)</dt><dd>{{ $selectedVersion->published_at?->timezone('Asia/Manila')->format('M j, Y g:i A') }}</dd></div>
+                                        <div><dt>Published</dt><dd>{{ $selectedVersion->published_at?->timezone('Asia/Manila')->format('M j, Y g:i A') }}</dd></div>
                                         @if ($selectedVersion->authority_reference)<div><dt>Approval note / memo</dt><dd>{{ $selectedVersion->authority_reference }}</dd></div>@endif
                                     </dl>
                                     <p class="tala-work-footnote">Changes are prepared and reviewed separately so active student enrollments stay protected.</p>

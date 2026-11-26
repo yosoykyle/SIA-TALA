@@ -1897,7 +1897,7 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                     ->color('gray')
                     ->extraAttributes(['class' => 'whitespace-nowrap'])
                     ->modalHeading(fn (Room $record): string => 'Room closures · '.$record->code.' · '.$record->name)
-                    ->modalDescription('Recurring weekly maintenance closures for this room during the selected term only. Time zone: Asia/Manila.')
+                    ->modalDescription('Recurring weekly maintenance closures for this room during the selected term only.')
                     ->modalWidth(Width::ThreeExtraLarge)
                     ->stickyModalHeader()
                     ->stickyModalFooter()

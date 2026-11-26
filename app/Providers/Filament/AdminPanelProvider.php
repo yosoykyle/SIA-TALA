@@ -1258,7 +1258,8 @@ class AdminPanelProvider extends PanelProvider
     }
 
     /**
-     * Admissions shows the Registrar-action count and, while inside Admissions, one sub-item per queue (#61 F101).
+     * Admissions shows the Registrar-action count and, while inside Admissions, one sub-item per working queue (#61 F101).
+     * Expired and Closed applications stay reachable from the Admissions page and the queue tabs, not the sidebar.
      *
      * @param  list<NavigationItem>  $items
      * @return list<NavigationItem>
@@ -1271,29 +1272,28 @@ class AdminPanelProvider extends PanelProvider
 
         $onList = fn (): bool => request()->routeIs(ListAdmissionApplications::getRouteName());
 
-        $children = collect(AdmissionQueueCounts::labels())->map(function (string $label, string $queue) use ($badgeCounts, $onList): NavigationItem {
+        $children = collect(AdmissionQueueCounts::labels())->except([AdmissionQueueCounts::Expired, AdmissionQueueCounts::Closed])->map(function (string $label, string $queue) use ($badgeCounts, $onList): NavigationItem {
             $child = NavigationItem::make($label)
                 ->icon(match ($queue) {
                     AdmissionQueueCounts::NeedsReview => Heroicon::OutlinedDocumentMagnifyingGlass,
                     AdmissionQueueCounts::WaitingForApplicant => Heroicon::OutlinedClock,
                     AdmissionQueueCounts::RegistrarClearance => Heroicon::OutlinedClipboardDocumentCheck,
                     AdmissionQueueCounts::ReadyForEnrollment => Heroicon::OutlinedCheckCircle,
-                    AdmissionQueueCounts::Expired => Heroicon::OutlinedExclamationTriangle,
-                    AdmissionQueueCounts::Closed => Heroicon::OutlinedArchiveBox,
                     default => Heroicon::OutlinedQueueList,
                 })
                 ->url(ListAdmissionApplications::getUrl(['tab' => $queue]))
                 ->isActiveWhen(fn (): bool => $onList() && (request()->query('tab') ?? AdmissionQueueCounts::NeedsReview) === $queue);
 
-            if ($queue !== AdmissionQueueCounts::Closed) {
-                $color = in_array($queue, AdmissionQueueCounts::registrarActionQueues(), true) ? 'warning' : 'gray';
-                $child->badge(
-                    fn (): ?string => ($count = $badgeCounts->admissions()[$queue]) > 0 ? (string) $count : null,
-                    $color,
-                );
-            }
-
-            return $child;
+            return $child->badge(
+                fn (): ?string => ($count = $badgeCounts->admissions()[$queue]) > 0 ? (string) $count : null,
+                match ($queue) {
+                    AdmissionQueueCounts::NeedsReview => AdmissionApplication::stateColor(AdmissionApplication::StateSubmitted),
+                    AdmissionQueueCounts::WaitingForApplicant => AdmissionApplication::stateColor(AdmissionApplication::StateActionNeeded),
+                    AdmissionQueueCounts::RegistrarClearance => 'warning',
+                    AdmissionQueueCounts::ReadyForEnrollment => AdmissionApplication::stateColor(AdmissionApplication::StateAdmitted),
+                    default => 'gray',
+                },
+            );
         })->values()->all();
 
         return array_map(

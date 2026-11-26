@@ -55,8 +55,8 @@ class AdmissionCyclesTable
                         ->description(fn (AdmissionCycle $record): string => match (true) {
                             $record->state !== AdmissionCycle::StatePublished => 'First submissions unavailable',
                             ! $record->opens_at || ! $record->closes_at => 'Review the cycle dates',
-                            $record->opens_at->isFuture() => 'Opens '.$record->opens_at->timezone('Asia/Manila')->format('M j, Y · g:i A').' (Asia/Manila)',
-                            default => ($record->closes_at <= now() ? 'Closed ' : 'Closes ').$record->closes_at->timezone('Asia/Manila')->format('M j, Y · g:i A').' (Asia/Manila)',
+                            $record->opens_at->isFuture() => 'Opens '.$record->opens_at->timezone('Asia/Manila')->format('M j, Y · g:i A'),
+                            default => ($record->closes_at <= now() ? 'Closed ' : 'Closes ').$record->closes_at->timezone('Asia/Manila')->format('M j, Y · g:i A'),
                         })
                         ->wrap(),
                 ])->from('md'),

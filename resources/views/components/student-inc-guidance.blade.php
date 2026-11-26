@@ -7,7 +7,7 @@
         <p>Ask your Faculty which remaining work you need to complete.</p>
     @endif
     @if ($result['inc_deadline'] ?? null)
-        <p class="student-inc-deadline"><x-filament::icon icon="heroicon-o-calendar-days" /> Deadline: {{ $result['inc_deadline']->format('M j, Y') }} · Asia/Manila</p>
+        <p class="student-inc-deadline"><x-filament::icon icon="heroicon-o-calendar-days" /> Deadline: {{ $result['inc_deadline']->format('M j, Y') }}</p>
     @endif
     @if (($result['inc_state'] ?? null) === \App\Actions\Grades\IncDeadlineService::StateCompletionOverdue)
         <x-workflow-handoff compact current-owner="Registrar" current-area="Review completion options" current-task="Ordinary completion is closed. Ask the Registrar about retaking the subject or an authorized deadline extension." />

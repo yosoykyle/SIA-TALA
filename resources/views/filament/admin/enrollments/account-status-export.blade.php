@@ -46,5 +46,5 @@
         <p class="accounting-export-note">Preview of the first {{ count($rows) }} matching {{ str('account')->plural(count($rows)) }} in the current list order. Current sources are rechecked when you download.</p>
     @endif
 
-    <p class="accounting-export-note">CSV ({{ count($headers) }} columns · up to 10,000 accounts) includes learner and account identifiers, term charges, verified payments, and approval references (PHP · Asia/Manila · private to you).</p>
+    <p class="accounting-export-note">CSV ({{ count($headers) }} columns · up to 10,000 accounts) includes learner and account identifiers, term charges, verified payments, and approval references (PHP · private to you).</p>
 </div>

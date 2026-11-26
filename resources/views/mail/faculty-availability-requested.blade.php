@@ -7,7 +7,7 @@ Please share when you can teach for **{{ $termLabel }}** by **{{ $dueAt }}**.
 
 Open **My Availability** and choose how you can teach this term:
 
-1. **Specific weekly times** — check the days you can teach and set your available weekly time ranges (Asia/Manila).
+1. **Specific weekly times** — check the days you can teach and set your available weekly time ranges.
 2. **Any school teaching time** — available across all approved school teaching hours.
 3. **Unavailable this term** — you will not be assigned classes for this term.
 

@@ -3,16 +3,21 @@
 namespace App\Filament\Resources\Enrollments\Pages;
 
 use App\Actions\Calendar\Exceptions\CalendarGateViolation;
+use App\Actions\Enrollment\EnrollmentContinuationSummary;
 use App\Actions\Enrollment\RegistrationWindowApplicability;
 use App\Actions\Enrollment\StartRegistrationCase;
 use App\Actions\Finance\CreateContextualFinanceExport;
+use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
 use App\Actions\Finance\IndividualAssessmentSources;
 use App\Actions\Finance\TermAccountProjection;
 use App\Actions\StudentLifecycle\LifecycleAccountingReview;
+use App\Actions\StudentLifecycle\ShiftProgramAndStartEnrollment;
 use App\Filament\Pages\AcademicApprovals;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
+use App\Filament\Resources\Enrollments\Schemas\ProgramShiftEnrollmentForm;
 use App\Filament\Resources\Enrollments\Tables\EnrollmentsTable;
 use App\Filament\Resources\Enrollments\Tables\StudentAccountsTable;
+use App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResource;
 use App\Models\AdmissionApplication;
 use App\Models\Assessment;
 use App\Models\Enrollment;
@@ -22,6 +27,7 @@ use App\Models\OfficialOutputRestriction;
 use App\Models\PaymentEvidenceVersion;
 use App\Models\Program;
 use App\Models\RegistrationProposalVersion;
+use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\TermAccount;
@@ -43,6 +49,7 @@ use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\View as SchemaView;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\Alignment;
+use Filament\Support\Enums\IconPosition;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -65,6 +72,7 @@ class ListEnrollments extends ListRecords
         'accounts',
         'assessment_required',
         'payment_proof',
+        'awaiting_payment',
         'student_changes',
     ];
 
@@ -301,7 +309,7 @@ class ListEnrollments extends ListRecords
     /** @return array{label:string,icon:string} */
     public function accountingRecordSummary(Enrollment $case): array
     {
-        $matchingQueues = collect(['student_changes', 'proof', 'assessment'])
+        $matchingQueues = collect(['student_changes', 'proof', 'payment', 'assessment'])
             ->filter(fn (string $kind): bool => in_array($case->id, $this->accountingCaseIds($kind), true))
             ->values();
         $extraSuffix = $matchingQueues->count() > 1
@@ -319,6 +327,7 @@ class ListEnrollments extends ListRecords
         }
         foreach ([
             'proof' => ['Receipts to review', 'heroicon-o-document-magnifying-glass'],
+            'payment' => ['Waiting for payment', 'heroicon-o-banknotes'],
             'assessment' => ['Assessment review', 'heroicon-o-document-currency-dollar'],
         ] as $kind => [$label, $icon]) {
             if ($matchingQueues->contains($kind)) {
@@ -388,11 +397,14 @@ class ListEnrollments extends ListRecords
     /** @var array<int, int> */
     private array $memoPendingLifecycleCounts = [];
 
+    /** @var array<string, mixed>|null */
+    private ?array $memoContinuationSummary = null;
+
     /** @return list<int> */
     private function accountingCaseIds(string $kind): array
     {
         if ($this->accountingWorkIds === null) {
-            $this->accountingWorkIds = ['assessment' => [], 'proof' => [],
+            $this->accountingWorkIds = ['assessment' => [], 'proof' => [], 'payment' => [],
                 'student_changes' => $this->accountingPendingLifecycleIds()];
             $cases = Enrollment::query()->with([
                 'term',
@@ -422,8 +434,11 @@ class ListEnrollments extends ListRecords
                         }
                     }
                 }
-                if ($case->termAccount?->paymentEvidenceVersions->contains('state', PaymentEvidenceVersion::StateSubmitted)) {
+                $hasSubmittedProof = (bool) $case->termAccount?->paymentEvidenceVersions->contains('state', PaymentEvidenceVersion::StateSubmitted);
+                if ($hasSubmittedProof) {
                     $this->accountingWorkIds['proof'][] = (int) $case->id;
+                } elseif ($this->awaitsEnrollmentPayment($case, $assessment)) {
+                    $this->accountingWorkIds['payment'][] = (int) $case->id;
                 }
             }
         }
@@ -431,19 +446,40 @@ class ListEnrollments extends ListRecords
         return $this->accountingWorkIds[$kind];
     }
 
+    /**
+     * An in-progress enrollment whose current subjects are assessed but whose
+     * enrollment payment is not yet verified stays visible to Accounting so the
+     * payment can be recorded and the enrollment can finalize.
+     */
+    private function awaitsEnrollmentPayment(Enrollment $case, ?Assessment $assessment): bool
+    {
+        if ($case->canonical_outcome !== Enrollment::OutcomeInProgress
+            || $case->termAccount === null
+            || $assessment === null
+            || (int) $assessment->source_proposal_version_id !== (int) $case->current_proposal_version_id
+            || in_array((int) $case->id, $this->accountingWorkIds['assessment'], true)) {
+            return false;
+        }
+
+        $requirement = app(EnrollmentPaymentRequirementProjection::class)
+            ->forEnrollment($case, activeAssessment: $assessment, useLoadedRelations: true);
+
+        return $requirement['state'] === 'ActionNeeded';
+    }
+
     /** @return array<string, int> */
     public function accountingWorkCounts(): array
     {
         abort_unless($this->isAccounting(), 403);
 
-        return collect(['assessment', 'proof', 'student_changes'])->mapWithKeys(fn (string $kind): array => [$kind => count($this->accountingCaseIds($kind))])->all();
+        return collect(['assessment', 'proof', 'payment', 'student_changes'])->mapWithKeys(fn (string $kind): array => [$kind => count($this->accountingCaseIds($kind))])->all();
     }
 
     public function accountingUniqueReviewCount(): int
     {
         abort_unless($this->isAccounting(), 403);
 
-        return collect(['assessment', 'proof', 'student_changes'])
+        return collect(['assessment', 'proof', 'payment', 'student_changes'])
             ->flatMap(fn (string $kind): array => $this->accountingCaseIds($kind))
             ->unique()
             ->count();
@@ -470,7 +506,7 @@ class ListEnrollments extends ListRecords
     {
         abort_unless($this->isAccounting(), 403);
 
-        $pendingIds = collect(['assessment', 'proof', 'student_changes'])
+        $pendingIds = collect(['assessment', 'proof', 'payment', 'student_changes'])
             ->flatMap(fn (string $kind): array => $this->accountingCaseIds($kind))
             ->unique()
             ->values()
@@ -493,6 +529,7 @@ class ListEnrollments extends ListRecords
         $kind = match ($this->activeTab) {
             'assessment_required' => 'assessment',
             'payment_proof' => 'proof',
+            'awaiting_payment' => 'payment',
             'student_changes' => 'student_changes',
             default => null,
         };
@@ -645,6 +682,14 @@ class ListEnrollments extends ListRecords
             ->mapWithKeys(fn (string $key): array => [$key => count($this->currentCaseIds($key))])->all();
     }
 
+    /** @return array<string, mixed> */
+    public function enrollmentContinuationSummary(): array
+    {
+        abort_unless($this->isRegistrar(), 403);
+
+        return $this->memoContinuationSummary ??= app(EnrollmentContinuationSummary::class)->forActiveTerm();
+    }
+
     public function content(Schema $schema): Schema
     {
         $this->normalizeAccountingTab();
@@ -681,10 +726,11 @@ class ListEnrollments extends ListRecords
                 $batchResults,
                 SchemaView::make('filament.admin.enrollments.workbench')->viewData(fn (): array => [
                     'counts' => $this->workCounts(),
-                    'applicantAction' => $this->getAction('readyApplicants', isMounting: false),
+                    'continuation' => $this->enrollmentContinuationSummary(),
+                    'continuationBreakdownAction' => $this->getAction('viewContinuationBreakdown', isMounting: false),
                     'continuingAction' => $this->getAction('startContinuingEnrollment', isMounting: false),
+                    'shiftProgramAction' => $this->getAction('shiftProgramAndEnroll', isMounting: false),
                     'lateContinuingAction' => $this->getAction('startLateContinuingEnrollment', isMounting: false),
-                    'windowAction' => $this->getAction('enrollmentApplicability', isMounting: false),
                 ]),
             ]);
         }
@@ -728,6 +774,7 @@ class ListEnrollments extends ListRecords
                     ? 'Select a term or search for a student before loading full account records.'
                     : 'Search and filter student account records by term or program.',
                 'payment_proof' => 'Verify submitted payment receipts and record verification results across all terms.',
+                'awaiting_payment' => 'Assessed enrollments waiting for the enrollment payment. Record an onsite payment or wait for a receipt.',
                 'assessment_required' => 'Review unassessed enrollments, adjusted subjects and earlier payments across all terms.',
                 'student_changes' => 'Review recorded student status changes and confirm account updates across all terms.',
                 default => 'Find a student and review their account work.',
@@ -738,7 +785,7 @@ class ListEnrollments extends ListRecords
         }
 
         return match ($this->activeTab) {
-            'overview' => 'Prepare subjects, make enrollment official, or find a record.',
+            'overview' => 'Prepare subjects, review enrollment continuation, or find a record.',
             'ready_applicants' => 'Applicants cleared by Admissions who have not started enrollment.',
             'ready_to_prepare' => 'Review drafts before sending subjects to the student.',
             'waiting_for_learner' => 'Students confirm the subjects issued to them. Open an enrollment if they need help.',
@@ -814,6 +861,7 @@ class ListEnrollments extends ListRecords
                 fn (Builder $query): Builder => $query->whereIn('id', $this->accountingCaseIds('assessment')),
             ),
             'payment_proof' => Tab::make('Review receipts')->modifyQueryUsing(fn (Builder $query): Builder => $query->whereIn('id', $this->accountingCaseIds('proof'))),
+            'awaiting_payment' => Tab::make('Waiting for payment')->modifyQueryUsing(fn (Builder $query): Builder => $query->whereIn('id', $this->accountingCaseIds('payment'))),
             'student_changes' => Tab::make('Student status changes')->modifyQueryUsing(fn (Builder $query): Builder => $query->whereIn('id', $this->accountingCaseIds('student_changes'))),
         ];
     }
@@ -951,6 +999,52 @@ class ListEnrollments extends ListRecords
         ];
     }
 
+    public function viewContinuationBreakdownAction(): Action
+    {
+        return Action::make('viewContinuationBreakdown')
+            ->label('View breakdown')
+            ->color('gray')
+            ->icon('heroicon-m-arrow-right')
+            ->iconPosition(IconPosition::After)
+            ->authorize(fn (): bool => $this->isRegistrar())
+            ->visible(fn (): bool => $this->isRegistrar())
+            ->modalHeading('Enrollment continuation breakdown')
+            ->modalDescription(function (): string {
+                $summary = $this->enrollmentContinuationSummary();
+                $priorLabel = $summary['prior_term']['label'] ?? null;
+                $activeLabel = $summary['active_term']['label'] ?? null;
+
+                if ($priorLabel !== null && $activeLabel !== null) {
+                    return "Continuing students from {$priorLabel} to {$activeLabel}.";
+                }
+
+                return 'Continuing students comparing the prior term against the active term.';
+            })
+            ->modalWidth(Width::FiveExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
+            ->modalSubmitAction(false)
+            ->modalCancelActionLabel('Close')
+            ->schema([
+                Select::make('status')
+                    ->label('Status')
+                    ->options([
+                        'all' => 'All continuing students',
+                        EnrollmentContinuationSummary::StatusEnrolled => 'Enrolled',
+                        EnrollmentContinuationSummary::StatusDidNotProceed => 'Did not proceed',
+                        EnrollmentContinuationSummary::StatusInProgress => 'Still in progress',
+                    ])
+                    ->default('all')
+                    ->selectablePlaceholder(false)
+                    ->live(),
+                SchemaView::make('filament.admin.enrollments.continuation-breakdown')
+                    ->viewData(fn (Get $get): array => [
+                        'summary' => $this->enrollmentContinuationSummary(),
+                        'statusFilter' => (string) ($get('status') ?: 'all'),
+                    ]),
+            ]);
+    }
+
     public function enrollmentApplicabilityAction(): Action
     {
         return Action::make('enrollmentApplicability')->label('Who can enroll during this period')->link()->icon('heroicon-o-cog-6-tooth')->color('gray')
@@ -986,20 +1080,91 @@ class ListEnrollments extends ListRecords
             });
     }
 
-    public function readyApplicantsAction(): Action
-    {
-        return Action::make('readyApplicants')
-            ->label('Ready applicant')
-            ->icon('heroicon-o-user-plus')
-            ->color('primary')
-            ->authorize(fn (): bool => $this->isRegistrar())
-            ->visible(fn (): bool => $this->isRegistrar())
-            ->url(EnrollmentResource::getUrl('index', ['tab' => 'ready_applicants']));
-    }
-
     public function startContinuingEnrollmentAction(): Action
     {
         return $this->continuingEnrollmentStartAction(false);
+    }
+
+    public function shiftProgramAndEnrollAction(): Action
+    {
+        return Action::make('shiftProgramAndEnroll')
+            ->label('Shiftee (Program shift)')
+            ->icon('heroicon-o-arrows-right-left')
+            ->color('gray')
+            ->tooltip('Record/apply a program shift and start advised enrollment')
+            ->modalHeading('Shift program & enroll')
+            ->modalDescription('Move a continuing student to a new program, map SIA credits, and start an individually advised enrollment.')
+            ->modalSubmitActionLabel('Shift program & enroll')
+            ->modalWidth(Width::FiveExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
+            ->extraModalWindowAttributes(['class' => 'registrar-enrollment-entry-modal'])
+            ->authorize(fn (): bool => $this->isRegistrar())
+            ->visible(fn (): bool => auth()->user()?->hasRole(User::StaffRoleRegistrar) ?? false)
+            ->steps(ProgramShiftEnrollmentForm::steps())
+            ->action(function (array $data, Action $action): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User && $actor->hasRole(User::StaffRoleRegistrar), 403);
+
+                $studentId = filled($data['student_profile_id'] ?? null) ? (int) $data['student_profile_id'] : null;
+                $termId = filled($data['term_id'] ?? null) ? (int) $data['term_id'] : null;
+
+                try {
+                    $existingShift = ProgramShiftEnrollmentForm::existingPendingShift($studentId, $termId);
+
+                    if ($existingShift instanceof StudentLifecycleChange) {
+                        $result = app(ShiftProgramAndStartEnrollment::class)->applyExistingAndEnroll($existingShift, $actor);
+                    } else {
+                        $canApplyNow = ProgramShiftEnrollmentForm::canApplyAndEnrollNow($studentId, $termId);
+                        $applyAndEnroll = $canApplyNow && (bool) ($data['apply_and_enroll'] ?? false);
+
+                        $payload = [
+                            'student_profile_id' => $studentId,
+                            'term_id' => $termId,
+                            'target_program_id' => filled($data['target_program_id'] ?? null) ? (int) $data['target_program_id'] : null,
+                            'target_curriculum_version_id' => filled($data['target_curriculum_version_id'] ?? null) ? (int) $data['target_curriculum_version_id'] : null,
+                            'effective_on' => $data['effective_on'] ?? null,
+                            'reason' => $data['reason'] ?? null,
+                            'credit_entries' => ProgramShiftEnrollmentForm::creditEntries($data),
+                            'late_exception_authority' => $data['late_exception_authority'] ?? null,
+                            'late_exception_reason' => $data['late_exception_reason'] ?? null,
+                        ];
+
+                        $result = app(ShiftProgramAndStartEnrollment::class)->recordAndOptionallyEnroll($payload, $actor, $applyAndEnroll);
+                    }
+
+                    if ($result['enrollment'] instanceof Enrollment) {
+                        Notification::make()
+                            ->title('Program shift applied and enrollment started')
+                            ->body('Choose subjects to continue preparing this individually advised enrollment.')
+                            ->success()
+                            ->send();
+
+                        $this->redirect(EnrollmentResource::getUrl('view', ['record' => $result['enrollment']]));
+
+                        return;
+                    }
+
+                    Notification::make()
+                        ->title('Program shift recorded')
+                        ->body('The approved shift is saved and can be applied when enrollment opens for the target term.')
+                        ->actions([
+                            Action::make('viewLifecycleChange')
+                                ->label('View student change')
+                                ->url(StudentLifecycleChangeResource::getUrl('index', ['change' => $result['change']->id])),
+                        ])
+                        ->success()
+                        ->send();
+                } catch (Throwable $exception) {
+                    SafeUserNotification::sendError(
+                        'Program shift was not completed',
+                        $exception,
+                        'Program shift could not be completed. Review the details and try again.',
+                        persistent: true,
+                    );
+                    $action->halt();
+                }
+            });
     }
 
     public function startLateContinuingEnrollmentAction(): Action

@@ -193,6 +193,24 @@
                             'guidanceReason' => $effect['needs_attention'] ? $effect['student_reason'] : 'Ask the Registrar about completing or retaking the subject before choosing your next subjects.',
                         ])
                     @endif
+                    @if ($totals = $curriculum['checklist_totals'] ?? null)
+                        <dl class="student-plan-checklist-totals" aria-label="Subject checklist summary">
+                            <div><dt>Total subjects</dt><dd>{{ $totals['total'] }}</dd></div>
+                            <div class="student-plan-check-passed"><dt>Passed</dt><dd>{{ $totals['passed'] }}</dd></div>
+                            <div class="student-plan-check-credited"><dt>Credited</dt><dd>{{ $totals['credited'] ?? 0 }}</dd></div>
+                            <div class="student-plan-check-failed"><dt>Failed – retake</dt><dd>{{ $totals['failed'] }}</dd></div>
+                            <div class="student-plan-check-dropped"><dt>Dropped or INC</dt><dd>{{ $totals['dropped'] }}</dd></div>
+                            <div class="student-plan-check-not_taken"><dt>Not yet taken</dt><dd>{{ $totals['not_taken'] }}</dd></div>
+                            <div><dt>Remaining</dt><dd>{{ $totals['remaining'] }}</dd></div>
+                        </dl>
+                        <ul class="student-plan-legend" aria-label="What the subject colors mean">
+                            <li class="student-plan-check-passed"><x-filament::icon icon="heroicon-o-check-circle" /> Passed at SIA</li>
+                            <li class="student-plan-check-credited"><x-filament::icon icon="heroicon-o-document-check" /> Credited from another school or program (not taken at SIA)</li>
+                            <li class="student-plan-check-failed"><x-filament::icon icon="heroicon-o-x-circle" /> Failed – retake</li>
+                            <li class="student-plan-status-warning"><x-filament::icon icon="heroicon-o-exclamation-circle" /> Dropped or INC</li>
+                            <li class="student-plan-status-future"><x-filament::icon icon="heroicon-o-minus-circle" /> Not yet taken</li>
+                        </ul>
+                    @endif
                     <div class="student-plan-map" x-data="{ planYear: {{ $planOpenIndex }} }">
                         @if (! $planHasProgress)
                             <p class="student-plan-lead">
@@ -231,12 +249,13 @@
                                 <div>@foreach ($termGroups as $termLabel => $rows)
                                     <section class="student-plan-term"><h3>{{ $termLabel ?: 'Term not recorded' }}</h3>
                                         <ul class="student-plan-subjects">@foreach ($rows as $row)
-                                            <li><div><h4>{{ $row['curriculum_entry']->courseSpecification?->title ?? 'Subject unavailable' }}</h4><p class="student-academic-secondary">{{ $row['curriculum_entry']->courseSpecification?->course?->code }}</p>
+                                            <li @class(['student-plan-subject-credited' => ($row['checklist_state'] ?? null) === 'credited'])><div><h4>{{ $row['curriculum_entry']->courseSpecification?->title ?? 'Subject unavailable' }}</h4><p class="student-academic-secondary">{{ $row['curriculum_entry']->courseSpecification?->course?->code }}</p>
+                                                @if (filled($row['credit']['detail'] ?? null))<p class="student-plan-credit-source">{{ $row['credit']['detail'] }}</p>@endif
                                                 @if (! in_array($row['status'], ['Completed', 'Approved credit'], true))
                                                     @foreach ($planRequirements->get($row['curriculum_entry']->id) ?? [] as $requirement)<p class="student-academic-secondary">{{ \App\Models\CourseRequirement::typeOptions()[$requirement->rule_type] }}: {{ $requirement->relatedCourse?->code ?? 'Subject not recorded' }}</p>@endforeach
                                                     @if ($row['status'] === 'Deficient')<p class="student-academic-secondary">Ask the Registrar about completing or retaking this subject.</p>@endif
                                                 @endif
-                                            </div><p>{{ (float) $row['curriculum_entry']->courseSpecification?->credit_units }} units</p><p @class(['student-plan-status', 'student-plan-status-future' => $row['status'] === 'Not taken', 'student-plan-status-warning' => $row['status'] === 'Deficient'])><x-filament::icon :icon="match ($row['status']) { 'Completed', 'Approved credit' => 'heroicon-o-check-circle', 'In progress' => 'heroicon-o-clock', 'Deficient' => 'heroicon-o-exclamation-circle', default => 'heroicon-o-minus-circle' }" />{{ match ($row['status']) { 'Not taken' => 'Not yet enrolled', 'Deficient' => 'Needs follow-up', default => $row['status'] } }}</p></li>
+                                            </div><p>{{ (float) $row['curriculum_entry']->courseSpecification?->credit_units }} units</p>@php $checklistState = $row['checklist_state'] ?? 'not_taken'; @endphp<p @class(['student-plan-status', 'student-plan-check-'.$checklistState, 'student-plan-status-future' => in_array($checklistState, ['not_taken', 'locked'], true), 'student-plan-status-warning' => in_array($checklistState, ['incomplete', 'dropped'], true)]) data-checklist-state="{{ $checklistState }}"><x-filament::icon :icon="match ($checklistState) { 'passed' => 'heroicon-o-check-circle', 'credited' => 'heroicon-o-document-check', 'in_progress' => 'heroicon-o-clock', 'failed' => 'heroicon-o-x-circle', 'incomplete', 'dropped' => 'heroicon-o-exclamation-circle', 'locked' => 'heroicon-o-lock-closed', default => 'heroicon-o-minus-circle' }" />{{ match ($checklistState) { 'passed' => 'Passed', 'credited' => ($row['credit']['label'] ?? 'Credited'), 'in_progress' => 'In progress', 'failed' => 'Failed – need to retake', 'incomplete' => 'INC – complete or retake', 'dropped' => 'Dropped – need to take', 'locked' => 'Locked – prerequisite not passed'.(($row['locked_by'] ?? []) !== [] ? ' ('.implode(', ', $row['locked_by']).')' : ''), default => 'Not yet taken' } }}</p></li>
                                         @endforeach</ul>
                                     </section>
                                 @endforeach</div>
@@ -342,7 +361,7 @@
                         @endif
                             <x-supporting-details summary="Average sources" class="student-record-sources">
                                 <p>{{ $cumulative['reason'] }}</p>
-                                <p>As of {{ \Illuminate\Support\Carbon::parse($cumulative['as_of'])->timezone('Asia/Manila')->format('M j, Y g:i A') }} · Asia/Manila</p>
+                                <p>As of {{ \Illuminate\Support\Carbon::parse($cumulative['as_of'])->timezone('Asia/Manila')->format('M j, Y g:i A') }}</p>
                                 @foreach ($cumulative['exclusions'] as $exclusion)<p>{{ $exclusion }}</p>@endforeach
                             </x-supporting-details>
                     </section>
@@ -361,7 +380,7 @@
                                 <x-supporting-details class="student-record-inc-details">
                                     <x-slot:summary>
                                         @if ($recordIncomplete->count() === 1 && ($recordIncomplete->first()['inc_deadline'] ?? null))
-                                            <span class="student-record-inc-deadline"><x-filament::icon icon="heroicon-o-calendar-days" /><time datetime="{{ $recordIncomplete->first()['inc_deadline']->toDateString() }}">{{ $recordIncomplete->first()['inc_deadline']->format('M j, Y') }}</time><span>Asia/Manila</span></span>
+                                            <span class="student-record-inc-deadline"><x-filament::icon icon="heroicon-o-calendar-days" /><time datetime="{{ $recordIncomplete->first()['inc_deadline']->toDateString() }}">{{ $recordIncomplete->first()['inc_deadline']->format('M j, Y') }}</time></span>
                                         @endif
                                         <span class="student-record-inc-toggle">View INC details<x-filament::icon icon="heroicon-m-chevron-down" /></span>
                                     </x-slot:summary>

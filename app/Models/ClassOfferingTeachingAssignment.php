@@ -15,6 +15,11 @@ class ClassOfferingTeachingAssignment extends Model
 
     public const StateReplaced = 'REPLACED';
 
+    public const StateEnded = 'ENDED';
+
+    /** Authority prefix written when the published timetable is the source of the assignment. */
+    public const TimetableAuthorityPrefix = 'Published timetable v';
+
     protected $fillable = [
         'term_offering_id', 'section_id', 'faculty_user_id', 'role', 'state',
         'authority_reference', 'assigned_by', 'effective_at', 'ended_at',
@@ -24,6 +29,11 @@ class ClassOfferingTeachingAssignment extends Model
     protected function casts(): array
     {
         return ['effective_at' => 'datetime', 'ended_at' => 'datetime'];
+    }
+
+    public function isFromPublishedTimetable(): bool
+    {
+        return (bool) preg_match('/^'.preg_quote(self::TimetableAuthorityPrefix, '/').'\d+/', (string) $this->authority_reference);
     }
 
     public function termOffering(): BelongsTo

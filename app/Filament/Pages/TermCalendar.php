@@ -160,7 +160,6 @@ class TermCalendar extends TermPlanningWorkbench implements HasTable
                         $correctionCloses = $cycle->correction_closes_at->timezone('Asia/Manila');
                         $timeParts[] = 'Corrections until '.$correctionCloses->format('M j, Y g:i A');
                     }
-                    $timeParts[] = 'Asia/Manila';
                     $timeNote = implode(' · ', $timeParts);
                 }
 
@@ -212,7 +211,7 @@ class TermCalendar extends TermPlanningWorkbench implements HasTable
                 'teaching_hours' => 'Mon–Sat · 7:00 AM–7:00 PM',
                 'teaching_hours_note' => 'Default 6-day teaching schedule',
                 'grid_slots' => '30-minute intervals',
-                'grid_slots_note' => 'Asia/Manila',
+                'grid_slots_note' => null,
                 'has_breaks' => false,
             ];
         }
@@ -302,7 +301,7 @@ class TermCalendar extends TermPlanningWorkbench implements HasTable
             'teaching_hours' => $teachingHours,
             'teaching_hours_note' => $teachingHoursNote,
             'grid_slots' => '30-minute intervals',
-            'grid_slots_note' => 'Asia/Manila',
+            'grid_slots_note' => null,
             'has_breaks' => $hasBreaks,
         ];
     }
@@ -485,7 +484,7 @@ class TermCalendar extends TermPlanningWorkbench implements HasTable
                     ])
                     ->columns(2),
                 SchemaSection::make('Teaching hours')
-                    ->description('Standard Mon–Sat 7:00 AM–7:00 PM schedule is pre-filled. Scheduling uses 30-minute intervals in Asia/Manila.')
+                    ->description('Standard Mon–Sat 7:00 AM–7:00 PM schedule is pre-filled. Scheduling uses 30-minute intervals.')
                     ->schema([
                         SchemaActions::make([
                             Action::make('applyLunchBreakToAllDays')

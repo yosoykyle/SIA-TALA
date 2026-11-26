@@ -1823,9 +1823,28 @@ table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
     .tala-admissions-table .fi-ta-main:has(.fi-ta-content-header) .fi-ta-header-ctn { grid-column:2; grid-row:1; }
     .tala-admissions-table .fi-ta-main:has(.fi-ta-content-header) .fi-ta-content-ctn { display:contents; }
     .tala-admissions-table .fi-ta-main:has(.fi-ta-content-header) .fi-ta-content-header { grid-column:1; grid-row:1; padding-inline-start:24px; }
-    .tala-admissions-table .fi-ta-main:has(.fi-ta-content-header) .fi-ta-content-ctn > :not(.fi-ta-content-header) { grid-column:1 / -1; grid-row:2; }
+    .tala-admissions-table .fi-ta-main:has(.fi-ta-content-header) > .fi-ta-filter-indicators { grid-column:1 / -1; grid-row:2; }
+    .tala-admissions-table .fi-ta-main:has(.fi-ta-content-header) .fi-ta-content { grid-column:1 / -1; grid-row:3; }
+    .tala-admissions-table .fi-ta-main:has(.fi-ta-content-header) .fi-ta-content-ctn > .fi-sr-only,
+    .tala-admissions-table .fi-ta-main:has(.fi-ta-content-header) .fi-ta-content-ctn > .fi-ta-table { grid-column:1 / -1; grid-row:3; }
     .tala-admissions-table .fi-ta-main:has(.fi-ta-content-header) > .tala-content-progress { grid-column:1 / -1; grid-row:1; }
-    .tala-admissions-table .fi-ta-main:has(.fi-ta-content-header) > .fi-pagination { grid-column:1 / -1; grid-row:3; }
+    .tala-admissions-table .fi-ta-main:has(.fi-ta-content-header) > .fi-ta-empty-state { grid-column:1 / -1; grid-row:4; }
+    .tala-admissions-table .fi-ta-main:has(.fi-ta-content-header) > .fi-pagination { grid-column:1 / -1; grid-row:5; }
+}
+/* Preliminary evidence sits in the half-width case column of the two-column review page, so Filament's own
+   36rem switch kept it as stacked label boxes at most laptop widths. Keep it a table from 28rem and stack only on phones. */
+@container (min-width:28rem) {
+    .tala-evidence-table.fi-in-table-repeatable > table { display:table; }
+    .tala-evidence-table.fi-in-table-repeatable > table > thead { display:table-header-group; }
+    .tala-evidence-table.fi-in-table-repeatable > table > tbody { display:table-row-group; }
+    .tala-evidence-table.fi-in-table-repeatable > table > tbody > tr { display:table-row; padding:0; }
+    .tala-evidence-table.fi-in-table-repeatable > table > tbody > tr > td { display:table-cell; padding:.5rem .625rem; }
+    .tala-evidence-table.fi-in-table-repeatable > table > tbody > tr > td.fi-hidden { display:table-cell; }
+    .tala-evidence-table.fi-in-table-repeatable > table > tbody > tr > td .fi-in-entry { row-gap:0; }
+    .tala-evidence-table.fi-in-table-repeatable > table > tbody > tr > td .fi-in-entry-label { display:none; }
+    .tala-evidence-table.fi-in-table-repeatable > table > tbody > tr > td .fi-badge { white-space:normal; }
+    .tala-evidence-table.fi-in-table-repeatable > table > tbody > tr > td:last-child { white-space:normal; }
+    .tala-evidence-table.fi-in-table-repeatable > table > tbody > tr > td:last-child .tala-evidence-actions .fi-ac { flex-wrap:wrap; justify-content:flex-end; }
 }
 .registrar-workbench .tala-workspace-launcher__split > .tala-task-surface { border-color:var(--tala-edge); box-shadow:var(--tala-material-raised); }
 .registrar-workbench .tala-workspace-launcher__split > .tala-task-surface:not(.registrar-records-entry) { display:flex; flex-direction:column; justify-content:space-between; }

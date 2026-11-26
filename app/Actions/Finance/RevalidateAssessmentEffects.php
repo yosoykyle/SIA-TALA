@@ -2,6 +2,8 @@
 
 namespace App\Actions\Finance;
 
+use App\Actions\Enrollment\AttemptAutoOfficialEnrollment;
+use App\Actions\Enrollment\AutoFinalizationTrigger;
 use App\Models\Assessment;
 use App\Models\AssessmentEffectRevalidation;
 use App\Models\TermAccount;
@@ -72,6 +74,26 @@ class RevalidateAssessmentEffects
                 throw ValidationException::withMessages(['reconciliation' => 'The assessment source changed. Refresh before reconciling retained effects.']);
             }
             $account->update(['state' => $position['state'] === 'Cleared' ? TermAccount::StateCleared : TermAccount::StateOpen]);
+
+            $enrollmentId = $account->enrollment_id;
+            $revalidationRef = $record->authority_reference;
+
+            DB::afterCommit(function () use ($enrollmentId, $actor, $revalidationRef): void {
+                if ($enrollmentId === null) {
+                    return;
+                }
+
+                app(AttemptAutoOfficialEnrollment::class)->attempt(
+                    (int) $enrollmentId,
+                    new AutoFinalizationTrigger(
+                        triggerType: AutoFinalizationTrigger::TypeAssessmentEffectsRevalidated,
+                        triggerReference: $revalidationRef,
+                        clearedByUserId: $actor->id,
+                        paymentId: null,
+                        paymentSummary: 'Retained payments or coverage were reconciled and satisfy the enrollment requirement.',
+                    ),
+                );
+            });
 
             return $record;
         }, attempts: 3);

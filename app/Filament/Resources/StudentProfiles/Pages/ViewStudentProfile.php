@@ -5,8 +5,10 @@ namespace App\Filament\Resources\StudentProfiles\Pages;
 use App\Actions\Academics\AcademicEnrollmentGuidance;
 use App\Actions\Academics\CumulativeGwaProjection;
 use App\Actions\Academics\CurriculumEvaluation;
+use App\Actions\Academics\IrregularStudentReasons;
 use App\Actions\Academics\OfficialCourseResultProjection;
 use App\Actions\Academics\TermWeightedAverageProjection;
+use App\Actions\Enrollment\CorrectRegistrationCreditEvaluation;
 use App\Actions\Enrollment\EnrollmentAcademicContextResolver;
 use App\Actions\Enrollment\RecordStudentSection;
 use App\Actions\Enrollment\RegistrationAcademicEligibilityQuery;
@@ -16,9 +18,11 @@ use App\Actions\StudentProfiles\StudentAccountActivation;
 use App\Filament\Concerns\HasAcademicOversightReturn;
 use App\Filament\Pages\GradesAndCompletion;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
+use App\Filament\Resources\Enrollments\Schemas\TransferCreditingForm;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
 use App\Filament\Resources\GradeRosters\Tables\ReleasedResultsTable;
 use App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResource;
+use App\Filament\Resources\StudentProfiles\IrregularReviewActions;
 use App\Filament\Resources\StudentProfiles\RelationManagers\ChecklistItemsRelationManager;
 use App\Filament\Resources\StudentProfiles\RelationManagers\HoldsRelationManager;
 use App\Filament\Resources\StudentProfiles\StudentAcademicActions;
@@ -30,11 +34,13 @@ use App\Models\Enrollment;
 use App\Models\ExternalCompetencyRequirement;
 use App\Models\Hold;
 use App\Models\PriorAcademicCredit;
+use App\Models\RegistrationCreditEvaluation;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\TermCohort;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
@@ -72,6 +78,9 @@ class ViewStudentProfile extends ViewRecord
 
     #[Locked]
     public bool $openedFromGradesWorkspace = false;
+
+    #[Locked]
+    public ?int $reviewedCreditEvaluationId = null;
 
     /** @var array<string, mixed> */
     #[Url]
@@ -251,6 +260,55 @@ class ViewStudentProfile extends ViewRecord
             });
     }
 
+    public function correctCreditingAction(): Action
+    {
+        return Action::make('correctCrediting')
+            ->label('Correct crediting')
+            ->icon('heroicon-o-academic-cap')
+            ->color('gray')
+            ->size('sm')
+            ->authorize(fn (): bool => auth()->user() instanceof User && auth()->user()->canAuthenticate() && auth()->user()->hasRole(User::StaffRoleRegistrar))
+            ->visible(fn (): bool => auth()->user() instanceof User && auth()->user()->canAuthenticate() && auth()->user()->hasRole(User::StaffRoleRegistrar)
+                && RegistrationCreditEvaluation::effectiveForStudent($this->studentProfile()) !== null)
+            ->modalHeading('Correct transfer crediting')
+            ->modalDescription('Record a corrected crediting. It counts immediately for the study plan, enrollment and TOR; the earlier crediting stays in history. Subjects already passed or being taken at SIA are marked.')
+            ->modalWidth(Width::Screen)->extraModalWindowAttributes(['class' => 'tala-crediting-modal'])
+            ->stickyModalHeader()
+            ->stickyModalFooter()
+            ->modalSubmitActionLabel('Save crediting')
+            ->fillForm(function (): array {
+                $current = RegistrationCreditEvaluation::effectiveForStudent($this->studentProfile());
+                $this->reviewedCreditEvaluationId = $current?->id;
+
+                return [
+                    'same_curriculum' => TransferCreditingForm::sameCurriculumState($current),
+                    'rows' => TransferCreditingForm::rowsState($current?->curriculum_version_id, $current, $current?->same_curriculum === true),
+                    'authority_reference' => null,
+                    'approved_on' => null,
+                ];
+            })
+            ->schema(fn (): array => TransferCreditingForm::withTorPreview(
+                TransferCreditingForm::components(fn (): ?int => $this->studentProfile()->curriculum_version_id, $this->studentProfile()),
+                RegistrationCreditEvaluation::effectiveForStudent($this->studentProfile())?->enrollment?->admissionApplication,
+            ))
+            ->action(function (array $data, Action $action): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User, 403);
+                $lines = TransferCreditingForm::creditLines($data);
+                try {
+                    app(CorrectRegistrationCreditEvaluation::class)->execute($this->studentProfile(), $actor, $lines,
+                        TransferCreditingForm::sameCurriculum($data), (string) $data['authority_reference'],
+                        CarbonImmutable::parse($data['approved_on']), (int) $this->reviewedCreditEvaluationId);
+                } catch (ValidationException $exception) {
+                    Notification::make()->danger()->title('Crediting was not saved')->body(collect($exception->errors())->flatten()->first())->send();
+                    $action->halt();
+                }
+                unset($this->academicProfile);
+                Notification::make()->success()->title('Crediting corrected')
+                    ->body(count($lines) === 0 ? 'No subjects are credited now.' : count($lines).' subject(s) credited.')->send();
+            });
+    }
+
     private function studentProfile(): StudentProfile
     {
         $record = $this->getRecord();
@@ -264,6 +322,32 @@ class ViewStudentProfile extends ViewRecord
         return StudentAcademicActions::recordAcademicDecision($this->record)
             ->visible(fn (): bool => $this->isRegistrarActor())
             ->authorize(fn (): bool => $this->isRegistrarActor());
+    }
+
+    public function confirmIrregularAction(): Action
+    {
+        return IrregularReviewActions::confirm(fn (): StudentProfile => $this->studentProfile());
+    }
+
+    public function keepRegularAction(): Action
+    {
+        return IrregularReviewActions::keepRegular(fn (): StudentProfile => $this->studentProfile());
+    }
+
+    /**
+     * Irregular status and its named reasons for the Registrar record view (#99 Scope 11).
+     *
+     * @return array<string, mixed>
+     */
+    #[Computed]
+    public function irregularReview(): array
+    {
+        $reasons = app(IrregularStudentReasons::class);
+
+        return [
+            ...$reasons->forStudent($this->studentProfile()),
+            'needs_review' => $reasons->needsReview($this->studentProfile()),
+        ];
     }
 
     public function recordExternalCompetencyAction(): Action

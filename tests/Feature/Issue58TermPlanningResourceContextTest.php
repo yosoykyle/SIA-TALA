@@ -216,7 +216,6 @@ class Issue58TermPlanningResourceContextTest extends TestCase
             ->assertSee('Inactive')
             ->assertSee('Created Oct 1, 2026')
             ->assertSee('Last updated Oct 2, 2026')
-            ->assertSee('(Asia/Manila)')
             ->assertDontSee('Back to rooms')
             ->assertSee(RoomResource::getUrl('index', ['termId' => $term->id]));
     }
@@ -281,7 +280,7 @@ class Issue58TermPlanningResourceContextTest extends TestCase
         $block = CalendarEvent::factory()->for($term)->create($this->recurringBlock());
 
         Livewire::withQueryParams(['termId' => $term->id])->test(EditCalendarEvent::class, ['record' => $block->id])
-            ->assertSee('Time zone: Asia/Manila.')
+            ->assertDontSee('Time zone: Asia/Manila.')
             ->assertFormSet(['starts_at' => '12:00', 'ends_at' => '13:00'])
             ->call('save')->assertHasNoFormErrors();
 

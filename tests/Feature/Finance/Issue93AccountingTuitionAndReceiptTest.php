@@ -347,7 +347,7 @@ class Issue93AccountingTuitionAndReceiptTest extends TestCase
 
         $freshTransfereePage = Livewire::actingAs($registrar)->test(ViewEnrollment::class, ['record' => $transfereeCase->id])->instance();
         $currentOptions = (fn (): array => $this->sectionOptions())->call($freshTransfereePage);
-        $this->assertStringContainsString('Already passed', $currentOptions[$sections['IT-101']->id]);
+        $this->assertArrayNotHasKey($sections['IT-101']->id, $currentOptions);
         $this->assertStringNotContainsString('Prereq unmet', $currentOptions[$sections['IT-201']->id]);
     }
 

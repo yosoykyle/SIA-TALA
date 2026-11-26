@@ -22,7 +22,7 @@
 <x-official-output-layout
     :title="$schedule['title']"
     :subtitle="$headerSubtitle"
-    :generated-at="$schedule['generated_at'].($facultyOutput ? ' (Asia/Manila)' : '')"
+    :generated-at="$schedule['generated_at']"
     page-orientation="landscape"
     :page-margin="$schedule['page_margin'] ?? '14mm'"
     :context="$studentOutput ? null : ($schedule['role_filter_context'] ?? $schedule['owner'])"
@@ -195,7 +195,7 @@
     @if ($schedule['rows'] === [] && $externallyArranged === [])
         <div class="schedule-empty">No schedule is available for this exact timetable version.</div>
     @elseif ($studentOutput)
-        <p><strong>{{ $schedule['owner'] }}</strong> · Times in Asia/Manila</p>
+        <p><strong>{{ $schedule['owner'] }}</strong></p>
         @if ($schedule['rows'] !== [])
             <div class="official-output-table finance-responsive-table">
                 <table class="schedule-table">

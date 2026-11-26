@@ -4,7 +4,10 @@
             <div class="student-status-main">
                 <p class="student-tile-kicker"><x-filament::icon icon="heroicon-o-check-badge" />Enrollment status</p>
                 <h2 id="official-status-heading">Officially enrolled</h2>
-                <p class="student-tile-meta">{{ $proposal?->curriculumVersion?->program?->name ?? $enrollment->studentProfile?->program?->name ?? $enrollment->admissionApplication?->program?->name ?? 'Program unavailable' }}</p>
+                <p class="student-tile-meta">{{ collect([
+                    $proposal?->curriculumVersion?->program?->name ?? $enrollment->studentProfile?->program?->name ?? $enrollment->admissionApplication?->program?->name ?? 'Program unavailable',
+                    $enrollment->currentCorVersion !== null ? 'COR-'.$enrollment->id.'-'.$enrollment->currentCorVersion->version : null,
+                ])->filter()->implode(' · ') }}</p>
             </div>
             <dl class="student-status-facts">
                 <div><dt>Term</dt><dd>{{ \App\Models\Term::typeOptions()[$enrollment->term?->type] ?? $enrollment->term?->label ?? 'Term unavailable' }}</dd></div>

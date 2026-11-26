@@ -10,6 +10,7 @@ use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
 use App\Models\EnrollmentSeatReservation;
+use App\Models\IrregularEnrollmentRequest;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
 use App\Models\RegistrationCreditEvaluation;
@@ -186,7 +187,7 @@ class PrepareRegistrationProposal
             $fallbackCurriculumId = $curriculumIds->unique()->count() === 1 ? $curriculumIds->first() : null;
             $curriculum = $this->eligibility->resolveStudentCurriculum($locked, $fallbackCurriculumId);
             if (! $curriculum instanceof CurriculumVersion) {
-                throw ValidationException::withMessages(['sections' => 'All proposal items must use one authoritative Curriculum Version.']);
+                throw ValidationException::withMessages(['sections' => $this->unresolvedCurriculumMessage($locked, $curriculumIds->unique()->count())]);
             }
 
             $this->eligibility->assertEligible(
@@ -316,7 +317,35 @@ class PrepareRegistrationProposal
 
             $locked->update(['current_proposal_version_id' => $proposal->id, 'lock_version' => $locked->lock_version + 1]);
 
+            // #99 Scope 11: the Registrar's proposal answers the student's irregular enrollment request.
+            if ($actor->hasRole(User::StaffRoleRegistrar)) {
+                IrregularEnrollmentRequest::query()
+                    ->where('enrollment_id', $locked->id)
+                    ->where('state', IrregularEnrollmentRequest::StateSubmitted)
+                    ->update(['state' => IrregularEnrollmentRequest::StateAccepted, 'accepted_at' => now(), 'accepted_by' => $actor->id]);
+            }
+
             return $proposal->load('items');
         }, attempts: 3);
+    }
+
+    /**
+     * Say why no single curriculum could be chosen and what the Registrar can do about it (#99).
+     */
+    private function unresolvedCurriculumMessage(Enrollment $enrollment, int $selectedCurriculumCount): string
+    {
+        $profile = $enrollment->studentProfile;
+        $program = $profile?->program ?? $enrollment->admissionApplication?->program;
+        $academicYear = $profile?->entryTerm?->academicYear ?? $enrollment->term?->academicYear;
+
+        if ($program !== null && $program->curriculumVersionBatches()->exists()) {
+            return $program->name.' has no curriculum set for '.($academicYear?->label ?? 'this academic year').' entrants. Add a curriculum batch for that year in Programs & Curricula, then save the subjects again.';
+        }
+
+        if ($selectedCurriculumCount > 1) {
+            return 'The selected classes come from different curricula. Choose classes from one curriculum only.';
+        }
+
+        return 'No curriculum could be chosen for this student. Assign the student\'s curriculum or add a curriculum batch in Programs & Curricula, then save the subjects again.';
     }
 }

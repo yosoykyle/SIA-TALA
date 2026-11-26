@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-25T21:45:00+08:00",
+  "generatedAt": "2026-11-26T00:54:00+08:00",
   "title": "Design System: Servitech Institute Asia — TALA",
   "extensions": {
     "cardGap": {
@@ -155,6 +155,7 @@
     "sourceFiles": [
       "public/css/tala-foundation.css",
       "public/css/tala-filament.css",
+      "public/css/tala-catalog.css",
       "resources/css/filament/tala/theme.css",
       "public/landing/css/styles.css",
       "resources/views/components/tala-navigation.blade.php",
@@ -270,8 +271,18 @@
       },
       {
         "name": "The Control Meaning Rule",
-        "body": "Green identifies the current primary task; achieved success remains a status, neutral controls support navigation and routine secondary work, warning marks consequential interruption, and danger marks withdrawal, discard, or destructive cancellation. Cancellation color follows its effect across every workspace.",
-        "section": "colors"
+        "body": "Primary commands and affirmative submissions use native green; Cancel or Close that exits without applying work uses neutral gray. A destructive cancellation uses native danger meaning because of its effect, rather than its label. Servitech green (--tala-link: #1f5f2c light / #8de698 dark) identifies interactive links, while neutral Zinc (Filament 'info' => Color::Zinc) identifies informational badges, icons, and alerts — zero blue shades.",
+        "section": "components"
+      },
+      {
+        "name": "Alternating neutral surface tiers and card surface rule",
+        "body": "Outer cards—including filter/scope cards such as x-record-scope-bar and x-record-collection-controls—keep a continuous raised --tala-surface body with hairline dividers (border-block-start: 1px solid var(--tala-edge)), never --tala-surface-sunken edge-to-edge on --tala-canvas. Reserve --tala-surface-sunken for two-tone header/footer bands and recessed inset troughs inside a raised card.",
+        "section": "components"
+      },
+      {
+        "name": "The Loading Rule",
+        "body": "Keep real content visible while a request refreshes it. Page navigation uses Filament/Livewire's native delayed top progress bar; partial content reads use the shared content-progress bar targeted with wire:loading.delay.short. Remove content skeletons and content-hiding loading classes.",
+        "section": "components"
       },
       {
         "name": "The Minimal Form Evidence Rule",
@@ -285,15 +296,15 @@
       }
     ],
     "dos": [
-      "Lead visible school services and official documents with Servitech Institute Asia Inc.; omit Powered by TALA from all authenticated pages.",
-      "Preserve native Light/Dark/System behavior, WCAG 2.2 AA contrast, visible warm-gold keyboard focus, and meaning beyond color alone.",
-      "Reuse shared semantic tokens, tactile Aqua-like action depth, and zero-overflow responsive tables across Filament and Bootstrap surfaces.",
-      "Collect only necessary task facts in forms and provide truthful, actionable error diagnostics and recovery controls."
+      "Lead visible school services and official documents with Servitech Institute Asia Inc. and the outlined Servitech crest (public/images/brand/servitech-crest-outlined-192.webp) across web shells and favicons; omit “Powered by TALA” and talalogo.png across all web UI surfaces (public gateway, access entry, error recovery, and authenticated panels). Preserve School-issued email HTML mail branding and official-output “Generated through TALA” attribution.",
+      "Apply the shared school-first visual direction while refining terminology, workflow, hierarchy and components where evidence warrants it.",
+      "Preserve native Light/Dark/System behavior, readable contrast, visible focus, and meaning that does not depend on color alone.",
+      "Choose a component for the user's task; use focused custom UI within Laravel/Filament when native presentation is inadequate."
     ],
     "donts": [
-      "Do not introduce blue shades into neutral, info, link, or accent UI tokens.",
-      "Do not rely on generic paperwork fields, unactionable placeholder boxes, or native <details> accordions for operational evidence.",
-      "Do not allow unbroken user strings or multi-button rows to clip table actions behind horizontal scrollbars."
+      "Treat historical prototype layouts or today's production screens as automatically approved compositions.",
+      "Force scheduling into a table-only view, or use a visual grid without an accessible equivalent.",
+      "Add decorative density, redundant cards, or arbitrary new theme elements that slow ordinary tasks."
     ]
   }
 }

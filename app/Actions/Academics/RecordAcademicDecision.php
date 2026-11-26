@@ -8,6 +8,7 @@ use App\Models\Term;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -23,6 +24,7 @@ class RecordAcademicDecision
         Carbon $effectiveFrom,
         ?Carbon $effectiveUntil,
         User $actor,
+        ?string $standing = null,
     ): AcademicDecision {
         if (! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only Registrar staff can record an academic decision.');
@@ -44,7 +46,13 @@ class RecordAcademicDecision
             throw new RuntimeException('The decision end date cannot precede its start date.');
         }
 
-        return DB::transaction(function () use ($student, $term, $effect, $authorityReference, $authorityDate, $reason, $effectiveFrom, $effectiveUntil, $actor): AcademicDecision {
+        if ($standing !== null && ! ($effect === AcademicDecision::EffectAdvisingRequired && $standing === StudentProfile::StandingIrregular)) {
+            throw new RuntimeException('Only an Advising required decision can set the Irregular standing.');
+        }
+
+        Cache::forget(IrregularStudentReasons::ReviewCountCacheKey);
+
+        return DB::transaction(function () use ($student, $term, $effect, $authorityReference, $authorityDate, $reason, $effectiveFrom, $effectiveUntil, $actor, $standing): AcademicDecision {
             $lockedStudent = StudentProfile::query()->lockForUpdate()->findOrFail($student->id);
 
             $priorActiveEffects = AcademicDecision::query()
@@ -74,7 +82,11 @@ class RecordAcademicDecision
                 'recorded_at' => now(),
             ]);
 
-            $this->syncStudentStanding($lockedStudent, $decision, $priorActiveEffects);
+            if ($standing !== null) {
+                $lockedStudent->update(['academic_standing' => $standing]);
+            } else {
+                $this->syncStudentStanding($lockedStudent, $decision, $priorActiveEffects);
+            }
 
             return $decision;
         }, attempts: 3);

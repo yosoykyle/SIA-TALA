@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Database\Factories\AdmissionCycleFactory;
+use Filament\Support\Colors\Color;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -46,6 +47,31 @@ class AdmissionCycle extends Model
     public static function studentTypeLabel(?string $path): string
     {
         return self::studentTypeOptions()[$path] ?? (string) str((string) $path)->headline();
+    }
+
+    /**
+     * Badge color that sets the Student type apart on every case list (#99 Scope 10). The panel's "info" is a
+     * neutral gray, so Freshman and Transferee carry their own palettes.
+     *
+     * @return string|array<int|string, string>
+     */
+    public static function studentTypeColor(?string $path): string|array
+    {
+        return match ($path) {
+            self::PathFirstYear => Color::Emerald,
+            self::PathTransferee => Color::Amber,
+            default => 'gray',
+        };
+    }
+
+    /** Badge icon matching the Admissions Student type tabs. */
+    public static function studentTypeIcon(?string $path): string
+    {
+        return match ($path) {
+            self::PathFirstYear => 'heroicon-m-academic-cap',
+            self::PathTransferee => 'heroicon-m-arrows-right-left',
+            default => 'heroicon-m-user',
+        };
     }
 
     /** @var list<string> */

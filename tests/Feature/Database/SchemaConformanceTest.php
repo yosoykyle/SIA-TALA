@@ -32,14 +32,14 @@ final class SchemaConformanceTest extends TestCase
         'faculty_availability_deadlines', 'faculty_availability_declarations', 'fee_plan_charges', 'fee_plan_obligations', 'fee_plans',
         'finance_exports', 'financial_accommodations', 'grade_outcome_events', 'grade_roster_returned_rows', 'grade_roster_rows',
         'grade_roster_version_rows', 'grade_roster_versions', 'grade_rosters', 'graduation_applications', 'graduation_review_batches', 'graduation_review_members',
-        'graduation_snapshots', 'holds', 'identity_match_reviews', 'inc_completion_submissions',
+        'graduation_snapshots', 'holds', 'identity_match_reviews', 'inc_completion_submissions', 'irregular_enrollment_requests',
         'inc_deadline_amendments', 'late_grade_authorizations',
         'ledger_entries', 'operational_events', 'output_access_logs', 'payment_allocations',
         'payment_evidence_versions', 'payment_schedule_rows', 'payments', 'prior_academic_credits', 'program_shift_credit_entries',
         'pending_email_changes',
         'programs', 'preliminary_evidence_reviews', 'official_credential_results', 'official_output_payment_clearances', 'official_output_restrictions',
         'public_notices', 'published_timetable_meetings', 'published_timetable_versions',
-        'registrar_enrollment_clearances', 'registration_adjustment_finance_confirmations', 'registration_case_events', 'registration_credit_evaluations', 'registration_identity_confirmation_versions', 'registration_late_authorities',
+        'registrar_enrollment_clearances', 'registration_adjustment_finance_confirmations', 'registration_case_events', 'registration_credit_evaluations', 'registration_credit_lines', 'registration_identity_confirmation_versions', 'registration_late_authorities',
         'registration_proposal_confirmations', 'registration_proposal_items', 'registration_proposal_versions',
         'room_features', 'rooms', 'schedule_revision_events', 'schedule_runs',
         'scheduling_commitments', 'scheduling_demands', 'section_delivery_groups', 'section_meetings',
@@ -69,9 +69,9 @@ final class SchemaConformanceTest extends TestCase
         $expected = [...self::APPLICATION_TABLES, ...self::PLATFORM_TABLES];
         sort($expected);
 
-        $this->assertCount(126, self::APPLICATION_TABLES);
+        $this->assertCount(128, self::APPLICATION_TABLES);
         $this->assertCount(17, self::PLATFORM_TABLES);
-        $this->assertCount(143, $actual);
+        $this->assertCount(145, $actual);
         $this->assertSame($expected, $actual);
     }
 

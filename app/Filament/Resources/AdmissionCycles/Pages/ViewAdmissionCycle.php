@@ -171,9 +171,9 @@ class ViewAdmissionCycle extends ViewRecord
                         ->timezone('Asia/Manila')
                         ->prefixIcon('heroicon-o-clock')
                         ->placeholder('Select date and time')
-                        ->helperText(fn (): string => 'Current correction boundary: '.($this->cycle()->correction_closes_at?->timezone('Asia/Manila')->format('M j, Y · g:i A') ?? 'Not set').' (Asia/Manila). The proposed boundary must be strictly after the current boundary.')
-                        ->native(false)
-                        ->minDate(fn (): mixed => $this->cycle()->correction_closes_at?->copy()->addSecond())
+                        ->helperText(fn (): string => 'Current correction boundary: '.($this->cycle()->correction_closes_at?->timezone('Asia/Manila')->format('M j, Y · g:i A') ?? 'Not set').'. The proposed boundary must be strictly after the current boundary.')
+                        ->native(true)
+                        ->minDate(fn (): ?string => $this->cycle()->correction_closes_at?->copy()->timezone((string) config('app.display_timezone'))->startOfDay()->format('Y-m-d H:i:s'))
                         ->required(),
                     ...$this->authoritySchema(),
                 ])
@@ -195,7 +195,7 @@ class ViewAdmissionCycle extends ViewRecord
                 ->modalSubmitActionLabel('Save deadlines')
                 ->color('gray')->outlined()
                 ->icon('heroicon-o-calendar-days')
-                ->modalDescription('Physical papers and the enrollment payment must be done by these times, or the application expires until the Registrar extends it. When the admission period ends, unfinished applications close for good and applicants create a new account for a later term. Times are Asia/Manila; leave a date blank if the school has not set it.')
+                ->modalDescription('Physical papers and the enrollment payment must be done by these times, or the application expires until the Registrar extends it. When the admission period ends, unfinished applications close for good and applicants create a new account for a later term. Leave a date blank if the school has not set it.')
                 ->modalWidth(Width::ThreeExtraLarge)
                 ->stickyModalHeader()
                 ->stickyModalFooter()
@@ -212,7 +212,7 @@ class ViewAdmissionCycle extends ViewRecord
                     ]),
                     ...$this->authoritySchema(),
                 ])
-                ->visible(fn (): bool => $this->cycle()->state !== AdmissionCycle::StateCancelled)
+                ->visible(fn (): bool => ! in_array($this->cycle()->state, [AdmissionCycle::StateCancelled, AdmissionCycle::StateDraft], true))
                 ->action(fn (array $data, Action $action): mixed => $this->runCycleAction(
                     fn (AdmissionCycle $cycle, User $actor): AdmissionCycle => app(ChangeAdmissionCycle::class)->setDeadlines(
                         $cycle,
@@ -294,7 +294,7 @@ class ViewAdmissionCycle extends ViewRecord
             ->timezone('Asia/Manila')
             ->prefixIcon($icon)
             ->placeholder('Not set')
-            ->native(false);
+            ->native(true);
     }
 
     /** @return list<TextInput|Textarea> */
@@ -328,9 +328,9 @@ class ViewAdmissionCycle extends ViewRecord
                         ->timezone('Asia/Manila')
                         ->prefixIcon('heroicon-o-calendar')
                         ->placeholder('Select date and time')
-                        ->helperText(fn (): string => 'Current public closing: '.($this->cycle()->closes_at?->timezone('Asia/Manila')->format('M j, Y · g:i A') ?? 'Not set').' (Asia/Manila).')
-                        ->native(false)
-                        ->minDate(now())
+                        ->helperText(fn (): string => 'Current public closing: '.($this->cycle()->closes_at?->timezone('Asia/Manila')->format('M j, Y · g:i A') ?? 'Not set').'.')
+                        ->native(true)
+                        ->minDate(fn (): string => now((string) config('app.display_timezone'))->startOfDay()->format('Y-m-d H:i:s'))
                         ->required(),
                     DateTimePicker::make('correction_closes_at')
                         ->label('New correction requests end (if needed)')
@@ -338,8 +338,8 @@ class ViewAdmissionCycle extends ViewRecord
                         ->timezone('Asia/Manila')
                         ->prefixIcon('heroicon-o-clock')
                         ->placeholder('Select date and time')
-                        ->helperText(fn (): string => 'Current correction boundary: '.($this->cycle()->correction_closes_at?->timezone('Asia/Manila')->format('M j, Y · g:i A') ?? 'Not set').' (Asia/Manila). Required only when the new public closing would pass the current correction boundary.')
-                        ->native(false),
+                        ->helperText(fn (): string => 'Current correction boundary: '.($this->cycle()->correction_closes_at?->timezone('Asia/Manila')->format('M j, Y · g:i A') ?? 'Not set').'. Required only when the new public closing would pass the current correction boundary.')
+                        ->native(true),
                 ]),
             ...$this->authoritySchema(),
         ];

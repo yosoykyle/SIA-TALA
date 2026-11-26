@@ -46,6 +46,7 @@ class StudentAccountsTable
                 TextColumn::make('credentialUser.name')->label('Student')
                     ->description(fn (Enrollment $record): string => AccountingDisplay::learnerIdentifier($record))
                     ->weight('semibold')->sortable()->wrap(),
+                EnrollmentsTable::studentTypeColumn(),
                 TextColumn::make('program')->label('Program / term')
                     ->state(fn (Enrollment $record): string => AccountingDisplay::learnerProgram($record))
                     ->description(fn (Enrollment $record): string => $record->term?->label ?? 'Term unavailable')->wrap(),
@@ -78,6 +79,7 @@ class StudentAccountsTable
             ->emptyStateHeading(fn ($livewire): string => self::hasSearchOrFilters($livewire) ? 'No matching accounts' : match ($livewire->activeTab) {
                 'assessment_required' => 'No assessments waiting for review',
                 'payment_proof' => 'No receipts waiting for review',
+                'awaiting_payment' => 'No enrollments waiting for payment',
                 'student_changes' => 'No student status changes waiting for review',
                 default => 'No account records found',
             })
@@ -86,6 +88,7 @@ class StudentAccountsTable
                 : match ($livewire->activeTab) {
                     'assessment_required' => 'Subjects without charges, changed subjects and earlier payments appear here when they need review.',
                     'payment_proof' => 'Submitted receipts appear here. Existing payments remain in account records.',
+                    'awaiting_payment' => 'Assessed enrollments appear here until the enrollment payment is recorded or verified.',
                     'student_changes' => 'Recorded student status changes appear here until Accounting records the review result.',
                     default => 'No accounts match this view yet. Try another term or open Overview to check pending work.',
                 })
@@ -147,6 +150,7 @@ class StudentAccountsTable
             'action' => match ($context) {
                 'assessment_required' => 'Review assessment',
                 'payment_proof' => 'Review receipts',
+                'awaiting_payment' => 'Record payment',
                 'student_changes' => 'Review changes',
                 default => 'Open account',
             },

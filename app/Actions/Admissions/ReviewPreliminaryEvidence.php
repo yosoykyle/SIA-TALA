@@ -4,6 +4,7 @@ namespace App\Actions\Admissions;
 
 use App\Models\AdmissionApplication;
 use App\Models\DocumentEvidence;
+use App\Models\OperationalEvent;
 use App\Models\PreliminaryEvidenceReview;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -14,6 +15,8 @@ use Illuminate\Validation\ValidationException;
 
 class ReviewPreliminaryEvidence
 {
+    public function __construct(private readonly AdmissionNotificationLedger $notifications) {}
+
     public function execute(
         DocumentEvidence $evidence,
         User $actor,
@@ -21,6 +24,7 @@ class ReviewPreliminaryEvidence
         ?string $reason,
         ?int $expectedCurrentReviewId = null,
         ?int $expectedSubmissionVersionId = null,
+        bool $notifyApplicant = true,
     ): PreliminaryEvidenceReview {
         $this->authorize($actor);
         $expectedSubmissionVersionId ??= $evidence->admissionApplication?->current_submission_version_id;
@@ -41,7 +45,7 @@ class ReviewPreliminaryEvidence
             ],
         ])->validate();
 
-        return DB::transaction(function () use (
+        return DB::transaction(function () use ($notifyApplicant,
             $evidence,
             $actor,
             $validated,
@@ -76,13 +80,30 @@ class ReviewPreliminaryEvidence
                 ]);
             }
 
-            return $lockedEvidence->preliminaryReviews()->create([
+            $review = $lockedEvidence->preliminaryReviews()->create([
                 'result' => $validated['result'],
                 'reason' => $validated['reason'],
                 'reviewed_by' => $actor->id,
                 'reviewed_at' => now(config('app.timezone')),
                 'supersedes_preliminary_evidence_review_id' => $current?->id,
             ]);
+
+            // Tell the Applicant right away when one copy needs action, with the Registrar's remark.
+            if ($notifyApplicant && $review->result === PreliminaryEvidenceReview::ResultActionNeeded && $application->user !== null) {
+                $this->notifications->queuePending(
+                    $application,
+                    $application->user,
+                    eventType: OperationalEvent::TypeAdmissionDocumentNeedsAction,
+                    sourceKey: 'copy-review:'.$review->id,
+                    safePayload: [
+                        'application_reference' => $application->application_reference,
+                        'document' => $lockedEvidence->admissionRequirement?->label ?? 'A submitted document',
+                        'remark' => (string) $review->reason,
+                    ],
+                );
+            }
+
+            return $review;
         }, attempts: 3);
     }
 

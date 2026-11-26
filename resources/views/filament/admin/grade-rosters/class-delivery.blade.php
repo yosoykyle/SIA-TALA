@@ -23,6 +23,6 @@
                 <li><p>No academic notification has been recorded for this class.</p></li>
             @endforelse
         </ul>
-        @if ($notifications->isNotEmpty())<p class="tala-record-event-caption">Grouped by notice and status · Latest recorded time · Asia/Manila</p>@endif
+        @if ($notifications->isNotEmpty())<p class="tala-record-event-caption">Grouped by notice and status · Latest recorded time</p>@endif
     </section>
 </div>

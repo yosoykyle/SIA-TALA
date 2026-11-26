@@ -77,6 +77,9 @@ class OperationalEvent extends Model
 
     public const TypeAdmissionProcessRemarkSent = 'admission_process_remark_sent';
 
+    /** A single submitted copy was marked Action needed by the Registrar. */
+    public const TypeAdmissionDocumentNeedsAction = 'admission_document_needs_action';
+
     public const TypeOfficialEnrollmentEmail = 'official_enrollment_email';
 
     public const TypeEnrollmentWindowEmail = 'enrollment_window_email';

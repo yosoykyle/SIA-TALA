@@ -6,8 +6,10 @@ use App\Actions\Enrollment\RegistrationAcademicEligibilityQuery;
 use App\Models\CourseEnrollment;
 use App\Models\CourseRequirement;
 use App\Models\CurriculumEntry;
+use App\Models\PriorAcademicCredit;
 use App\Models\ProgramShiftCreditEntry;
 use App\Models\RegistrationCreditEvaluation;
+use App\Models\RegistrationCreditLine;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
 use Illuminate\Support\Collection;
@@ -32,6 +34,9 @@ class CurriculumEvaluation
             ->filter(fn (ProgramShiftCreditEntry $credit): bool => $credit->numeric_grade === null || (float) $credit->numeric_grade <= 4.00)
             ->keyBy('curriculum_entry_id');
         $transferCredits = RegistrationCreditEvaluation::creditedEntryIdsForStudent($student);
+        // The TOR source of each transfer credit, for a clear "credited" indicator (#99).
+        $transferLines = RegistrationCreditEvaluation::effectiveForStudent($student)?->creditLines()->get()->keyBy('curriculum_entry_id') ?? collect();
+        $acceptedCredits->loadMissing('sourceCourse');
         $entries = CurriculumEntry::query()
             ->where('curriculum_version_id', $student->curriculum_version_id)
             ->with(['courseSpecification.course', 'courseSpecification.requirements.relatedCourse'])
@@ -40,7 +45,7 @@ class CurriculumEvaluation
         $equivalentCourseIdsByCourseId = $this->equivalentCourseIdsByCourseId($entries);
 
         $rows = $entries
-            ->map(function (CurriculumEntry $entry) use ($attempts, $acceptedCredits, $transferCredits, $equivalentCourseIdsByCourseId): array {
+            ->map(function (CurriculumEntry $entry) use ($attempts, $acceptedCredits, $transferCredits, $transferLines, $equivalentCourseIdsByCourseId): array {
                 $courseId = $entry->courseSpecification?->course_id;
                 $matchingCourseIds = $courseId !== null
                     ? ($equivalentCourseIdsByCourseId[(int) $courseId] ?? [(int) $courseId])
@@ -57,8 +62,25 @@ class CurriculumEvaluation
                     && $attempt['course_enrollment']->is_current
                     && $attempt['course_enrollment']->status === CourseEnrollment::StatusActive);
 
+                $latestUnpassed = $passed || $credited
+                    ? null
+                    : $entryAttempts->filter(fn (array $attempt): bool => $attempt['event'] !== null
+                        || ($attempt['prior_credit'] ?? null) instanceof PriorAcademicCredit
+                        || in_array($attempt['result'] ?? null, ['DRP', 'W'], true))->last();
+                $latestResult = $latestUnpassed['result'] ?? null;
+
                 return [
                     'curriculum_entry' => $entry,
+                    'checklist_state' => match (true) {
+                        $credited => 'credited',
+                        $passed => 'passed',
+                        $inProgress => 'in_progress',
+                        is_numeric($latestResult) && (float) $latestResult > 4.00 => 'failed',
+                        $latestResult === 'INC' => 'incomplete',
+                        in_array($latestResult, ['DRP', 'W'], true) => 'dropped',
+                        default => 'not_taken',
+                    },
+                    'course_id' => $courseId !== null ? (int) $courseId : null,
                     'status' => match (true) {
                         $credited => 'Approved credit',
                         $passed => 'Completed',
@@ -66,6 +88,7 @@ class CurriculumEvaluation
                         $entryAttempts->isEmpty() => 'Not taken',
                         default => 'Deficient',
                     },
+                    'credit' => $credited ? self::creditSource($entry, $acceptedCredits->get($entry->id), $transferLines->get($entry->id)) : null,
                     'attempt_count' => $entryAttempts->count(),
                     'credited_units' => $passed || $credited ? (string) $entry->courseSpecification->credit_units : '0.00',
                     'requirements' => $entry->courseSpecification->requirements->map(fn ($requirement): array => [
@@ -76,11 +99,80 @@ class CurriculumEvaluation
                 ];
             });
 
+        $rows = $this->withPrerequisiteLocks($rows);
+
         return [
             'required' => $rows->values()->all(),
+            'checklist_totals' => [
+                'total' => $rows->count(),
+                'passed' => $rows->where('checklist_state', 'passed')->count(),
+                'credited' => $rows->where('checklist_state', 'credited')->count(),
+                'failed' => $rows->where('checklist_state', 'failed')->count(),
+                'dropped' => $rows->whereIn('checklist_state', ['dropped', 'incomplete'])->count(),
+                'in_progress' => $rows->where('checklist_state', 'in_progress')->count(),
+                'not_taken' => $rows->whereIn('checklist_state', ['not_taken', 'locked'])->count(),
+                'remaining' => $rows->whereNotIn('checklist_state', ['passed', 'credited'])->count(),
+            ],
             'completed_units' => number_format($rows->sum(fn (array $row): float => (float) $row['credited_units']), 2, '.', ''),
             'deficiency_count' => $rows->reject(fn (array $row): bool => in_array($row['status'], ['Completed', 'Approved credit'], true))->count(),
         ];
+    }
+
+    /**
+     * Where a credited subject came from: a transfer credit (TOR course, grade, bridging) or a program-shift credit.
+     *
+     * @return array{kind: string, label: string, detail: ?string}
+     */
+    private static function creditSource(CurriculumEntry $entry, ?ProgramShiftCreditEntry $shift, ?RegistrationCreditLine $line): array
+    {
+        if ($shift !== null) {
+            return [
+                'kind' => 'shift',
+                'label' => 'Credited (program shift)',
+                'detail' => collect([
+                    $shift->sourceCourse?->code !== null ? 'From '.$shift->sourceCourse->code : null,
+                    $shift->numeric_grade !== null ? 'Grade '.rtrim(rtrim(number_format((float) $shift->numeric_grade, 2), '0'), '.') : null,
+                ])->filter()->implode(' · ') ?: null,
+            ];
+        }
+
+        return [
+            'kind' => 'transfer',
+            'label' => 'Credited (transfer)',
+            'detail' => $line === null ? null : collect([
+                'From '.trim($line->source_course_code.' '.($line->source_course_title !== $entry->courseSpecification?->title ? '– '.$line->source_course_title : '')),
+                filled($line->tor_grade) ? 'TOR grade '.$line->tor_grade : null,
+                $line->bridging_units !== null ? rtrim(rtrim((string) $line->bridging_units, '0'), '.').' unit(s) bridging' : null,
+            ])->filter()->implode(' · '),
+        ];
+    }
+
+    /**
+     * Marks not-yet-taken subjects whose prerequisite was attempted but not passed (#99 Scope 11).
+     *
+     * @param  Collection<int, array<string, mixed>>  $rows
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function withPrerequisiteLocks(Collection $rows): Collection
+    {
+        $unpassed = $rows->whereIn('checklist_state', ['failed', 'incomplete', 'dropped'])
+            ->mapWithKeys(fn (array $row): array => [(int) $row['course_id'] => (string) $row['curriculum_entry']->courseSpecification?->course?->code]);
+
+        return $rows->map(function (array $row) use ($unpassed): array {
+            $blockedBy = $row['checklist_state'] === 'not_taken'
+                ? collect($row['requirements'])
+                    ->where('type', CourseRequirement::TypePrerequisite)
+                    ->filter(fn (array $requirement): bool => $unpassed->has((int) $requirement['related_course_id']))
+                    ->map(fn (array $requirement): string => (string) ($requirement['related_course_code'] ?? $unpassed->get((int) $requirement['related_course_id'])))
+                    ->values()
+                : collect();
+
+            return [
+                ...$row,
+                'checklist_state' => $blockedBy->isNotEmpty() ? 'locked' : $row['checklist_state'],
+                'locked_by' => $blockedBy->all(),
+            ];
+        });
     }
 
     /**

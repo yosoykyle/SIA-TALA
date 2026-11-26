@@ -110,7 +110,7 @@
                                 @if ($currentDeclaration)
                                     <p class="tala-availability-header__meta tabular-nums">
                                         {{ $currentDeclaration->version === 1 ? 'Submitted' : 'Updated (v'.$currentDeclaration->version.')' }}
-                                        {{ \App\Support\DisplayDateTime::format($currentDeclaration->declared_at) }} · Asia/Manila
+                                        {{ \App\Support\DisplayDateTime::format($currentDeclaration->declared_at) }}
                                     </p>
                                 @elseif ($registrarNotTeaching ?? false)
                                     <p class="tala-availability-header__meta">
@@ -118,7 +118,7 @@
                                     </p>
                                 @else
                                     <p class="tala-availability-header__meta">
-                                        Choose how you can teach this Term. Times are in Asia/Manila.
+                                        Choose how you can teach this Term.
                                     </p>
                                 @endif
                             </div>

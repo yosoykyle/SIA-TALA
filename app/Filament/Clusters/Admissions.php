@@ -2,6 +2,8 @@
 
 namespace App\Filament\Clusters;
 
+use App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications;
+use App\Models\AdmissionCycle;
 use App\Queries\Admissions\AdmissionQueueCounts;
 use BackedEnum;
 use Filament\Clusters\Cluster;
@@ -9,6 +11,7 @@ use Filament\Navigation\NavigationGroup;
 use Filament\Navigation\NavigationItem;
 use Filament\Pages\Enums\SubNavigationPosition;
 use Filament\Support\Icons\Heroicon;
+use Livewire\Attributes\Url;
 
 /**
  * Lands on a dashboard of Admission queue cards instead of redirecting straight into the
@@ -33,7 +36,33 @@ class Admissions extends Cluster
         return static::canAccessClusteredComponents();
     }
 
-    public function mount(): void {}
+    /** The Student type tab chosen on the Admissions page; null shows every type. */
+    #[Url]
+    public ?string $type = null;
+
+    public function mount(): void
+    {
+        $this->type = self::normalizedStudentType($this->type);
+    }
+
+    public function selectStudentType(?string $type): void
+    {
+        $this->type = self::normalizedStudentType($type);
+    }
+
+    /** Opens a queue page, carrying the chosen Student type into its Student type filter. */
+    public function queueUrl(string $queue): string
+    {
+        return ListAdmissionApplications::getUrl([
+            'tab' => $queue,
+            ...($this->type !== null ? ['filters' => ['application_path' => ['value' => $this->type]]] : []),
+        ]);
+    }
+
+    private static function normalizedStudentType(?string $type): ?string
+    {
+        return in_array($type, [AdmissionCycle::PathFirstYear, AdmissionCycle::PathTransferee], true) ? $type : null;
+    }
 
     /**
      * Cluster::getSubNavigation() ignores shouldRegisterSubNavigation() for the cluster's own
@@ -80,8 +109,21 @@ class Admissions extends Cluster
     {
         $queues = app(AdmissionQueueCounts::class);
 
-        return ['queueCounts' => collect(AdmissionQueueCounts::labels())
-            ->mapWithKeys(fn (string $label, string $queue): array => [$queue => $queues->count($queue)])
-            ->all()];
+        return [
+            'queueCounts' => collect(AdmissionQueueCounts::labels())
+                ->mapWithKeys(fn (string $label, string $queue): array => [$queue => $queues->count($queue, $this->type)])
+                ->all(),
+            'studentTypeTabs' => [
+                ['type' => null, 'label' => 'All types', 'icon' => null, 'cases' => $queues->activeCases(), 'available' => true],
+                ['type' => AdmissionCycle::PathFirstYear, 'label' => 'Freshmen', 'icon' => 'heroicon-o-academic-cap', 'cases' => $queues->activeCases(AdmissionCycle::PathFirstYear), 'available' => true],
+                ['type' => AdmissionCycle::PathTransferee, 'label' => 'Transferees', 'icon' => 'heroicon-o-arrows-right-left', 'cases' => $queues->activeCases(AdmissionCycle::PathTransferee), 'available' => true],
+                ['type' => 'Returnee', 'label' => 'Returnees', 'icon' => 'heroicon-o-arrow-uturn-left', 'cases' => null, 'available' => false],
+            ],
+            'studentTypeLabel' => match ($this->type) {
+                AdmissionCycle::PathFirstYear => 'Freshmen',
+                AdmissionCycle::PathTransferee => 'Transferees',
+                default => null,
+            },
+        ];
     }
 }

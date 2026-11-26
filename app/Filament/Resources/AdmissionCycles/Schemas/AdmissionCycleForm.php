@@ -55,44 +55,38 @@ class AdmissionCycleForm
                 ->compact()
                 ->description('The application window and correction window have separate purposes.')
                 ->schema([
-                    DateTimePicker::make('opens_at')->label('Applications open')->native(false)
+                    DateTimePicker::make('opens_at')->label('Applications open')->native(true)
                         ->displayFormat('M j, Y · g:i A')
                         ->timezone('Asia/Manila')
                         ->prefixIcon('heroicon-o-calendar')
-                        ->placeholder('Select date and time')
-                        ->helperText('New applications become available at this time once the cycle is published (Asia/Manila).'),
-                    DateTimePicker::make('closes_at')->label('New applications close')->native(false)
+                        ->placeholder('Select date and time'),
+                    DateTimePicker::make('closes_at')->label('New applications close')->native(true)
                         ->after(fn (Get $get): ?string => filled($get('opens_at')) ? 'opens_at' : null)
                         ->displayFormat('M j, Y · g:i A')
                         ->timezone('Asia/Manila')
                         ->prefixIcon('heroicon-o-calendar')
-                        ->placeholder('Select date and time')
-                        ->helperText('Stops new starts and first submissions. Existing corrections and Registrar reviews continue (Asia/Manila). Must be after opening time.'),
-                    DateTimePicker::make('correction_closes_at')->label('Last time to request a new correction')->native(false)
+                        ->placeholder('Select date and time'),
+                    DateTimePicker::make('correction_closes_at')->label('Last time to request a new correction')->native(true)
                         ->displayFormat('M j, Y · g:i A')
                         ->timezone('Asia/Manila')
                         ->prefixIcon('heroicon-o-clock')
-                        ->placeholder('Select date and time')
-                        ->helperText('Required before publication, at or after application closing. Existing correction requests remain actionable after this boundary (Asia/Manila).'),
-                    DateTimePicker::make('requirements_due_at')->label('Physical papers due')->native(false)
+                        ->placeholder('Select date and time'),
+                    DateTimePicker::make('requirements_due_at')->label('Physical papers due')->native(true)
                         ->displayFormat('M j, Y · g:i A')
                         ->timezone('Asia/Manila')
                         ->prefixIcon('heroicon-o-document-check')
-                        ->placeholder('Not set')
-                        ->helperText('Optional. Admitted applicants still missing papers expire after this time until the Registrar extends them.'),
-                    DateTimePicker::make('payment_due_at')->label('Enrollment payment due')->native(false)
+                        ->placeholder('Not set'),
+                    DateTimePicker::make('payment_due_at')->label('Enrollment payment due')->native(true)
                         ->displayFormat('M j, Y · g:i A')
                         ->timezone('Asia/Manila')
                         ->prefixIcon('heroicon-o-banknotes')
-                        ->placeholder('Not set')
-                        ->helperText('Optional. Cleared applicants without a verified payment expire after this time.'),
-                    DateTimePicker::make('period_ends_at')->label('Admission period ends')->native(false)
+                        ->placeholder('Not set'),
+                    DateTimePicker::make('period_ends_at')->label('Admission period ends')->native(true)
                         ->after(fn (Get $get): ?string => filled($get('closes_at')) ? 'closes_at' : null)
                         ->displayFormat('M j, Y · g:i A')
                         ->timezone('Asia/Manila')
                         ->prefixIcon('heroicon-o-lock-closed')
-                        ->placeholder('Not set')
-                        ->helperText('Optional. Unfinished applications close for good at this time.'),
+                        ->placeholder('Not set'),
                 ])->columns(['default' => 1, 'lg' => 3])->columnSpanFull(),
             Section::make('Who can apply')
                 ->compact()

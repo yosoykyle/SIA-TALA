@@ -4,14 +4,10 @@ namespace App\Filament\Resources\AdmissionApplications\Schemas;
 
 use App\Filament\Resources\AdmissionApplications\Pages\ViewAdmissionApplication;
 use App\Models\AdmissionApplication;
-use App\Models\AdmissionApplicationEvent;
 use App\Models\AdmissionCycle;
 use App\Models\AdmissionRequirement;
-use App\Models\ApplicationCorrectionRequest;
 use App\Models\DocumentEvidence;
 use App\Models\PreliminaryEvidenceReview;
-use App\Models\RegistrarEnrollmentClearance;
-use App\Queries\Admissions\ReadyApplicantProjectionQuery;
 use Filament\Actions\Action;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\RepeatableEntry\TableColumn;
@@ -48,130 +44,12 @@ class AdmissionApplicationInfolist
         }
 
         return $schema
-            ->columns(['default' => 1, 'xl' => 2])
+            // 2/5 work tabs, 3/5 Applicant details: the details carry more of the review (#99 Scope 10).
+            ->columns(['default' => 1, 'xl' => 5])
             ->components([
                 Tabs::make('ApplicantRecord')
                     ->extraAttributes(['class' => 'tala-applicant-record-tabs'])
                     ->tabs([
-                        Tab::make('Current work')
-                            ->icon('heroicon-o-clipboard-document-check')
-                            ->schema([
-                                Group::make([
-                                    TextEntry::make('situation')
-                                        ->label('Current task')
-                                        ->weight('semibold')
-                                        ->helperText(fn (AdmissionApplication $record): string => ($record->program?->name ?? 'Program unavailable').' · '.AdmissionCycle::studentTypeLabel($record->application_path))
-                                        ->state(fn (AdmissionApplication $record): string => match ($record->application_state) {
-                                            AdmissionApplication::StateDraft => 'Draft preparation — Applicant submission remains required',
-                                            AdmissionApplication::StateSubmitted => $record->reviewHasStarted() ? 'Registrar review is in progress' : 'Application received — awaiting Registrar review',
-                                            AdmissionApplication::StateActionNeeded => 'Applicant corrections are pending',
-                                            AdmissionApplication::StateAdmitted => app(ReadyApplicantProjectionQuery::class)->forApplication($record)['ready']
-                                                ? 'Admissions complete — ready for the enrollment journey'
-                                                : 'Admitted — complete Registrar clearance',
-                                            AdmissionApplication::StateNotAdmitted => 'Review complete — Not admitted',
-                                            AdmissionApplication::StateWithdrawn => 'Application withdrawn — retained for reference',
-                                            default => 'Review the current application',
-                                        })
-                                        ->columnSpanFull(),
-                                    Group::make([
-                                        TextEntry::make('responsible_party')
-                                            ->label('Responsible party')
-                                            ->state(fn (AdmissionApplication $record): string => app(ReadyApplicantProjectionQuery::class)->responsibleParty($record))
-                                            ->columnSpan(['default' => 1, 'md' => 1]),
-                                        TextEntry::make('requested_student_type')->label('Requested Student type')
-                                            ->state(fn (AdmissionApplication $record): ?string => $record->correctionRequests()->where('state', ApplicationCorrectionRequest::StateActive)
-                                                ->whereNotNull('target_application_path')->value('target_application_path'))
-                                            ->formatStateUsing(fn (string $state): string => AdmissionCycle::studentTypeLabel($state))
-                                            ->visible(fn (?string $state): bool => filled($state)),
-                                        TextEntry::make('next_action')
-                                            ->label('Next action')
-                                            ->state(fn (AdmissionApplication $record): string => match ($record->application_state) {
-                                                AdmissionApplication::StateDraft => app(ReadyApplicantProjectionQuery::class)->draftCycleIsOpen($record)
-                                                    ? 'Applicant completes and submits the five-step Application; Registrar assistance does not submit it.'
-                                                    : app(ReadyApplicantProjectionQuery::class)->draftNextAction($record),
-                                                AdmissionApplication::StateSubmitted => app(ReadyApplicantProjectionQuery::class)->submittedNextAction($record),
-                                                AdmissionApplication::StateActionNeeded => 'Wait for the Applicant to submit the requested corrections.',
-                                                AdmissionApplication::StateAdmitted => app(ReadyApplicantProjectionQuery::class)->forApplication($record)['ready']
-                                                    ? app(ReadyApplicantProjectionQuery::class)->enrollmentNextAction($record)
-                                                    : collect(app(ReadyApplicantProjectionQuery::class)->forApplication($record)['blockers'])
-                                                        ->map(fn (array $finding): string => $finding['source'].': '.$finding['recovery'])->implode(' '),
-                                                AdmissionApplication::StateNotAdmitted => 'Keep the recorded decision and explanation available in history.',
-                                                AdmissionApplication::StateWithdrawn => 'Retain history or reopen only with authority before registration begins.',
-                                                default => 'Review the application record.',
-                                            })
-                                            ->columnSpan(['default' => 1, 'md' => 1]),
-                                        TextEntry::make('applicant_instruction')
-                                            ->label('Current Applicant instruction')
-                                            ->visible(fn (TextEntry $component): bool => filled($component->getState()))
-                                            ->state(function (AdmissionApplication $record): ?string {
-                                                $correction = $record->correctionRequests
-                                                    ->where('state', ApplicationCorrectionRequest::StateActive)->sortByDesc('sequence')->first();
-                                                if ($correction !== null) {
-                                                    return $correction->applicant_instruction;
-                                                }
-                                                $projection = app(ReadyApplicantProjectionQuery::class)->forApplication($record);
-                                                if ($projection['ready']) {
-                                                    return 'Enrollment clearance is complete. Follow the published enrollment availability.';
-                                                }
-                                                if ($projection['clearance_result'] === RegistrarEnrollmentClearance::ResultActionNeeded) {
-                                                    return collect($projection['blockers'])->firstWhere('source', 'Registrar enrollment clearance')['recovery'] ?? null;
-                                                }
-
-                                                return $record->decisions->sortByDesc('id')->first()?->applicant_explanation;
-                                            })
-                                            ->color('gray'),
-                                    ])
-                                        ->columns(['default' => 1, 'md' => 3])
-                                        ->extraAttributes(['class' => 'tala-current-task-facts']),
-                                ])
-                                    ->extraAttributes(['class' => 'tala-registrar-current-task']),
-                                Section::make('Preliminary evidence')
-                                    ->contained(false)
-                                    ->compact()
-                                    ->schema([
-                                        RepeatableEntry::make('evidenceVersions')
-                                            ->hiddenLabel()
-                                            ->state(fn (AdmissionApplication $record) => self::currentEvidence($record))
-                                            ->table([
-                                                TableColumn::make('Requirement'),
-                                                TableColumn::make('Copy / Uploaded'),
-                                                TableColumn::make('Current review result'),
-                                                TableColumn::make('Actions')->hiddenHeaderLabel(),
-                                            ])
-                                            ->schema(self::evidenceSchema())
-                                            ->extraAttributes(['class' => 'tala-evidence-table'])
-                                            ->placeholder('No preliminary review copy submitted.')
-                                            ->columnSpanFull(),
-                                    ]),
-                                Section::make('Supporting facts')
-                                    ->contained(false)
-                                    ->compact()
-                                    ->schema([
-                                        View::make('filament.admin.admission-applications.supporting-facts')
-                                            ->viewData(fn (AdmissionApplication $record): array => self::supportingFacts($record)),
-                                    ]),
-                                Section::make('Decision basis')
-                                    ->schema([
-                                        TextEntry::make('decision_private_basis')
-                                            ->label('Registrar review basis')
-                                            ->visible(fn (AdmissionApplication $record): bool => $record->decisions->whereNull('successor')->isNotEmpty())
-                                            ->state(function (AdmissionApplication $record): ?string {
-                                                $decision = $record->decisions->whereNull('successor')->sortByDesc('decided_at')->first();
-
-                                                return $decision?->reason;
-                                            })
-                                            ->helperText(function (AdmissionApplication $record): ?string {
-                                                $decision = $record->decisions->whereNull('successor')->sortByDesc('decided_at')->first();
-                                                if (filled($decision?->authority_reference)) {
-                                                    return 'Authority reference: '.$decision->authority_reference;
-                                                }
-
-                                                return null;
-                                            }),
-                                    ])
-                                    ->visible(fn (AdmissionApplication $record): bool => $record->decisions->isNotEmpty())
-                                    ->compact()->collapsible()->collapsed(),
-                            ]),
                         Tab::make('Process evaluation')
                             ->icon('heroicon-o-list-bullet')
                             ->schema([
@@ -192,12 +70,13 @@ class AdmissionApplicationInfolist
                                     ]),
                             ]),
                     ])
-                    ->columnSpan(['default' => 'full', 'xl' => 1]),
+                    ->columnSpan(['default' => 'full', 'xl' => 2]),
                 Tabs::make('ApplicantDetails')
                     ->extraAttributes(['class' => 'tala-applicant-record-tabs tala-applicant-details-panel'])
                     ->tabs([
                         Tab::make('Applicant details')
                             ->icon('heroicon-o-user')
+                            ->dense()
                             ->schema([
                                 Group::make([
                                     TextEntry::make('application_reference')
@@ -210,6 +89,7 @@ class AdmissionApplicationInfolist
                                 ])
                                     ->key('applicant')
                                     ->columns(['default' => 1, 'sm' => 2])
+                                    ->dense()
                                     ->extraAttributes(['class' => 'tala-applicant-identity']),
                                 Section::make('Personal Information')
                                     ->schema([
@@ -229,7 +109,8 @@ class AdmissionApplicationInfolist
                                                 $record->current_province,
                                             ])->filter()->implode(', ')),
                                     ])
-                                    ->columns(['default' => 1, 'md' => 2])
+                                    ->columns(['default' => 1, 'sm' => 2, 'lg' => 3])
+                                    ->dense()
                                     ->contained(false)
                                     ->compact(),
                                 Section::make('Educational Information')
@@ -239,11 +120,10 @@ class AdmissionApplicationInfolist
                                             ->formatStateUsing(fn (string $state, AdmissionApplication $record): string => AdmissionApplication::admissionQualificationOptions((string) $record->application_path)[$state]
                                                 ?? str($state)->lower()->headline()->toString()),
                                         TextEntry::make('prior_school_completion_year')->label('Graduation year')->placeholder('Not provided'),
-                                        TextEntry::make('lrn_availability')->label('LRN availability')->placeholder('Not recorded')
-                                            ->formatStateUsing(fn (string $state): string => str($state)->headline()->toString()),
-                                        TextEntry::make('lrn')->label('LRN')->placeholder('No identifier provided'),
+                                        TextEntry::make('lrn')->label('LRN')->placeholder('Not provided'),
                                     ])
-                                    ->columns(['default' => 1, 'md' => 2])
+                                    ->columns(['default' => 1, 'sm' => 2])
+                                    ->dense()
                                     ->contained(false)
                                     ->compact(),
                                 Section::make('Application Choice')
@@ -253,7 +133,8 @@ class AdmissionApplicationInfolist
                                         TextEntry::make('program.name')->label('Program'),
                                         TextEntry::make('application_path')->label('Student type')->formatStateUsing(fn (string $state): string => AdmissionCycle::studentTypeLabel($state)),
                                     ])
-                                    ->columns(['default' => 1, 'md' => 2])
+                                    ->columns(['default' => 1, 'sm' => 2])
+                                    ->dense()
                                     ->contained(false)
                                     ->compact(),
                                 Section::make('Emergency Contact')
@@ -262,54 +143,33 @@ class AdmissionApplicationInfolist
                                         TextEntry::make('guardian_relationship')->label('Relationship')->placeholder('Not provided'),
                                         TextEntry::make('guardian_mobile')->label('Contact mobile')->placeholder('Not provided'),
                                     ])
-                                    ->columns(['default' => 1, 'md' => 2])
+                                    ->columns(['default' => 1, 'sm' => 2, 'lg' => 3])
+                                    ->dense()
                                     ->contained(false)
                                     ->compact(),
+                                Section::make('Preliminary evidence')
+                                    ->dense()
+                                    ->contained(false)
+                                    ->compact()
+                                    ->schema([
+                                        RepeatableEntry::make('evidenceVersions')
+                                            ->hiddenLabel()
+                                            ->state(fn (AdmissionApplication $record) => self::currentEvidence($record))
+                                            ->table([
+                                                TableColumn::make('Requirement'),
+                                                TableColumn::make('Copy / Uploaded'),
+                                                TableColumn::make('Current review result'),
+                                                TableColumn::make('Actions')->hiddenHeaderLabel(),
+                                            ])
+                                            ->schema(self::evidenceSchema())
+                                            ->extraAttributes(['class' => 'tala-evidence-table'])
+                                            ->placeholder('No preliminary review copy submitted.')
+                                            ->columnSpanFull(),
+                                    ]),
                             ]),
                     ])
-                    ->columnSpan(['default' => 'full', 'xl' => 1]),
+                    ->columnSpan(['default' => 'full', 'xl' => 3]),
             ]);
-    }
-
-    /**
-     * @return array{review: array<string, mixed>, clearance: array<string, mixed>|null}
-     */
-    private static function supportingFacts(AdmissionApplication $application): array
-    {
-        $timezone = (string) config('app.display_timezone');
-        $format = fn ($moment): ?string => $moment?->timezone($timezone)->format('M j, Y · g:i A');
-        $projection = app(ReadyApplicantProjectionQuery::class)->forApplication($application);
-        $isAdmitted = $application->application_state === AdmissionApplication::StateAdmitted;
-
-        $start = $application->events->firstWhere('event_type', AdmissionApplicationEvent::TypeReviewStarted);
-        $startedVersion = $start !== null ? $application->submissionVersions()->whereKey($start->source_id)->value('version') : null;
-        $activeCorrection = $application->correctionRequests->where('state', ApplicationCorrectionRequest::StateActive)->sortByDesc('sequence')->first();
-
-        return [
-            'review' => [
-                'started_by' => $start !== null ? ($start->actor?->getFilamentName() ?? 'Recorded Registrar') : null,
-                'started_at' => $start !== null ? $format($start->occurred_at) : null,
-                'started_note' => $start !== null ? null : ($application->reviewHasStarted()
-                    ? 'Earlier review evidence is retained. An explicit start time was not recorded; ordinary edits remain locked.'
-                    : 'Not started. The Applicant can commit a complete update until you choose Start review.'),
-                'reviewing' => $start !== null ? ($startedVersion !== null ? 'Submission #'.$startedVersion : 'A retained submitted source') : null,
-                'received' => $format($application->submitted_at) ?? 'Not submitted',
-                'closing' => $format($application->admissionCycle?->closes_at) ?? 'Not set',
-                'correction_due' => $format($activeCorrection?->due_at),
-            ],
-            'clearance' => $isAdmitted ? [
-                'result' => match ($projection['clearance_result']) {
-                    RegistrarEnrollmentClearance::ResultCleared => 'Cleared',
-                    RegistrarEnrollmentClearance::ResultActionNeeded => 'Action needed',
-                    default => 'Awaiting Registrar clearance',
-                },
-                'cleared' => $projection['clearance_result'] === RegistrarEnrollmentClearance::ResultCleared,
-                'ready' => (bool) $projection['ready'],
-                'readiness_note' => $projection['ready']
-                    ? 'Admission, identity review and Registrar clearance are complete. Official enrollment is separate.'
-                    : 'Complete the remaining admissions checks shown in Next action.',
-            ] : null,
-        ];
     }
 
     private static function currentEvidence(AdmissionApplication $application): Collection
@@ -355,8 +215,8 @@ class AdmissionApplicationInfolist
     private static function evidenceSchema(): array
     {
         return [
-            TextEntry::make('admissionRequirement.label')->weight('semibold'),
-            TextEntry::make('version_status')
+            TextEntry::make('admissionRequirement.label')->label('Requirement')->weight('semibold'),
+            TextEntry::make('version_status')->label('Copy / Uploaded')
                 ->state(function (DocumentEvidence $record): string {
                     if (! $record->exists || $record->id === null) {
                         return 'Missing copy — not uploaded';
@@ -379,7 +239,7 @@ class AdmissionApplicationInfolist
                 ->badge(fn (DocumentEvidence $record): bool => ! $record->exists || $record->id === null)
                 ->color(fn (DocumentEvidence $record): ?string => (! $record->exists || $record->id === null) ? 'danger' : null)
                 ->helperText(fn (DocumentEvidence $record): ?string => $record->uploaded_at?->timezone(config('app.display_timezone'))->format('M j, Y · g:i A')),
-            TextEntry::make('review_history')
+            TextEntry::make('review_history')->label('Current review result')
                 ->state(function (DocumentEvidence $record): string {
                     if (! $record->exists || $record->id === null) {
                         return 'Missing preliminary copy';
@@ -443,7 +303,7 @@ class AdmissionApplicationInfolist
                         && $record->admissionApplication->reviewHasStarted()
                         && (bool) auth()->user()?->can('review', $record->admissionApplication)
                     )
-                    ->action(fn (DocumentEvidence $record, ViewAdmissionApplication $livewire) => $livewire->replaceMountedAction('reviewEvidence', ['document_evidence_id' => $record->id])
+                    ->action(fn (DocumentEvidence $record, ViewAdmissionApplication $livewire) => $livewire->replaceMountedAction('reviewApplication')
                     ),
                 Action::make('viewEvidence')->label('View')->iconButton()->tooltip('View copy')->color('gray')->icon('heroicon-o-eye')
                     ->extraAttributes(fn (DocumentEvidence $record): array => ['aria-label' => e('View '.($record->admissionRequirement?->label ?? 'evidence').' copy '.$record->id)])

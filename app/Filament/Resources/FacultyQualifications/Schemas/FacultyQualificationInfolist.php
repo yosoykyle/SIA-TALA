@@ -45,7 +45,7 @@ class FacultyQualificationInfolist
                             ->schema([
                                 TextEntry::make('recorder.name')->label('Recorded by')->placeholder('Unavailable'),
                                 TextEntry::make('recorded_at')
-                                    ->label('Recorded at (Asia/Manila)')
+                                    ->label('Recorded at')
                                     ->dateTime('M j, Y, g:i A')
                                     ->timezone('Asia/Manila')
                                     ->placeholder('Unavailable'),

@@ -19,6 +19,7 @@ use App\Models\PreliminaryEvidenceReview;
 use App\Models\Term;
 use App\Models\User;
 use Filament\Facades\Filament;
+use Filament\Forms\Components\DateTimePicker;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
@@ -175,7 +176,7 @@ class AdmissionDecisionAuthorityTest extends TestCase
         [$application, $registrar] = $this->application();
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
-            ->callAction('recordDecision', data: [
+            ->callAction('reviewApplication', data: [
                 'decision' => AdmissionDecision::DecisionAdmitted,
                 'reason' => 'Private review basis',
                 'applicant_explanation' => 'Safe explanation',
@@ -191,7 +192,7 @@ class AdmissionDecisionAuthorityTest extends TestCase
         [$application, $registrar] = $this->application();
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
-            ->mountAction('recordDecision')
+            ->mountAction('reviewApplication')
             ->fillForm(['decision' => AdmissionDecision::DecisionAdmitted])
             ->assertSchemaComponentHidden('decision_reason', 'mountedActionSchema0')
             ->assertSchemaComponentHidden('reason', 'mountedActionSchema0')
@@ -207,12 +208,12 @@ class AdmissionDecisionAuthorityTest extends TestCase
         [$application, $registrar] = $this->application();
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
-            ->callAction('recordDecision', data: ['decision' => AdmissionDecision::DecisionNotAdmitted])
+            ->callAction('reviewApplication', data: ['decision' => AdmissionDecision::DecisionNotAdmitted])
             ->assertHasActionErrors(['reason' => 'required', 'applicant_explanation' => 'required']);
         $this->assertSame(0, $application->decisions()->count());
 
         Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
-            ->callAction('recordDecision', data: ['decision' => AdmissionDecision::DecisionAdmitted])
+            ->callAction('reviewApplication', data: ['decision' => AdmissionDecision::DecisionAdmitted])
             ->assertHasNoActionErrors();
 
         $decision = $application->decisions()->sole();
@@ -229,15 +230,85 @@ class AdmissionDecisionAuthorityTest extends TestCase
             $application, $registrar, AdmissionDecision::DecisionAdmitted, 'Original basis', null, 'Original safe explanation',
         );
         Filament::setCurrentPanel(Filament::getPanel('admin'));
+        // The page no longer offers a replacement after admission (#99 Scope 10); the decision service still requires a reference.
         Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
-            ->callAction('recordDecision', data: [
-                'decision' => AdmissionDecision::DecisionNotAdmitted,
-                'reason' => 'Private review basis',
-                'applicant_explanation' => 'Safe explanation',
-            ])
-            ->assertHasActionErrors(['authority_reference' => 'required']);
+            ->assertActionHidden('reviewApplication');
+
+        try {
+            app(RecordAdmissionDecision::class)->execute($application->fresh(), $registrar, AdmissionDecision::DecisionNotAdmitted, 'Private review basis', null, 'Safe explanation',
+                expectedCurrentDecisionId: $application->decisions()->value('id'));
+            $this->fail('A replacement decision without a reference must be rejected.');
+        } catch (ValidationException) {
+        }
 
         $this->assertSame(1, $application->decisions()->count());
+    }
+
+    public function test_admissions_review_page_renders_concise_copy_direct_lrn_native_ampm_pickers_and_omits_actor_from_admitted_summary(): void
+    {
+        [$application, $registrar] = $this->application();
+        $application->update(['lrn_availability' => 'not_provided', 'lrn' => null]);
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $page = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
+            ->assertDontSee('LRN availability')
+            ->assertDontSee('No identifier provided')
+            ->assertSee('LRN')
+            ->assertSee('Not provided');
+
+        $correctionAction = $page->mountAction('requestCorrection')->instance()->getMountedAction();
+        $this->assertSame('Select the fields or documents the applicant needs to fix and set a due date.', $correctionAction->getModalDescription());
+        $page->assertSchemaComponentExists('due_at', 'mountedActionSchema0', function (DateTimePicker $picker): bool {
+            $html = $picker->toHtml();
+
+            return $picker->isNative()
+                && $picker->getDisplayFormat() === 'M j, Y · g:i A'
+                && ! $picker->hasSeconds()
+                && str_contains($html, 'The applicant is emailed the documents to fix and this due date.')
+                && ! str_contains($html, 'Allowed: after now');
+        });
+
+        $evidenceId = $application->evidenceVersions()->value('id');
+        $admitPage = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
+            ->mountAction('admitApplication')
+            ->setActionData(["copies.{$evidenceId}.for_correction" => true]);
+        $admitPage->assertSchemaComponentExists('correction_due_at', 'mountedActionSchema0', function (DateTimePicker $picker): bool {
+            $html = $picker->toHtml();
+
+            return $picker->isNative()
+                && $picker->getDisplayFormat() === 'M j, Y · g:i A'
+                && ! $picker->hasSeconds()
+                && str_contains($html, 'The applicant is emailed the documents to fix and this due date.')
+                && ! str_contains($html, 'Allowed: after now');
+        });
+        $admitSchemaHtml = $admitPage->instance()->getSchema('mountedActionSchema0')->toHtml();
+        $this->assertStringContainsString('fi-btn fi-size-md', $admitSchemaHtml);
+        $this->assertStringContainsString('justify-center whitespace-nowrap', $admitSchemaHtml);
+
+        $decision = app(RecordAdmissionDecision::class)->execute(
+            $application->fresh(),
+            $registrar,
+            AdmissionDecision::DecisionAdmitted,
+            'Verified required copy',
+            null,
+            'Admitted for next steps',
+        );
+
+        $admittedPage = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id]);
+        $screeningSummary = $admittedPage->instance()->processEvaluation()[0]['summary'];
+        $this->assertStringContainsString('All 1 submitted copies accepted · Admitted · ', $screeningSummary);
+        $this->assertStringNotContainsString('Admitted by ', $screeningSummary);
+        $this->assertSame($registrar->id, $decision->decided_by);
+
+        $clearanceAction = $admittedPage->mountAction('recordEnrollmentClearance')->instance()->getMountedAction();
+        $this->assertSame('Check each original paper received in person. Record clearance when complete, or notify the applicant of missing items.', $clearanceAction->getModalDescription());
+
+        $deadlinePage = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
+            ->mountAction('extendDeadline');
+        $deadlinePage->assertSchemaComponentExists('deadline', 'mountedActionSchema0', fn (DateTimePicker $picker): bool => $picker->isNative()
+            && $picker->getDisplayFormat() === 'M j, Y · g:i A'
+            && ! $picker->hasSeconds());
     }
 
     /** @return array{AdmissionApplication, User} */

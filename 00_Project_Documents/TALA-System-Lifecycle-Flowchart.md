@@ -100,7 +100,7 @@ flowchart TB
   SUBMIT -->|Optional before review starts| EDIT["Applicant: append validated edits"]
   EDIT --> REVIEW
   REVIEW --> EVIDENCE["Registrar: review preliminary evidence"]
-  EVIDENCE --> OUTCOME{"Application screening: what does the evidence support?"}
+  EVIDENCE --> OUTCOME{"Review application: what do the copies support?"}
   OUTCOME -->|Correction needed| FIX["Applicant: respond to the named correction"]
   FIX --> REVIEW
   OUTCOME -->|Not admitted| HISTORY(["Final rejection notice and retained history"])
@@ -123,7 +123,7 @@ Registrar publishes source-backed cycles (`AdmissionCycle`, which depends on an 
 
 Draft saving and first submission recheck their public window. A submitted application can append validated successor versions until **explicit authorized review starts**; merely opening history or inspecting read-only facts does not start that lock. Afterwards only named correction scope reopens. Final decisions lock ordinary edits. Corrections and resubmissions retain unaffected uploaded files and metadata; authorized replacement preserves prior versions. A correction has its own due boundary and recovery; an overdue active correction does not automatically reject the application.
 
-Use common correction/decision reasons plus Other, keeping the private decision basis separate from Applicant instructions. Review, evidence preview, identity resolution, decision and clearance share one working context, guided by the record's **Process evaluation** checklist. Preliminary evidence review comes before **Application screening**, and Not admitted is final. Combine admission and papers confirmation only when the physical requirement checks are already satisfied; otherwise **Check enrollment papers** records each paper's result, notifies deficiencies, and may clear with a permitted non-core paper on hold. This creates readiness, not Student identity, fees or official enrollment. A ready applicant starts enrollment, or the Registrar starts it from the admission record for a walk-in; payment stays inside the enrollment case.
+Use common correction/decision reasons plus Other, keeping the private decision basis separate from Applicant instructions. Review, evidence preview, identity resolution, decision and clearance share one working context, guided by the record's **Process evaluation** checklist. Copy results and the decision share one **Review application** modal, and Not admitted is final. Combine admission and papers confirmation only when the physical requirement checks are already satisfied; otherwise **Check enrollment papers** records each paper's result, notifies deficiencies, and may clear with a permitted non-core paper on hold. This creates readiness, not Student identity, fees or official enrollment. A ready applicant starts enrollment, or the Registrar starts it from the admission record for a walk-in; payment stays inside the enrollment case.
 
 Optional Cycle deadlines add two derived outcomes (PRD 02 §7.4). An admitted application that misses the paper or payment deadline becomes **Expired**, and the Registrar may re-admit it with a new deadline. Once the admission period ends, any unfinished application becomes **Closed**, which is final and takes priority over Expired. Officially enrolled applications are never either.
 

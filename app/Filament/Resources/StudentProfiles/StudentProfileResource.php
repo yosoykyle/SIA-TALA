@@ -5,6 +5,7 @@ namespace App\Filament\Resources\StudentProfiles;
 use App\Actions\Academics\AcademicEnrollmentGuidance;
 use App\Actions\Academics\CumulativeGwaProjection;
 use App\Actions\Academics\CurriculumEvaluation;
+use App\Actions\Academics\IrregularStudentReasons;
 use App\Actions\Academics\OfficialCourseResultProjection;
 use App\Actions\Academics\TermWeightedAverageProjection;
 use App\Actions\Enrollment\EnrollmentAcademicContextResolver;
@@ -30,6 +31,7 @@ use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\TermAccount;
 use App\Models\TermCohort;
+use App\Models\User;
 use BackedEnum;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\Select;
@@ -52,6 +54,7 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Support\Facades\Cache;
 use UnitEnum;
 
 class StudentProfileResource extends Resource
@@ -67,6 +70,29 @@ class StudentProfileResource extends Resource
     protected static ?int $navigationSort = 10;
 
     protected static ?string $recordTitleAttribute = 'student_number';
+
+    /** Registrar sees how many students await an Irregular review (#99 Scope 11). */
+    public static function getNavigationBadge(): ?string
+    {
+        $user = auth()->user();
+        if (! $user instanceof User || ! $user->hasRole(User::StaffRoleRegistrar)) {
+            return null;
+        }
+
+        $count = Cache::remember(IrregularStudentReasons::ReviewCountCacheKey, now()->addMinutes(5), fn (): int => app(IrregularStudentReasons::class)->flaggedStudentIds()->count());
+
+        return $count > 0 ? (string) $count : null;
+    }
+
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return 'warning';
+    }
+
+    public static function getNavigationBadgeTooltip(): ?string
+    {
+        return 'Students waiting for an Irregular review';
+    }
 
     public static function infolist(Schema $schema): Schema
     {
@@ -266,7 +292,7 @@ class StudentProfileResource extends Resource
                                 TextEntry::make('grade')->hiddenLabel()->badge()->color('gray'),
                                 TextEntry::make('inc_state')->hiddenLabel()->visible(fn (Get $get): bool => filled($get('inc_state'))),
                                 TextEntry::make('inc_deadline')->hiddenLabel()
-                                    ->formatStateUsing(fn (string $state): string => 'Until '.$state.' · Asia/Manila')
+                                    ->formatStateUsing(fn (string $state): string => 'Until '.$state)
                                     ->visible(fn (Get $get): bool => filled($get('inc_deadline'))),
                             ])->gap(false),
                             TextEntry::make('source_url')
@@ -444,7 +470,16 @@ class StudentProfileResource extends Resource
 
                         return $parts !== [] ? implode(' · ', $parts) : null;
                     })
-                    ->sortable(),
+                    ->sortable()
+                    ->wrapHeader(),
+                TextColumn::make('irregular_status')
+                    ->label('Status')
+                    ->state(fn (StudentProfile $record): string => app(IrregularStudentReasons::class)->forStudent($record)['status_label'])
+                    ->description(fn (StudentProfile $record): ?string => app(IrregularStudentReasons::class)->needsReview($record) ? 'Needs Irregular review' : null)
+                    ->badge()
+                    ->color(fn (string $state): string => str_starts_with($state, 'Irregular') ? 'warning' : 'success')
+                    ->wrap()
+                    ->wrapHeader(),
                 TextColumn::make('academic_effect')
                     ->label('Enrollment Guidance')
                     ->state(fn (StudentProfile $record): string => app(AcademicEnrollmentGuidance::class)->forStudent($record)['label'])
@@ -474,6 +509,10 @@ class StudentProfileResource extends Resource
                     ->state(fn (StudentProfile $record): string => app(EnrollmentAcademicContextResolver::class)->currentForProfile($record)['curriculum_level_label'] ?? 'Not recorded')
                     ->toggleable(isToggledHiddenByDefault: true),
             ])->filters([
+                Filter::make('irregular_review')
+                    ->label('Needs Irregular review')
+                    ->toggle()
+                    ->query(fn (Builder $query): Builder => $query->whereKey(app(IrregularStudentReasons::class)->flaggedStudentIds()->all())),
                 ...self::academicBrowsingFilters(),
                 SelectFilter::make('current_enrollment_status')
                     ->label('Current Enrollment Status')
@@ -503,7 +542,11 @@ class StudentProfileResource extends Resource
                 ]),
             ])
             ->recordUrl(fn (StudentProfile $record, HasTable $livewire): string => self::academicRecordUrl($record, $livewire))
-            ->recordActions([ViewAction::make()->url(fn (StudentProfile $record, HasTable $livewire): string => self::academicRecordUrl($record, $livewire))])
+            ->recordActions([
+                IrregularReviewActions::confirm(),
+                IrregularReviewActions::keepRegular(),
+                ViewAction::make()->url(fn (StudentProfile $record, HasTable $livewire): string => self::academicRecordUrl($record, $livewire)),
+            ])
             ->defaultSort('student_number')
             ->stackedOnMobile()
             ->emptyStateHeading('No student profiles found')

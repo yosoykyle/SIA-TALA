@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Academics;
 
+use App\Actions\Academics\CumulativeGwaProjection;
 use App\Actions\Academics\RecordExternalCompetencyResult;
 use App\Actions\Completion\CompletionReadinessProjection;
 use App\Actions\Completion\CorrectDegreeConferral;
@@ -10,6 +11,7 @@ use App\Actions\Completion\OfficialOutputRestrictionService;
 use App\Actions\Completion\RecordDegreeConferral;
 use App\Actions\Completion\RecordTranscriptRequest;
 use App\Actions\Completion\ReplaceTranscript;
+use App\Actions\Completion\TranscriptPreview;
 use App\Actions\Completion\VoidTranscript;
 use App\Actions\Grades\ManageTeachingAssignment;
 use App\Actions\Grades\PostAndReleaseGradeRoster;
@@ -26,6 +28,8 @@ use App\Models\ExternalCompetencyResult;
 use App\Models\GraduationApplication;
 use App\Models\OperationalEvent;
 use App\Models\ProgramShiftCreditEntry;
+use App\Models\RegistrationCreditEvaluation;
+use App\Models\RegistrationCreditLine;
 use App\Models\Section;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
@@ -317,6 +321,45 @@ class CompletionToStandardTorJourneyTest extends TestCase
         } catch (ValidationException) {
             $this->assertDatabaseMissing('transcript_requests', ['external_request_reference' => 'EXT-TOR-STALE']);
         }
+    }
+
+    #[Test]
+    public function tor_lists_transfer_credits_with_the_recorded_tor_grade_while_the_gwa_ignores_them(): void
+    {
+        $fixture = $this->fixture();
+        $creditedEntry = CurriculumEntry::factory()->create([
+            'curriculum_version_id' => $fixture['student']->curriculum_version_id,
+            'course_specification_id' => CourseSpecification::factory()->create([
+                'academic_classification' => CourseSpecification::AcademicClassificationOrdinary,
+                'scheduling_treatment' => CourseSpecification::SchedulingExternallyArranged,
+            ])->id,
+        ]);
+        $evaluation = RegistrationCreditEvaluation::factory()->create([
+            'enrollment_id' => Enrollment::query()->where('student_profile_id', $fixture['student']->id)->sole()->id,
+            'curriculum_version_id' => $fixture['student']->curriculum_version_id,
+            'credited_curriculum_entry_ids' => [$creditedEntry->id],
+        ]);
+        RegistrationCreditLine::factory()->withBridging()->create([
+            'registration_credit_evaluation_id' => $evaluation->id, 'curriculum_entry_id' => $creditedEntry->id,
+            'source_course_code' => 'MATH 1', 'tor_grade' => '1.25',
+        ]);
+        $this->releaseResult($fixture, '2.00');
+        $conferral = app(RecordDegreeConferral::class)->execute(
+            $fixture['student'], $fixture['registrar'], 'Bachelor of Science in Information Technology',
+            '2028-06-30', 'SYNTH-CONFERRAL-AUTHORITY',
+        );
+        $request = app(RecordTranscriptRequest::class)->execute(
+            $conferral, $fixture['registrar'], 'EXT-TOR-TRANSFER', '2028-07-01', 'Synthetic Registrar', 'College Registrar',
+            TranscriptRequest::SealPlacementInstruction, sealPlacementInstruction: 'Apply the controlled seal in the marked certification area.',
+        );
+
+        $transferRow = collect(app(TranscriptPreview::class)->forRequest($request)['academic_years'])->flatten(1)
+            ->firstWhere('attempt_or_credit', 'Transfer credit');
+        $this->assertSame(
+            [$creditedEntry->courseSpecification->course->code, '1.25', 'Transfer credit from MATH 1 · 1 unit(s) bridging', $fixture['term']->label],
+            [$transferRow['course_code'], $transferRow['result'], $transferRow['remarks'], $transferRow['term']],
+        );
+        $this->assertSame('2.00', app(CumulativeGwaProjection::class)->forStudent($fixture['student'])['value']);
     }
 
     /** @return array{registrar: User, accounting: User, faculty: User, student: StudentProfile, term: Term, section: Section} */

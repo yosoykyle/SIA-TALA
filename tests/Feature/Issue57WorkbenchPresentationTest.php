@@ -158,8 +158,8 @@ class Issue57WorkbenchPresentationTest extends TestCase
         Livewire::actingAs($registrar)->test(ListAdmissionApplications::class)
             ->set('activeTab', 'history')
             ->assertCanSeeTableRecords([$notAdmitted, $withdrawn])
-            ->assertTableColumnStateSet('owner_next_action', 'No active task — Registrar retains history', $notAdmitted)
-            ->assertTableColumnStateSet('owner_next_action', 'No active task — Registrar retains history', $withdrawn);
+            ->assertTableColumnStateSet('owner_next_action', 'No active task', $notAdmitted)
+            ->assertTableColumnStateSet('owner_next_action', 'No active task', $withdrawn);
     }
 
     public function test_admission_events_drive_display_order_sort_and_activity_filter(): void

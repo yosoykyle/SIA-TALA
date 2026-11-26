@@ -312,17 +312,38 @@ class ReadyApplicantProjectionQuery
         ];
     }
 
-    /** @return Collection<int, int> */
+    /**
+     * Cleared applications still moving toward enrollment. An officially enrolled case has left Admissions (#99 Scope 8).
+     *
+     * @return Collection<int, int>
+     */
     public function readyApplicationIds(): Collection
     {
         return AdmissionApplication::query()
             ->canonical()
             ->where('application_state', AdmissionApplication::StateAdmitted)
+            ->whereNotIn('id', $this->officiallyEnrolledApplicationIds())
             ->orderBy('id')
             ->get()
             ->filter(fn (AdmissionApplication $application): bool => $this->forApplication($application)['ready'])
             ->map(fn (AdmissionApplication $application): int => $application->id)
             ->values();
+    }
+
+    /**
+     * Applications whose Registration Case is officially enrolled; they no longer belong in any Admissions queue.
+     *
+     * @return list<int>
+     */
+    public function officiallyEnrolledApplicationIds(): array
+    {
+        return Enrollment::query()
+            ->whereNotNull('admission_application_id')
+            ->where('canonical_outcome', Enrollment::OutcomeOfficiallyEnrolled)
+            ->distinct()
+            ->pluck('admission_application_id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
     }
 
     public function registrationHasStarted(AdmissionApplication $application): bool

@@ -162,12 +162,16 @@ class OfficialCourseResultProjection
     /** @return Collection<int, int> */
     private function creditedCourseIds(StudentProfile $student): Collection
     {
-        $shiftCredits = ProgramShiftCreditEntry::query()
-            ->where('treatment', ProgramShiftCreditEntry::TreatmentAccepted)
-            ->whereHas('lifecycleChange', fn ($query) => $query
-                ->where('student_profile_id', $student->id)
-                ->where('state', StudentLifecycleChange::StateApplied))
-            ->get();
+        $shiftCredits = $student->curriculum_version_id !== null
+            ? ProgramShiftCreditEntry::query()
+                ->where('treatment', ProgramShiftCreditEntry::TreatmentAccepted)
+                ->where('state', ProgramShiftCreditEntry::StateRecorded)
+                ->whereHas('curriculumEntry', fn ($query) => $query->where('curriculum_version_id', $student->curriculum_version_id))
+                ->whereHas('lifecycleChange', fn ($query) => $query
+                    ->where('student_profile_id', $student->id)
+                    ->where('state', StudentLifecycleChange::StateApplied))
+                ->get()
+            : collect();
         $entryIds = collect(RegistrationCreditEvaluation::creditedEntryIdsForStudent($student))
             ->concat($shiftCredits->pluck('curriculum_entry_id'));
 

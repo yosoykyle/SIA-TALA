@@ -23,6 +23,25 @@ class ManageTeachingAssignment
         return $this->record($section, $faculty, $actor, $authorityReference, ClassOfferingTeachingAssignment::RoleCoFaculty);
     }
 
+    public function endCoFaculty(ClassOfferingTeachingAssignment $assignment, User $actor): void
+    {
+        if (! $actor->hasRole(User::StaffRoleRegistrar)) {
+            throw new AuthorizationException('Only Registrar staff can manage teaching assignments.');
+        }
+
+        DB::transaction(function () use ($assignment): void {
+            ClassOfferingTeachingAssignment::query()
+                ->whereKey($assignment->id)
+                ->where('role', ClassOfferingTeachingAssignment::RoleCoFaculty)
+                ->where('state', ClassOfferingTeachingAssignment::StateActive)
+                ->lockForUpdate()
+                ->update([
+                    'state' => ClassOfferingTeachingAssignment::StateEnded,
+                    'ended_at' => now(),
+                ]);
+        }, attempts: 3);
+    }
+
     private function record(
         Section $section,
         User $faculty,

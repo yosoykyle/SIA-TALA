@@ -10,10 +10,10 @@
         </div>
     </div>
     <section class="student-academic-notice tala-task-surface" aria-labelledby="waiting-heading" role="status">
-        <x-filament::badge color="warning">Not official yet</x-filament::badge>
-        <h2 id="waiting-heading">Your part is complete</h2>
-        <p>The <strong>Registrar</strong> checks your records and finalizes enrollment. Your Certificate of Registration appears here after that.</p>
-        <x-workflow-handoff current-owner="Registrar" current-task="Finalize enrollment" next-owner="You" next-task="View registration" current-icon="heroicon-o-clipboard-document-check" next-icon="heroicon-o-document-text" />
+        <x-filament::badge color="warning">Needs Registrar attention</x-filament::badge>
+        <h2 id="waiting-heading">Your payment is cleared — Registrar review needed</h2>
+        <p>Your subjects are confirmed and your enrollment fee is cleared, but automatic enrollment could not finish yet. The <strong>Registrar</strong> is reviewing the remaining enrollment check — no additional payment is needed.</p>
+        <x-workflow-handoff current-owner="Registrar" current-task="Resolve enrollment issue" next-owner="You" next-task="View registration & COR" current-icon="heroicon-o-clipboard-document-check" next-icon="heroicon-o-document-text" />
         <dl class="learner-money">
             <div><dt>Subjects confirmed</dt><dd>{{ $subjectCount }} {{ $subjectCount === 1 ? 'subject' : 'subjects' }} · {{ (float) $proposal?->items->sum('units_snapshot') }} units</dd></div>
             <div><dt>Enrollment payment</dt><dd>{{ ($paymentRequirement['satisfaction_basis'] ?? '') === 'NoPaymentRequired' ? 'No payment required' : 'Requirement met' }}</dd></div>

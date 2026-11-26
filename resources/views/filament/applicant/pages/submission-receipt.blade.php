@@ -4,7 +4,7 @@
     @php($application = $receipt->application)
     <x-filament::section>
         <x-slot name="heading">{{ $receipt->id === $application->current_submission_version_id ? 'Application received' : 'Earlier submitted version' }}</x-slot>
-        <x-slot name="description">Received {{ $receipt->submitted_at->timezone(config('app.display_timezone'))->format('F j, Y, g:i A') }} (Asia/Manila)</x-slot>
+        <x-slot name="description">Received {{ $receipt->submitted_at->timezone(config('app.display_timezone'))->format('F j, Y, g:i A') }}</x-slot>
         <div class="tala-receipt-reference">
             <p class="tala-receipt-reference-label">Application reference</p>
             <x-application-reference :value="$snapshot['application_reference'] ?? $application->application_reference" />

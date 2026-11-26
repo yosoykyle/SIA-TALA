@@ -26,7 +26,7 @@ class RegistrationNotificationLedger
 {
     public function __construct(private readonly EnrollmentPaymentRequirementProjection $paymentRequirement) {}
 
-    public function recordOfficialEnrollment(Enrollment $enrollment): OperationalEvent
+    public function recordOfficialEnrollment(Enrollment $enrollment, ?string $paymentSummary = null): OperationalEvent
     {
         $enrollment->loadMissing(['credentialUser', 'term', 'currentCorVersion', 'studentProfile']);
 
@@ -39,6 +39,8 @@ class RegistrationNotificationLedger
                 'term_label' => $enrollment->term?->label,
                 'cor_version_id' => $enrollment->current_cor_version_id,
                 'student_access_active' => $enrollment->studentProfile !== null,
+                'finalization_mode' => $enrollment->finalization_mode ?? Enrollment::FinalizationModeManual,
+                'payment_summary' => $paymentSummary,
             ],
         );
     }
@@ -250,6 +252,8 @@ class RegistrationNotificationLedger
                     recipientName: $recipient->getFilamentName(),
                     termLabel: (string) ($payload['term_label'] ?? 'Current Term'),
                     corUrl: route('cor.print', ['enrollment' => $event->related_record_id]),
+                    paymentSummary: isset($payload['payment_summary']) ? (string) $payload['payment_summary'] : null,
+                    autoFinalized: ($payload['finalization_mode'] ?? null) === Enrollment::FinalizationModeAutomatic,
                 ));
 
                 return;

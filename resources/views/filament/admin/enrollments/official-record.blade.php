@@ -1,15 +1,42 @@
 @assets
     <link rel="stylesheet" href="{{ asset('css/tala-enrollment.css').'?v='.filemtime(public_path('css/tala-enrollment.css')) }}">
 @endassets
-@php($certificateAvailable = $case->currentCorVersion !== null)
+@php
+    $certificateAvailable = $case->currentCorVersion !== null;
+    $isAutoFinalized = ($provenance['is_automatic'] ?? ($case->finalization_mode === \App\Models\Enrollment::FinalizationModeAutomatic));
+    $provenanceParts = $isAutoFinalized
+        ? array_filter([
+            filled($provenance['load_approved_by'] ?? null) ? 'Load approved by '.$provenance['load_approved_by'].' (Registrar)' : null,
+            filled($provenance['fee_cleared_by'] ?? null) ? 'Fee cleared by '.$provenance['fee_cleared_by'].' (Accounting)' : null,
+            filled($provenance['cor_reference'] ?? null) ? $provenance['cor_reference'] : null,
+        ])
+        : array_filter([
+            filled($provenance['finalized_by'] ?? null) ? 'Finalized by '.$provenance['finalized_by'].' (Registrar)' : null,
+            filled($provenance['cor_reference'] ?? null) ? $provenance['cor_reference'] : null,
+        ]);
+@endphp
 <div class="registrar-case tala-enrollment-record">
     @include('filament.admin.enrollments.record-header')
     <section class="tala-enrollment-ledger tala-task-surface" aria-labelledby="subjects-heading">
         <header class="tala-enrollment-ledger-heading">
             <div>
                 <h2 id="subjects-heading">{{ $subjects->count() }} registered {{ \Illuminate\Support\Str::plural('subject', $subjects->count()) }} · {{ (float) $subjects->sum('units_snapshot') }} units</h2>
-                <x-filament::badge color="success" icon="heroicon-o-check-badge">Officially enrolled</x-filament::badge>
-                <p class="registrar-case-meta">{{ $case->officially_enrolled_at ? 'Enrolled on '.$case->officially_enrolled_at->timezone(config('app.display_timezone'))->format('M j, Y').'.' : 'Enrollment date not recorded.' }}</p>
+                <div class="flex flex-wrap items-center gap-2">
+                    <x-filament::badge color="success" icon="heroicon-o-check-badge">Officially enrolled</x-filament::badge>
+                    @if ($isAutoFinalized)
+                        <x-filament::badge color="info" icon="heroicon-o-bolt">Auto-finalized</x-filament::badge>
+                    @endif
+                </div>
+                <p class="registrar-case-meta">
+                    @if ($case->officially_enrolled_at)
+                        {{ $isAutoFinalized ? 'Officially enrolled automatically on ' : 'Enrolled on ' }}{{ $case->officially_enrolled_at->timezone(config('app.display_timezone'))->format('M j, Y') }}.
+                    @else
+                        Enrollment date not recorded.
+                    @endif
+                </p>
+                @if ($provenanceParts !== [])
+                    <p class="registrar-case-meta">{{ implode(' · ', $provenanceParts) }}</p>
+                @endif
             </div>
             @if ($certificateAvailable)
                 <div class="tala-enrollment-ledger-actions">
@@ -28,13 +55,13 @@
             <div class="tala-enrollment-subjects registrar-case-current-subjects">
                 <table class="registrar-subject-table" role="table">
                     <caption class="sr-only">Current official subjects</caption>
-                    <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">Subject</th><th scope="col" role="columnheader">Class</th><th scope="col" role="columnheader">Units</th>@if ($certificateAvailable)<th scope="col" role="columnheader"><span class="sr-only">Actions</span></th>@endif</tr></thead>
+                    <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">Subject</th><th scope="col" role="columnheader">Class reference</th><th scope="col" role="columnheader">Units</th>@if ($certificateAvailable)<th scope="col" role="columnheader"><span class="sr-only">Actions</span></th>@endif</tr></thead>
                     <tbody role="rowgroup">
                         @foreach ($subjects as $subject)
                             @php($specification = $subject->termOffering?->curriculumEntry?->courseSpecification)
                             <tr wire:key="official-subject-{{ $subject->id }}" role="row">
                                 <th scope="row" role="rowheader">{{ $subject->proposalItem?->course_code_snapshot ?? $specification?->course?->code ?? 'Code unavailable' }}<span>{{ $subject->proposalItem?->course_title_snapshot ?? $specification?->title ?? 'Subject title unavailable' }}</span></th>
-                                <td role="cell"><span class="registrar-subject-mobile-label">Class</span>{{ $subject->section?->code ?? 'Class unavailable' }}</td>
+                                <td role="cell"><span class="registrar-subject-mobile-label">Class reference</span>{{ $subject->section?->displayReference() ?? 'Class unavailable' }}</td>
                                 <td role="cell"><span class="registrar-subject-mobile-label">Units</span>{{ (float) $subject->units_snapshot }}</td>
                                 @if ($certificateAvailable)
                                     <td class="registrar-subject-actions" role="cell">

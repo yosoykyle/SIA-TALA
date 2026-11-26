@@ -4,7 +4,7 @@
     page-orientation="portrait"
     page-margin="12mm"
     context="UNOFFICIAL"
-    :generated-at="$asOf->format('F j, Y g:i A').' Asia/Manila'"
+    :generated-at="$asOf->format('F j, Y g:i A')"
     :back-url="\App\Filament\Student\Pages\Academics::getUrl(['view' => 'record'], panel: 'student')"
     back-label="Back to academic record"
     :logo-src="asset('images/brand/servitech-crest.webp')"
@@ -37,7 +37,7 @@
                                 <td data-label="Released result"><div>
                                     {{ $result['result'] }}
                                     @if ($result['inc_deadline'])
-                                        <br>Completion deadline: {{ $result['inc_deadline']->format('M j, Y') }} (Asia/Manila)
+                                        <br>Completion deadline: {{ $result['inc_deadline']->format('M j, Y') }}
                                         <br>{{ $result['inc_state'] === \App\Actions\Grades\IncDeadlineService::StateCompletionOverdue ? 'Completion overdue — no credit.' : 'Completion open.' }}
                                     @endif
                                     @if ($result['event']?->predecessor_event_id)

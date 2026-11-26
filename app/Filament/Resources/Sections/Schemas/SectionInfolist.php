@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Sections\Schemas;
 
 use App\Filament\Resources\Sections\Pages\ViewSection;
+use App\Models\ClassOfferingTeachingAssignment;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Support\DisplayDateTime;
@@ -75,6 +76,17 @@ class SectionInfolist
                                     ->extraAttributes(['class' => 'tabular-nums']),
                             ])
                             ->columnSpanFull(),
+                        TextEntry::make('teaching_faculty')->label('Teaching Faculty')
+                            ->state(fn (Section $record): array => $record->teachingAssignments()
+                                ->with('faculty')
+                                ->where('state', ClassOfferingTeachingAssignment::StateActive)
+                                ->orderByRaw('role = ? desc', [ClassOfferingTeachingAssignment::RoleDesignated])
+                                ->get()
+                                ->map(fn (ClassOfferingTeachingAssignment $assignment): string => ($assignment->faculty?->name ?? 'Unknown Faculty').' · '
+                                    .($assignment->role === ClassOfferingTeachingAssignment::RoleDesignated ? 'Designated' : 'Co-Faculty')
+                                    .($assignment->isFromPublishedTimetable() ? ' (from the published timetable)' : ''))
+                                ->all())
+                            ->listWithLineBreaks()->placeholder('No teaching Faculty assigned')->columnSpanFull(),
                     ])
                     ->columnSpanFull(),
                 Grid::make(['default' => 1, 'md' => 2])
@@ -101,7 +113,7 @@ class SectionInfolist
                     ->columnSpanFull(),
                 TextEntry::make('record_metadata')
                     ->hiddenLabel()
-                    ->state(fn (Section $record): string => 'Created '.DisplayDateTime::format($record->created_at).' · Last updated '.DisplayDateTime::format($record->updated_at).' (Asia/Manila)')
+                    ->state(fn (Section $record): string => 'Created '.DisplayDateTime::format($record->created_at).' · Last updated '.DisplayDateTime::format($record->updated_at))
                     ->color('gray')
                     ->extraAttributes(['class' => 'text-xs text-zinc-500 dark:text-zinc-400 tabular-nums'])
                     ->columnSpanFull(),

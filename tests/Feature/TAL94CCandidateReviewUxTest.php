@@ -250,8 +250,8 @@ final class TAL94CCandidateReviewUxTest extends TestCase
             ->assertMountedActionModalSee('Assignment comparison')
             ->assertMountedActionModalSee('Requested repair')
             ->assertMountedActionModalSee('Before')->assertMountedActionModalSee('After')
-            ->assertMountedActionModalSee('Monday · 8:00 AM - 11:00 AM · Asia/Manila')
-            ->assertMountedActionModalSee('Tuesday · 9:00 AM - 12:00 PM · Asia/Manila')
+            ->assertMountedActionModalSee('Monday · 8:00 AM - 11:00 AM')
+            ->assertMountedActionModalSee('Tuesday · 9:00 AM - 12:00 PM')
             ->assertMountedActionModalSee('Teacher: '.$context['faculty']->name)
             ->assertMountedActionModalSee('Teacher: '.$replacementTeacher->name)
             ->assertMountedActionModalSee('Room: '.$context['room']->code)
@@ -282,8 +282,8 @@ final class TAL94CCandidateReviewUxTest extends TestCase
                 ->mountTableAction('view', $candidate)
                 ->assertMountedActionModalSee('Source assignment unavailable')
                 ->assertMountedActionModalSee('Previous assignment unavailable in the recorded source.')
-                ->assertMountedActionModalSee('Tuesday · 8:00 AM - 11:00 AM · Asia/Manila')
-                ->assertMountedActionModalDontSee('Monday · 8:00 AM - 11:00 AM · Asia/Manila');
+                ->assertMountedActionModalSee('Tuesday · 8:00 AM - 11:00 AM')
+                ->assertMountedActionModalDontSee('Monday · 8:00 AM - 11:00 AM');
         }
     }
 

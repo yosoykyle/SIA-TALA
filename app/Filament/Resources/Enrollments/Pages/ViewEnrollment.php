@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources\Enrollments\Pages;
 
-use App\Actions\Academics\OfficialCourseResultProjection;
+use App\Actions\Academics\IrregularStudentReasons;
 use App\Actions\Calendar\CalendarPhaseGateService;
 use App\Actions\Calendar\Exceptions\CalendarGateViolation;
 use App\Actions\Enrollment\ApplyRegistrationAdjustment;
@@ -20,10 +20,12 @@ use App\Actions\Enrollment\RecordRegistrationCreditEvaluation;
 use App\Actions\Enrollment\RecordRegistrationLateAuthority;
 use App\Actions\Enrollment\RecordRegistrationSourceImpactReview;
 use App\Actions\Enrollment\RegistrationAcademicEligibilityQuery;
+use App\Actions\Enrollment\RegistrationClassChoices;
 use App\Actions\Enrollment\RegistrationNotificationLedger;
 use App\Actions\Enrollment\RegistrationPlacementValidator;
 use App\Actions\Enrollment\RegistrationReadinessQuery;
 use App\Actions\Enrollment\ReopenRegistrationCase;
+use App\Actions\Enrollment\ReturnIrregularEnrollmentRequest;
 use App\Actions\Enrollment\StudentUnitLoadService;
 use App\Actions\Finance\AccountingDisplay;
 use App\Actions\Finance\CreateAssessmentFromPublishedFeePlan;
@@ -45,6 +47,7 @@ use App\Actions\StudentLifecycle\LifecycleAccountingReview;
 use App\Actions\StudentLifecycle\RecordLifecycleAccountingReview;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
+use App\Filament\Resources\Enrollments\Schemas\TransferCreditingForm;
 use App\Filament\Resources\Enrollments\Tables\EnrollmentsTable;
 use App\Filament\Resources\FeePlans\Schemas\FeePlanForm;
 use App\Models\AdmissionApplication;
@@ -53,18 +56,15 @@ use App\Models\Assessment;
 use App\Models\AssessmentObligation;
 use App\Models\CourseDropRecord;
 use App\Models\CourseEnrollment;
-use App\Models\CourseRequirement;
-use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
-use App\Models\EnrollmentSeatReservation;
 use App\Models\FeePlan;
 use App\Models\FinanceExport;
+use App\Models\IrregularEnrollmentRequest;
 use App\Models\OperationalEvent;
 use App\Models\Payment;
 use App\Models\PaymentEvidenceVersion;
-use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
 use App\Models\RegistrationAdjustmentFinanceConfirmation;
 use App\Models\RegistrationCaseEvent;
@@ -113,6 +113,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -1168,30 +1169,32 @@ class ViewEnrollment extends ViewRecord
 
     public function recordAcademicEvaluationAction(): Action
     {
-        return Action::make('recordAcademicEvaluation')->label('Record evaluation')->icon('heroicon-o-academic-cap')
+        return Action::make('recordAcademicEvaluation')->label('Credit subjects')->icon('heroicon-o-academic-cap')
             ->authorize(fn (): bool => $this->actor()->canAuthenticate() && $this->actor()->hasRole(User::StaffRoleRegistrar))
             ->visible(fn (): bool => $this->actor()->canAuthenticate() && $this->actor()->hasRole(User::StaffRoleRegistrar)
                 && $this->getRecord()->canonical_outcome === Enrollment::OutcomeInProgress
                 && $this->getRecord()->admissionApplication?->application_path === AdmissionApplication::PathTransferee)
-            ->modalHeading('Record transfer credit evaluation')->modalWidth(Width::TwoExtraLarge)
+            ->modalHeading('Credit transferee subjects')->modalWidth(Width::Screen)->extraModalWindowAttributes(['class' => 'tala-crediting-modal'])
             ->stickyModalHeader()->stickyModalFooter()
-            ->modalDescription('Record the school’s approved result. This does not approve new credits.')
-            ->modalSubmitActionLabel('Save evaluation')->modalCancelActionLabel('Cancel')
+            ->modalDescription('Compare the transferee’s TOR with the SIA curriculum. Choose Credited or Need to take for each subject; record the TOR grade and previous course for credited subjects. Leave every subject on Need to take for a no-credit result.')
+            ->modalSubmitActionLabel('Save crediting')->modalCancelActionLabel('Cancel')
             ->fillForm(function (): array {
                 $case = $this->getRecord()->fresh();
                 $latest = RegistrationCreditEvaluation::query()->where('enrollment_id', $case->id)->latest('id')->first();
                 $this->reviewedAcademicEvaluation = ['submission' => (int) $case->admissionApplication->current_submission_version_id,
                     'lock' => $case->lock_version, 'evaluation' => $latest?->id];
-                $defaultCurriculumId = $latest?->curriculum_version_id
-                    ?? app(RegistrationAcademicEligibilityQuery::class)->resolveStudentCurriculum($case)?->id;
+                $curriculumId = $latest?->curriculum_version_id
+                    ?? app(RegistrationAcademicEligibilityQuery::class)->resolveStudentCurriculum($case)?->id
+                    ?? $this->activeTransfereeCurriculumIds()->first();
 
-                return ['curriculum_version_id' => $defaultCurriculumId, 'result' => $latest !== null ? ($latest->credited_curriculum_entry_ids === [] ? 'none' : 'credits') : null,
-                    'credited_curriculum_entry_ids' => $latest?->credited_curriculum_entry_ids ?? [],
+                return ['curriculum_version_id' => $curriculumId,
+                    'same_curriculum' => TransferCreditingForm::sameCurriculumState($latest),
+                    'rows' => TransferCreditingForm::rowsState($curriculumId, $latest, $latest?->same_curriculum === true),
                     'authority_reference' => null, 'approved_on' => null];
             })
-            ->schema([
+            ->schema(fn (): array => TransferCreditingForm::withTorPreview([
                 Text::make(fn (): string => $this->getRecord()->credentialUser->getFilamentName().' · '.$this->getRecord()->admissionApplication->program->name.' · '.$this->getRecord()->term->label),
-                Select::make('curriculum_version_id')->label('Curriculum')->required()->live()
+                Select::make('curriculum_version_id')->label('SIA curriculum')->required()->live()
                     ->options(function (): array {
                         $case = $this->getRecord();
                         $programId = $case->admissionApplication?->program_id;
@@ -1213,28 +1216,34 @@ class ViewEnrollment extends ViewRecord
                             ])
                             ->all();
                     })
-                    ->afterStateUpdated(fn (Set $set) => $set('credited_curriculum_entry_ids', [])),
-                Radio::make('result')->label('Approved result')->options(['credits' => 'Subjects credited', 'none' => 'No subjects credited'])->required()->live()->inline(),
-                Select::make('credited_curriculum_entry_ids')->label('Credited subjects')->multiple()->searchable()->preload()
-                    ->options(fn (Get $get): array => CurriculumEntry::query()->with('courseSpecification.course')->where('curriculum_version_id', $get('curriculum_version_id'))->get()
-                        ->mapWithKeys(fn (CurriculumEntry $entry): array => [$entry->id => $entry->courseSpecification->course->code.' · '.$entry->courseSpecification->title])->all())
-                    ->visible(fn (Get $get): bool => $get('result') === 'credits')->required(fn (Get $get): bool => $get('result') === 'credits')
-                    ->helperText('Only these requirements count as credited.'),
-                Grid::make(2)->schema([TextInput::make('authority_reference')->label('Approval memo or reference')->placeholder('e.g., Memo 2026-014 or approving office')->required()->maxLength(255),
-                    DatePicker::make('approved_on')->label('Approval date')->required()->maxDate(today())]),
-                Text::make('Recorded by you automatically. Earlier evaluations remain in history. Replacing an evaluation requires a fresh subject proposal.'),
-            ])->action(function (array $data): void {
+                    ->afterStateUpdated(fn (Get $get, Set $set, mixed $state) => $set('rows', TransferCreditingForm::rowsState(filled($state) ? (int) $state : null, null, $get('same_curriculum') === 'same'))),
+                ...TransferCreditingForm::components(fn (Get $get): ?int => filled($get('curriculum_version_id')) ? (int) $get('curriculum_version_id') : null),
+            ], $this->getRecord()->admissionApplication))->action(function (array $data, Action $action): void {
                 $review = $this->reviewedAcademicEvaluation;
                 if ($review === null) {
                     throw ValidationException::withMessages(['evaluation' => 'Reopen the academic evaluation.']);
                 }
-                app(RecordRegistrationCreditEvaluation::class)->execute($this->getRecord(), $this->actor(),
-                    $data['result'] === 'credits' ? ($data['credited_curriculum_entry_ids'] ?? []) : [],
-                    $data['authority_reference'], CarbonImmutable::parse($data['approved_on']), $review['submission'],
-                    (int) $data['curriculum_version_id'], $review['lock'], $review['evaluation']);
-                Notification::make()->success()->title('Academic evaluation recorded')->send();
+                $lines = TransferCreditingForm::creditLines($data);
+                try {
+                    app(RecordRegistrationCreditEvaluation::class)->execute($this->getRecord(), $this->actor(),
+                        array_keys($lines), $data['authority_reference'], CarbonImmutable::parse($data['approved_on']), $review['submission'],
+                        (int) $data['curriculum_version_id'], $review['lock'], $review['evaluation'],
+                        creditLines: $lines, sameCurriculum: TransferCreditingForm::sameCurriculum($data));
+                } catch (ValidationException $exception) {
+                    Notification::make()->danger()->title('Crediting was not saved')->body(collect($exception->errors())->flatten()->first())->send();
+                    $action->halt();
+                }
+                Notification::make()->success()->title('Academic evaluation recorded')
+                    ->body(count($lines) === 0 ? 'No subjects credited.' : count($lines).' subject(s) credited.')->send();
                 $this->getRecord()->refresh();
             });
+    }
+
+    /** @return Collection<int, int> */
+    private function activeTransfereeCurriculumIds(): Collection
+    {
+        return CurriculumVersion::query()->where('program_id', $this->getRecord()->admissionApplication?->program_id)
+            ->where('state', CurriculumVersion::StateActive)->orderBy('id')->pluck('id');
     }
 
     public function prepareProposalAction(): Action
@@ -1255,18 +1264,46 @@ class ViewEnrollment extends ViewRecord
             ->authorize(fn (): bool => $this->actor()->can('confirmPlacement', $this->getRecord()))
             ->visible(fn (): bool => $this->getRecord()->canonical_outcome === Enrollment::OutcomeInProgress
                 && ($this->actor()->can('confirmPlacement', $this->getRecord())))
-            ->fillForm(fn (): array => [
-                'case_version' => $this->getRecord()->lock_version,
-                'section_ids' => $this->getRecord()->currentProposalVersion?->items->pluck('section_id')->all() ?? [],
-            ])
+            ->fillForm(function (): array {
+                $availableSectionIds = $this->classChoices()['sections']
+                    ->pluck('id')
+                    ->map(fn (mixed $id): int => (int) $id)
+                    ->all();
+                $prefilledSectionIds = $this->getRecord()->currentProposalVersion?->items->pluck('section_id')->all()
+                    ?? $this->submittedIrregularRequest()?->sectionIds()
+                    ?? [];
+
+                return [
+                    'case_version' => $this->getRecord()->lock_version,
+                    'section_ids' => array_values(array_intersect(array_map('intval', $prefilledSectionIds), $availableSectionIds)),
+                    'subject_year_filter' => null,
+                    'subject_term_filter' => $this->submittedIrregularRequest() !== null ? null : $this->defaultSubjectTermFilter(),
+                ];
+            })
             ->schema([
                 Hidden::make('case_version')->required(),
+                Grid::make(['default' => 1, 'sm' => 2])->schema([
+                    Select::make('subject_year_filter')
+                        ->label('Year level')
+                        ->placeholder('All year levels')
+                        ->options(fn (): array => $this->subjectPositionFilterOptions('year'))
+                        ->live()
+                        ->dehydrated(false),
+                    Select::make('subject_term_filter')
+                        ->label('Curriculum term')
+                        ->placeholder('All terms')
+                        ->options(fn (): array => $this->subjectPositionFilterOptions('term'))
+                        ->live()
+                        ->dehydrated(false),
+                ]),
                 CheckboxList::make('section_ids')
                     ->label('Subjects and classes')
-                    ->options(fn (Get $get): array => $this->sectionOptions($get('section_ids')))
+                    ->options(fn (Get $get): array => $this->filteredSectionOptions($get('subject_year_filter'), $get('subject_term_filter'), $get('section_ids') ?? []))
                     ->descriptions(fn (): array => $this->sectionDescriptions())
                     ->searchable()
                     ->searchPrompt('Find a subject or class')
+                    // Select all ticks only the classes the year, term and search filters leave visible.
+                    ->bulkToggleable()
                     ->columns(1)
                     ->required()
                     ->live()
@@ -1307,6 +1344,79 @@ class ViewEnrollment extends ViewRecord
                 } catch (Throwable $exception) {
                     $this->failure('Subjects were not saved', $exception);
                 }
+            });
+    }
+
+    /** @return array<string, mixed>|null */
+    public function preparingIrregularReview(): ?array
+    {
+        $case = $this->getRecord();
+        if ($case->studentProfile === null) {
+            return null;
+        }
+
+        return app(IrregularStudentReasons::class)->forStudent($case->studentProfile, $case->term);
+    }
+
+    /** #99 Scope 11: the student's irregular application waiting for this Registrar. */
+    private function submittedIrregularRequest(): ?IrregularEnrollmentRequest
+    {
+        return IrregularEnrollmentRequest::query()
+            ->where('enrollment_id', $this->getRecord()->id)
+            ->where('state', IrregularEnrollmentRequest::StateSubmitted)
+            ->first();
+    }
+
+    public function returnIrregularRequestAction(): Action
+    {
+        return Action::make('returnIrregularRequest')
+            ->label('Return for correction')
+            ->icon('heroicon-o-arrow-uturn-left')
+            ->color('gray')
+            ->authorize(fn (): bool => $this->actor()->hasRole(User::StaffRoleRegistrar))
+            ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleRegistrar) && $this->submittedIrregularRequest() !== null)
+            ->modalHeading('Return the irregular application')
+            ->modalDescription('The student can edit their subjects and submit again.')
+            ->schema([
+                Textarea::make('return_reason')->label('What should the student correct?')->required()->rows(3)->maxLength(1000),
+            ])
+            ->modalSubmitActionLabel('Return to student')
+            ->action(function (array $data): void {
+                $request = $this->submittedIrregularRequest();
+                abort_unless($request instanceof IrregularEnrollmentRequest, 404);
+                try {
+                    app(ReturnIrregularEnrollmentRequest::class)->execute($request, $this->actor(), (string) $data['return_reason']);
+                    Notification::make()->title('Application returned to the student')->success()->send();
+                } catch (Throwable $exception) {
+                    $this->failure('The application was not returned', $exception);
+                }
+            });
+    }
+
+    public function downloadIrregularDocumentsAction(): Action
+    {
+        return Action::make('downloadIrregularDocuments')
+            ->label('Download supporting documents')
+            ->icon('heroicon-o-arrow-down-tray')
+            ->color('gray')
+            ->link()
+            ->authorize(fn (): bool => $this->actor()->hasRole(User::StaffRoleRegistrar))
+            ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleRegistrar))
+            ->action(function () {
+                $request = IrregularEnrollmentRequest::query()->where('enrollment_id', $this->getRecord()->id)->first();
+                $paths = collect($request?->supporting_documents ?? [])->filter(fn (string $path): bool => str_starts_with($path, 'irregular-requests/') && Storage::disk('local')->exists($path));
+                abort_if($paths->isEmpty(), 404);
+                if ($paths->count() === 1) {
+                    return Storage::disk('local')->download($paths->first());
+                }
+
+                $zipPath = tempnam(sys_get_temp_dir(), 'irreg').'.zip';
+                $zip = new \ZipArchive;
+                $zip->open($zipPath, \ZipArchive::CREATE);
+                $paths->each(fn (string $path) => $zip->addFile(Storage::disk('local')->path($path), basename($path)));
+                $zip->close();
+
+                return response()->download($zipPath, 'irregular-application-'.$this->getRecord()->id.'.zip')->deleteFileAfterSend();
             });
     }
 
@@ -1828,7 +1938,8 @@ class ViewEnrollment extends ViewRecord
                             );
                         }
                     });
-                    Notification::make()->title('Payment receipt verified')->success()->send();
+                    $this->record = $this->getRecord()->refresh()->load('currentCorVersion');
+                    $this->sendPostPaymentAutoEnrollmentNotification('Payment verified', 'Payment receipt verified');
                     $this->redirect($this->enrollmentUrl(['view' => 'history']));
                 } catch (Throwable $exception) {
                     $this->failure('Receipt was not verified', $exception);
@@ -1950,7 +2061,7 @@ class ViewEnrollment extends ViewRecord
                         channelSnapshot: $channelSnapshot,
                     );
 
-                    $this->record = $this->getRecord()->refresh();
+                    $this->record = $this->getRecord()->refresh()->load('currentCorVersion');
                     $this->accountingContext = null;
                     $this->accountingMemo = [];
                     if ($this->isAccountingWorkspace()) {
@@ -1958,10 +2069,10 @@ class ViewEnrollment extends ViewRecord
                     }
                     $this->resetPage('accountHistoryPaymentPage');
 
-                    Notification::make()
-                        ->title('Onsite payment recorded and applied to this account.')
-                        ->success()
-                        ->send();
+                    $this->sendPostPaymentAutoEnrollmentNotification(
+                        'Onsite payment recorded',
+                        'Onsite payment recorded and applied to this account.',
+                    );
                 } catch (ValidationException $exception) {
                     throw $exception;
                 } catch (RuntimeException $exception) {
@@ -3661,123 +3772,72 @@ class ViewEnrollment extends ViewRecord
     }
 
     /**
+     * Year level or curriculum term of each offered class, for the Choose subjects filters.
+     *
+     * @return array<string, string>
+     */
+    private function subjectPositionFilterOptions(string $part): array
+    {
+        return $this->classChoices()['sections']
+            ->map(fn (Section $section): ?string => $this->subjectPosition($section)[$part])
+            ->filter()
+            ->unique()
+            ->sort(SORT_NATURAL)
+            ->mapWithKeys(fn (string $value): array => [$value => $part === 'year' && is_numeric($value) ? 'Year '.$value : $value])
+            ->all();
+    }
+
+    /** @return array{year: ?string, term: ?string} */
+    private function subjectPosition(Section $section): array
+    {
+        $entry = $section->termOffering?->curriculumEntry;
+
+        return ['year' => filled($entry?->year_level) ? (string) $entry->year_level : null, 'term' => filled($entry?->term_label) ? (string) $entry->term_label : null];
+    }
+
+    /** Opens on the curriculum term matching the enrollment term (e.g. First Semester), when one is offered. */
+    private function defaultSubjectTermFilter(): ?string
+    {
+        $termLabel = (string) $this->getRecord()->term?->label;
+
+        return collect(array_keys($this->subjectPositionFilterOptions('term')))
+            ->first(fn (string $curriculumTerm): bool => $termLabel !== '' && str_contains(strtolower($termLabel), strtolower($curriculumTerm)));
+    }
+
+    /**
+     * Offered classes narrowed by the year and term filters. Classes already ticked stay listed so a filter never hides a choice.
+     *
+     * @param  list<int|string>  $selectedIds
+     * @return array<int, string>
+     */
+    private function filteredSectionOptions(?string $year, ?string $term, array $selectedIds): array
+    {
+        $options = $this->sectionOptions($selectedIds);
+        if (blank($year) && blank($term)) {
+            return $options;
+        }
+
+        $selected = array_map('intval', $selectedIds);
+        $visibleIds = $this->classChoices()['sections']
+            ->filter(function (Section $section) use ($year, $term, $selected): bool {
+                $position = $this->subjectPosition($section);
+
+                return in_array((int) $section->id, $selected, true)
+                    || ((blank($year) || $position['year'] === $year) && (blank($term) || $position['term'] === $term));
+            })
+            ->pluck('id')
+            ->all();
+
+        return array_intersect_key($options, array_flip($visibleIds));
+    }
+
+    /**
      * @param  array<int, int|string>|null  $selectedSectionIds
      * @return array<int, string>
      */
     private function sectionOptions(?array $selectedSectionIds = null): array
     {
-        $choices = $this->classChoices();
-        $satisfiedCourseIds = $choices['satisfiedCourseIds'];
-        $concurrentCourseIds = $this->concurrentCourseIds($choices['sections'], $selectedSectionIds);
-
-        return $choices['sections']->mapWithKeys(function (Section $section) use ($satisfiedCourseIds, $concurrentCourseIds): array {
-            $entry = $section->termOffering?->curriculumEntry;
-            $positionLabel = $entry !== null
-                ? collect([
-                    is_numeric($entry->year_level) ? 'Year '.$entry->year_level : $entry->year_level,
-                    $entry->term_label,
-                ])->filter()->implode(', ')
-                : null;
-            $specification = $section->termOffering?->courseSpecification();
-            $courseId = (int) ($specification?->course_id ?? 0);
-            $requirementGroups = ($specification?->requirements ?? collect())
-                ->where('state', CourseRequirement::StateActive)
-                ->whereIn('rule_type', [CourseRequirement::TypePrerequisite, CourseRequirement::TypeCorequisite])
-                ->groupBy(fn (CourseRequirement $requirement): string => $requirement->rule_type.':'.$requirement->group_key);
-
-            $hasUnmetPrereq = false;
-            $hasUnmetCoreq = false;
-            foreach ($requirementGroups as $alternatives) {
-                $ruleType = $alternatives->first()?->rule_type;
-                $groupSatisfied = $alternatives->contains(function (CourseRequirement $requirement) use ($satisfiedCourseIds, $concurrentCourseIds): bool {
-                    $relatedCourseId = (int) $requirement->related_course_id;
-                    if ($relatedCourseId <= 0) {
-                        return false;
-                    }
-
-                    if ($satisfiedCourseIds->contains($relatedCourseId)) {
-                        return true;
-                    }
-
-                    return $requirement->rule_type === CourseRequirement::TypeCorequisite
-                        && $concurrentCourseIds->contains($relatedCourseId);
-                });
-
-                if (! $groupSatisfied) {
-                    if ($ruleType === CourseRequirement::TypeCorequisite) {
-                        $hasUnmetCoreq = true;
-                    } else {
-                        $hasUnmetPrereq = true;
-                    }
-                }
-            }
-
-            $statusCue = null;
-            if ($courseId > 0 && $satisfiedCourseIds->contains($courseId)) {
-                $statusCue = 'Already passed';
-            } elseif ($hasUnmetPrereq && $hasUnmetCoreq) {
-                $statusCue = 'Prereq & coreq unmet';
-            } elseif ($hasUnmetPrereq) {
-                $statusCue = 'Prereq unmet';
-            } elseif ($hasUnmetCoreq) {
-                $statusCue = 'Coreq unmet';
-            }
-
-            return [
-                $section->id => collect([
-                    $specification?->title,
-                    $section->termOffering?->course()?->code,
-                    $section->code,
-                    $positionLabel,
-                    $statusCue,
-                ])->filter()->implode(' · '),
-            ];
-        })->all();
-    }
-
-    /**
-     * @param  Collection<int, Section>  $sections
-     * @param  array<int, int|string>|null  $selectedSectionIds
-     * @return Collection<int, int>
-     */
-    private function concurrentCourseIds(Collection $sections, ?array $selectedSectionIds): Collection
-    {
-        if ($selectedSectionIds !== null) {
-            $selectedIds = collect($selectedSectionIds)->map(fn (mixed $id): int => (int) $id)->filter();
-
-            return $sections
-                ->whereIn('id', $selectedIds)
-                ->map(fn (Section $section): int => (int) ($section->termOffering?->courseSpecification()?->course_id ?? 0))
-                ->filter()
-                ->unique()
-                ->values();
-        }
-
-        $case = $this->getRecord();
-        if ($case->canonical_outcome === Enrollment::OutcomeOfficiallyEnrolled) {
-            return $case->courseEnrollments()
-                ->with('termOffering.curriculumEntry.courseSpecification')
-                ->where('is_current', true)
-                ->where('status', CourseEnrollment::StatusActive)
-                ->get()
-                ->map(fn (CourseEnrollment $enrollment): int => (int) ($enrollment->termOffering?->courseSpecification()?->course_id ?? 0))
-                ->filter()
-                ->unique()
-                ->values();
-        }
-
-        $items = $case->currentProposalVersion?->items;
-        if ($items === null) {
-            return collect();
-        }
-
-        $items->loadMissing('termOffering.curriculumEntry.courseSpecification');
-
-        return $items
-            ->map(fn (RegistrationProposalItem $item): int => (int) ($item->termOffering?->courseSpecification()?->course_id ?? 0))
-            ->filter()
-            ->unique()
-            ->values();
+        return app(RegistrationClassChoices::class)->sectionOptions($this->getRecord(), $selectedSectionIds, $this->classChoices());
     }
 
     /**
@@ -3791,192 +3851,13 @@ class ViewEnrollment extends ViewRecord
      */
     private function classChoices(): array
     {
-        if ($this->classChoiceContext !== null) {
-            return $this->classChoiceContext;
-        }
-
-        $case = $this->getRecord();
-        $case->loadMissing(['studentProfile', 'admissionApplication']);
-        $timetable = PublishedTimetableVersion::query()->where('term_id', $case->term_id)
-            ->where('state', PublishedTimetableVersion::StatePublished)->latest('version')->first();
-        if ($timetable === null) {
-            return $this->classChoiceContext = [
-                'sections' => collect(),
-                'meetings' => collect(),
-                'reserved' => collect(),
-                'enrolled' => collect(),
-                'satisfiedCourseIds' => collect(),
-            ];
-        }
-        $meetings = PublishedTimetableMeeting::query()->with('room')
-            ->where('published_timetable_version_id', $timetable->id)->orderBy('day_of_week')->orderBy('starts_at')->get();
-        $recurringSectionIds = $meetings->pluck('section_id')->unique();
-        $programId = $case->studentProfile?->program_id ?? $case->admissionApplication?->program_id;
-        $eligibility = app(RegistrationAcademicEligibilityQuery::class);
-        $resolvedCurriculum = $eligibility->resolveStudentCurriculum($case);
-        $allowedStates = ($case->studentProfile?->curriculum_version_id !== null
-            || $resolvedCurriculum?->state === CurriculumVersion::StateSuperseded)
-            ? [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded]
-            : [CurriculumVersion::StateActive];
-        $studentCurricula = $resolvedCurriculum instanceof CurriculumVersion
-            ? collect([$resolvedCurriculum->loadMissing('entries.courseSpecification.requirements')])
-            : CurriculumVersion::query()
-                ->with('entries.courseSpecification.requirements')
-                ->where('program_id', $programId)
-                ->whereIn('state', $allowedStates)
-                ->when($case->studentProfile?->curriculum_version_id, fn (Builder $query, int $id) => $query->whereKey($id))
-                ->get();
-        $studentCurriculumIds = $studentCurricula->pluck('id')->map(fn (mixed $id): int => (int) $id)->values();
-        $studentEntries = $studentCurricula
-            ->flatMap(fn (CurriculumVersion $curriculum): Collection => $curriculum->entries)
-            ->values();
-        $eligibleCourseIds = $eligibility->expandWithEquivalentCourseIds(
-            $studentEntries
-                ->pluck('courseSpecification.course_id')
-                ->filter()
-                ->map(fn (mixed $id): int => (int) $id)
-                ->values(),
-        );
-
-        $sections = Section::query()->with([
-            'cohorts',
-            'courseRevision.requirements.relatedCourse',
-            'termOffering.curriculumEntry.curriculumVersion',
-            'termOffering.curriculumEntry.courseSpecification.course',
-            'termOffering.curriculumEntry.courseSpecification.requirements.relatedCourse',
-        ])
-            ->where('state', Section::StateOpen)
-            ->whereHas('termOffering', fn (Builder $query) => $query->where('term_id', $case->term_id)
-                ->where('state', TermOffering::StateScheduled)
-                ->where(function (Builder $query) use ($studentCurriculumIds, $eligibleCourseIds): void {
-                    $query->whereHas(
-                        'curriculumEntry',
-                        fn (Builder $entryQuery) => $entryQuery->whereIn('curriculum_version_id', $studentCurriculumIds),
-                    );
-
-                    if ($eligibleCourseIds->isNotEmpty()) {
-                        $query->orWhereHas(
-                            'curriculumEntry.courseSpecification',
-                            fn (Builder $specQuery) => $specQuery->whereIn('course_id', $eligibleCourseIds),
-                        );
-                    }
-                }))
-            ->where(fn (Builder $query) => $query
-                ->where(fn (Builder $query) => $query->whereIn('id', $recurringSectionIds)
-                    ->whereHas('termOffering.curriculumEntry.courseSpecification', fn (Builder $query) => $query->where('scheduling_treatment', CourseSpecification::SchedulingRecurring)))
-                ->orWhere(fn (Builder $query) => $query->whereNotIn('id', $recurringSectionIds)
-                    ->whereHas('termOffering.curriculumEntry.courseSpecification', fn (Builder $query) => $query->where('scheduling_treatment', CourseSpecification::SchedulingExternallyArranged))))
-            ->orderBy('code')
-            ->get()
-            ->filter(function (Section $section) use ($eligibility, $studentEntries, $studentCurriculumIds, $programId, $case): bool {
-                $hostCurriculumId = (int) ($section->termOffering?->curriculumEntry?->curriculum_version_id ?? 0);
-                if ($studentCurriculumIds->contains($hostCurriculumId)) {
-                    return true;
-                }
-
-                if (! $eligibility->resolveCurriculumEntryFromEntries($studentEntries, $section->termOffering, $section) instanceof CurriculumEntry) {
-                    return false;
-                }
-
-                return $section->source === Section::SourceShared
-                    || $section->cohorts->isEmpty()
-                    || $section->cohorts->contains(fn ($cohort): bool => (int) $cohort->term_id === (int) $case->term_id
-                        && ((int) $cohort->program_id === (int) $programId
-                            || $studentCurriculumIds->contains((int) $cohort->curriculum_version_id)));
-            })
-            ->values();
-
-        $sectionIds = $sections->pluck('id')->all();
-        $reserved = $sectionIds === []
-            ? collect()
-            : EnrollmentSeatReservation::query()
-                ->whereIn('section_id', $sectionIds)
-                ->whereIn('status', EnrollmentSeatReservation::capacityHoldingStatuses())
-                ->where('enrollment_id', '!=', $case->id)
-                ->selectRaw('section_id, COUNT(*) as total')
-                ->groupBy('section_id')
-                ->pluck('total', 'section_id');
-        $enrolled = $sectionIds === []
-            ? collect()
-            : CourseEnrollment::query()
-                ->whereIn('section_id', $sectionIds)
-                ->where('is_current', true)
-                ->where('enrollment_id', '!=', $case->id)
-                ->selectRaw('section_id, COUNT(*) as total')
-                ->groupBy('section_id')
-                ->pluck('total', 'section_id');
-
-        $satisfiedCourseIds = collect();
-        if ($case->studentProfile !== null) {
-            $satisfiedCourseIds = app(RegistrationAcademicEligibilityQuery::class)->satisfiedCourseIds($case->studentProfile);
-            $earlierPassedCourseIds = app(OfficialCourseResultProjection::class)
-                ->forStudent($case->studentProfile)
-                ->filter(fn (array $result): bool => $result['course_specification']?->course_id !== null
-                    && (in_array($result['result'], ['TC', 'CREDIT'], true)
-                        || (is_numeric($result['result']) && (float) $result['result'] <= 4.00)))
-                ->pluck('course_specification.course_id')
-                ->filter()
-                ->map(fn (mixed $id): int => (int) $id);
-            $satisfiedCourseIds = $satisfiedCourseIds->merge($earlierPassedCourseIds)->unique()->values();
-        }
-        if ($case->admissionApplication?->application_path === AdmissionApplication::PathTransferee) {
-            $curriculumIds = $sections
-                ->pluck('termOffering.curriculumEntry.curriculum_version_id')
-                ->merge($studentCurriculumIds)
-                ->filter()
-                ->map(fn (mixed $id): int => (int) $id)
-                ->unique();
-            $creditedEntryIds = $curriculumIds
-                ->flatMap(fn (int $curriculumId): array => RegistrationCreditEvaluation::latestCurrentFor($case, $curriculumId)?->credited_curriculum_entry_ids ?? [])
-                ->filter()
-                ->map(fn (mixed $id): int => (int) $id)
-                ->unique()
-                ->values();
-            $creditedCourseIds = $creditedEntryIds->isNotEmpty()
-                ? CurriculumEntry::query()
-                    ->with('courseSpecification')
-                    ->whereIn('id', $creditedEntryIds)
-                    ->get()
-                    ->pluck('courseSpecification.course_id')
-                    ->filter()
-                    ->map(fn (mixed $id): int => (int) $id)
-                : collect();
-            $satisfiedCourseIds = $eligibility->expandWithEquivalentCourseIds(
-                $satisfiedCourseIds->merge($creditedCourseIds),
-            );
-        }
-
-        return $this->classChoiceContext = [
-            'sections' => $sections,
-            'meetings' => $meetings->groupBy('section_id'),
-            'reserved' => $reserved,
-            'enrolled' => $enrolled,
-            'satisfiedCourseIds' => $satisfiedCourseIds,
-        ];
+        return $this->classChoiceContext ??= app(RegistrationClassChoices::class)->forCase($this->getRecord());
     }
 
     /** @return array<int, string> */
     private function sectionDescriptions(): array
     {
-        $choices = $this->classChoices();
-
-        return $choices['sections']->mapWithKeys(function (Section $section) use ($choices): array {
-            $units = (float) $section->termOffering?->courseSpecification()?->credit_units;
-            $schedule = $choices['meetings']->get($section->id, collect())->map(function (PublishedTimetableMeeting $meeting): string {
-                $day = match ((int) $meeting->day_of_week) {
-                    1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday', 4 => 'Thursday',
-                    5 => 'Friday', 6 => 'Saturday', 7 => 'Sunday', default => 'Day not recorded',
-                };
-
-                return $day.' '.CarbonImmutable::parse($meeting->starts_at)->format('g:i A').'–'.CarbonImmutable::parse($meeting->ends_at)->format('g:i A')
-                    .' · '.($meeting->room?->name ?? $meeting->location_label ?? 'Room not recorded');
-            })->implode('; ');
-            $used = (int) ($choices['reserved'][$section->id] ?? 0) + (int) ($choices['enrolled'][$section->id] ?? 0);
-            $remaining = max(0, (int) $section->capacity - $used);
-            $seatsLabel = $remaining.' '.str('seat')->plural($remaining).' left';
-
-            return [$section->id => $units.' units · '.($schedule !== '' ? $schedule : 'Externally arranged · no recurring meeting').' · '.$seatsLabel];
-        })->all();
+        return app(RegistrationClassChoices::class)->sectionDescriptions($this->getRecord(), $this->classChoices());
     }
 
     /** @param list<int|string> $sectionIds */
@@ -4305,10 +4186,120 @@ class ViewEnrollment extends ViewRecord
             }
         }
 
+        $autoEnrollPreview = $this->autoEnrollPreview($this->getRecord(), $context, $allocation, $allocationError);
+
         return ['proof' => $proof, 'case' => $this->getRecord(), 'targets' => $targets,
             'targetBalance' => $sourceCurrent ? $money->fromCents($targets->sum(fn (array $row): int => $money->toCents($row['available_balance']))) : null,
             'sourceCurrent' => $sourceCurrent, 'allocation' => $allocation, 'allocationError' => $allocationError,
+            'autoEnrollPreview' => $autoEnrollPreview,
             'pendingProofs' => $context['account']?->paymentEvidenceVersions->where('state', PaymentEvidenceVersion::StateSubmitted)->sortByDesc('submitted_at') ?? collect()];
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     * @param  list<array{label:string,applied:string,remaining:string}>  $allocation
+     * @return array{state:string,remaining?:string,blockers?:list<string>}|null
+     */
+    private function autoEnrollPreview(Enrollment $case, array $context, array $allocation, ?string $allocationError): ?array
+    {
+        if ($case->canonical_outcome !== Enrollment::OutcomeInProgress
+            || $allocationError !== null
+            || $allocation === []) {
+            return null;
+        }
+
+        $requirement = $context['requirement'] ?? null;
+        if (! is_array($requirement) || ($requirement['state'] ?? 'Unavailable') === 'Unavailable') {
+            return null;
+        }
+
+        $money = app(DecimalMoney::class);
+        $requiredLabels = collect($context['position']['obligations'] ?? [])
+            ->where('required_for_enrollment', true)
+            ->pluck('label')
+            ->all();
+
+        $appliedToRequiredCents = collect($allocation)
+            ->filter(fn (array $row): bool => in_array($row['label'], $requiredLabels, true))
+            ->sum(fn (array $row): int => $money->toCents($row['applied']));
+
+        $currentRequiredBalanceCents = $money->toCents((string) ($requirement['balance'] ?? '0.00'));
+        $remainingRequiredCents = max(0, $currentRequiredBalanceCents - $appliedToRequiredCents);
+
+        if ($remainingRequiredCents > 0) {
+            return [
+                'state' => 'partial',
+                'remaining' => $money->fromCents($remainingRequiredCents),
+            ];
+        }
+
+        $readiness = app(RegistrationReadinessQuery::class)->for($case);
+        $nonFinanceBlockers = array_values(array_filter(
+            $readiness['blockers'],
+            fn (string $blocker): bool => $blocker !== 'Accounting clearance',
+        ));
+
+        if ($nonFinanceBlockers === []) {
+            return ['state' => 'ready'];
+        }
+
+        return [
+            'state' => 'blocked',
+            'blockers' => $nonFinanceBlockers,
+        ];
+    }
+
+    private function sendPostPaymentAutoEnrollmentNotification(string $prefix, string $defaultSuccessTitle): void
+    {
+        $case = $this->getRecord();
+        if ($case->canonical_outcome === Enrollment::OutcomeOfficiallyEnrolled
+            && $case->finalization_mode === Enrollment::FinalizationModeAutomatic
+            && $case->currentCorVersion !== null) {
+            Notification::make()
+                ->title("{$prefix} · Student officially enrolled")
+                ->body("COR-{$case->id}-{$case->currentCorVersion->version} issued automatically.")
+                ->success()
+                ->send();
+
+            return;
+        }
+
+        if ($case->canonical_outcome === Enrollment::OutcomeInProgress) {
+            $requirement = app(EnrollmentPaymentRequirementProjection::class)->forEnrollment($case);
+            if ($requirement['state'] === 'Cleared') {
+                $readiness = app(RegistrationReadinessQuery::class)->for($case);
+                $blockers = array_values(array_filter(
+                    $readiness['blockers'],
+                    fn (string $blocker): bool => $blocker !== 'Accounting clearance',
+                ));
+
+                if ($case->currentProposalVersion?->state === RegistrationProposalVersion::StateIssued
+                    && $case->currentProposalVersion?->confirmation === null
+                    && $readiness['identity']
+                    && $readiness['eligibility']) {
+                    Notification::make()
+                        ->title($defaultSuccessTitle)
+                        ->body('Payment applied. Enrollment will complete automatically once the student confirms subjects.')
+                        ->success()
+                        ->send();
+
+                    return;
+                }
+
+                Notification::make()
+                    ->title("{$prefix} · Needs Registrar attention")
+                    ->body('Payment applied, but automatic enrollment was blocked ('.implode(', ', $blockers).'). Routed to Registrar issues queue.')
+                    ->warning()
+                    ->send();
+
+                return;
+            }
+        }
+
+        Notification::make()
+            ->title($defaultSuccessTitle)
+            ->success()
+            ->send();
     }
 
     private function failedOfficialEnrollmentNotification(): ?OperationalEvent

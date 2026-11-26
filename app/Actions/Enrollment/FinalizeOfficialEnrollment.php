@@ -22,6 +22,8 @@ use Spatie\Permission\Models\Role;
 
 class FinalizeOfficialEnrollment
 {
+    public const AutomaticIssuerName = 'System — Auto-finalized on Registrar-approved load & Accounting-cleared fee';
+
     public function __construct(
         private readonly RegistrationReadinessQuery $readiness,
         private readonly RegistrationPlacementValidator $placementValidator,
@@ -39,9 +41,57 @@ class FinalizeOfficialEnrollment
         ?int $expectedProposalVersionId = null,
     ): Enrollment {
         Gate::forUser($actor)->authorize('officiallyEnroll', $enrollment);
-        $recordedAt ??= CarbonImmutable::now(config('app.timezone'));
 
-        $official = DB::transaction(function () use ($enrollment, $actor, $remark, $recordedAt, $expectedProposalVersionId): Enrollment {
+        return $this->finalize(
+            enrollment: $enrollment,
+            actor: $actor,
+            trigger: null,
+            remark: $remark,
+            recordedAt: $recordedAt,
+            expectedProposalVersionId: $expectedProposalVersionId,
+        );
+    }
+
+    /**
+     * Internal system finalization path invoked post-commit by AttemptAutoOfficialEnrollment.
+     */
+    public function executeAutomatic(
+        Enrollment $enrollment,
+        AutoFinalizationTrigger $trigger,
+        ?CarbonImmutable $recordedAt = null,
+    ): Enrollment {
+        return $this->finalize(
+            enrollment: $enrollment,
+            actor: null,
+            trigger: $trigger,
+            remark: null,
+            recordedAt: $recordedAt,
+            expectedProposalVersionId: null,
+        );
+    }
+
+    private function finalize(
+        Enrollment $enrollment,
+        ?User $actor,
+        ?AutoFinalizationTrigger $trigger,
+        ?string $remark,
+        ?CarbonImmutable $recordedAt,
+        ?int $expectedProposalVersionId,
+    ): Enrollment {
+        $isAutomatic = $actor === null;
+        $recordedAt ??= CarbonImmutable::now(config('app.timezone'));
+        $newlyFinalized = false;
+
+        $official = DB::transaction(function () use (
+            $enrollment,
+            $actor,
+            $trigger,
+            $isAutomatic,
+            $remark,
+            $recordedAt,
+            $expectedProposalVersionId,
+            &$newlyFinalized,
+        ): Enrollment {
             $locked = Enrollment::query()
                 ->with([
                     'credentialUser.roles', 'admissionApplication.program', 'studentProfile.program',
@@ -165,6 +215,24 @@ class FinalizeOfficialEnrollment
                 ];
             }
 
+            $financeSatisfaction = [
+                'state' => 'Satisfied at finalization',
+                'source' => 'EnrollmentPaymentRequirementProjection',
+                'assessment_id' => $assessment->id,
+                'assessment_version' => $assessment->version,
+                'recorded_at' => $recordedAt->toIso8601String(),
+            ];
+            if ($trigger !== null) {
+                $financeSatisfaction['trigger_type'] = $trigger->triggerType;
+                $financeSatisfaction['trigger_reference'] = $trigger->triggerReference;
+                $financeSatisfaction['payment_id'] = $trigger->paymentId;
+                $financeSatisfaction['cleared_by_user_id'] = $trigger->clearedByUserId;
+            }
+
+            $finalizationMode = $isAutomatic
+                ? Enrollment::FinalizationModeAutomatic
+                : Enrollment::FinalizationModeManual;
+
             $corSnapshot = [
                 'case_reference' => $locked->case_reference,
                 'student_number' => $studentProfile->student_number,
@@ -193,20 +261,15 @@ class FinalizeOfficialEnrollment
                 'assessment_authority_date' => $assessment->authority_date?->toDateString(),
                 'assessment_total' => $assessment->total,
                 'term_account_id' => $assessment->term_account_id,
-                'finance_satisfaction' => [
-                    'state' => 'Satisfied at finalization',
-                    'source' => 'EnrollmentPaymentRequirementProjection',
-                    'assessment_id' => $assessment->id,
-                    'assessment_version' => $assessment->version,
-                    'recorded_at' => $recordedAt->toIso8601String(),
-                ],
+                'finalization_mode' => $finalizationMode,
+                'finance_satisfaction' => $financeSatisfaction,
                 'fees' => $assessment->lines()->orderBy('id')->get()->map(fn ($line): array => [
                     'label' => $line->description_snapshot,
                     'amount' => $line->amount,
                 ])->all(),
                 'courses' => $officialCourses,
-                'issued_by_user_id' => $actor->id,
-                'issued_by_name' => $actor->getFilamentName(),
+                'issued_by_user_id' => $actor?->id,
+                'issued_by_name' => $isAutomatic ? self::AutomaticIssuerName : $actor->getFilamentName(),
                 'issued_at' => $recordedAt->toIso8601String(),
             ];
             $cor = CorVersion::query()->firstOrCreate(
@@ -218,7 +281,7 @@ class FinalizeOfficialEnrollment
                     'published_timetable_version_id' => $proposal->published_timetable_version_id,
                     'snapshot' => $corSnapshot,
                     'content_hash' => hash('sha256', json_encode($corSnapshot, JSON_THROW_ON_ERROR)),
-                    'issued_by' => $actor->id,
+                    'issued_by' => $actor?->id,
                     'issued_at' => $recordedAt,
                 ],
             );
@@ -230,17 +293,23 @@ class FinalizeOfficialEnrollment
                 'current_cor_version_id' => $cor->id,
                 'registered_at' => $locked->registered_at ?? $recordedAt,
                 'officially_enrolled_at' => $recordedAt,
-                'finalized_by' => $actor->id,
-                'status_reason' => $remark ?: 'Registrar completed official enrollment from current verified sources.',
+                'finalized_by' => $actor?->id,
+                'finalization_mode' => $finalizationMode,
+                'status_reason' => $isAutomatic
+                    ? 'System automatically completed official enrollment after Registrar-approved load and Accounting clearance.'
+                    : ($remark ?: 'Registrar completed official enrollment from current verified sources.'),
                 'lock_version' => $locked->lock_version + 1,
             ]);
 
             $this->rosters->forSections($proposal->items->pluck('section_id')->all(), $actor);
+            $newlyFinalized = true;
 
             return $locked->refresh()->load(['studentProfile.user', 'courseEnrollments.section', 'currentCorVersion']);
         }, attempts: 3);
 
-        $this->notifications->recordOfficialEnrollment($official);
+        if ($newlyFinalized || ! $isAutomatic) {
+            $this->notifications->recordOfficialEnrollment($official, $trigger?->paymentSummary);
+        }
 
         return $official;
     }

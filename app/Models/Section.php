@@ -88,6 +88,12 @@ class Section extends Model
     }
 
     /** @return BelongsTo<TermOffering, $this> */
+    /** The class reference staff and students see; older classes without one fall back to the section code. */
+    public function displayReference(): string
+    {
+        return filled($this->class_reference) ? (string) $this->class_reference : (string) $this->code;
+    }
+
     public function termOffering(): BelongsTo
     {
         return $this->belongsTo(TermOffering::class);
@@ -115,6 +121,12 @@ class Section extends Model
     public function deliveryGroups(): HasMany
     {
         return $this->hasMany(SectionDeliveryGroup::class);
+    }
+
+    /** @return HasMany<ClassOfferingTeachingAssignment, $this> */
+    public function teachingAssignments(): HasMany
+    {
+        return $this->hasMany(ClassOfferingTeachingAssignment::class);
     }
 
     /** @return HasMany<GradeRoster, $this> */

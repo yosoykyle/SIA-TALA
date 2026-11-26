@@ -26,6 +26,9 @@ class AdmissionQueueCounts
     /** @var list<int>|null */
     private ?array $readyApplicationIds = null;
 
+    /** @var list<int>|null */
+    private ?array $officiallyEnrolledIds = null;
+
     /** @var array<string, list<int>> */
     private array $deadlineIds = [];
 
@@ -68,7 +71,7 @@ class AdmissionQueueCounts
             self::NeedsReview => $query->where('application_state', AdmissionApplication::StateSubmitted)->whereNotIn('id', $closed),
             self::WaitingForApplicant => $query->where('application_state', AdmissionApplication::StateActionNeeded)->whereNotIn('id', $closed),
             self::RegistrarClearance => $query->where('application_state', AdmissionApplication::StateAdmitted)
-                ->whereNotIn('id', [...$this->readyApplicationIds(), ...$closed, ...$expired]),
+                ->whereNotIn('id', [...$this->readyApplicationIds(), ...$this->officiallyEnrolledIds(), ...$closed, ...$expired]),
             self::ReadyForEnrollment => $query->whereIn('id', $this->readyApplicationIds())->whereNotIn('id', [...$closed, ...$expired]),
             self::Expired => $query->whereIn('id', $expired),
             self::Closed => $query->where(fn (Builder $closedQuery): Builder => $closedQuery
@@ -78,15 +81,46 @@ class AdmissionQueueCounts
         };
     }
 
-    public function count(string $queue): int
+    public function count(string $queue, ?string $studentType = null): int
     {
-        return $this->scope(AdmissionApplicationResource::getEloquentQuery(), $queue)->count();
+        return $this->scope(AdmissionApplicationResource::getEloquentQuery(), $queue)
+            ->when($studentType !== null, fn (Builder $query): Builder => $query->where('application_path', $studentType))
+            ->count();
+    }
+
+    /**
+     * Admissions work queues, still with the school before official enrollment.
+     *
+     * @return list<string>
+     */
+    public static function admissionQueues(): array
+    {
+        return [self::NeedsReview, self::WaitingForApplicant, self::RegistrarClearance];
+    }
+
+    /**
+     * Active cases per Student type: still in admission review, or cleared and moving through enrollment.
+     *
+     * @return array{admission: int, enrollment: int, total: int}
+     */
+    public function activeCases(?string $studentType = null): array
+    {
+        $admission = collect(self::admissionQueues())->sum(fn (string $queue): int => $this->count($queue, $studentType));
+        $enrollment = $this->count(self::ReadyForEnrollment, $studentType);
+
+        return ['admission' => $admission, 'enrollment' => $enrollment, 'total' => $admission + $enrollment];
     }
 
     /** @return list<int> */
     private function idsWith(string $status): array
     {
         return $this->deadlineIds[$status] ??= $this->deadlines->idsWith($status);
+    }
+
+    /** @return list<int> */
+    private function officiallyEnrolledIds(): array
+    {
+        return $this->officiallyEnrolledIds ??= $this->readyApplicants->officiallyEnrolledApplicationIds();
     }
 
     /** @return list<int> */

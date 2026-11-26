@@ -64,7 +64,7 @@
             <div class="class-roster-context">
                 <p>Assigned faculty <strong>{{ $roster->faculty?->getFilamentName() ?? 'Not recorded' }}</strong></p>
                 <p><strong>{{ $roster->rows->count() }}</strong> {{ str('enrolled student')->plural($roster->rows->count()) }}</p>
-                <p>As of {{ $generatedAt->format('j M Y, g:i A') }} · Asia/Manila</p>
+                <p>As of {{ $generatedAt->format('j M Y, g:i A') }}</p>
             </div>
         </header>
     </x-slot:documentHeader>

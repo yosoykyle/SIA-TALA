@@ -351,12 +351,11 @@ final class Issue93TermPlanningOverhaulTest extends TestCase
         $this->assertNotNull($createdSection->confirmed_at);
         $this->assertSame(32, $createdSection->capacity);
 
-        // Class details redesigned 3xl modal omits Record history dropdown and renders inline Asia/Manila metadata.
+        // Class details redesigned 3xl modal omits Record history dropdown and renders inline metadata.
         Livewire::withQueryParams(['termId' => $term->id, 'classesView' => 'classes'])->test(TermClasses::class)
             ->mountTableAction('viewClass', $createdSection)
             ->assertMountedActionModalSee('Student sections served')
             ->assertMountedActionModalSee('Meeting requirements')
-            ->assertMountedActionModalSee('Asia/Manila')
             ->assertMountedActionModalDontSee('Record history');
 
         // Edit class formats cohort option with student count and auto-fills expected_count on change.

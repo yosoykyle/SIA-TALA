@@ -2,6 +2,8 @@
 
 namespace App\Actions\Finance;
 
+use App\Actions\Enrollment\AttemptAutoOfficialEnrollment;
+use App\Actions\Enrollment\AutoFinalizationTrigger;
 use App\Models\ApprovedCoverage;
 use App\Models\Assessment;
 use App\Models\AssessmentObligation;
@@ -86,6 +88,31 @@ class RecordApprovedCoverage
             ]);
             $state = $this->projection->forAccount($lockedAccount);
             $lockedAccount->update(['state' => $state['state'] === 'Cleared' ? TermAccount::StateCleared : TermAccount::StateOpen]);
+
+            $enrollmentId = $lockedAccount->enrollment_id;
+            $authorityReference = $coverage->authority_reference;
+            $coverageSummary = sprintf(
+                'Approved coverage of PHP %s (%s) applied.',
+                number_format((float) $coverage->amount, 2),
+                $coverage->safe_source_description,
+            );
+
+            DB::afterCommit(function () use ($enrollmentId, $actor, $authorityReference, $coverageSummary): void {
+                if ($enrollmentId === null) {
+                    return;
+                }
+
+                app(AttemptAutoOfficialEnrollment::class)->attempt(
+                    (int) $enrollmentId,
+                    new AutoFinalizationTrigger(
+                        triggerType: AutoFinalizationTrigger::TypeApprovedCoverageRecorded,
+                        triggerReference: $authorityReference,
+                        clearedByUserId: $actor->id,
+                        paymentId: null,
+                        paymentSummary: $coverageSummary,
+                    ),
+                );
+            });
 
             return $coverage;
         }, attempts: 3);

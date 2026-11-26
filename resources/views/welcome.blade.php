@@ -352,7 +352,6 @@
                                             </dt>
                                             <dd>
                                                 <strong>{{ $admissionCycle['is_open'] ? $admissionCycle['closes_at'] : $admissionCycle['opens_at'] }}</strong>
-                                                <span>Asia/Manila time</span>
                                             </dd>
                                         </dl>
                                     @endif

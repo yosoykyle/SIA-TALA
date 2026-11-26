@@ -640,7 +640,7 @@ final class Issue93TimetablingPerformanceAndClassEditTest extends TestCase
             ->assertSee('1:00 PM–5:00 PM')
             ->assertSee('30-minute intervals')
             ->assertDontSee('Approval note: MEMO-2026-09')
-            ->assertSee('Times use Asia/Manila. Activity dates do not block class planning.')
+            ->assertSee('Activity dates do not block class planning.')->assertDontSee('Times use Asia/Manila.')
             ->assertDontSee('Teaching hours and source details')
             ->assertDontSee('What these dates control');
 
