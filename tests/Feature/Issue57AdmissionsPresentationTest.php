@@ -7,6 +7,7 @@ use App\Actions\Admissions\AdmissionReviewGuard;
 use App\Actions\Admissions\ChangeAdmissionCycle;
 use App\Actions\Admissions\DiscardAdmissionApplication;
 use App\Actions\Admissions\RecordAdmissionDecision;
+use App\Actions\Admissions\RecordOfficialCredentialResult;
 use App\Actions\Admissions\RecordRegistrarEnrollmentClearance;
 use App\Actions\Admissions\RequestAdmissionCorrection;
 use App\Actions\Admissions\SaveAdmissionApplication;
@@ -1963,37 +1964,39 @@ class Issue57AdmissionsPresentationTest extends TestCase
             ->exists());
     }
 
-    public function test_enrollment_clearance_checklist_records_paper_results_and_requires_every_required_paper(): void
+    public function test_enrollment_clearance_tags_unticked_papers_to_be_followed_and_update_papers_passes_them_later(): void
     {
         Mail::fake();
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $registrar = $this->registrar();
         [$application, $requirement] = $this->admittedApplication($registrar);
+        $currentResult = fn (): ?string => $application->credentialResults()->where('admission_requirement_id', $requirement->id)->whereDoesntHave('successor')->value('result');
 
         Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
             ->mountAction('recordEnrollmentClearance')
-            ->setActionData(['checklist_InPerson' => []])
-            ->callMountedAction()
-            ->assertNotified('Registrar action blocked');
-        $this->assertSame(0, $application->enrollmentClearances()->count());
-
-        Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
-            ->mountAction('recordEnrollmentClearance')
+            ->assertMountedActionModalSee('To be followed')
+            ->assertMountedActionModalDontSee('Notify Applicant of deficiencies')
             ->assertFormFieldDoesNotExist('safe_instruction')
-            ->assertFormFieldDoesNotExist('authority_reference')
+            ->assertFormFieldDoesNotExist('held_papers')
             ->setActionData(['checklist_InPerson' => []])
-            ->mountAction('notifyDeficiencies')
-            ->setActionData(['safe_instruction' => 'Bring the original with the dry seal.'])
             ->callMountedAction()
-            ->assertNotified('Applicant notified of deficiencies');
-        $this->assertSame(RegistrarEnrollmentClearance::ResultActionNeeded, $application->enrollmentClearances()->sole()->result);
-        $this->assertSame(OfficialCredentialResult::ResultActionNeeded, $application->credentialResults()->where('admission_requirement_id', $requirement->id)->whereDoesntHave('successor')->value('result'));
-
-        Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
-            ->callAction('recordEnrollmentClearance', ['checklist_InPerson' => [$requirement->id], 'reason' => 'Original paper received on-site.'])
             ->assertNotified('Enrollment clearance recorded');
-        $this->assertSame(RegistrarEnrollmentClearance::ResultCleared, $application->enrollmentClearances()->whereDoesntHave('successor')->value('result'));
-        $this->assertSame(OfficialCredentialResult::ResultVerified, $application->credentialResults()->where('admission_requirement_id', $requirement->id)->whereDoesntHave('successor')->value('result'));
+
+        $this->assertSame(RegistrarEnrollmentClearance::ResultCleared, $application->enrollmentClearances()->sole()->result);
+        $this->assertNotSame(OfficialCredentialResult::ResultActionNeeded, $currentResult(), 'An unticked paper is not sent back as a deficiency.');
+        $this->assertSame('To be followed', collect(app(Requirements::class)->onSiteItems($application->fresh()))->keyBy('label')['School review copy']['state']);
+        $page = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id]);
+        $this->assertStringContainsString('To be followed: School review copy', $page->instance()->processEvaluation()[1]['summary']);
+
+        $page->assertActionVisible('updateFollowedPapers')
+            ->callAction('updateFollowedPapers', ['checklist_InPerson' => [$requirement->id]])
+            ->assertNotified('Papers updated');
+
+        $this->assertSame(OfficialCredentialResult::ResultVerified, $currentResult());
+        $this->assertSame(1, $application->enrollmentClearances()->count(), 'Passing a followed paper records no new clearance.');
+        $this->assertSame('Passed on-site', collect(app(Requirements::class)->onSiteItems($application->fresh()))->keyBy('label')['School review copy']['state']);
+        Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
+            ->assertActionHidden('updateFollowedPapers');
     }
 
     public function test_missed_paper_deadline_expires_the_application_until_the_registrar_readmits_it(): void
@@ -2141,33 +2144,28 @@ class Issue57AdmissionsPresentationTest extends TestCase
         $this->assertNotNull($cycle->period_ends_at);
     }
 
-    public function test_registrar_clears_with_a_permitted_paper_on_hold_and_the_applicant_sees_it_still_owed(): void
+    public function test_ticked_papers_are_passed_and_the_applicant_sees_unticked_ones_to_be_followed(): void
     {
         Mail::fake();
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $registrar = $this->registrar();
         [$application, $requirement] = $this->admittedApplication($registrar, withHoldablePaper: true);
         $psa = $application->currentSubmissionVersion->requirementSet->requirements->firstWhere('label', 'PSA birth certificate');
+        app(RecordOfficialCredentialResult::class)->execute($application, $requirement, $registrar, OfficialCredentialResult::ResultVerified,
+            'On-site paper check', 'Paper checked by the Registrar.', 'Registrar enrollment clearance');
 
+        // A paper already Passed before the dialog opens stays ticked and does not block saving.
         Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
-            ->callAction('recordEnrollmentClearance', ['checklist_InPerson' => [$requirement->id], 'held_papers' => [$psa->id]])
-            ->assertNotified('Registrar action blocked');
-        $this->assertSame(0, $application->enrollmentClearances()->count());
-
-        Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
-            ->callAction('recordEnrollmentClearance', ['checklist_InPerson' => [$requirement->id], 'held_papers' => [$psa->id], 'hold_until' => now()->addWeek()->toDateTimeString()])
+            ->callAction('recordEnrollmentClearance')
+            ->assertHasNoActionErrors()
             ->assertNotified('Enrollment clearance recorded');
 
         $this->assertSame(RegistrarEnrollmentClearance::ResultCleared, $application->enrollmentClearances()->sole()->result);
-        $held = $application->credentialResults()->where('admission_requirement_id', $psa->id)->sole();
-        $this->assertSame(OfficialCredentialResult::ResultAuthorizedException, $held->result);
-        $this->assertNotNull($held->exception_expires_at);
+        $this->assertSame(0, $application->credentialResults()->where('admission_requirement_id', $psa->id)->count(), 'An unticked paper keeps its result.');
 
         $onSite = collect(app(Requirements::class)->onSiteItems($application->fresh()))->keyBy('label');
-        $this->assertSame('On hold', $onSite['PSA birth certificate']['state']);
+        $this->assertSame('To be followed', $onSite['PSA birth certificate']['state']);
         $this->assertSame('Passed on-site', $onSite['School review copy']['state']);
-        $this->assertStringContainsString('On hold: PSA birth certificate', Livewire::actingAs($registrar)
-            ->test(ViewAdmissionApplication::class, ['record' => $application->id])->instance()->processEvaluation()[1]['summary']);
     }
 
     /** @return array{AdmissionApplication, AdmissionRequirement} */

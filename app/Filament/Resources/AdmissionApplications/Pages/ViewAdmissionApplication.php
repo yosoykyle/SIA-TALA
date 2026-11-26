@@ -237,7 +237,7 @@ class ViewAdmissionApplication extends ViewRecord
                         $currentClearance = $this->application()->enrollmentClearances()->whereDoesntHave('successor')->first();
                         $prefix = $currentClearance ? 'Current status: '.str($currentClearance->result)->headline().'. ' : '';
 
-                        return $prefix.'Check each original paper received in person. Record clearance when complete, or notify the applicant of missing items.';
+                        return $prefix.'Tick each original paper received in person. Ticked papers are tagged Passed; unticked papers are tagged To be followed, and clearance can still be recorded.';
                     })
                     ->schema(fn (): array => [
                         Hidden::make('expected_current_clearance_id')
@@ -246,37 +246,7 @@ class ViewAdmissionApplication extends ViewRecord
                             ->default(fn () => $this->application()->decisions()->whereDoesntHave('successor')->value('id')),
                         Hidden::make('expected_submission_version_id')
                             ->default(fn () => $this->application()->current_submission_version_id),
-                        ...collect($this->clearanceChecklist())->map(fn (array $category, string $key): CheckboxList => CheckboxList::make('checklist_'.$key)
-                            ->label($category['label'])
-                            ->options(collect($category['items'])->mapWithKeys(fn (array $item): array => [
-                                $item['id'] => new HtmlString(e($item['label']).' <span class="tala-paper-status tala-paper-status--'.$item['tone'].'">'.e($item['status']).'</span>'),
-                            ])->all())
-                            ->descriptions(collect($category['items'])->mapWithKeys(fn (array $item): array => [
-                                $item['id'] => $item['required'] ? $item['due'] : $item['due'].' · not needed for clearance',
-                            ])->all())
-                            ->default(collect($category['items'])->where('result', OfficialCredentialResult::ResultVerified)->pluck('id')->all())
-                            ->allowHtml()
-                            ->extraAttributes(['class' => 'tala-paper-checklist']))->values()->all(),
-                        CheckboxList::make('held_papers')
-                            ->label('Allow on hold')
-                            ->helperText('The Applicant proceeds to Accounting while these papers are still owed. Only papers the requirement set allows to be held appear here; each stays tracked until it is passed.')
-                            ->options(fn (): array => collect($this->clearanceChecklist())->flatMap(fn (array $category): array => $category['items'])
-                                ->where('holdable', true)->mapWithKeys(fn (array $item): array => [$item['id'] => $item['label']])->all())
-                            ->default(fn (): array => collect($this->clearanceChecklist())->flatMap(fn (array $category): array => $category['items'])
-                                ->where('result', OfficialCredentialResult::ResultAuthorizedException)->pluck('id')->values()->all())
-                            ->live()
-                            ->visible(fn (): bool => collect($this->clearanceChecklist())->flatMap(fn (array $category): array => $category['items'])->contains('holdable', true)),
-                        DateTimePicker::make('hold_until')
-                            ->label('Held papers due by')
-                            ->timezone(config('app.display_timezone'))
-                            ->displayFormat('M j, Y · g:i A')
-                            ->seconds(false)
-                            ->native(true)
-                            ->minDate(fn (): ?string => $this->pickerDayStart(now()))
-                            ->rule(fn (): \Closure => $this->exactWindowRule(fn (): CarbonInterface => now(), null, ''))
-                            ->validationMessages(['after_or_equal' => fn (): string => 'Choose a time after now ('.$this->formatDeadline(now()).').'])
-                            ->prefixIcon('heroicon-o-calendar-days')
-                            ->visible(fn (Get $get): bool => filled($get('held_papers'))),
+                        ...$this->paperChecklistFields(),
                         Checkbox::make('external_checks_confirmed')
                             ->label('I confirm the required external enrollment checks are complete.')
                             ->visible(fn (): bool => $this->clearanceChecklist() === []),
@@ -286,47 +256,17 @@ class ViewAdmissionApplication extends ViewRecord
                             ->required(fn (Get $get): bool => filled($get('expected_current_clearance_id')))
                             ->maxLength(1500),
                     ])
-                    ->extraModalFooterActions(fn (Action $action): array => [
-                        // The deficiency remarks are asked for only when the Registrar chooses to notify (#99 Scope 10).
-                        Action::make('notifyDeficiencies')
-                            ->modalCancelAction(false)
-                            ->label('Notify Applicant of deficiencies')
-                            ->color('warning')
-                            ->modalHeading('Notify Applicant of deficiencies')
-                            ->modalDescription('Tell the applicant which papers are missing or need fixing. Checked papers are still saved as received.')
-                            ->modalSubmitActionLabel('Send to Applicant')
-                            ->schema([
-                                Textarea::make('safe_instruction')
-                                    ->label('Deficiency remarks for the Applicant')
-                                    ->helperText('Name the paper and say what to bring or fix.')
-                                    ->placeholder("For example: The Form 138 is a photocopy. Bring the original with the school dry seal to the Registrar's Office.")
-                                    ->required()
-                                    ->rows(3)
-                                    ->maxLength(1500),
-                            ])
-                            ->action(function (array $data, Action $notify): void {
-                                $clearance = (array) ($this->mountedActions[0]['data'] ?? []);
-
-                                $this->runAction(
-                                    fn (User $actor) => $this->recordClearanceWithChecklist($actor, [...$clearance, 'safe_instruction' => $data['safe_instruction']], RegistrarEnrollmentClearance::ResultActionNeeded),
-                                    'Applicant notified of deficiencies',
-                                    $notify,
-                                );
-                            }),
-                    ])
                     // Gone once the papers are cleared; an Action needed clearance can still be updated (#99 Scope 10).
                     ->visible(fn (): bool => $this->canReview()
                         && $this->application()->application_state === AdmissionApplication::StateAdmitted
                         && $this->deadlineStatus()['kind'] !== AdmissionDeadlineStatus::KindRequirements
                         && ! $this->readinessIsCleared())
-                    ->action(function (array $data, array $arguments, Action $action): void {
-                        $result = (string) ($arguments['result'] ?? RegistrarEnrollmentClearance::ResultCleared);
-                        $startEnrollment = (bool) ($arguments['start_enrollment']
-                            ?? ($result === RegistrarEnrollmentClearance::ResultCleared && $this->canStartEnrollment(requireReady: false)));
+                    ->action(function (array $data, Action $action): void {
+                        $startEnrollment = $this->canStartEnrollment(requireReady: false);
 
                         $this->runAction(
-                            fn (User $actor) => $this->recordClearanceWithChecklist($actor, $data, $result),
-                            $result === RegistrarEnrollmentClearance::ResultActionNeeded ? 'Applicant notified of deficiencies' : 'Enrollment clearance recorded',
+                            fn (User $actor) => $this->recordClearanceWithChecklist($actor, $data),
+                            'Enrollment clearance recorded',
                             $action,
                         );
 
@@ -335,6 +275,25 @@ class ViewAdmissionApplication extends ViewRecord
                             $this->startEnrollmentAndOpen(afterClearance: true);
                         }
                     }),
+                // #103 Scope 7: after clearance, papers still To be followed can be ticked as Passed.
+                Action::make('updateFollowedPapers')
+                    ->label('Update papers')
+                    ->icon('heroicon-o-clipboard-document-check')
+                    ->color('gray')
+                    ->modalHeading('Update papers')
+                    ->modalDescription('Tick the papers the Applicant has now passed. They are tagged Passed; the rest stay To be followed.')
+                    ->modalSubmitActionLabel('Save papers')
+                    ->modalWidth(Width::TwoExtraLarge)
+                    ->schema(fn (): array => $this->paperChecklistFields(onlyFollowed: true))
+                    ->visible(fn (): bool => $this->canReview()
+                        && $this->application()->application_state === AdmissionApplication::StateAdmitted
+                        && $this->readinessIsCleared()
+                        && $this->followedPapers() !== [])
+                    ->action(fn (array $data, Action $action): mixed => $this->runAction(
+                        fn (User $actor) => $this->recordPassedPapers($actor, $data),
+                        'Papers updated',
+                        $action,
+                    )),
                 Action::make('startEnrollment')
                     ->label('Start enrollment')
                     ->icon('heroicon-o-user-plus')
@@ -1242,12 +1201,6 @@ class ViewAdmissionApplication extends ViewRecord
         $copiesAccepted = $copies->every(fn (array $copy): bool => $copy['accepted']);
         $enrollment = Enrollment::query()->where('admission_application_id', $application->id)->whereNull('cancelled_at')->latest('id')->first();
         $verifiedPayment = $enrollment?->termAccount?->payments()->where('state', Payment::StatePosted)->whereNotNull('verified_at')->latest('verified_at')->first();
-        $heldPapers = $application->credentialResults()
-            ->whereDoesntHave('successor')
-            ->where('result', OfficialCredentialResult::ResultAuthorizedException)
-            ->with('requirement')
-            ->get()
-            ->map(fn (OfficialCredentialResult $held): string => $held->requirement->label.' (due '.$held->exception_expires_at?->timezone($timezone)->format('M j, Y').')');
         $activeCorrection = $application->correctionRequests->where('state', ApplicationCorrectionRequest::StateActive)->sortByDesc('sequence')->first();
         $correctionNote = $activeCorrection === null ? null
             : 'Correction sent to the Applicant: '.$activeCorrection->applicant_instruction.' · due '.$format($activeCorrection->due_at).'.';
@@ -1295,12 +1248,13 @@ class ViewAdmissionApplication extends ViewRecord
                 'summary' => ($clearance
                     ? str($clearance->result)->headline().' by '.($clearance->recorder?->getFilamentName() ?? 'Registrar').' · '.$format($clearance->recorded_at)
                     : 'Check the papers passed on-site against the requirement list.')
-                    .($heldPapers->isNotEmpty() ? ' · On hold: '.$heldPapers->implode(', ') : ''),
+                    .($clearance?->result === RegistrarEnrollmentClearance::ResultCleared && $this->followedPapers() !== [] ? ' · To be followed: '.implode(', ', $this->followedPapers()) : ''),
                 'blocker' => $clearance?->result === RegistrarEnrollmentClearance::ResultActionNeeded && filled($clearance->safe_instruction)
                     ? 'Applicant was told: '.$clearance->safe_instruction
                     : null,
-                'action' => 'recordEnrollmentClearance',
-                'button' => 'Check papers',
+                'action' => $projection['clearance_result'] === RegistrarEnrollmentClearance::ResultCleared ? 'updateFollowedPapers' : 'recordEnrollmentClearance',
+                'button' => $projection['clearance_result'] === RegistrarEnrollmentClearance::ResultCleared ? 'Update papers' : 'Check papers',
+                'persistent_action' => $projection['clearance_result'] === RegistrarEnrollmentClearance::ResultCleared && $this->followedPapers() !== [],
             ],
             [
                 'key' => SendAdmissionProcessRemark::StepReadiness,
@@ -1441,21 +1395,8 @@ class ViewAdmissionApplication extends ViewRecord
                         'required' => $requirement->due_stage !== AdmissionRequirement::DuePostEnrollmentFollowUp,
                         'result' => $result?->result,
                         'result_id' => $result?->id,
-                        'status' => match ($result?->result) {
-                            null => 'Not received',
-                            OfficialCredentialResult::ResultAuthorizedException => 'On hold',
-                            default => str($result->result)->headline()->toString(),
-                        },
-                        'tone' => match ($result?->result) {
-                            OfficialCredentialResult::ResultVerified => 'verified',
-                            OfficialCredentialResult::ResultAuthorizedException => 'held',
-                            OfficialCredentialResult::ResultActionNeeded => 'action',
-                            default => 'pending',
-                        },
-                        'holdable' => $result?->result !== OfficialCredentialResult::ResultVerified
-                            && $requirement->credential_classification === AdmissionRequirement::ClassificationNonCore
-                            && $requirement->exception_permitted
-                            && filled($requirement->required_approving_authority),
+                        'status' => $result?->result === OfficialCredentialResult::ResultVerified ? 'Passed' : 'To be followed',
+                        'tone' => $result?->result === OfficialCredentialResult::ResultVerified ? 'verified' : 'held',
                         'requirement' => $requirement,
                     ];
                 })->all(),
@@ -1464,80 +1405,60 @@ class ViewAdmissionApplication extends ViewRecord
     }
 
     /** @param array<string, mixed> $data */
-    private function recordClearanceWithChecklist(User $actor, array $data, string $result): void
+    /**
+     * #103 Scope 7: one checkbox per paper. Ticked papers become Passed; unticked ones stay To be followed.
+     * A paper already Passed is never un-passed from here; Update papers lists only the papers still to be followed.
+     *
+     * @return list<CheckboxList>
+     */
+    private function paperChecklistFields(bool $onlyFollowed = false): array
+    {
+        return collect($this->clearanceChecklist())
+            ->map(fn (array $category): array => [
+                ...$category,
+                'items' => $onlyFollowed
+                    ? array_values(array_filter($category['items'], fn (array $item): bool => $item['result'] !== OfficialCredentialResult::ResultVerified))
+                    : $category['items'],
+            ])
+            ->filter(fn (array $category): bool => $category['items'] !== [])
+            ->map(fn (array $category, string $key): CheckboxList => CheckboxList::make('checklist_'.$key)
+                ->label($category['label'])
+                ->options(collect($category['items'])->mapWithKeys(fn (array $item): array => [
+                    $item['id'] => new HtmlString(e($item['label']).' <span class="tala-paper-status tala-paper-status--'.$item['tone'].'">'.e($item['status']).'</span>'),
+                ])->all())
+                ->descriptions(collect($category['items'])->mapWithKeys(fn (array $item): array => [$item['id'] => $item['due']])->all())
+                ->default(collect($category['items'])->where('result', OfficialCredentialResult::ResultVerified)->pluck('id')->all())
+                ->allowHtml()
+                ->extraAttributes(['class' => 'tala-paper-checklist']))->values()->all();
+    }
+
+    /** @return list<string> labels of papers not yet Passed */
+    private function followedPapers(): array
+    {
+        return collect($this->clearanceChecklist())->flatMap(fn (array $category): array => $category['items'])
+            ->reject(fn (array $item): bool => $item['result'] === OfficialCredentialResult::ResultVerified)
+            ->pluck('label')->values()->all();
+    }
+
+    /** @param array<string, mixed> $data */
+    private function recordClearanceWithChecklist(User $actor, array $data): void
     {
         $items = collect($this->clearanceChecklist())->flatMap(fn (array $category): array => $category['items']);
-        $checked = collect($data)
-            ->filter(fn (mixed $value, string $key): bool => str_starts_with($key, 'checklist_'))
-            ->flatten()
-            ->map(fn (mixed $id): int => (int) $id)
-            ->all();
-        $remarks = trim((string) ($data['safe_instruction'] ?? ''));
-        $held = $items->where('holdable', true)
-            ->pluck('id')
-            ->intersect(collect($data['held_papers'] ?? [])->map(fn (mixed $id): int => (int) $id))
-            ->diff($checked)
-            ->values()
-            ->all();
-        $holdUntil = filled($data['hold_until'] ?? null) ? CarbonImmutable::parse((string) $data['hold_until'], config('app.timezone')) : null;
-
-        if ($held !== [] && $holdUntil === null) {
-            throw ValidationException::withMessages(['hold_until' => 'Set the date the held papers are due.']);
+        if ($items->isEmpty() && ! (bool) ($data['external_checks_confirmed'] ?? false)) {
+            throw ValidationException::withMessages(['external_checks_confirmed' => 'Confirm the required external enrollment checks are complete.']);
         }
 
-        if ($result === RegistrarEnrollmentClearance::ResultCleared) {
-            $missing = $items->where('required', true)->reject(fn (array $item): bool => in_array($item['id'], $checked, true) || in_array($item['id'], $held, true));
-            if ($missing->isNotEmpty()) {
-                throw ValidationException::withMessages(['checklist' => 'Check every required paper before recording clearance ('.$missing->pluck('label')->implode(', ').'), allow it on hold if permitted, or notify the Applicant of deficiencies.']);
-            }
-            if ($items->isEmpty() && ! (bool) ($data['external_checks_confirmed'] ?? false)) {
-                throw ValidationException::withMessages(['external_checks_confirmed' => 'Confirm the required external enrollment checks are complete.']);
-            }
-        } elseif ($remarks === '') {
-            throw ValidationException::withMessages(['safe_instruction' => 'Write the deficiency remarks the Applicant should act on.']);
-        }
-
-        DB::transaction(function () use ($actor, $data, $result, $items, $checked, $held, $holdUntil, $remarks): void {
+        DB::transaction(function () use ($actor, $data, $items): void {
             $application = $this->application();
             $authority = filled($data['authority_reference'] ?? null) ? (string) $data['authority_reference'] : 'Registrar enrollment clearance';
-
-            foreach ($items as $item) {
-                $isChecked = in_array($item['id'], $checked, true);
-                $isHeld = in_array($item['id'], $held, true);
-                $target = match (true) {
-                    $isChecked => OfficialCredentialResult::ResultVerified,
-                    $isHeld => OfficialCredentialResult::ResultAuthorizedException,
-                    $result === RegistrarEnrollmentClearance::ResultActionNeeded => OfficialCredentialResult::ResultActionNeeded,
-                    default => null,
-                };
-
-                if ($target === null || $item['result'] === $target) {
-                    continue;
-                }
-
-                app(RecordOfficialCredentialResult::class)->execute(
-                    $application,
-                    $item['requirement'],
-                    $actor,
-                    $target,
-                    $isHeld ? 'Registrar hold' : 'On-site paper check',
-                    match (true) {
-                        $isChecked => 'Paper checked by the Registrar.',
-                        $isHeld => 'Allowed on hold. Pass this paper to the Registrar by '.$holdUntil?->timezone(config('app.display_timezone'))->format('M j, Y g:i A').'.',
-                        default => $remarks,
-                    },
-                    $authority,
-                    exceptionExpiresAt: $isHeld ? $holdUntil : null,
-                    expectedCurrentResultId: $item['result_id'],
-                );
-            }
+            $this->recordCheckedPapers($actor, $items, $this->checkedPaperIds($data), $authority);
 
             app(RecordRegistrarEnrollmentClearance::class)->execute(
                 $application,
                 $actor,
-                $result,
-                $result === RegistrarEnrollmentClearance::ResultCleared,
-                $result === RegistrarEnrollmentClearance::ResultActionNeeded ? $remarks : null,
+                RegistrarEnrollmentClearance::ResultCleared,
+                true,
+                null,
                 $data['reason'] ?? null,
                 $data['authority_reference'] ?? null,
                 filled($data['expected_current_clearance_id'] ?? null) ? (int) $data['expected_current_clearance_id'] : null,
@@ -1545,6 +1466,53 @@ class ViewAdmissionApplication extends ViewRecord
                 filled($data['expected_submission_version_id'] ?? null) ? (int) $data['expected_submission_version_id'] : null,
             );
         });
+    }
+
+    /** @param array<string, mixed> $data */
+    private function recordPassedPapers(User $actor, array $data): void
+    {
+        $items = collect($this->clearanceChecklist())->flatMap(fn (array $category): array => $category['items']);
+
+        DB::transaction(fn () => $this->recordCheckedPapers($actor, $items, $this->checkedPaperIds($data), 'Registrar enrollment clearance'));
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return list<int>
+     */
+    private function checkedPaperIds(array $data): array
+    {
+        return collect($data)
+            ->filter(fn (mixed $value, string $key): bool => str_starts_with($key, 'checklist_'))
+            ->flatten()
+            ->map(fn (mixed $id): int => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  Collection<int, array<string, mixed>>  $items
+     * @param  list<int>  $checked
+     */
+    private function recordCheckedPapers(User $actor, Collection $items, array $checked, string $authority): void
+    {
+        foreach ($items as $item) {
+            if (! in_array($item['id'], $checked, true) || $item['result'] === OfficialCredentialResult::ResultVerified) {
+                continue;
+            }
+
+            app(RecordOfficialCredentialResult::class)->execute(
+                $this->application(),
+                $item['requirement'],
+                $actor,
+                OfficialCredentialResult::ResultVerified,
+                'On-site paper check',
+                'Paper checked by the Registrar.',
+                $authority,
+                exceptionExpiresAt: null,
+                expectedCurrentResultId: $item['result_id'],
+            );
+        }
     }
 
     private function application(): AdmissionApplication
