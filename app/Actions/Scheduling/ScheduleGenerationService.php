@@ -94,12 +94,16 @@ class ScheduleGenerationService
 
     private function assertRerunAllowed(ScheduleGenerationRun $run, ?ScheduleGenerationRun $recoverySource): void
     {
-        $previous = ScheduleGenerationRun::query()
+        // Resolve the target ID first so MySQL never loads multi-MB JSON columns into sort_buffer_size.
+        $previousId = ScheduleGenerationRun::query()
             ->where('term_id', $run->term_id)
             ->whereKeyNot($run->id)
             ->where('contract_version', ScheduleGenerationRun::ContractVersion)
-            ->latest('id')
-            ->first();
+            ->max('id');
+
+        $previous = $previousId !== null
+            ? ScheduleGenerationRun::query()->find($previousId)
+            : null;
 
         if (! $previous instanceof ScheduleGenerationRun
             || $this->sourceFingerprint($run) !== $this->sourceFingerprint($previous)) {

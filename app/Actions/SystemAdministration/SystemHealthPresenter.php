@@ -236,13 +236,21 @@ class SystemHealthPresenter
     public function recentSolverRuns(int $limit = 10): array
     {
         try {
-            $runs = ScheduleGenerationRun::query()
-                ->with(['term', 'requester'])
-                ->withCount(['candidateRows', 'solverAttemptEvents'])
+            $runIds = ScheduleGenerationRun::query()
                 ->latest('created_at')
                 ->latest('id')
                 ->limit($limit)
-                ->get();
+                ->pluck('id');
+
+            $runs = $runIds->isEmpty()
+                ? collect()
+                : ScheduleGenerationRun::query()
+                    ->whereKey($runIds)
+                    ->with(['term', 'requester'])
+                    ->withCount(['candidateRows', 'solverAttemptEvents'])
+                    ->get()
+                    ->sortByDesc(fn (ScheduleGenerationRun $run): array => [$run->created_at?->getTimestamp() ?? 0, (int) $run->id])
+                    ->values();
         } catch (Throwable) {
             return [];
         }
@@ -740,7 +748,13 @@ class SystemHealthPresenter
             default => false,
         };
 
-        $latestRun = ScheduleGenerationRun::query()->latest('updated_at')->latest('id')->first();
+        $latestRunId = ScheduleGenerationRun::query()
+            ->latest('updated_at')
+            ->latest('id')
+            ->value('id');
+        $latestRun = $latestRunId !== null
+            ? ScheduleGenerationRun::query()->find($latestRunId)
+            : null;
         $latestProbe = OperationalEvent::query()
             ->where('event_domain', OperationalEvent::DomainIntegration)
             ->where('integration', OperationalEvent::IntegrationSchedulingSolver)

@@ -835,6 +835,55 @@ final class Issue93SubjectShortcutAndCurriculumBatchTest extends TestCase
         $this->assertSame($spec3->id, $draftEntry1->fresh()->course_specification_id);
     }
 
+    public function test_review_curriculum_version_inline_academic_year_creation_ignores_enclosing_curriculum_record(): void
+    {
+        $this->staff(User::StaffRoleRegistrar);
+
+        $program = Program::factory()->create(['code' => 'BSIT', 'duration_years' => 4, 'is_active' => true]);
+        $curriculum = CurriculumVersion::factory()->for($program)->create([
+            'name' => 'BSIT Active Plan',
+            'state' => CurriculumVersion::StateActive,
+        ]);
+        AcademicYear::factory()->create([
+            'label' => 'AY 2025-2026',
+            'starts_on' => '2025-08-01',
+            'ends_on' => '2026-05-31',
+            'state' => AcademicYear::StateActive,
+        ]);
+
+        // Creating a fresh AcademicYear inline via addBatch's createOptionForm on an existing CurriculumVersion
+        // must validate uniqueness against academic_years without adding `curriculum_versions.id <> X`.
+        Livewire::test(ReviewCurriculumVersion::class, ['record' => $curriculum->getRouteKey()])
+            ->mountAction('addBatch')
+            ->mountAction(TestAction::make('createOption')->schemaComponent('academic_year_id', schema: 'mountedActionSchema0'))
+            ->setActionData([
+                'label' => 'AY 2026-2027',
+                'starts_on' => '2026-08-01',
+                'ends_on' => '2027-05-31',
+                'state' => AcademicYear::StateDraft,
+            ])
+            ->callMountedAction()
+            ->assertHasNoActionErrors();
+
+        $this->assertDatabaseHas('academic_years', [
+            'label' => 'AY 2026-2027',
+            'state' => AcademicYear::StateDraft,
+        ]);
+
+        // Duplicate label fails with a validation error on `label`, never SQLSTATE[42S22].
+        Livewire::test(ReviewCurriculumVersion::class, ['record' => $curriculum->getRouteKey()])
+            ->mountAction('addBatch')
+            ->mountAction(TestAction::make('createOption')->schemaComponent('academic_year_id', schema: 'mountedActionSchema0'))
+            ->setActionData([
+                'label' => 'AY 2025-2026',
+                'starts_on' => '2025-08-01',
+                'ends_on' => '2026-05-31',
+                'state' => AcademicYear::StateDraft,
+            ])
+            ->callMountedAction()
+            ->assertHasActionErrors(['label']);
+    }
+
     /**
      * @return array<string, mixed>
      */

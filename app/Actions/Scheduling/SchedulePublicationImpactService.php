@@ -65,13 +65,17 @@ final class SchedulePublicationImpactService
 
     private function currentPublishedRun(ScheduleGenerationRun $run): ?ScheduleGenerationRun
     {
-        return ScheduleGenerationRun::query()
+        $publishedId = ScheduleGenerationRun::query()
             ->where('term_id', $run->term_id)
             ->where('status', ScheduleGenerationRun::StatusPublished)
             ->whereKeyNot($run->getKey())
             ->orderByDesc('publication_version')
             ->orderByDesc('id')
-            ->first();
+            ->value('id');
+
+        return $publishedId !== null
+            ? ScheduleGenerationRun::query()->find($publishedId)
+            : null;
     }
 
     /** @return Collection<int, CandidateScheduleRow> */

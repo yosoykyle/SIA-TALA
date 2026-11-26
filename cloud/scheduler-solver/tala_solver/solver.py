@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import threading
+from collections.abc import Callable
 from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -36,6 +38,13 @@ HARD_CONSTRAINTS = (
 DEFAULT_SOLVER_WORKER_COUNT = 1
 DEFAULT_SOLVER_RANDOM_SEED = 20_260_718
 APPROVED_SOLVER_WORKER_COUNTS = (1, 2, 4, 8)
+DAY_STRIDE_MINUTES = 3_000
+MODALITY_BUFFER_MINUTES = 30
+SLOT_BOOL_OPTION_LIMIT = 1_000
+STAGE2_STAGNATION_SECONDS = 2.5
+STAGE2_LEVEL_MAX_SECONDS = 15.0
+STAGE2_LARGE_DEMAND_THRESHOLD = 20
+STAGE2_LARGE_RELATIVE_GAP_LIMIT = 0.01
 
 
 @dataclass(frozen=True)
@@ -75,13 +84,89 @@ class SolverRuntimeConfiguration:
 
 
 @dataclass(frozen=True)
-class CandidateIndexes:
-    by_assignment: dict[tuple[int, int], tuple[int, ...]]
-    by_cohort_day: dict[tuple[int, int], tuple[int, ...]]
-    by_faculty_day: dict[tuple[int, int], tuple[int, ...]]
-    by_room_day: dict[tuple[int, int], tuple[int, ...]]
-    by_offering_group_faculty: dict[tuple[int, int, int], tuple[int, ...]]
-    by_placement: dict[tuple[Any, ...], tuple[int, ...]]
+class ParsedSlot:
+    day_of_week: int
+    starts_minute: int
+    ends_minute: int
+    starts_at: str
+    time_slot_id: int | None
+    time_block_key: str
+
+
+@dataclass(frozen=True)
+class MeetingSpec:
+    index: int
+    scheduling_demand_id: int
+    demand_key: str
+    term_offering_id: int
+    section_id: int
+    section_delivery_group_id: int
+    cohort_or_student_group_id: int
+    cohort_or_student_group_ids: tuple[int, ...]
+    modality: str
+    subject_id: int | None
+    course_component_id: int | None
+    meeting_sequence: int
+    meeting_pattern: str
+    duration_minutes: int
+    load_units_scaled: int
+    expected_count: int
+    room_required: bool
+    same_faculty_required: bool
+    room_type_requirement: str | None
+    valid_slots: tuple[ParsedSlot, ...]
+    valid_faculty: tuple[int, ...]
+    valid_rooms: tuple[int | None, ...]
+    faculty_blocked_slot_indices: dict[int, tuple[int, ...]]
+    room_blocked_slot_indices: dict[int, tuple[int, ...]]
+    faculty_priorities: dict[int, int]
+
+
+@dataclass
+class FactoredModelState:
+    meetings: list[MeetingSpec]
+    rooms: dict[int, dict[str, Any]]
+    start_vars: list[cp_model.IntVar]
+    day_vars: list[cp_model.IntVar]
+    min_vars: list[cp_model.IntVar]
+    slot_vars: list[list[cp_model.IntVar]]
+    fac_vars: list[dict[int, cp_model.IntVar]]
+    room_vars: list[dict[int, cp_model.IntVar]]
+    fac_bools: list[cp_model.IntVar]
+    room_bools: list[cp_model.IntVar]
+    load_variables: dict[int, cp_model.IntVar]
+    candidate_count: int
+    on_day_cache: dict[tuple[int, int], cp_model.IntVar]
+    extra_bool_hints: list[tuple[cp_model.IntVar, Callable[[list[Candidate]], int]]]
+
+
+class _Stage2EarlyStopCallback(cp_model.CpSolverSolutionCallback):
+    """Track best Stage-2 incumbent and stop search once objective plateaus."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._lock = threading.Lock()
+        self.best_objective: int | None = None
+        self.last_improvement_at: float | None = None
+        self.solution_count = 0
+
+    def on_solution_callback(self) -> None:
+        current = int(round(self.ObjectiveValue()))
+        now = perf_counter()
+        with self._lock:
+            if self.best_objective is None or current > self.best_objective:
+                self.best_objective = current
+                self.last_improvement_at = now
+            self.solution_count += 1
+
+    def check_stagnation(self, stagnation_seconds: float) -> bool:
+        with self._lock:
+            if self.last_improvement_at is None:
+                return False
+            if (perf_counter() - self.last_improvement_at) >= stagnation_seconds:
+                self.stop_search()
+                return True
+        return False
 
 
 def solver_runtime_configuration() -> SolverRuntimeConfiguration:
@@ -229,13 +314,21 @@ def solve_snapshot(
             infeasible_reasons=[_reason("invalid_expected_count", "Every timetable demand requires a positive confirmed expected count.")],
             runtime_configuration=runtime_configuration,
         )
+
     with request_context.measure("candidate_enumeration"):
-        candidates, unassignable_reasons = _enumerate_candidates(
-            snapshot,
-            demands,
-            request_context,
+        rooms = _rooms(snapshot)
+        parsed_slots = _parsed_time_slots(snapshot)
+        commitments_by_key = _commitment_indexes(_existing_commitments(snapshot))
+        blocks_by_key = _calendar_block_indexes(_calendar_blocks(snapshot))
+        meetings, unassignable_reasons, option_count = _prepare_meetings(
+            demands=demands,
+            rooms=rooms,
+            parsed_slots=parsed_slots,
+            commitments_by_key=commitments_by_key,
+            blocks_by_key=blocks_by_key,
+            request_context=request_context,
         )
-    request_context.record_metric("candidate_count", len(candidates))
+    request_context.record_metric("candidate_count", option_count)
 
     if unassignable_reasons:
         assignments = [
@@ -258,19 +351,57 @@ def solve_snapshot(
             timeout=False,
             started_at=started_at,
             warnings=[],
-            infeasible_reasons=[item for items in unassignable_reasons.values() for item in items],
+            infeasible_reasons=_dedupe_reasons(
+                [item for items in unassignable_reasons.values() for item in items]
+            ),
             runtime_configuration=runtime_configuration,
+            request_context=request_context,
         )
 
+    # P1: Fast pre-solve feasibility guards (<1s fail-fast on provable impossibilities)
+    with request_context.measure("candidate_enumeration"):
+        presolve_reasons = _presolve_feasibility_guards(
+            snapshot=snapshot,
+            meetings=meetings,
+            rooms=rooms,
+            parsed_slots=parsed_slots,
+            commitments_by_key=commitments_by_key,
+            blocks_by_key=blocks_by_key,
+        )
+    if presolve_reasons:
+        assignments = [
+            _conflict_assignment(demand, meeting_sequence, presolve_reasons)
+            for demand in demands
+            for meeting_sequence in range(1, (_meeting_count(demand) or 1) + 1)
+        ]
+        return _result(
+            snapshot=snapshot,
+            solver_run_id=solver_run_id,
+            solver_status="infeasible",
+            assignments=assignments,
+            objective_score=None,
+            timeout=False,
+            started_at=started_at,
+            warnings=[],
+            infeasible_reasons=presolve_reasons,
+            runtime_configuration=runtime_configuration,
+            request_context=request_context,
+        )
+
+    # P0: Standard factored CP-SAT model construction
     with request_context.measure("hard_model_construction"):
         model = cp_model.CpModel()
-        variables = [model.new_bool_var(f"candidate_{index}") for index, _ in enumerate(candidates)]
-        indexes = _candidate_indexes(candidates)
-
-        for candidate_indexes in indexes.by_assignment.values():
-            model.add(sum(variables[index] for index in candidate_indexes) == 1)
-
-        repair_error = _apply_repair_hard_requirement(snapshot, model, variables, candidates)
+        state = _build_factored_hard_model(
+            model=model,
+            snapshot=snapshot,
+            meetings=meetings,
+            rooms=rooms,
+            commitments_by_key=commitments_by_key,
+            blocks_by_key=blocks_by_key,
+            option_count=option_count,
+            request_context=request_context,
+        )
+        repair_error = _apply_repair_hard_requirement(snapshot, model, state)
         if repair_error is not None:
             return _result(
                 snapshot=snapshot,
@@ -283,19 +414,9 @@ def solve_snapshot(
                 warnings=[repair_error],
                 infeasible_reasons=[repair_error],
                 runtime_configuration=runtime_configuration,
+                request_context=request_context,
             )
 
-        _add_no_overlap_constraints(model, variables, candidates, indexes)
-        _add_modality_transition_buffer_constraints(
-            model,
-            variables,
-            candidates,
-            indexes,
-            request_context,
-        )
-        _add_same_faculty_constraints(model, variables, candidates, demands, indexes)
-        _add_distinct_day_spread_constraints(model, variables, candidates, demands)
-        load_variables = _add_faculty_load_constraints(model, variables, candidates, snapshot)
         request_context.record_metric("model_variable_count", len(model.proto.variables))
         request_context.record_metric("model_constraint_count", len(model.proto.constraints))
 
@@ -359,7 +480,7 @@ def solve_snapshot(
             objective_details=_empty_objective_details(snapshot),
             solver_statistics=_solver_statistics(
                 snapshot=snapshot,
-                candidates=candidates,
+                candidate_count=state.candidate_count,
                 model=model,
                 result_solver=feasibility_solver,
                 objective_score=None,
@@ -369,27 +490,21 @@ def solve_snapshot(
                 optimization_stage=_not_run_stage_statistics(),
             ),
             runtime_configuration=runtime_configuration,
+            request_context=request_context,
         )
 
-    feasibility_selected = _selected_candidates(
-        candidates=candidates,
-        variables=variables,
-        solver=feasibility_solver,
-    )
+    feasibility_selected = _selected_candidates(state=state, solver=feasibility_solver)
 
     return _solve_lexicographic(
         snapshot=snapshot,
         solver_run_id=solver_run_id,
         model=model,
-        variables=variables,
-        candidates=candidates,
-        load_variables=load_variables,
+        state=state,
         feasibility_solver=feasibility_solver,
         feasibility_selected=feasibility_selected,
         feasibility_stage=feasibility_stage,
         started_at=started_at,
         request_context=request_context,
-        indexes=indexes,
         runtime_configuration=runtime_configuration,
     )
 
@@ -398,76 +513,110 @@ def _solve_lexicographic(
     snapshot: dict[str, Any],
     solver_run_id: str,
     model: cp_model.CpModel,
-    variables: list[cp_model.IntVar],
-    candidates: list[Candidate],
-    load_variables: dict[int, cp_model.IntVar],
+    state: FactoredModelState,
     feasibility_solver: cp_model.CpSolver,
     feasibility_selected: list[Candidate],
     feasibility_stage: dict[str, Any],
     started_at: float,
     request_context: SolverRequestContext,
-    indexes: CandidateIndexes,
     runtime_configuration: SolverRuntimeConfiguration,
 ) -> dict[str, Any]:
-    for variable in variables:
-        model.add_hint(variable, int(feasibility_solver.boolean_value(variable)))
-
     selected = feasibility_selected
     result_solver = feasibility_solver
     completed_levels: list[dict[str, Any]] = []
     latest_stage = _not_run_stage_statistics()
+    any_non_optimal = False
+    is_large_problem = len(snapshot.get("scheduling_demands", [])) >= STAGE2_LARGE_DEMAND_THRESHOLD
 
     try:
         with request_context.measure("objective_construction"):
             objectives = _lexicographic_objectives(
-                model,
-                variables,
-                candidates,
-                load_variables,
-                indexes,
-                request_context,
+                model=model,
+                state=state,
+                request_context=request_context,
             )
-            repair_objective = _repair_change_objective(snapshot, variables, candidates)
+            repair_objective = _repair_change_objective(snapshot, model, state)
             if repair_objective is not None:
-                objectives.insert(0, ("changed_non_requested_meetings", repair_objective))
+                objectives.insert(0, ("changed_non_requested_meetings", lambda expr=repair_objective: expr))
     except RequestBudgetExceeded:
         return _lexicographic_result(
-            snapshot, solver_run_id, model, candidates, selected, result_solver,
+            snapshot, solver_run_id, model, state.candidate_count, selected, result_solver,
             "feasible", started_at, runtime_configuration, feasibility_stage,
             latest_stage, completed_levels,
             [_reason("optimization_budget_exhausted", "The hard-valid timetable was retained when the lexicographic budget expired.")],
             request_context,
         )
 
-    for index, (name, expression) in enumerate(objectives):
+    for index, (name, expression_builder) in enumerate(objectives):
         remaining = request_context.remaining_search_seconds()
 
         if remaining <= 0.001:
             return _lexicographic_result(
-                snapshot, solver_run_id, model, candidates, selected, result_solver,
+                snapshot, solver_run_id, model, state.candidate_count, selected, result_solver,
                 "feasible", started_at, runtime_configuration, feasibility_stage,
                 latest_stage, completed_levels,
                 [_reason("optimization_budget_exhausted", "The hard-valid timetable was retained when the lexicographic budget expired.")],
                 request_context,
             )
 
-        model.maximize(expression)
-        solver = _configured_solver(
-            timeout_seconds=max(0.001, remaining / max(1, len(objectives) - index)),
-            runtime_configuration=runtime_configuration,
-        )
-        phase_started = perf_counter()
         try:
-            with request_context.measure(f"lexicographic_search_{name}"):
-                status = solver.solve(model)
+            with request_context.measure("objective_construction"):
+                expression = expression_builder()
         except RequestBudgetExceeded:
             return _lexicographic_result(
-                snapshot, solver_run_id, model, candidates, selected, result_solver,
+                snapshot, solver_run_id, model, state.candidate_count, selected, result_solver,
                 "feasible", started_at, runtime_configuration, feasibility_stage,
                 latest_stage, completed_levels,
                 [_reason("optimization_budget_exhausted", "The hard-valid timetable was retained when the lexicographic budget expired.")],
                 request_context,
             )
+
+        _apply_solver_hints(model, state, result_solver, selected)
+
+        remaining_levels = max(1, len(objectives) - index)
+        per_level_budget = remaining / remaining_levels
+        if is_large_problem:
+            per_level_budget = min(per_level_budget, STAGE2_LEVEL_MAX_SECONDS)
+
+        model.maximize(expression)
+        solver = _configured_solver(
+            timeout_seconds=max(0.001, per_level_budget),
+            runtime_configuration=runtime_configuration,
+            relative_gap_limit=STAGE2_LARGE_RELATIVE_GAP_LIMIT if is_large_problem else 0.0,
+        )
+        callback = _Stage2EarlyStopCallback() if is_large_problem else None
+        stop_event = threading.Event()
+        watchdog: threading.Thread | None = None
+
+        if callback is not None:
+            def _watch_stagnation() -> None:
+                while not stop_event.wait(0.25):
+                    if callback.check_stagnation(STAGE2_STAGNATION_SECONDS):
+                        break
+
+            watchdog = threading.Thread(target=_watch_stagnation, daemon=True)
+            watchdog.start()
+
+        phase_started = perf_counter()
+        try:
+            with request_context.measure(f"lexicographic_search_{name}"):
+                if callback is not None:
+                    status = solver.solve(model, callback)
+                else:
+                    status = solver.solve(model)
+        except RequestBudgetExceeded:
+            return _lexicographic_result(
+                snapshot, solver_run_id, model, state.candidate_count, selected, result_solver,
+                "feasible", started_at, runtime_configuration, feasibility_stage,
+                latest_stage, completed_levels,
+                [_reason("optimization_budget_exhausted", "The hard-valid timetable was retained when the lexicographic budget expired.")],
+                request_context,
+            )
+        finally:
+            stop_event.set()
+            if watchdog is not None:
+                watchdog.join(timeout=0.5)
+
         latest_stage = _search_stage_statistics(
             model=model,
             solver=solver,
@@ -477,14 +626,14 @@ def _solve_lexicographic(
 
         if status not in {cp_model.OPTIMAL, cp_model.FEASIBLE}:
             return _lexicographic_result(
-                snapshot, solver_run_id, model, candidates, selected, result_solver,
+                snapshot, solver_run_id, model, state.candidate_count, selected, result_solver,
                 "feasible", started_at, runtime_configuration, feasibility_stage,
                 latest_stage, completed_levels,
                 [_reason("optimization_limit_reached", f"The hard-valid timetable was retained before completing {name}.")],
                 request_context,
             )
 
-        selected = _selected_candidates(candidates, variables, solver)
+        selected = _selected_candidates(state=state, solver=solver)
         result_solver = solver
         value = int(round(solver.objective_value))
         completed_levels.append({
@@ -494,28 +643,66 @@ def _solve_lexicographic(
         })
 
         if status != cp_model.OPTIMAL:
-            return _lexicographic_result(
-                snapshot, solver_run_id, model, candidates, selected, result_solver,
-                "feasible", started_at, runtime_configuration, feasibility_stage,
-                latest_stage, completed_levels,
-                [_reason("lexicographic_level_feasible", f"{name} was bounded but not proved optimal; lower levels were not allowed to alter it.")],
-                request_context,
-            )
+            any_non_optimal = True
+            model.add(expression >= value)
+        else:
+            model.add(expression == value)
 
-        model.add(expression == value)
+    if any_non_optimal:
+        return _lexicographic_result(
+            snapshot, solver_run_id, model, state.candidate_count, selected, result_solver,
+            "feasible", started_at, runtime_configuration, feasibility_stage,
+            latest_stage, completed_levels,
+            [_reason("lexicographic_level_feasible", "One or more lexicographic levels reached their time or stagnation cap; achieved quality floors were preserved.")],
+            request_context,
+        )
 
     return _lexicographic_result(
-        snapshot, solver_run_id, model, candidates, selected, result_solver,
+        snapshot, solver_run_id, model, state.candidate_count, selected, result_solver,
         "optimal", started_at, runtime_configuration, feasibility_stage,
         latest_stage, completed_levels, [], request_context,
     )
 
 
+def _apply_solver_hints(
+    model: cp_model.CpModel,
+    state: FactoredModelState,
+    solver: cp_model.CpSolver,
+    selected: list[Candidate],
+) -> None:
+    model.clear_hints()
+    if state.slot_vars:
+        for vars_m in state.slot_vars:
+            for variable in vars_m:
+                model.add_hint(variable, int(solver.boolean_value(variable)))
+        for variable in state.fac_bools:
+            model.add_hint(variable, int(solver.boolean_value(variable)))
+        for variable in state.room_bools:
+            model.add_hint(variable, int(solver.boolean_value(variable)))
+        return
+
+    for idx, candidate in enumerate(selected):
+        ws = candidate.day_of_week * DAY_STRIDE_MINUTES + candidate.starts_minute
+        model.add_hint(state.start_vars[idx], ws)
+        model.add_hint(state.day_vars[idx], candidate.day_of_week)
+        model.add_hint(state.min_vars[idx], candidate.starts_minute)
+
+    for variable in state.fac_bools:
+        model.add_hint(variable, int(solver.boolean_value(variable)))
+    for variable in state.room_bools:
+        model.add_hint(variable, int(solver.boolean_value(variable)))
+    for (m_idx, day), on_day_var in state.on_day_cache.items():
+        if m_idx < len(selected):
+            model.add_hint(on_day_var, int(selected[m_idx].day_of_week == day))
+    for var, value_fn in state.extra_bool_hints:
+        model.add_hint(var, value_fn(selected))
+
+
 def _lexicographic_result(
     snapshot: dict[str, Any],
-    solver_run_id: str,
+    solver_run_id: int | None,
     model: cp_model.CpModel,
-    candidates: list[Candidate],
+    candidate_count: int,
     selected: list[Candidate],
     solver: cp_model.CpSolver,
     status: str,
@@ -540,7 +727,7 @@ def _lexicographic_result(
         objective_details=_lexicographic_objective_details(snapshot, selected, completed_levels),
         solver_statistics=_solver_statistics(
             snapshot=snapshot,
-            candidates=candidates,
+            candidate_count=candidate_count,
             model=model,
             result_solver=solver,
             objective_score=None,
@@ -557,128 +744,223 @@ def _lexicographic_result(
 def _configured_solver(
     timeout_seconds: float,
     runtime_configuration: SolverRuntimeConfiguration,
+    *,
+    relative_gap_limit: float = 0.0,
 ) -> cp_model.CpSolver:
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = max(0.001, timeout_seconds)
     solver.parameters.num_workers = runtime_configuration.worker_count
     solver.parameters.random_seed = runtime_configuration.random_seed
+    if relative_gap_limit > 0.0:
+        solver.parameters.relative_gap_limit = relative_gap_limit
 
     return solver
 
 
 def _selected_candidates(
-    candidates: list[Candidate],
-    variables: list[cp_model.IntVar],
+    state: FactoredModelState,
     solver: cp_model.CpSolver,
 ) -> list[Candidate]:
-    return [
-        candidate
-        for index, candidate in enumerate(candidates)
-        if solver.boolean_value(variables[index])
-    ]
+    selected: list[Candidate] = []
+    for meeting in state.meetings:
+        chosen_slot: ParsedSlot | None = None
+        if state.slot_vars:
+            for s_idx, slot_var in enumerate(state.slot_vars[meeting.index]):
+                if solver.boolean_value(slot_var):
+                    chosen_slot = meeting.valid_slots[s_idx]
+                    break
+        else:
+            ws = int(solver.value(state.start_vars[meeting.index]))
+            target_day = ws // DAY_STRIDE_MINUTES
+            target_minute = ws % DAY_STRIDE_MINUTES
+            for slot in meeting.valid_slots:
+                if slot.day_of_week == target_day and slot.starts_minute == target_minute:
+                    chosen_slot = slot
+                    break
+
+        if chosen_slot is None:
+            chosen_slot = meeting.valid_slots[0]
+
+        if len(meeting.valid_faculty) == 1:
+            chosen_faculty = meeting.valid_faculty[0]
+        else:
+            fac_vars_m = state.fac_vars[meeting.index]
+            chosen_faculty = next(
+                (fid for fid, var in fac_vars_m.items() if solver.boolean_value(var)),
+                meeting.valid_faculty[0],
+            )
+
+        if len(meeting.valid_rooms) == 1:
+            chosen_room = meeting.valid_rooms[0]
+        else:
+            room_vars_m = state.room_vars[meeting.index]
+            chosen_room = next(
+                (rid for rid, var in room_vars_m.items() if solver.boolean_value(var)),
+                meeting.valid_rooms[0],
+            )
+
+        room_data = state.rooms.get(chosen_room, {}) if chosen_room is not None else {}
+        starts_minute = chosen_slot.starts_minute
+        ends_minute = starts_minute + meeting.duration_minutes
+        selected.append(
+            Candidate(
+                scheduling_demand_id=meeting.scheduling_demand_id,
+                demand_key=meeting.demand_key,
+                term_offering_id=meeting.term_offering_id,
+                section_id=meeting.section_id,
+                section_delivery_group_id=meeting.section_delivery_group_id,
+                cohort_or_student_group_id=meeting.cohort_or_student_group_id,
+                cohort_or_student_group_ids=meeting.cohort_or_student_group_ids,
+                modality=meeting.modality,
+                subject_id=meeting.subject_id,
+                course_component_id=meeting.course_component_id,
+                faculty_id=chosen_faculty,
+                room_id=chosen_room,
+                day_of_week=chosen_slot.day_of_week,
+                starts_at=chosen_slot.starts_at,
+                ends_at=_minutes_to_time(ends_minute),
+                starts_minute=starts_minute,
+                ends_minute=ends_minute,
+                time_slot_id=chosen_slot.time_slot_id,
+                time_block_key=chosen_slot.time_block_key,
+                meeting_sequence=meeting.meeting_sequence,
+                meeting_pattern=meeting.meeting_pattern,
+                priority=meeting.faculty_priorities.get(chosen_faculty, 100),
+                duration_minutes=meeting.duration_minutes,
+                load_units_scaled=meeting.load_units_scaled,
+                room_capacity=_int_or_none(room_data.get("capacity")) or 0,
+                expected_count=meeting.expected_count,
+            )
+        )
+
+    return selected
 
 
 def _lexicographic_objectives(
     model: cp_model.CpModel,
-    variables: list[cp_model.IntVar],
-    candidates: list[Candidate],
-    load_variables: dict[int, cp_model.IntVar],
-    indexes: CandidateIndexes,
+    state: FactoredModelState,
     request_context: SolverRequestContext,
-) -> list[tuple[str, cp_model.LinearExpr]]:
+) -> list[tuple[str, Callable[[], cp_model.LinearExpr]]]:
     return [
         (
             "cohort_mode_switches",
-            sum(
-                _cohort_mode_switch_objective_terms(
-                    model,
-                    variables,
-                    indexes,
-                    request_context,
-                )
-            ),
+            lambda: sum(_cohort_mode_switch_objective_terms(model, state, request_context)),
         ),
-        ("cohort_idle_time", sum(_cohort_idle_gap_objective_terms(model, variables, candidates))),
-        ("faculty_load_imbalance", sum(_load_balance_objective_terms(model, load_variables, 1))),
-        ("faculty_idle_time", sum(_idle_gap_objective_terms(model, variables, candidates, 1))),
+        (
+            "cohort_idle_time",
+            lambda: sum(_cohort_idle_gap_objective_terms(model, state)),
+        ),
+        (
+            "faculty_load_imbalance",
+            lambda: sum(_load_balance_objective_terms(model, state.load_variables, 1)),
+        ),
+        (
+            "faculty_idle_time",
+            lambda: sum(_faculty_idle_gap_objective_terms(model, state)),
+        ),
         (
             "room_seat_waste",
-            sum(_room_efficiency_score(candidate) * variables[index] for index, candidate in enumerate(candidates)),
+            lambda: sum(_room_efficiency_objective_terms(state)),
         ),
         (
             "stable_earlier_placement",
-            sum(_earlier_candidate_score(candidate) * variables[index] for index, candidate in enumerate(candidates)),
+            lambda: sum(_earlier_placement_objective_terms(model, state)),
         ),
     ]
 
 
+def _on_day_bool(
+    model: cp_model.CpModel,
+    state: FactoredModelState,
+    meeting: MeetingSpec,
+    day: int,
+    slots_d: list[tuple[int, ParsedSlot]],
+) -> cp_model.IntVar:
+    cached = state.on_day_cache.get((meeting.index, day))
+    if cached is not None:
+        return cached
+
+    if state.slot_vars:
+        vars_d = [state.slot_vars[meeting.index][s_idx] for s_idx, _ in slots_d]
+        if len(vars_d) == 1:
+            on_day = vars_d[0]
+        else:
+            on_day = model.new_bool_var(f"on_day_{meeting.index}_{day}")
+            model.add(on_day == sum(vars_d))
+    else:
+        available_days = {sl.day_of_week for sl in meeting.valid_slots}
+        if len(available_days) == 1 and day in available_days:
+            on_day = model.new_constant(1)
+        else:
+            on_day = model.new_bool_var(f"on_day_{meeting.index}_{day}")
+            model.add(state.day_vars[meeting.index] == day).only_enforce_if(on_day)
+            model.add(state.day_vars[meeting.index] != day).only_enforce_if(on_day.Not())
+
+    state.on_day_cache[(meeting.index, day)] = on_day
+    return on_day
+
+
 def _cohort_mode_switch_objective_terms(
     model: cp_model.CpModel,
-    variables: list[cp_model.IntVar],
-    indexes: CandidateIndexes,
+    state: FactoredModelState,
     request_context: SolverRequestContext,
 ) -> list[cp_model.LinearExpr]:
     terms: list[cp_model.LinearExpr] = []
-    placement_variables: dict[tuple[Any, ...], cp_model.IntVar] = {}
+    by_cohort_day_start: dict[tuple[int, int], dict[int, list[tuple[MeetingSpec, int]]]] = {}
 
-    for placement_index, (placement_key, candidate_indexes) in enumerate(indexes.by_placement.items()):
-        placement = model.new_bool_var(f"placement_{placement_index}")
-        model.add_max_equality(placement, [variables[index] for index in candidate_indexes])
-        placement_variables[placement_key] = placement
+    for meeting in state.meetings:
+        for s_idx, slot in enumerate(meeting.valid_slots):
+            for cohort_id in meeting.cohort_or_student_group_ids:
+                by_cohort_day_start.setdefault(
+                    (cohort_id, slot.day_of_week),
+                    {},
+                ).setdefault(slot.starts_minute, []).append((meeting, s_idx))
 
-    placements_by_cohort_day_start: dict[
-        tuple[int, int],
-        dict[int, list[tuple[Any, ...]]],
-    ] = {}
-    for placement_key in indexes.by_placement:
-        cohort_ids = placement_key[2]
-        day = int(placement_key[3])
-        starts_minute = int(placement_key[4])
-        for cohort_id in cohort_ids:
-            placements_by_cohort_day_start.setdefault(
-                (int(cohort_id), day),
-                {},
-            ).setdefault(starts_minute, []).append(placement_key)
+    for (cohort_id, day), positions_by_start in by_cohort_day_start.items():
+        modalities = sorted({
+            meeting.modality
+            for items in positions_by_start.values()
+            for meeting, _ in items
+        })
+        if len(modalities) < 2 or len(positions_by_start) < 2:
+            continue
 
-    modality_codes = {
-        modality: index
-        for index, modality in enumerate(
-            sorted({str(key[6]) for key in indexes.by_placement}),
-            start=1,
-        )
-    }
-    maximum_mode = max(modality_codes.values(), default=1)
-
-    for (cohort_id, day), placements_by_start in placements_by_cohort_day_start.items():
+        modality_codes = {modality: idx for idx, modality in enumerate(modalities, start=1)}
+        maximum_mode = max(modality_codes.values(), default=1)
         previous_mode: cp_model.IntVar | None = None
 
-        for position, placement_keys in enumerate(
-            dict(sorted(placements_by_start.items())).values()
-        ):
+        for position, (starts_minute, items) in enumerate(sorted(positions_by_start.items())):
             request_context.checkpoint("objective_construction")
-            placement_keys = sorted(set(placement_keys))
-            current_selected = [placement_variables[key] for key in placement_keys]
-            starts_here = model.new_bool_var(
-                f"cohort_starts_{cohort_id}_{day}_{position}"
-            )
-            model.add(starts_here == sum(current_selected))
-            current_mode = model.new_int_var(
-                0,
-                maximum_mode,
-                f"cohort_mode_{cohort_id}_{day}_{position}",
-            )
+            unique_items = list({meeting.index: (meeting, s_idx) for meeting, s_idx in items}.values())
+            at_vars: list[tuple[MeetingSpec, cp_model.IntVar]] = []
+            ws = day * DAY_STRIDE_MINUTES + starts_minute
+
+            for meeting, s_idx in unique_items:
+                if state.slot_vars:
+                    at_vars.append((meeting, state.slot_vars[meeting.index][s_idx]))
+                else:
+                    at_var = model.new_bool_var(f"at_{cohort_id}_{day}_{starts_minute}_{meeting.index}")
+                    model.add(state.start_vars[meeting.index] == ws).only_enforce_if(at_var)
+                    model.add(state.start_vars[meeting.index] != ws).only_enforce_if(at_var.Not())
+                    m_idx = meeting.index
+                    state.extra_bool_hints.append(
+                        (
+                            at_var,
+                            lambda sel, idx=m_idx, target_d=day, target_m=starts_minute: int(
+                                sel[idx].day_of_week == target_d and sel[idx].starts_minute == target_m
+                            ),
+                        )
+                    )
+                    at_vars.append((meeting, at_var))
+
+            starts_here = model.new_bool_var(f"cohort_starts_{cohort_id}_{day}_{position}")
+            model.add(starts_here == sum(var for _, var in at_vars))
+            current_mode = model.new_int_var(0, maximum_mode, f"cohort_mode_{cohort_id}_{day}_{position}")
             model.add(
                 current_mode
-                == sum(
-                    modality_codes[str(key[6])] * placement_variables[key]
-                    for key in placement_keys
-                )
+                == sum(modality_codes[meeting.modality] * var for meeting, var in at_vars)
             )
-            last_mode = model.new_int_var(
-                0,
-                maximum_mode,
-                f"cohort_last_mode_{cohort_id}_{day}_{position}",
-            )
+            last_mode = model.new_int_var(0, maximum_mode, f"cohort_last_mode_{cohort_id}_{day}_{position}")
 
             if previous_mode is None:
                 model.add(last_mode == current_mode)
@@ -687,19 +969,13 @@ def _cohort_mode_switch_objective_terms(
 
             model.add(last_mode == current_mode).only_enforce_if(starts_here)
             model.add(last_mode == previous_mode).only_enforce_if(starts_here.Not())
-            has_previous = model.new_bool_var(
-                f"cohort_has_previous_{cohort_id}_{day}_{position}"
-            )
+            has_previous = model.new_bool_var(f"cohort_has_previous_{cohort_id}_{day}_{position}")
             model.add(previous_mode != 0).only_enforce_if(has_previous)
             model.add(previous_mode == 0).only_enforce_if(has_previous.Not())
-            changed = model.new_bool_var(
-                f"cohort_mode_changed_{cohort_id}_{day}_{position}"
-            )
+            changed = model.new_bool_var(f"cohort_mode_changed_{cohort_id}_{day}_{position}")
             model.add(current_mode != previous_mode).only_enforce_if(changed)
             model.add(current_mode == previous_mode).only_enforce_if(changed.Not())
-            switch = model.new_bool_var(
-                f"cohort_mode_switch_{cohort_id}_{day}_{position}"
-            )
+            switch = model.new_bool_var(f"cohort_mode_switch_{cohort_id}_{day}_{position}")
             model.add_bool_and([starts_here, has_previous, changed]).only_enforce_if(switch)
             model.add_bool_or([
                 starts_here.Not(),
@@ -715,48 +991,225 @@ def _cohort_mode_switch_objective_terms(
 
 def _cohort_idle_gap_objective_terms(
     model: cp_model.CpModel,
-    variables: list[cp_model.IntVar],
-    candidates: list[Candidate],
+    state: FactoredModelState,
 ) -> list[cp_model.LinearExpr]:
     terms: list[cp_model.LinearExpr] = []
-    cohort_days: dict[tuple[int, int], list[int]] = {}
+    cohort_days: dict[tuple[int, int], list[tuple[MeetingSpec, list[tuple[int, ParsedSlot]]]]] = {}
 
-    for index, candidate in enumerate(candidates):
-        for cohort_id in candidate.cohort_or_student_group_ids:
-            cohort_days.setdefault((cohort_id, candidate.day_of_week), []).append(index)
+    for meeting in state.meetings:
+        slots_by_day: dict[int, list[tuple[int, ParsedSlot]]] = {}
+        for s_idx, slot in enumerate(meeting.valid_slots):
+            slots_by_day.setdefault(slot.day_of_week, []).append((s_idx, slot))
+        for day, slots_d in slots_by_day.items():
+            for cohort_id in meeting.cohort_or_student_group_ids:
+                cohort_days.setdefault((cohort_id, day), []).append((meeting, slots_d))
 
-    for (cohort_id, day), indexes in cohort_days.items():
-        if len(indexes) < 2:
+    for (cohort_id, day), meeting_entries in cohort_days.items():
+        if len(meeting_entries) < 2:
             continue
 
-        horizon_start = min(candidates[index].starts_minute for index in indexes)
-        horizon_end = max(candidates[index].ends_minute for index in indexes)
-        active = model.new_bool_var(f"cohort_day_active_{cohort_id}_{day}")
-        model.add_max_equality(active, [variables[index] for index in indexes])
+        horizon_start = min(slot.starts_minute for _, slots_d in meeting_entries for _, slot in slots_d)
+        horizon_end = max(
+            slot.starts_minute + meeting.duration_minutes
+            for meeting, slots_d in meeting_entries
+            for _, slot in slots_d
+        )
+        day_actives: list[cp_model.IntVar] = []
         effective_starts: list[cp_model.IntVar] = []
         effective_ends: list[cp_model.IntVar] = []
+        duration_terms: list[cp_model.LinearExpr] = []
 
-        for index in indexes:
-            candidate = candidates[index]
-            effective_start = model.new_int_var(horizon_start, horizon_end, f"cohort_day_start_{cohort_id}_{day}_{index}")
-            effective_end = model.new_int_var(horizon_start, horizon_end, f"cohort_day_end_{cohort_id}_{day}_{index}")
-            model.add(effective_start == candidate.starts_minute).only_enforce_if(variables[index])
-            model.add(effective_start == horizon_end).only_enforce_if(variables[index].Not())
-            model.add(effective_end == candidate.ends_minute).only_enforce_if(variables[index])
-            model.add(effective_end == horizon_start).only_enforce_if(variables[index].Not())
-            effective_starts.append(effective_start)
-            effective_ends.append(effective_end)
+        for meeting, slots_d in meeting_entries:
+            on_day = _on_day_bool(model, state, meeting, day, slots_d)
+            m_start: cp_model.LinearExpr
+            if state.slot_vars:
+                m_start = sum(slot.starts_minute * state.slot_vars[meeting.index][s_idx] for s_idx, slot in slots_d)
+            else:
+                m_start = state.min_vars[meeting.index]
 
+            eff_start = model.new_int_var(
+                horizon_start,
+                horizon_end,
+                f"cohort_day_start_{cohort_id}_{day}_{meeting.index}",
+            )
+            eff_end = model.new_int_var(
+                horizon_start,
+                horizon_end,
+                f"cohort_day_end_{cohort_id}_{day}_{meeting.index}",
+            )
+            model.add(eff_start == m_start).only_enforce_if(on_day)
+            model.add(eff_start == horizon_end).only_enforce_if(on_day.Not())
+            model.add(eff_end == m_start + meeting.duration_minutes).only_enforce_if(on_day)
+            model.add(eff_end == horizon_start).only_enforce_if(on_day.Not())
+
+            day_actives.append(on_day)
+            effective_starts.append(eff_start)
+            effective_ends.append(eff_end)
+            duration_terms.append(meeting.duration_minutes * on_day)
+
+        active = model.new_bool_var(f"cohort_day_active_{cohort_id}_{day}")
+        model.add_max_equality(active, day_actives)
         first_start = model.new_int_var(horizon_start, horizon_end, f"cohort_first_{cohort_id}_{day}")
         last_end = model.new_int_var(horizon_start, horizon_end, f"cohort_last_{cohort_id}_{day}")
         idle = model.new_int_var(0, horizon_end - horizon_start, f"cohort_idle_{cohort_id}_{day}")
-        duration = sum(candidates[index].duration_minutes * variables[index] for index in indexes)
         model.add_min_equality(first_start, effective_starts)
         model.add_max_equality(last_end, effective_ends)
-        model.add(idle == last_end - first_start - duration).only_enforce_if(active)
+        model.add(idle == last_end - first_start - sum(duration_terms)).only_enforce_if(active)
         model.add(idle == 0).only_enforce_if(active.Not())
         terms.append(-idle)
 
+    return terms
+
+
+def _faculty_idle_gap_objective_terms(
+    model: cp_model.CpModel,
+    state: FactoredModelState,
+) -> list[cp_model.LinearExpr]:
+    terms: list[cp_model.LinearExpr] = []
+    faculty_days: dict[tuple[int, int], list[tuple[MeetingSpec, list[tuple[int, ParsedSlot]]]]] = {}
+
+    for meeting in state.meetings:
+        for faculty_id in meeting.valid_faculty:
+            blocked = set(meeting.faculty_blocked_slot_indices.get(faculty_id, ()))
+            slots_by_day: dict[int, list[tuple[int, ParsedSlot]]] = {}
+            for s_idx, slot in enumerate(meeting.valid_slots):
+                if s_idx in blocked:
+                    continue
+                slots_by_day.setdefault(slot.day_of_week, []).append((s_idx, slot))
+            for day, slots_d in slots_by_day.items():
+                faculty_days.setdefault((faculty_id, day), []).append((meeting, slots_d))
+
+    for (faculty_id, day), meeting_entries in faculty_days.items():
+        if len(meeting_entries) < 2:
+            continue
+
+        horizon_start = min(slot.starts_minute for _, slots_d in meeting_entries for _, slot in slots_d)
+        horizon_end = max(
+            slot.starts_minute + meeting.duration_minutes
+            for meeting, slots_d in meeting_entries
+            for _, slot in slots_d
+        )
+        day_actives: list[cp_model.IntVar] = []
+        effective_starts: list[cp_model.IntVar] = []
+        effective_ends: list[cp_model.IntVar] = []
+        duration_terms: list[cp_model.LinearExpr] = []
+
+        for meeting, slots_d in meeting_entries:
+            if state.slot_vars:
+                on_day_vars = [state.slot_vars[meeting.index][s_idx] for s_idx, _ in slots_d]
+                if len(on_day_vars) == 1:
+                    on_day = on_day_vars[0]
+                else:
+                    on_day = model.new_bool_var(f"fac_on_day_{faculty_id}_{day}_{meeting.index}")
+                    model.add(on_day == sum(on_day_vars))
+                m_start: cp_model.LinearExpr = sum(
+                    slot.starts_minute * state.slot_vars[meeting.index][s_idx] for s_idx, slot in slots_d
+                )
+            else:
+                all_slots_d = [
+                    (s_idx, sl)
+                    for s_idx, sl in enumerate(meeting.valid_slots)
+                    if sl.day_of_week == day
+                ]
+                on_day = _on_day_bool(model, state, meeting, day, all_slots_d)
+                m_start = state.min_vars[meeting.index]
+
+            if len(meeting.valid_faculty) == 1:
+                active_m_f_d = on_day
+            else:
+                fac_var = state.fac_vars[meeting.index][faculty_id]
+                active_m_f_d = model.new_bool_var(f"fac_active_{faculty_id}_{day}_{meeting.index}")
+                model.add_bool_and([on_day, fac_var]).only_enforce_if(active_m_f_d)
+                model.add_bool_or([on_day.Not(), fac_var.Not(), active_m_f_d])
+                if not state.slot_vars:
+                    m_idx = meeting.index
+                    state.extra_bool_hints.append(
+                        (
+                            active_m_f_d,
+                            lambda sel, idx=m_idx, target_d=day, target_f=faculty_id: int(
+                                sel[idx].day_of_week == target_d and sel[idx].faculty_id == target_f
+                            ),
+                        )
+                    )
+
+            eff_start = model.new_int_var(
+                horizon_start,
+                horizon_end,
+                f"faculty_day_start_{faculty_id}_{day}_{meeting.index}",
+            )
+            eff_end = model.new_int_var(
+                horizon_start,
+                horizon_end,
+                f"faculty_day_end_{faculty_id}_{day}_{meeting.index}",
+            )
+            model.add(eff_start == m_start).only_enforce_if(active_m_f_d)
+            model.add(eff_start == horizon_end).only_enforce_if(active_m_f_d.Not())
+            model.add(eff_end == m_start + meeting.duration_minutes).only_enforce_if(active_m_f_d)
+            model.add(eff_end == horizon_start).only_enforce_if(active_m_f_d.Not())
+
+            day_actives.append(active_m_f_d)
+            effective_starts.append(eff_start)
+            effective_ends.append(eff_end)
+            duration_terms.append(meeting.duration_minutes * active_m_f_d)
+
+        active = model.new_bool_var(f"faculty_day_active_{faculty_id}_{day}")
+        model.add_max_equality(active, day_actives)
+        first_start = model.new_int_var(horizon_start, horizon_end, f"faculty_day_first_start_{faculty_id}_{day}")
+        last_end = model.new_int_var(horizon_start, horizon_end, f"faculty_day_last_end_{faculty_id}_{day}")
+        idle_gap = model.new_int_var(0, horizon_end - horizon_start, f"faculty_day_idle_gap_{faculty_id}_{day}")
+        model.add_min_equality(first_start, effective_starts)
+        model.add_max_equality(last_end, effective_ends)
+        model.add(idle_gap == last_end - first_start - sum(duration_terms)).only_enforce_if(active)
+        model.add(idle_gap == 0).only_enforce_if(active.Not())
+        terms.append(-idle_gap)
+
+    return terms
+
+
+def _room_efficiency_objective_terms(state: FactoredModelState) -> list[cp_model.LinearExpr]:
+    terms: list[cp_model.LinearExpr] = []
+    for meeting in state.meetings:
+        if not meeting.room_required:
+            continue
+        if len(meeting.valid_rooms) == 1:
+            room_id = meeting.valid_rooms[0]
+            if room_id is not None:
+                terms.append(_room_efficiency_value(state.rooms.get(room_id, {}), meeting.expected_count))
+            continue
+        for room_id, room_var in state.room_vars[meeting.index].items():
+            score = _room_efficiency_value(state.rooms.get(room_id, {}), meeting.expected_count)
+            if score != 0:
+                terms.append(score * room_var)
+    return terms
+
+
+def _earlier_placement_objective_terms(
+    model: cp_model.CpModel,
+    state: FactoredModelState,
+) -> list[cp_model.LinearExpr]:
+    terms: list[cp_model.LinearExpr] = []
+    if state.slot_vars:
+        for meeting in state.meetings:
+            for s_idx, slot in enumerate(meeting.valid_slots):
+                score = _slot_earlier_score(slot.day_of_week, slot.starts_minute)
+                if score != 0:
+                    terms.append(score * state.slot_vars[meeting.index][s_idx])
+        return terms
+
+    for meeting in state.meetings:
+        max_slot_cost = max((sl.day_of_week * 1_000) + sl.starts_minute for sl in meeting.valid_slots)
+        if max_slot_cost <= 10_000:
+            terms.append(10_000 - (state.day_vars[meeting.index] * 1_000 + state.min_vars[meeting.index]))
+        else:
+            clamped = model.new_int_var(0, 10_000, f"earlier_{meeting.index}")
+            model.add_max_equality(
+                clamped,
+                [
+                    model.new_constant(0),
+                    10_000 - (state.day_vars[meeting.index] * 1_000 + state.min_vars[meeting.index]),
+                ],
+            )
+            terms.append(clamped)
     return terms
 
 
@@ -764,7 +1217,7 @@ def evaluate_candidate_membership(
     snapshot: dict[str, Any],
     assignments: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Replay assignments through candidate generation without invoking CP-SAT."""
+    """Replay assignments through factored admissibility checks without Cartesian enumeration."""
     demands = _demands(snapshot)
     cohort_ids_by_delivery_group = _cohort_ids_by_delivery_group(snapshot, demands)
 
@@ -779,21 +1232,40 @@ def evaluate_candidate_membership(
         }
         for demand in demands
     ]
-    candidates, _ = _enumerate_candidates(
-        snapshot,
-        demands,
-        SolverRequestContext(300),
-    )
-    candidate_keys = {_candidate_membership_key(candidate) for candidate in candidates}
-    results = [
-        {
-            "scheduling_demand_id": _int_or_none(assignment.get("scheduling_demand_id")),
-            "meeting_sequence": _int_or_none(assignment.get("meeting_sequence")) or 1,
-            "admissible": _assignment_membership_key(assignment) in candidate_keys,
-        }
-        for assignment in assignments
-        if isinstance(assignment, dict)
-    ]
+    rooms = _rooms(snapshot)
+    parsed_slots = _parsed_time_slots(snapshot)
+    day_ends = _parsed_day_ends(parsed_slots)
+    commitments_by_key = _commitment_indexes(_existing_commitments(snapshot))
+    blocks_by_key = _calendar_block_indexes(_calendar_blocks(snapshot))
+
+    demands_by_id = {int(demand["scheduling_demand_id"]): demand for demand in demands}
+    results: list[dict[str, Any]] = []
+
+    for assignment in assignments:
+        if not isinstance(assignment, dict):
+            continue
+        demand_id = _int_or_none(assignment.get("scheduling_demand_id"))
+        meeting_sequence = _int_or_none(assignment.get("meeting_sequence")) or 1
+        demand = demands_by_id.get(demand_id) if demand_id is not None else None
+        admissible = (
+            demand is not None
+            and _assignment_is_admissible(
+                demand=demand,
+                meeting_sequence=meeting_sequence,
+                assignment=assignment,
+                rooms=rooms,
+                parsed_slots=parsed_slots,
+                day_ends=day_ends,
+                commitments_by_key=commitments_by_key,
+                blocks_by_key=blocks_by_key,
+            )
+        )
+        results.append({
+            "scheduling_demand_id": demand_id,
+            "meeting_sequence": meeting_sequence,
+            "admissible": admissible,
+        })
+
     admissible_count = sum(1 for result in results if result["admissible"])
     expected_assignment_keys = {
         (int(demand["scheduling_demand_id"]), meeting_sequence)
@@ -819,6 +1291,104 @@ def evaluate_candidate_membership(
         "all_admissible": complete_demand_coverage and admissible_count == len(results),
         "assignments": results,
     }
+
+
+def _assignment_is_admissible(
+    *,
+    demand: dict[str, Any],
+    meeting_sequence: int,
+    assignment: dict[str, Any],
+    rooms: dict[int, dict[str, Any]],
+    parsed_slots: list[ParsedSlot],
+    day_ends: dict[int, int],
+    commitments_by_key: dict[tuple[str, int, int], list[dict[str, Any]]],
+    blocks_by_key: dict[tuple[str, int | None, int], list[dict[str, Any]]],
+) -> bool:
+    meeting_count = _meeting_count(demand) or 1
+    if meeting_sequence < 1 or meeting_sequence > meeting_count:
+        return False
+
+    if (
+        (_int_or_none(assignment.get("term_offering_id")) or 0) != (_int_or_none(demand.get("term_offering_id")) or 0)
+        or (_int_or_none(assignment.get("section_id")) or 0) != (_int_or_none(demand.get("section_id")) or 0)
+        or (_int_or_none(assignment.get("section_delivery_group_id")) or 0) != (_int_or_none(demand.get("section_delivery_group_id")) or 0)
+        or (_int_or_none(assignment.get("cohort_or_student_group_id")) or 0) != (_int_or_none(demand.get("cohort_or_student_group_id")) or 0)
+        or _int_or_none(assignment.get("subject_id") or assignment.get("course_id")) != _int_or_none(demand.get("course_id") or demand.get("subject_id"))
+        or _int_or_none(assignment.get("course_component_id")) != _int_or_none(demand.get("course_component_id"))
+    ):
+        return False
+
+    faculty_id = _int_or_none(assignment.get("faculty_user_id") or assignment.get("faculty_id"))
+    if faculty_id is None or faculty_id not in _faculty_ids(demand, meeting_sequence=meeting_sequence):
+        return False
+
+    room_id = _int_or_none(assignment.get("room_id"))
+    if room_id not in _room_ids(demand, rooms, meeting_sequence=meeting_sequence):
+        return False
+
+    raw_fixed_sequence = demand.get("fixed_meeting_sequence")
+    fixed_sequence = _int_or_none(raw_fixed_sequence)
+    has_fixed_time_pin = (
+        _int_or_none(demand.get("fixed_day_of_week")) is not None
+        or _time_to_minutes(demand.get("fixed_start_time")) is not None
+    )
+    if (
+        has_fixed_time_pin
+        and raw_fixed_sequence not in {None, ""}
+        and (fixed_sequence is None or fixed_sequence < 1 or fixed_sequence > meeting_count)
+    ):
+        return False
+
+    duration = _duration_minutes(demand)
+    day = _int_or_none(assignment.get("day_of_week") or assignment.get("day"))
+    starts_at = _time_or_none(assignment.get("starts_at") or assignment.get("start_time"))
+    ends_at = _time_or_none(assignment.get("ends_at") or assignment.get("end_time"))
+    time_slot_id = _int_or_none(assignment.get("time_slot_id"))
+    time_block_key = str(assignment.get("time_block_key") or assignment.get("time_block_reference") or "")
+    starts_minute = _time_to_minutes(starts_at)
+
+    if day is None or starts_minute is None or ends_at != _minutes_to_time(starts_minute + duration):
+        return False
+
+    slots = _slots_for_demand_parsed(demand, parsed_slots, day_ends, meeting_sequence=meeting_sequence)
+    matching_slot = next(
+        (
+            slot
+            for slot in slots
+            if slot.day_of_week == day
+            and slot.starts_at == starts_at
+            and slot.time_slot_id == time_slot_id
+            and slot.time_block_key == time_block_key
+        ),
+        None,
+    )
+    if matching_slot is None:
+        return False
+
+    ends_minute = starts_minute + duration
+    dg_id = _int_or_none(demand.get("section_delivery_group_id")) or 0
+    if _window_conflicts_existing(
+        day=day,
+        starts_minute=starts_minute,
+        ends_minute=ends_minute,
+        delivery_group_id=dg_id,
+        faculty_id=faculty_id,
+        room_id=room_id,
+        indexes=commitments_by_key,
+    ):
+        return False
+
+    if _window_conflicts_calendar(
+        day=day,
+        starts_minute=starts_minute,
+        ends_minute=ends_minute,
+        faculty_id=faculty_id,
+        room_id=room_id,
+        indexes=blocks_by_key,
+    ):
+        return False
+
+    return True
 
 
 def _result(
@@ -919,7 +1489,7 @@ def _empty_solver_statistics(
 
 def _solver_statistics(
     snapshot: dict[str, Any],
-    candidates: list[Candidate],
+    candidate_count: int,
     model: cp_model.CpModel,
     result_solver: cp_model.CpSolver,
     objective_score: int | None,
@@ -937,10 +1507,7 @@ def _solver_statistics(
     )
     relative_optimality_gap = None
 
-    if (
-        objective_score is not None
-        and best_objective_bound is not None
-    ):
+    if objective_score is not None and best_objective_bound is not None:
         relative_optimality_gap = abs(float(objective_score) - best_objective_bound) / max(
             1.0,
             abs(float(objective_score)),
@@ -948,7 +1515,7 @@ def _solver_statistics(
 
     stages = [feasibility_stage, optimization_stage]
     statistics.update({
-        "candidate_count": len(candidates),
+        "candidate_count": candidate_count,
         "model_variable_count": len(model_proto.variables),
         "model_constraint_count": len(model_proto.constraints),
         "no_overlap_constraint_count": sum(
@@ -1155,8 +1722,8 @@ def _rooms(snapshot: dict[str, Any]) -> dict[int, dict[str, Any]]:
     }
 
 
-def _time_slots(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
-    return sorted(
+def _parsed_time_slots(snapshot: dict[str, Any]) -> list[ParsedSlot]:
+    raw_slots = sorted(
         [
             slot
             for slot in snapshot.get("time_slots", [])
@@ -1170,6 +1737,33 @@ def _time_slots(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
             _int_or_none(slot.get("time_slot_id")) or 0,
         ),
     )
+    parsed: list[ParsedSlot] = []
+    for slot in raw_slots:
+        day = _int_or_none(slot.get("day_of_week"))
+        starts_minute = _time_to_minutes(slot.get("starts_at"))
+        if day is None or starts_minute is None:
+            continue
+        ends_minute = _time_to_minutes(slot.get("ends_at"))
+        if ends_minute is None:
+            ends_minute = starts_minute + (_int_or_none(slot.get("duration_minutes")) or 30)
+        parsed.append(
+            ParsedSlot(
+                day_of_week=day,
+                starts_minute=starts_minute,
+                ends_minute=ends_minute,
+                starts_at=_minutes_to_time(starts_minute),
+                time_slot_id=_int_or_none(slot.get("time_slot_id")),
+                time_block_key=str(slot.get("time_block_key") or f"D{day}-{starts_minute}"),
+            )
+        )
+    return parsed
+
+
+def _parsed_day_ends(parsed_slots: list[ParsedSlot]) -> dict[int, int]:
+    ends: dict[int, int] = {}
+    for slot in parsed_slots:
+        ends[slot.day_of_week] = max(ends.get(slot.day_of_week, slot.ends_minute), slot.ends_minute)
+    return ends
 
 
 def _existing_commitments(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
@@ -1249,7 +1843,6 @@ def _room_ids(
 
     if fixed_room_id is not None:
         room = rooms.get(fixed_room_id)
-
         return [fixed_room_id] if room is not None and _room_suits_demand(demand, room) else []
 
     return [
@@ -1282,27 +1875,30 @@ def _room_suits_demand(demand: dict[str, Any], room: dict[str, Any]) -> bool:
     return (_int_or_none(room.get("capacity")) or 0) >= expected_count
 
 
-def _enumerate_candidates(
-    snapshot: dict[str, Any],
+def _prepare_meetings(
+    *,
     demands: list[dict[str, Any]],
+    rooms: dict[int, dict[str, Any]],
+    parsed_slots: list[ParsedSlot],
+    commitments_by_key: dict[tuple[str, int, int], list[dict[str, Any]]],
+    blocks_by_key: dict[tuple[str, int | None, int], list[dict[str, Any]]],
     request_context: SolverRequestContext,
-) -> tuple[list[Candidate], dict[int, list[dict[str, str]]]]:
-    rooms = _rooms(snapshot)
-    time_slots = _time_slots(snapshot)
-    existing_commitments = _commitment_indexes(_existing_commitments(snapshot))
-    calendar_blocks = _calendar_block_indexes(_calendar_blocks(snapshot))
-    candidates: list[Candidate] = []
+) -> tuple[list[MeetingSpec], dict[int, list[dict[str, str]]], int]:
+    day_ends = _parsed_day_ends(parsed_slots)
+    raw_meetings: list[MeetingSpec] = []
     unassignable_reasons: dict[int, list[dict[str, str]]] = {}
 
     for demand in demands:
         request_context.checkpoint("candidate_enumeration")
         demand_id = _int_or_none(demand.get("scheduling_demand_id"))
-
         if demand_id is None:
             continue
 
         reasons: list[dict[str, str]] = []
         meeting_count = _meeting_count(demand) or 1
+        duration = _duration_minutes(demand)
+        room_req = _room_required(demand)
+        same_fac_req = bool(demand.get("same_faculty_required"))
         sequence_faculty_ids = {
             seq: _faculty_ids(demand, meeting_sequence=seq)
             for seq in range(1, meeting_count + 1)
@@ -1311,13 +1907,14 @@ def _enumerate_candidates(
             seq: _room_ids(demand, rooms, meeting_sequence=seq)
             for seq in range(1, meeting_count + 1)
         }
+
         raw_fixed_sequence = demand.get("fixed_meeting_sequence")
         fixed_sequence = _int_or_none(raw_fixed_sequence)
         has_fixed_time_pin = (
             _int_or_none(demand.get("fixed_day_of_week")) is not None
             or _time_to_minutes(demand.get("fixed_start_time")) is not None
         )
-        sequence_slots: dict[int, list[dict[str, Any]]] = {}
+        sequence_slots: dict[int, list[ParsedSlot]] = {}
         missing_time_slot = False
 
         if (
@@ -1327,20 +1924,16 @@ def _enumerate_candidates(
         ):
             missing_time_slot = True
         else:
-            for meeting_sequence in range(1, meeting_count + 1):
-                slots = _slots_for_demand(
-                    demand,
-                    time_slots,
-                    meeting_sequence=meeting_sequence,
-                )
-                sequence_slots[meeting_sequence] = slots
+            for seq in range(1, meeting_count + 1):
+                slots = _slots_for_demand_parsed(demand, parsed_slots, day_ends, meeting_sequence=seq)
+                sequence_slots[seq] = slots
                 if not slots:
                     missing_time_slot = True
 
         if any(not f_ids for f_ids in sequence_faculty_ids.values()):
             reasons.append(_reason("missing_faculty", "No eligible faculty was available in the Scheduling Demand snapshot."))
 
-        if _room_required(demand) and any(not r_ids for r_ids in sequence_room_ids.values()):
+        if room_req and any(not r_ids for r_ids in sequence_room_ids.values()):
             reasons.append(_reason("missing_room", "No active room matched the Scheduling Demand room requirement."))
 
         if missing_time_slot:
@@ -1348,102 +1941,1009 @@ def _enumerate_candidates(
 
         if reasons:
             unassignable_reasons[demand_id] = reasons
+            continue
 
-        for meeting_sequence in range(1, meeting_count + 1):
-            for faculty_id in sequence_faculty_ids[meeting_sequence]:
-                for room_id in sequence_room_ids[meeting_sequence]:
-                    for slot in sequence_slots.get(meeting_sequence, []):
-                        if len(candidates) % 500 == 0:
-                            request_context.checkpoint("candidate_enumeration")
-                        candidate = _candidate(
-                            demand,
-                            meeting_sequence,
-                            faculty_id,
-                            room_id,
-                            slot,
-                            rooms.get(room_id, {}),
-                        )
+        dg_id = _int_or_none(demand.get("section_delivery_group_id")) or 0
+        cohort_ids = tuple(
+            sorted({
+                cid
+                for cid in (_int_or_none(v) for v in demand.get("cohort_or_student_group_ids", []))
+                if cid is not None
+            })
+        ) or (_int_or_none(demand.get("cohort_or_student_group_id")) or 0,)
+        priorities = {
+            fid: _faculty_priority(demand, fid)
+            for seq in range(1, meeting_count + 1)
+            for fid in sequence_faculty_ids[seq]
+        }
 
-                        if candidate is None:
-                            continue
+        for seq in range(1, meeting_count + 1):
+            slots_seq = sequence_slots[seq]
+            facs_seq = sequence_faculty_ids[seq]
+            rooms_seq = sequence_room_ids[seq]
 
-                        if _conflicts_existing(
-                            candidate,
-                            _relevant_commitments(candidate, existing_commitments),
-                        ):
-                            continue
-
-                        if _conflicts_calendar(
-                            candidate,
-                            _relevant_calendar_blocks(candidate, calendar_blocks),
-                        ):
-                            continue
-
-                        candidates.append(candidate)
-
-    candidate_assignments = {
-        (candidate.scheduling_demand_id, candidate.meeting_sequence)
-        for candidate in candidates
-    }
-
-    for demand in demands:
-        demand_id = int(demand["scheduling_demand_id"])
-        meeting_count = _meeting_count(demand) or 1
-
-        if any(
-            (demand_id, meeting_sequence) not in candidate_assignments
-            for meeting_sequence in range(1, meeting_count + 1)
-        ) and demand_id not in unassignable_reasons:
-            unassignable_reasons[demand_id] = [
-                _reason("solver_unassigned", "No candidate remains after availability and commitment constraints."),
+            base_slots = [
+                slot
+                for slot in slots_seq
+                if not _slot_conflicts_global_or_dg(
+                    slot=slot,
+                    duration=duration,
+                    delivery_group_id=dg_id,
+                    commitments_by_key=commitments_by_key,
+                    blocks_by_key=blocks_by_key,
+                )
             ]
 
-    return candidates, unassignable_reasons
+            viable_slots, viable_facs, viable_rooms, fac_blocked, room_blocked = _filter_viable_options(
+                slots=base_slots,
+                duration=duration,
+                faculty_ids=facs_seq,
+                room_ids=rooms_seq,
+                commitments_by_key=commitments_by_key,
+                blocks_by_key=blocks_by_key,
+            )
+
+            if not viable_slots or not viable_facs or not viable_rooms:
+                unassignable_reasons[demand_id] = [
+                    _reason("solver_unassigned", "No candidate remains after availability and commitment constraints."),
+                ]
+                continue
+
+            raw_meetings.append(
+                MeetingSpec(
+                    index=len(raw_meetings),
+                    scheduling_demand_id=demand_id,
+                    demand_key=str(demand.get("demand_key") or demand_id),
+                    term_offering_id=_int_or_none(demand.get("term_offering_id")) or 0,
+                    section_id=_int_or_none(demand.get("section_id")) or 0,
+                    section_delivery_group_id=dg_id,
+                    cohort_or_student_group_id=cohort_ids[0],
+                    cohort_or_student_group_ids=cohort_ids,
+                    modality=str(demand.get("modality") or "").upper(),
+                    subject_id=_int_or_none(demand.get("course_id") or demand.get("subject_id")),
+                    course_component_id=_int_or_none(demand.get("course_component_id")),
+                    meeting_sequence=seq,
+                    meeting_pattern=_meeting_pattern(demand),
+                    duration_minutes=duration,
+                    load_units_scaled=_decimal_scaled(demand.get("load_units")),
+                    expected_count=_int_or_none(demand.get("expected_count")) or 0,
+                    room_required=room_req,
+                    same_faculty_required=same_fac_req,
+                    room_type_requirement=(
+                        str(demand.get("room_type_requirement"))
+                        if demand.get("room_type_requirement") not in {None, ""}
+                        else None
+                    ),
+                    valid_slots=tuple(viable_slots),
+                    valid_faculty=tuple(viable_facs),
+                    valid_rooms=tuple(viable_rooms),
+                    faculty_blocked_slot_indices=fac_blocked,
+                    room_blocked_slot_indices=room_blocked,
+                    faculty_priorities=priorities,
+                )
+            )
+
+    if unassignable_reasons:
+        return raw_meetings, unassignable_reasons, sum(len(m.valid_slots) for m in raw_meetings)
+
+    # Propagate same_faculty_required across linked demands in (term_offering_id, section_delivery_group_id)
+    same_fac_groups: dict[tuple[int, int], list[int]] = {}
+    for m in raw_meetings:
+        if m.same_faculty_required:
+            same_fac_groups.setdefault((m.term_offering_id, m.section_delivery_group_id), []).append(m.index)
+
+    for m_indices in same_fac_groups.values():
+        if len(m_indices) < 2:
+            continue
+        common_fac = set(raw_meetings[m_indices[0]].valid_faculty)
+        for idx in m_indices[1:]:
+            common_fac &= set(raw_meetings[idx].valid_faculty)
+        if not common_fac:
+            for idx in m_indices:
+                d_id = raw_meetings[idx].scheduling_demand_id
+                unassignable_reasons[d_id] = [
+                    _reason("solver_unassigned", "No shared eligible faculty remains for linked same-faculty meetings."),
+                ]
+            continue
+
+        sorted_common = sorted(common_fac)
+        for idx in m_indices:
+            m = raw_meetings[idx]
+            if list(m.valid_faculty) == sorted_common:
+                continue
+            viable_slots, viable_facs, viable_rooms, fac_blocked, room_blocked = _filter_viable_options(
+                slots=list(m.valid_slots),
+                duration=m.duration_minutes,
+                faculty_ids=sorted_common,
+                room_ids=list(m.valid_rooms),
+                commitments_by_key=commitments_by_key,
+                blocks_by_key=blocks_by_key,
+            )
+            if not viable_slots or not viable_facs or not viable_rooms:
+                unassignable_reasons[m.scheduling_demand_id] = [
+                    _reason("solver_unassigned", "No candidate remains after same-faculty availability constraints."),
+                ]
+                continue
+            raw_meetings[idx] = MeetingSpec(
+                **{
+                    **m.__dict__,
+                    "valid_slots": tuple(viable_slots),
+                    "valid_faculty": tuple(viable_facs),
+                    "valid_rooms": tuple(viable_rooms),
+                    "faculty_blocked_slot_indices": fac_blocked,
+                    "room_blocked_slot_indices": room_blocked,
+                }
+            )
+
+    option_count = sum(len(m.valid_slots) for m in raw_meetings)
+    return raw_meetings, unassignable_reasons, option_count
 
 
-def _candidate_indexes(candidates: list[Candidate]) -> CandidateIndexes:
-    by_assignment: dict[tuple[int, int], list[int]] = {}
-    by_cohort_day: dict[tuple[int, int], list[int]] = {}
-    by_faculty_day: dict[tuple[int, int], list[int]] = {}
-    by_room_day: dict[tuple[int, int], list[int]] = {}
-    by_offering_group_faculty: dict[tuple[int, int, int], list[int]] = {}
-    by_placement: dict[tuple[Any, ...], list[int]] = {}
+def _filter_viable_options(
+    *,
+    slots: list[ParsedSlot],
+    duration: int,
+    faculty_ids: list[int],
+    room_ids: list[int | None],
+    commitments_by_key: dict[tuple[str, int, int], list[dict[str, Any]]],
+    blocks_by_key: dict[tuple[str, int | None, int], list[dict[str, Any]]],
+) -> tuple[
+    list[ParsedSlot],
+    list[int],
+    list[int | None],
+    dict[int, tuple[int, ...]],
+    dict[int, tuple[int, ...]],
+]:
+    if not slots or not faculty_ids or not room_ids:
+        return [], [], [], {}, {}
 
-    for index, candidate in enumerate(candidates):
-        by_assignment.setdefault(_candidate_assignment_key(candidate), []).append(index)
-        for cohort_id in candidate.cohort_or_student_group_ids:
-            by_cohort_day.setdefault((cohort_id, candidate.day_of_week), []).append(index)
-        by_faculty_day.setdefault((candidate.faculty_id, candidate.day_of_week), []).append(index)
-        if candidate.room_id is not None:
-            by_room_day.setdefault((candidate.room_id, candidate.day_of_week), []).append(index)
-        by_offering_group_faculty.setdefault(
-            (
-                candidate.term_offering_id,
-                candidate.section_delivery_group_id,
-                candidate.faculty_id,
-            ),
-            [],
-        ).append(index)
-        placement_key = (
-            candidate.scheduling_demand_id,
-            candidate.meeting_sequence,
-            candidate.cohort_or_student_group_ids,
-            candidate.day_of_week,
-            candidate.starts_minute,
-            candidate.ends_minute,
-            candidate.modality,
+    fac_ok_slots: dict[int, set[int]] = {}
+    for fid in faculty_ids:
+        ok: set[int] = set()
+        for s_idx, slot in enumerate(slots):
+            if not _resource_conflicts_slot("faculty", fid, slot, duration, commitments_by_key, blocks_by_key):
+                ok.add(s_idx)
+        if ok:
+            fac_ok_slots[fid] = ok
+
+    room_ok_slots: dict[int | None, set[int]] = {}
+    for rid in room_ids:
+        if rid is None:
+            room_ok_slots[None] = set(range(len(slots)))
+        else:
+            ok_r: set[int] = set()
+            for s_idx, slot in enumerate(slots):
+                if not _resource_conflicts_slot("room", rid, slot, duration, commitments_by_key, blocks_by_key):
+                    ok_r.add(s_idx)
+            if ok_r:
+                room_ok_slots[rid] = ok_r
+
+    if not fac_ok_slots or not room_ok_slots:
+        return [], [], [], {}, {}
+
+    any_fac_slots = set().union(*fac_ok_slots.values())
+    any_room_slots = set().union(*room_ok_slots.values())
+    viable_old_indices = sorted(any_fac_slots & any_room_slots)
+
+    if not viable_old_indices:
+        return [], [], [], {}, {}
+
+    remap = {old_idx: new_idx for new_idx, old_idx in enumerate(viable_old_indices)}
+    viable_slots = [slots[old_idx] for old_idx in viable_old_indices]
+
+    viable_facs = [fid for fid in faculty_ids if fac_ok_slots.get(fid, set()) & set(viable_old_indices)]
+    viable_rooms = [rid for rid in room_ids if room_ok_slots.get(rid, set()) & set(viable_old_indices)]
+
+    if not viable_facs or not viable_rooms:
+        return [], [], [], {}, {}
+
+    fac_blocked: dict[int, tuple[int, ...]] = {}
+    for fid in viable_facs:
+        ok_new = {remap[old] for old in fac_ok_slots[fid] if old in remap}
+        blocked = tuple(i for i in range(len(viable_slots)) if i not in ok_new)
+        if blocked:
+            fac_blocked[fid] = blocked
+
+    room_blocked: dict[int, tuple[int, ...]] = {}
+    for rid in viable_rooms:
+        if rid is None:
+            continue
+        ok_new = {remap[old] for old in room_ok_slots[rid] if old in remap}
+        blocked = tuple(i for i in range(len(viable_slots)) if i not in ok_new)
+        if blocked:
+            room_blocked[rid] = blocked
+
+    return viable_slots, viable_facs, viable_rooms, fac_blocked, room_blocked
+
+
+def _presolve_feasibility_guards(
+    *,
+    snapshot: dict[str, Any],
+    meetings: list[MeetingSpec],
+    rooms: dict[int, dict[str, Any]],
+    parsed_slots: list[ParsedSlot],
+    commitments_by_key: dict[tuple[str, int, int], list[dict[str, Any]]],
+    blocks_by_key: dict[tuple[str, int | None, int], list[dict[str, Any]]],
+) -> list[dict[str, str]]:
+    if not meetings or not parsed_slots:
+        return []
+
+    day_bounds: dict[int, tuple[int, int]] = {}
+    for slot in parsed_slots:
+        if slot.day_of_week not in day_bounds:
+            day_bounds[slot.day_of_week] = (slot.starts_minute, slot.ends_minute)
+        else:
+            lo, hi = day_bounds[slot.day_of_week]
+            day_bounds[slot.day_of_week] = (min(lo, slot.starts_minute), max(hi, slot.ends_minute))
+
+    global_blocks_by_day: dict[int, list[tuple[int, int]]] = {}
+    for (kind, _, day), blocks in blocks_by_key.items():
+        if kind != "global":
+            continue
+        for block in blocks:
+            _, bs, be = _block_window(block)
+            if bs is not None and be is not None and be > bs:
+                global_blocks_by_day.setdefault(day, []).append((bs, be))
+
+    def _open_intervals_for_resource(kind: str | None, resource_id: int | None) -> dict[int, list[tuple[int, int]]]:
+        result: dict[int, list[tuple[int, int]]] = {}
+        for day, (d_start, d_end) in day_bounds.items():
+            blocked: list[tuple[int, int]] = list(global_blocks_by_day.get(day, ()))
+            if kind is not None and resource_id is not None:
+                for block in blocks_by_key.get((kind, resource_id, day), ()):
+                    _, bs, be = _block_window(block)
+                    if bs is not None and be is not None and be > bs:
+                        blocked.append((bs, be))
+                for comm in commitments_by_key.get((kind, resource_id, day), ()):
+                    cs = _time_to_minutes(comm.get("starts_at"))
+                    ce = _time_to_minutes(comm.get("ends_at"))
+                    if cs is not None and ce is not None and ce > cs:
+                        blocked.append((cs, ce))
+            result[day] = _subtract_intervals([(d_start, d_end)], blocked)
+        return result
+
+    reasons: list[dict[str, str]] = []
+
+    # 1. Faculty exclusive load units, weekly minutes, and longest uninterrupted block
+    max_units = {
+        int(row["faculty_id"]): _decimal_scaled(row.get("max_allowed_units"))
+        for row in snapshot.get("faculty", [])
+        if isinstance(row, dict) and _int_or_none(row.get("faculty_id")) is not None
+    }
+    exclusive_load_groups: dict[int, dict[tuple[int, int], int]] = {}
+    exclusive_minutes: dict[int, int] = {}
+    exclusive_longest: dict[int, int] = {}
+
+    for m in meetings:
+        if len(m.valid_faculty) == 1:
+            fid = m.valid_faculty[0]
+            group_key = (m.term_offering_id, m.section_delivery_group_id)
+            fac_groups = exclusive_load_groups.setdefault(fid, {})
+            fac_groups[group_key] = max(fac_groups.get(group_key, 0), m.load_units_scaled)
+            exclusive_minutes[fid] = exclusive_minutes.get(fid, 0) + m.duration_minutes
+            exclusive_longest[fid] = max(exclusive_longest.get(fid, 0), m.duration_minutes)
+
+    for fid in sorted(exclusive_load_groups):
+        if fid in max_units:
+            total_scaled = sum(exclusive_load_groups[fid].values())
+            if total_scaled > max_units[fid]:
+                reasons.append(
+                    _reason(
+                        "faculty_exclusive_load_exceeded",
+                        (
+                            f"Faculty {fid} has {total_scaled / 100:.2f} exclusive load units, "
+                            f"exceeding their maximum allowed {max_units[fid] / 100:.2f} units."
+                        ),
+                    )
+                )
+
+        ivs = _open_intervals_for_resource("faculty", fid)
+        usable_minutes = sum(e - s for day_ivs in ivs.values() for s, e in day_ivs)
+        longest_open = max((e - s for day_ivs in ivs.values() for s, e in day_ivs), default=0)
+
+        if exclusive_minutes.get(fid, 0) > usable_minutes:
+            reasons.append(
+                _reason(
+                    "faculty_exclusive_hours_exceeded",
+                    (
+                        f"Faculty {fid} requires {exclusive_minutes[fid]} exclusive weekly minutes, "
+                        f"exceeding their {usable_minutes} usable open minutes."
+                    ),
+                )
+            )
+        if exclusive_longest.get(fid, 0) > longest_open:
+            reasons.append(
+                _reason(
+                    "faculty_exclusive_block_too_long",
+                    (
+                        f"Faculty {fid} has an exclusive {exclusive_longest[fid]}-minute meeting, "
+                        f"exceeding their longest uninterrupted open block of {longest_open} minutes."
+                    ),
+                )
+            )
+
+    # 2. Room-type & room-pool F2F capacity check (subset-sound, zero false positives)
+    room_usable_minutes: dict[int, int] = {}
+    for rid in rooms:
+        ivs = _open_intervals_for_resource("room", rid)
+        room_usable_minutes[rid] = sum(e - s for day_ivs in ivs.values() for s, e in day_ivs)
+
+    f2f_meetings = [m for m in meetings if m.room_required]
+    if f2f_meetings:
+        candidate_room_sets: dict[frozenset[int], str] = {}
+        by_room_type: dict[str, set[int]] = {}
+        for rid, rdata in rooms.items():
+            rtype = str(rdata.get("room_type") or "")
+            if rtype:
+                by_room_type.setdefault(rtype, set()).add(rid)
+
+        for rtype, rids in by_room_type.items():
+            candidate_room_sets[frozenset(rids)] = f"room type {rtype}"
+
+        for m in f2f_meetings:
+            rset = frozenset(rid for rid in m.valid_rooms if rid is not None)
+            if rset not in candidate_room_sets:
+                label = (
+                    f"room type {m.room_type_requirement}"
+                    if m.room_type_requirement
+                    else "eligible room pool"
+                )
+                candidate_room_sets[rset] = label
+
+        all_rooms_set = frozenset(rooms.keys())
+        if all_rooms_set not in candidate_room_sets:
+            candidate_room_sets[all_rooms_set] = "all active rooms"
+
+        meeting_room_sets = [
+            (m, frozenset(rid for rid in m.valid_rooms if rid is not None))
+            for m in f2f_meetings
+        ]
+        for target_set, label in sorted(candidate_room_sets.items(), key=lambda item: (len(item[0]), item[1])):
+            demanded_minutes = sum(
+                m.duration_minutes
+                for m, m_set in meeting_room_sets
+                if m_set.issubset(target_set)
+            )
+            available_minutes = sum(room_usable_minutes.get(rid, 0) for rid in target_set)
+            if demanded_minutes > available_minutes:
+                reasons.append(
+                    _reason(
+                        "room_type_capacity_exceeded",
+                        (
+                            f"Demanded on-site minutes ({demanded_minutes} min) for {label} "
+                            f"exceed total usable open room minutes ({available_minutes} min)."
+                        ),
+                    )
+                )
+
+    # 3. Cohort weekly minutes vs school grid open minutes
+    school_ivs = _open_intervals_for_resource(None, None)
+    school_weekly_minutes = sum(e - s for day_ivs in school_ivs.values() for s, e in day_ivs)
+    cohort_minutes: dict[int, int] = {}
+    for m in meetings:
+        for cohort_id in m.cohort_or_student_group_ids:
+            cohort_minutes[cohort_id] = cohort_minutes.get(cohort_id, 0) + m.duration_minutes
+
+    for cohort_id, total_min in sorted(cohort_minutes.items()):
+        if total_min > school_weekly_minutes:
+            reasons.append(
+                _reason(
+                    "cohort_weekly_minutes_exceeded",
+                    (
+                        f"Student cohort {cohort_id} has {total_min} demanded weekly minutes, "
+                        f"exceeding the {school_weekly_minutes} open teaching-grid minutes."
+                    ),
+                )
+            )
+
+    return _dedupe_reasons(reasons)
+
+
+def _subtract_intervals(
+    base_intervals: list[tuple[int, int]],
+    blocked_intervals: list[tuple[int, int]],
+) -> list[tuple[int, int]]:
+    if not base_intervals:
+        return []
+    if not blocked_intervals:
+        return sorted(base_intervals)
+
+    sorted_blocked = sorted(blocked_intervals)
+    merged_blocked: list[tuple[int, int]] = []
+    for bs, be in sorted_blocked:
+        if be <= bs:
+            continue
+        if not merged_blocked or bs > merged_blocked[-1][1]:
+            merged_blocked.append((bs, be))
+        else:
+            merged_blocked[-1] = (merged_blocked[-1][0], max(merged_blocked[-1][1], be))
+
+    remaining = list(base_intervals)
+    for bs, be in merged_blocked:
+        next_remaining: list[tuple[int, int]] = []
+        for s, e in remaining:
+            if be <= s or bs >= e:
+                next_remaining.append((s, e))
+            else:
+                if bs > s:
+                    next_remaining.append((s, bs))
+                if be < e:
+                    next_remaining.append((be, e))
+        remaining = next_remaining
+
+    return remaining
+
+
+def _build_factored_hard_model(
+    *,
+    model: cp_model.CpModel,
+    snapshot: dict[str, Any],
+    meetings: list[MeetingSpec],
+    rooms: dict[int, dict[str, Any]],
+    commitments_by_key: dict[tuple[str, int, int], list[dict[str, Any]]],
+    blocks_by_key: dict[tuple[str, int | None, int], list[dict[str, Any]]],
+    option_count: int,
+    request_context: SolverRequestContext,
+) -> FactoredModelState:
+    use_slot_bools = option_count <= SLOT_BOOL_OPTION_LIMIT
+    start_vars: list[cp_model.IntVar] = []
+    day_vars: list[cp_model.IntVar] = []
+    min_vars: list[cp_model.IntVar] = []
+    slot_vars: list[list[cp_model.IntVar]] = []
+    fac_vars: list[dict[int, cp_model.IntVar]] = []
+    room_vars: list[dict[int, cp_model.IntVar]] = []
+    fac_bools: list[cp_model.IntVar] = []
+    room_bools: list[cp_model.IntVar] = []
+
+    cohort_intervals: dict[int, list[cp_model.IntervalVar]] = {}
+    faculty_intervals: dict[int, list[cp_model.IntervalVar]] = {}
+    room_intervals: dict[int, list[cp_model.IntervalVar]] = {}
+
+    # Add resource-level calendar blocks & commitments as fixed intervals in NoOverlap
+    for (kind, resource_id, day), blocks in blocks_by_key.items():
+        if kind not in {"faculty", "room"} or resource_id is None:
+            continue
+        target_map = faculty_intervals if kind == "faculty" else room_intervals
+        for bi, block in enumerate(blocks):
+            _, bs, be = _block_window(block)
+            if bs is not None and be is not None and be > bs:
+                target_map.setdefault(resource_id, []).append(
+                    model.new_fixed_size_interval_var(
+                        day * DAY_STRIDE_MINUTES + bs,
+                        be - bs,
+                        f"{kind}_blk_{resource_id}_{day}_{bi}",
+                    )
+                )
+
+    for (kind, resource_id, day), commitments in commitments_by_key.items():
+        if kind not in {"faculty", "room"}:
+            continue
+        target_map = faculty_intervals if kind == "faculty" else room_intervals
+        for ci, comm in enumerate(commitments):
+            cs = _time_to_minutes(comm.get("starts_at"))
+            ce = _time_to_minutes(comm.get("ends_at"))
+            if cs is not None and ce is not None and ce > cs:
+                target_map.setdefault(resource_id, []).append(
+                    model.new_fixed_size_interval_var(
+                        day * DAY_STRIDE_MINUTES + cs,
+                        ce - cs,
+                        f"{kind}_comm_{resource_id}_{day}_{ci}",
+                    )
+                )
+
+    shared_fac_vars: dict[tuple[int, int], dict[int, cp_model.IntVar]] = {}
+    global_slot_idx = 0
+
+    for meeting in meetings:
+        if meeting.index % 50 == 0:
+            request_context.checkpoint("hard_model_construction")
+
+        week_starts = [
+            slot.day_of_week * DAY_STRIDE_MINUTES + slot.starts_minute
+            for slot in meeting.valid_slots
+        ]
+        unique_ws = sorted(set(week_starts))
+        unique_days = sorted({slot.day_of_week for slot in meeting.valid_slots})
+        unique_mins = sorted({slot.starts_minute for slot in meeting.valid_slots})
+
+        if len(unique_ws) == 1:
+            start_var = model.new_constant(unique_ws[0])
+            day_var = model.new_constant(unique_days[0])
+            min_var = model.new_constant(unique_mins[0])
+        else:
+            start_var = model.new_int_var_from_domain(
+                cp_model.Domain.from_values(unique_ws),
+                f"start_{meeting.index}",
+            )
+            if len(unique_days) == 1:
+                day_var = model.new_constant(unique_days[0])
+            else:
+                day_var = model.new_int_var_from_domain(
+                    cp_model.Domain.from_values(unique_days),
+                    f"day_{meeting.index}",
+                )
+                model.add_division_equality(day_var, start_var, DAY_STRIDE_MINUTES)
+            if len(unique_mins) == 1:
+                min_var = model.new_constant(unique_mins[0])
+            else:
+                min_var = model.new_int_var_from_domain(
+                    cp_model.Domain.from_values(unique_mins),
+                    f"min_{meeting.index}",
+                )
+                model.add(min_var == start_var - day_var * DAY_STRIDE_MINUTES)
+
+        start_vars.append(start_var)
+        day_vars.append(day_var)
+        min_vars.append(min_var)
+
+        if use_slot_bools:
+            m_slot_vars = [
+                model.new_bool_var(f"candidate_{global_slot_idx + offset}")
+                for offset in range(len(meeting.valid_slots))
+            ]
+            global_slot_idx += len(meeting.valid_slots)
+            slot_vars.append(m_slot_vars)
+            if len(m_slot_vars) == 1:
+                model.add(m_slot_vars[0] == 1)
+            else:
+                model.add_exactly_one(m_slot_vars)
+                model.add(start_var == sum(ws * sv for ws, sv in zip(week_starts, m_slot_vars)))
+
+        # Factored faculty assignment variables
+        if len(meeting.valid_faculty) == 1:
+            m_fac_vars: dict[int, cp_model.IntVar] = {}
+        elif meeting.same_faculty_required:
+            group_key = (meeting.term_offering_id, meeting.section_delivery_group_id)
+            if group_key not in shared_fac_vars:
+                shared_fac_vars[group_key] = {
+                    fid: model.new_bool_var(f"fac_grp_{group_key[0]}_{group_key[1]}_{fid}")
+                    for fid in meeting.valid_faculty
+                }
+                model.add_exactly_one(list(shared_fac_vars[group_key].values()))
+                fac_bools.extend(shared_fac_vars[group_key].values())
+            m_fac_vars = shared_fac_vars[group_key]
+        else:
+            m_fac_vars = {
+                fid: model.new_bool_var(f"fac_{meeting.index}_{fid}")
+                for fid in meeting.valid_faculty
+            }
+            model.add_exactly_one(list(m_fac_vars.values()))
+            fac_bools.extend(m_fac_vars.values())
+
+        fac_vars.append(m_fac_vars)
+
+        # Factored room assignment variables
+        if len(meeting.valid_rooms) == 1:
+            m_room_vars: dict[int, cp_model.IntVar] = {}
+        else:
+            m_room_vars = {
+                rid: model.new_bool_var(f"room_{meeting.index}_{rid}")
+                for rid in meeting.valid_rooms
+                if rid is not None
+            }
+            model.add_exactly_one(list(m_room_vars.values()))
+            room_bools.extend(m_room_vars.values())
+
+        room_vars.append(m_room_vars)
+
+        # Native Intervals for Cohort, Faculty, and Room NoOverlap
+        cohort_iv = model.new_fixed_size_interval_var(
+            start_var,
+            meeting.duration_minutes,
+            f"cohort_iv_{meeting.index}",
         )
-        by_placement.setdefault(placement_key, []).append(index)
+        for cohort_id in meeting.cohort_or_student_group_ids:
+            cohort_intervals.setdefault(cohort_id, []).append(cohort_iv)
 
-    freeze = lambda values: {key: tuple(indexes) for key, indexes in values.items()}
+        if len(meeting.valid_faculty) == 1:
+            faculty_intervals.setdefault(meeting.valid_faculty[0], []).append(cohort_iv)
+        else:
+            for fid, f_var in m_fac_vars.items():
+                fac_iv = model.new_optional_fixed_size_interval_var(
+                    start_var,
+                    meeting.duration_minutes,
+                    f_var,
+                    f"fac_iv_{meeting.index}_{fid}",
+                )
+                faculty_intervals.setdefault(fid, []).append(fac_iv)
 
-    return CandidateIndexes(
-        by_assignment=freeze(by_assignment),
-        by_cohort_day=freeze(by_cohort_day),
-        by_faculty_day=freeze(by_faculty_day),
-        by_room_day=freeze(by_room_day),
-        by_offering_group_faculty=freeze(by_offering_group_faculty),
-        by_placement=freeze(by_placement),
+        if meeting.room_required:
+            if len(meeting.valid_rooms) == 1:
+                rid = meeting.valid_rooms[0]
+                if rid is not None:
+                    room_intervals.setdefault(rid, []).append(cohort_iv)
+            else:
+                for rid, r_var in m_room_vars.items():
+                    room_iv = model.new_optional_fixed_size_interval_var(
+                        start_var,
+                        meeting.duration_minutes,
+                        r_var,
+                        f"room_iv_{meeting.index}_{rid}",
+                    )
+                    room_intervals.setdefault(rid, []).append(room_iv)
+
+    for iv_map in (cohort_intervals, faculty_intervals, room_intervals):
+        for ivs in iv_map.values():
+            if len(ivs) > 1:
+                model.add_no_overlap(ivs)
+
+    # Factored Modality Transition Buffer (30-min gap on opposing-modality pairs in same cohort)
+    _add_factored_modality_transition_buffer(model, meetings, start_vars, request_context)
+
+    # Distinct-day spread for multi-meeting demands
+    _add_factored_distinct_day_spread(model, meetings, day_vars)
+
+    # Deduplicated faculty load limits
+    load_variables = _add_factored_faculty_load_constraints(model, meetings, fac_vars, snapshot)
+
+    return FactoredModelState(
+        meetings=meetings,
+        rooms=rooms,
+        start_vars=start_vars,
+        day_vars=day_vars,
+        min_vars=min_vars,
+        slot_vars=slot_vars,
+        fac_vars=fac_vars,
+        room_vars=room_vars,
+        fac_bools=fac_bools,
+        room_bools=room_bools,
+        load_variables=load_variables,
+        candidate_count=global_slot_idx if use_slot_bools else option_count,
+        on_day_cache={},
+        extra_bool_hints=[],
+    )
+
+
+def _add_factored_modality_transition_buffer(
+    model: cp_model.CpModel,
+    meetings: list[MeetingSpec],
+    start_vars: list[cp_model.IntVar],
+    request_context: SolverRequestContext,
+) -> None:
+    by_cohort_modality: dict[int, dict[str, list[MeetingSpec]]] = {}
+    for meeting in meetings:
+        for cohort_id in meeting.cohort_or_student_group_ids:
+            by_cohort_modality.setdefault(cohort_id, {}).setdefault(meeting.modality, []).append(meeting)
+
+    seen_pairs: set[tuple[int, int]] = set()
+    buffered_intervals: dict[int, cp_model.IntervalVar] = {}
+
+    for mods_map in by_cohort_modality.values():
+        request_context.checkpoint("hard_model_construction")
+        if len(mods_map) < 2:
+            continue
+        mod_keys = sorted(mods_map.keys())
+        for left_i in range(len(mod_keys)):
+            for right_i in range(left_i + 1, len(mod_keys)):
+                for m1 in mods_map[mod_keys[left_i]]:
+                    for m2 in mods_map[mod_keys[right_i]]:
+                        if m1.scheduling_demand_id == m2.scheduling_demand_id:
+                            continue
+                        pair = (min(m1.index, m2.index), max(m1.index, m2.index))
+                        if pair in seen_pairs:
+                            continue
+                        seen_pairs.add(pair)
+                        iv1 = buffered_intervals.get(m1.index)
+                        if iv1 is None:
+                            iv1 = model.new_fixed_size_interval_var(
+                                start_vars[m1.index],
+                                m1.duration_minutes + MODALITY_BUFFER_MINUTES,
+                                f"mod_buf_{m1.index}",
+                            )
+                            buffered_intervals[m1.index] = iv1
+                        iv2 = buffered_intervals.get(m2.index)
+                        if iv2 is None:
+                            iv2 = model.new_fixed_size_interval_var(
+                                start_vars[m2.index],
+                                m2.duration_minutes + MODALITY_BUFFER_MINUTES,
+                                f"mod_buf_{m2.index}",
+                            )
+                            buffered_intervals[m2.index] = iv2
+                        model.add_no_overlap([iv1, iv2])
+
+
+def _add_factored_distinct_day_spread(
+    model: cp_model.CpModel,
+    meetings: list[MeetingSpec],
+    day_vars: list[cp_model.IntVar],
+) -> None:
+    meetings_by_demand: dict[int, list[MeetingSpec]] = {}
+    for meeting in meetings:
+        meetings_by_demand.setdefault(meeting.scheduling_demand_id, []).append(meeting)
+
+    for demand_meetings in meetings_by_demand.values():
+        if len(demand_meetings) <= 1:
+            continue
+
+        available_days = {
+            slot.day_of_week
+            for meeting in demand_meetings
+            for slot in meeting.valid_slots
+        }
+        if len(available_days) < len(demand_meetings):
+            continue
+
+        model.add_all_different([day_vars[meeting.index] for meeting in demand_meetings])
+
+
+def _add_factored_faculty_load_constraints(
+    model: cp_model.CpModel,
+    meetings: list[MeetingSpec],
+    fac_vars: list[dict[int, cp_model.IntVar]],
+    snapshot: dict[str, Any],
+) -> dict[int, cp_model.IntVar]:
+    max_units = {
+        int(row["faculty_id"]): _decimal_scaled(row.get("max_allowed_units"))
+        for row in snapshot.get("faculty", [])
+        if isinstance(row, dict) and _int_or_none(row.get("faculty_id")) is not None
+    }
+
+    grouped: dict[tuple[int, int, int], list[tuple[MeetingSpec, cp_model.IntVar | None]]] = {}
+    for meeting in meetings:
+        if len(meeting.valid_faculty) == 1:
+            fid = meeting.valid_faculty[0]
+            grouped.setdefault((fid, meeting.term_offering_id, meeting.section_delivery_group_id), []).append(
+                (meeting, None)
+            )
+        else:
+            for fid, f_var in fac_vars[meeting.index].items():
+                grouped.setdefault((fid, meeting.term_offering_id, meeting.section_delivery_group_id), []).append(
+                    (meeting, f_var)
+                )
+
+    load_terms: dict[int, list[tuple[cp_model.IntVar, int]]] = {}
+    for (fid, offering_id, group_id), entries in grouped.items():
+        units = max(m.load_units_scaled for m, _ in entries)
+        if any(var is None for _, var in entries):
+            group_selected = model.new_constant(1)
+        else:
+            unique_vars_by_idx: dict[int, cp_model.IntVar] = {}
+            for _, var in entries:
+                if var is not None:
+                    unique_vars_by_idx[var.index] = var
+            unique_vars = list(unique_vars_by_idx.values())
+            if len(unique_vars) == 1:
+                group_selected = unique_vars[0]
+            else:
+                group_selected = model.new_bool_var(f"load_group_{fid}_{offering_id}_{group_id}")
+                for var in unique_vars:
+                    model.add(var <= group_selected)
+                model.add(group_selected <= sum(unique_vars))
+        load_terms.setdefault(fid, []).append((group_selected, units))
+
+    load_variables: dict[int, cp_model.IntVar] = {}
+    for fid, terms in load_terms.items():
+        upper_bound = sum(units for _, units in terms)
+        load = model.new_int_var(0, upper_bound, f"faculty_load_{fid}")
+        model.add(load == sum(var * units for var, units in terms))
+        if fid in max_units:
+            model.add(load <= max_units[fid])
+        load_variables[fid] = load
+
+    for fid in max_units:
+        if fid not in load_variables:
+            load_variables[fid] = model.new_constant(0)
+
+    return load_variables
+
+
+def _apply_repair_hard_requirement(
+    snapshot: dict[str, Any],
+    model: cp_model.CpModel,
+    state: FactoredModelState,
+) -> dict[str, str] | None:
+    operation = snapshot.get("operation")
+    if operation is None:
+        return None
+    if not isinstance(operation, dict) or operation.get("kind") not in {"generation", "repair"}:
+        return _reason("invalid_operation", "The timetable operation must be generation or repair.")
+    if operation.get("kind") == "generation":
+        return None
+
+    source = operation.get("source_candidate")
+    requested = operation.get("requested_assignment")
+    if (
+        not isinstance(source, dict)
+        or not isinstance(source.get("assignments"), list)
+        or not source.get("assignments")
+        or not isinstance(requested, dict)
+    ):
+        return _reason("invalid_repair_contract", "Repair requires an immutable source candidate and requested assignment.")
+
+    assignment_keys = {(m.scheduling_demand_id, m.meeting_sequence) for m in state.meetings}
+    baseline = _repair_baseline(operation)
+    if set(baseline) != assignment_keys:
+        return _reason("invalid_repair_coverage", "Repair source assignments must cover the complete exact-Term candidate.")
+
+    requested_demand_id = _int_or_none(requested.get("scheduling_demand_id"))
+    requested_meeting_sequence = _int_or_none(requested.get("meeting_sequence")) or 1
+    requested_key = (requested_demand_id, requested_meeting_sequence)
+    if requested_demand_id is None or requested_key not in assignment_keys:
+        return _reason("invalid_repair_request", "Repair requires one requested meeting from the source candidate.")
+
+    target_meeting = next(
+        m for m in state.meetings if (m.scheduling_demand_id, m.meeting_sequence) == requested_key
+    )
+    matched = _matching_assignment_spec(target_meeting, requested, state)
+    if matched is None:
+        return _reason("repair_request_unavailable", "No hard-valid candidate matches the requested repair assignment.")
+
+    s_idx, slot, fac_var, room_var = matched
+    if state.slot_vars:
+        model.add(state.slot_vars[target_meeting.index][s_idx] == 1)
+    else:
+        model.add(
+            state.start_vars[target_meeting.index] == slot.day_of_week * DAY_STRIDE_MINUTES + slot.starts_minute
+        )
+    if fac_var is not None:
+        model.add(fac_var == 1)
+    if room_var is not None:
+        model.add(room_var == 1)
+
+    return None
+
+
+def _repair_change_objective(
+    snapshot: dict[str, Any],
+    model: cp_model.CpModel,
+    state: FactoredModelState,
+) -> cp_model.LinearExpr | None:
+    operation = snapshot.get("operation")
+    if not isinstance(operation, dict) or operation.get("kind") != "repair":
+        return None
+
+    requested = operation.get("requested_assignment")
+    requested_demand_id = _int_or_none(requested.get("scheduling_demand_id")) if isinstance(requested, dict) else None
+    requested_meeting_sequence = (
+        _int_or_none(requested.get("meeting_sequence")) or 1
+        if isinstance(requested, dict)
+        else 1
+    )
+    requested_key = (requested_demand_id, requested_meeting_sequence)
+    baseline = _repair_baseline(operation)
+
+    changed_terms: list[cp_model.LinearExpr] = []
+    for meeting in state.meetings:
+        key = (meeting.scheduling_demand_id, meeting.meeting_sequence)
+        if key == requested_key or key not in baseline:
+            continue
+
+        matched = _matching_assignment_spec(meeting, baseline[key], state)
+        if matched is None:
+            changed_terms.append(1)
+            continue
+
+        s_idx, slot, fac_var, room_var = matched
+        if state.slot_vars:
+            slot_match = state.slot_vars[meeting.index][s_idx]
+        else:
+            ws = slot.day_of_week * DAY_STRIDE_MINUTES + slot.starts_minute
+            slot_match = model.new_bool_var(f"repair_slot_match_{meeting.index}")
+            model.add(state.start_vars[meeting.index] == ws).only_enforce_if(slot_match)
+            model.add(state.start_vars[meeting.index] != ws).only_enforce_if(slot_match.Not())
+
+        components = [v for v in (slot_match, fac_var, room_var) if v is not None]
+        if len(components) == 1:
+            changed_terms.append(1 - components[0])
+        else:
+            unchanged = model.new_bool_var(f"repair_unchanged_{meeting.index}")
+            model.add_bool_and(components).only_enforce_if(unchanged)
+            model.add_bool_or([v.Not() for v in components] + [unchanged])
+            changed_terms.append(1 - unchanged)
+
+    return -sum(changed_terms)
+
+
+def _matching_assignment_spec(
+    meeting: MeetingSpec,
+    assignment: dict[str, Any],
+    state: FactoredModelState,
+) -> tuple[int, ParsedSlot, cp_model.IntVar | None, cp_model.IntVar | None] | None:
+    if meeting.meeting_sequence != (_int_or_none(assignment.get("meeting_sequence")) or 1):
+        return None
+
+    req_day = _int_or_none(assignment.get("day_of_week") or assignment.get("day"))
+    req_start = _time_or_none(assignment.get("starts_at") or assignment.get("start_time"))
+    req_end = _time_or_none(assignment.get("ends_at") or assignment.get("end_time"))
+    req_faculty = _int_or_none(assignment.get("faculty_user_id") or assignment.get("faculty_id"))
+    req_room = _int_or_none(assignment.get("room_id"))
+
+    if req_faculty not in meeting.valid_faculty:
+        return None
+    if req_room not in meeting.valid_rooms:
+        return None
+
+    matched_s_idx: int | None = None
+    matched_slot: ParsedSlot | None = None
+    for s_idx, slot in enumerate(meeting.valid_slots):
+        if (
+            slot.day_of_week == req_day
+            and slot.starts_at == req_start
+            and _minutes_to_time(slot.starts_minute + meeting.duration_minutes) == req_end
+        ):
+            if s_idx in meeting.faculty_blocked_slot_indices.get(req_faculty, ()):
+                return None
+            if req_room is not None and s_idx in meeting.room_blocked_slot_indices.get(req_room, ()):
+                return None
+            matched_s_idx = s_idx
+            matched_slot = slot
+            break
+
+    if matched_s_idx is None or matched_slot is None:
+        return None
+
+    fac_var = state.fac_vars[meeting.index].get(req_faculty) if len(meeting.valid_faculty) > 1 else None
+    room_var = (
+        state.room_vars[meeting.index].get(req_room)
+        if req_room is not None and len(meeting.valid_rooms) > 1
+        else None
+    )
+    return matched_s_idx, matched_slot, fac_var, room_var
+
+
+def _repair_baseline(operation: dict[str, Any]) -> dict[tuple[int, int], dict[str, Any]]:
+    source = operation.get("source_candidate")
+    assignments = source.get("assignments") if isinstance(source, dict) else None
+    if not isinstance(assignments, list):
+        return {}
+
+    baseline: dict[tuple[int, int], dict[str, Any]] = {}
+    for assignment in assignments:
+        if not isinstance(assignment, dict):
+            continue
+        demand_id = _int_or_none(assignment.get("scheduling_demand_id"))
+        meeting_sequence = _int_or_none(assignment.get("meeting_sequence")) or 1
+        key = (demand_id, meeting_sequence)
+        if demand_id is not None and key not in baseline:
+            baseline[key] = assignment
+
+    return baseline
+
+
+def _repair_evidence(snapshot: dict[str, Any], selected: list[Candidate]) -> dict[str, Any] | None:
+    operation = snapshot.get("operation")
+    if not isinstance(operation, dict) or operation.get("kind") != "repair":
+        return None
+
+    source = operation.get("source_candidate") if isinstance(operation.get("source_candidate"), dict) else {}
+    requested = operation.get("requested_assignment") if isinstance(operation.get("requested_assignment"), dict) else {}
+    requested_demand_id = _int_or_none(requested.get("scheduling_demand_id"))
+    requested_meeting_sequence = _int_or_none(requested.get("meeting_sequence")) or 1
+    requested_key = (requested_demand_id, requested_meeting_sequence)
+    baseline = _repair_baseline(operation)
+    changes = []
+
+    for candidate in sorted(selected, key=_candidate_sort_key):
+        candidate_key = (candidate.scheduling_demand_id, candidate.meeting_sequence)
+        previous = baseline.get(candidate_key)
+        if previous is None or _candidate_matches_assignment(candidate, previous):
+            continue
+        changes.append({
+            "scheduling_demand_id": candidate.scheduling_demand_id,
+            "meeting_sequence": candidate.meeting_sequence,
+            "requested": candidate_key == requested_key,
+            "before": previous,
+            "after": _assignment(candidate),
+        })
+
+    return {
+        "source_run_id": source.get("run_id"),
+        "source_candidate_version": source.get("candidate_version"),
+        "requested_scheduling_demand_id": requested_demand_id,
+        "requested_meeting_sequence": requested_meeting_sequence,
+        "changed_non_requested_meetings": sum(1 for change in changes if not change["requested"]),
+        "changes": changes,
+    }
+
+
+def _candidate_matches_assignment(candidate: Candidate, assignment: dict[str, Any]) -> bool:
+    return (
+        candidate.meeting_sequence == (_int_or_none(assignment.get("meeting_sequence")) or 1)
+        and candidate.day_of_week == _int_or_none(assignment.get("day_of_week") or assignment.get("day"))
+        and candidate.starts_at == _time_or_none(assignment.get("starts_at") or assignment.get("start_time"))
+        and candidate.ends_at == _time_or_none(assignment.get("ends_at") or assignment.get("end_time"))
+        and candidate.faculty_id == _int_or_none(assignment.get("faculty_user_id") or assignment.get("faculty_id"))
+        and candidate.room_id == _int_or_none(assignment.get("room_id"))
     )
 
 
@@ -1466,20 +2966,6 @@ def _commitment_indexes(
     return indexes
 
 
-def _relevant_commitments(
-    candidate: Candidate,
-    indexes: dict[tuple[str, int, int], list[dict[str, Any]]],
-) -> list[dict[str, Any]]:
-    keys = [
-        ("delivery_group", candidate.section_delivery_group_id, candidate.day_of_week),
-        ("faculty", candidate.faculty_id, candidate.day_of_week),
-    ]
-    if candidate.room_id is not None:
-        keys.append(("room", candidate.room_id, candidate.day_of_week))
-
-    return list({id(item): item for key in keys for item in indexes.get(key, [])}.values())
-
-
 def _calendar_block_indexes(
     blocks: list[dict[str, Any]],
 ) -> dict[tuple[str, int | None, int], list[dict[str, Any]]]:
@@ -1500,25 +2986,114 @@ def _calendar_block_indexes(
     return indexes
 
 
-def _relevant_calendar_blocks(
-    candidate: Candidate,
-    indexes: dict[tuple[str, int | None, int], list[dict[str, Any]]],
-) -> list[dict[str, Any]]:
-    keys: list[tuple[str, int | None, int]] = [
-        ("global", None, candidate.day_of_week),
-        ("faculty", candidate.faculty_id, candidate.day_of_week),
+def _slot_conflicts_global_or_dg(
+    *,
+    slot: ParsedSlot,
+    duration: int,
+    delivery_group_id: int,
+    commitments_by_key: dict[tuple[str, int, int], list[dict[str, Any]]],
+    blocks_by_key: dict[tuple[str, int | None, int], list[dict[str, Any]]],
+) -> bool:
+    starts_minute = slot.starts_minute
+    ends_minute = starts_minute + duration
+    day = slot.day_of_week
+
+    for comm in commitments_by_key.get(("delivery_group", delivery_group_id, day), ()):
+        cs = _time_to_minutes(comm.get("starts_at"))
+        ce = _time_to_minutes(comm.get("ends_at"))
+        if cs is not None and ce is not None and starts_minute < ce and ends_minute > cs:
+            return True
+
+    for block in blocks_by_key.get(("global", None, day), ()):
+        _, bs, be = _block_window(block)
+        if bs is not None and be is not None and starts_minute < be and ends_minute > bs:
+            return True
+
+    return False
+
+
+def _resource_conflicts_slot(
+    resource_kind: str,
+    resource_id: int,
+    slot: ParsedSlot,
+    duration: int,
+    commitments_by_key: dict[tuple[str, int, int], list[dict[str, Any]]],
+    blocks_by_key: dict[tuple[str, int | None, int], list[dict[str, Any]]],
+) -> bool:
+    starts_minute = slot.starts_minute
+    ends_minute = starts_minute + duration
+    day = slot.day_of_week
+
+    for comm in commitments_by_key.get((resource_kind, resource_id, day), ()):
+        cs = _time_to_minutes(comm.get("starts_at"))
+        ce = _time_to_minutes(comm.get("ends_at"))
+        if cs is not None and ce is not None and starts_minute < ce and ends_minute > cs:
+            return True
+
+    for block in blocks_by_key.get((resource_kind, resource_id, day), ()):
+        _, bs, be = _block_window(block)
+        if bs is not None and be is not None and starts_minute < be and ends_minute > bs:
+            return True
+
+    return False
+
+
+def _window_conflicts_existing(
+    *,
+    day: int,
+    starts_minute: int,
+    ends_minute: int,
+    delivery_group_id: int,
+    faculty_id: int,
+    room_id: int | None,
+    indexes: dict[tuple[str, int, int], list[dict[str, Any]]],
+) -> bool:
+    keys = [
+        ("delivery_group", delivery_group_id, day),
+        ("faculty", faculty_id, day),
     ]
-    if candidate.room_id is not None:
-        keys.append(("room", candidate.room_id, candidate.day_of_week))
+    if room_id is not None:
+        keys.append(("room", room_id, day))
 
-    return [item for key in keys for item in indexes.get(key, [])]
+    for key in keys:
+        for commitment in indexes.get(key, ()):
+            cs = _time_to_minutes(commitment.get("starts_at"))
+            ce = _time_to_minutes(commitment.get("ends_at"))
+            if cs is not None and ce is not None and starts_minute < ce and ends_minute > cs:
+                return True
+    return False
 
 
-def _slots_for_demand(
+def _window_conflicts_calendar(
+    *,
+    day: int,
+    starts_minute: int,
+    ends_minute: int,
+    faculty_id: int,
+    room_id: int | None,
+    indexes: dict[tuple[str, int | None, int], list[dict[str, Any]]],
+) -> bool:
+    keys: list[tuple[str, int | None, int]] = [
+        ("global", None, day),
+        ("faculty", faculty_id, day),
+    ]
+    if room_id is not None:
+        keys.append(("room", room_id, day))
+
+    for key in keys:
+        for block in indexes.get(key, ()):
+            _, bs, be = _block_window(block)
+            if bs is not None and be is not None and starts_minute < be and ends_minute > bs:
+                return True
+    return False
+
+
+def _slots_for_demand_parsed(
     demand: dict[str, Any],
-    time_slots: list[dict[str, Any]],
+    parsed_slots: list[ParsedSlot],
+    day_ends: dict[int, int],
     meeting_sequence: int | None = None,
-) -> list[dict[str, Any]]:
+) -> list[ParsedSlot]:
     fixed_meetings = _fixed_meetings_by_sequence(demand)
     if meeting_sequence is not None and fixed_meetings:
         pin = fixed_meetings.get(meeting_sequence)
@@ -1531,545 +3106,18 @@ def _slots_for_demand(
         fixed_start = _time_to_minutes(demand.get("fixed_start_time")) if apply_fixed_time else None
 
     duration = _duration_minutes(demand)
-    day_ends = _day_ends(time_slots)
-    slots: list[dict[str, Any]] = []
+    slots: list[ParsedSlot] = []
 
-    for slot in time_slots:
-        day = _int_or_none(slot.get("day_of_week"))
-        starts_minute = _time_to_minutes(slot.get("starts_at"))
-
-        if day is None or starts_minute is None:
+    for slot in parsed_slots:
+        if fixed_day is not None and slot.day_of_week != fixed_day:
             continue
-
-        if fixed_day is not None and day != fixed_day:
+        if fixed_start is not None and slot.starts_minute != fixed_start:
             continue
-
-        if fixed_start is not None and starts_minute != fixed_start:
+        if slot.starts_minute + duration > day_ends.get(slot.day_of_week, slot.starts_minute):
             continue
-
-        if starts_minute + duration > day_ends.get(day, starts_minute):
-            continue
-
         slots.append(slot)
 
     return slots
-
-
-def _candidate_membership_key(candidate: Candidate) -> tuple[Any, ...]:
-    return (
-        candidate.scheduling_demand_id,
-        candidate.meeting_sequence,
-        candidate.term_offering_id,
-        candidate.section_id,
-        candidate.section_delivery_group_id,
-        candidate.cohort_or_student_group_id,
-        candidate.subject_id,
-        candidate.course_component_id,
-        candidate.faculty_id,
-        candidate.room_id,
-        candidate.day_of_week,
-        candidate.starts_at,
-        candidate.ends_at,
-        candidate.time_slot_id,
-        candidate.time_block_key,
-    )
-
-
-def _candidate_assignment_key(candidate: Candidate) -> tuple[int, int]:
-    return candidate.scheduling_demand_id, candidate.meeting_sequence
-
-
-def _assignment_membership_key(assignment: dict[str, Any]) -> tuple[Any, ...]:
-    return (
-        _int_or_none(assignment.get("scheduling_demand_id")),
-        _int_or_none(assignment.get("meeting_sequence")) or 1,
-        _int_or_none(assignment.get("term_offering_id")) or 0,
-        _int_or_none(assignment.get("section_id")) or 0,
-        _int_or_none(assignment.get("section_delivery_group_id")) or 0,
-        _int_or_none(assignment.get("cohort_or_student_group_id")) or 0,
-        _int_or_none(assignment.get("subject_id") or assignment.get("course_id")),
-        _int_or_none(assignment.get("course_component_id")),
-        _int_or_none(assignment.get("faculty_user_id") or assignment.get("faculty_id")),
-        _int_or_none(assignment.get("room_id")),
-        _int_or_none(assignment.get("day_of_week") or assignment.get("day")),
-        _time_or_none(assignment.get("starts_at") or assignment.get("start_time")),
-        _time_or_none(assignment.get("ends_at") or assignment.get("end_time")),
-        _int_or_none(assignment.get("time_slot_id")),
-        str(assignment.get("time_block_key") or assignment.get("time_block_reference") or ""),
-    )
-
-
-def _day_ends(time_slots: list[dict[str, Any]]) -> dict[int, int]:
-    ends: dict[int, int] = {}
-
-    for slot in time_slots:
-        day = _int_or_none(slot.get("day_of_week"))
-        ends_at = _time_to_minutes(slot.get("ends_at"))
-
-        if day is None or ends_at is None:
-            continue
-
-        ends[day] = max(ends.get(day, ends_at), ends_at)
-
-    return ends
-
-
-def _candidate(
-    demand: dict[str, Any],
-    meeting_sequence: int,
-    faculty_id: int,
-    room_id: int | None,
-    slot: dict[str, Any],
-    room: dict[str, Any],
-) -> Candidate | None:
-    starts_minute = _time_to_minutes(slot.get("starts_at"))
-    day = _int_or_none(slot.get("day_of_week"))
-
-    if starts_minute is None or day is None:
-        return None
-
-    duration = _duration_minutes(demand)
-    ends_minute = starts_minute + duration
-
-    return Candidate(
-        scheduling_demand_id=int(demand["scheduling_demand_id"]),
-        demand_key=str(demand.get("demand_key") or demand["scheduling_demand_id"]),
-        term_offering_id=_int_or_none(demand.get("term_offering_id")) or 0,
-        section_id=_int_or_none(demand.get("section_id")) or 0,
-        section_delivery_group_id=_int_or_none(demand.get("section_delivery_group_id")) or 0,
-        cohort_or_student_group_id=_int_or_none(demand.get("cohort_or_student_group_id")) or 0,
-        cohort_or_student_group_ids=tuple(
-            sorted({
-                cohort_id
-                for cohort_id in (
-                    _int_or_none(value)
-                    for value in demand.get("cohort_or_student_group_ids", [])
-                )
-                if cohort_id is not None
-            })
-        ) or (_int_or_none(demand.get("cohort_or_student_group_id")) or 0,),
-        modality=str(demand.get("modality") or "").upper(),
-        subject_id=_int_or_none(demand.get("course_id") or demand.get("subject_id")),
-        course_component_id=_int_or_none(demand.get("course_component_id")),
-        faculty_id=faculty_id,
-        room_id=room_id,
-        day_of_week=day,
-        starts_at=_minutes_to_time(starts_minute),
-        ends_at=_minutes_to_time(ends_minute),
-        starts_minute=starts_minute,
-        ends_minute=ends_minute,
-        time_slot_id=_int_or_none(slot.get("time_slot_id")),
-        time_block_key=str(slot.get("time_block_key") or f"D{day}-{starts_minute}"),
-        meeting_sequence=meeting_sequence,
-        meeting_pattern=_meeting_pattern(demand),
-        priority=_faculty_priority(demand, faculty_id),
-        duration_minutes=duration,
-        load_units_scaled=_decimal_scaled(demand.get("load_units")),
-        room_capacity=_int_or_none(room.get("capacity")) or 0,
-        expected_count=_int_or_none(demand.get("expected_count")) or 0,
-    )
-
-
-def _add_no_overlap_constraints(
-    model: cp_model.CpModel,
-    variables: list[cp_model.IntVar],
-    candidates: list[Candidate],
-    indexes: CandidateIndexes,
-) -> None:
-    intervals = [
-        model.new_optional_fixed_size_interval_var(
-            candidate.starts_minute,
-            candidate.duration_minutes,
-            variables[index],
-            f"candidate_interval_{index}",
-        )
-        for index, candidate in enumerate(candidates)
-    ]
-    for grouped_indexes in (
-        indexes.by_cohort_day,
-        indexes.by_faculty_day,
-        indexes.by_room_day,
-    ):
-        for candidate_indexes in grouped_indexes.values():
-            resource_intervals = [intervals[index] for index in candidate_indexes]
-            if len(resource_intervals) > 1:
-                model.add_no_overlap(resource_intervals)
-
-
-def _add_modality_transition_buffer_constraints(
-    model: cp_model.CpModel,
-    variables: list[cp_model.IntVar],
-    candidates: list[Candidate],
-    indexes: CandidateIndexes,
-    request_context: SolverRequestContext,
-) -> None:
-    seen_pairs: set[tuple[int, int]] = set()
-    for candidate_indexes in indexes.by_cohort_day.values():
-        request_context.checkpoint("hard_model_construction")
-        for position, left_index in enumerate(candidate_indexes):
-            left = candidates[left_index]
-            for right_index in candidate_indexes[position + 1:]:
-                pair = (min(left_index, right_index), max(left_index, right_index))
-                if pair in seen_pairs:
-                    continue
-                seen_pairs.add(pair)
-                right = candidates[right_index]
-                if (
-                    left.modality == right.modality
-                    or left.scheduling_demand_id == right.scheduling_demand_id
-                ):
-                    continue
-
-                left_to_right_gap = right.starts_minute - left.ends_minute
-                right_to_left_gap = left.starts_minute - right.ends_minute
-                if 0 <= left_to_right_gap < 30 or 0 <= right_to_left_gap < 30:
-                    model.add(variables[left_index] + variables[right_index] <= 1)
-
-
-def _apply_repair_hard_requirement(
-    snapshot: dict[str, Any],
-    model: cp_model.CpModel,
-    variables: list[cp_model.IntVar],
-    candidates: list[Candidate],
-) -> dict[str, str] | None:
-    operation = snapshot.get("operation")
-    if operation is None:
-        return None
-    if not isinstance(operation, dict) or operation.get("kind") not in {"generation", "repair"}:
-        return _reason("invalid_operation", "The timetable operation must be generation or repair.")
-    if operation.get("kind") == "generation":
-        return None
-
-    source = operation.get("source_candidate")
-    requested = operation.get("requested_assignment")
-    if (
-        not isinstance(source, dict)
-        or not isinstance(source.get("assignments"), list)
-        or not source.get("assignments")
-        or not isinstance(requested, dict)
-    ):
-        return _reason("invalid_repair_contract", "Repair requires an immutable source candidate and requested assignment.")
-
-    assignment_keys = {_candidate_assignment_key(candidate) for candidate in candidates}
-    baseline = _repair_baseline(operation)
-    if set(baseline) != assignment_keys:
-        return _reason("invalid_repair_coverage", "Repair source assignments must cover the complete exact-Term candidate.")
-
-    requested_demand_id = _int_or_none(requested.get("scheduling_demand_id"))
-    requested_meeting_sequence = _int_or_none(requested.get("meeting_sequence")) or 1
-    requested_key = (requested_demand_id, requested_meeting_sequence)
-    if requested_demand_id is None or requested_key not in assignment_keys:
-        return _reason("invalid_repair_request", "Repair requires one requested meeting from the source candidate.")
-
-    matching = [
-        variables[index]
-        for index, candidate in enumerate(candidates)
-        if _candidate_assignment_key(candidate) == requested_key
-        and _candidate_matches_assignment(candidate, requested)
-    ]
-    if not matching:
-        return _reason("repair_request_unavailable", "No hard-valid candidate matches the requested repair assignment.")
-
-    model.add(sum(matching) == 1)
-
-    return None
-
-
-def _repair_change_objective(
-    snapshot: dict[str, Any],
-    variables: list[cp_model.IntVar],
-    candidates: list[Candidate],
-) -> cp_model.LinearExpr | None:
-    operation = snapshot.get("operation")
-    if not isinstance(operation, dict) or operation.get("kind") != "repair":
-        return None
-
-    requested = operation.get("requested_assignment")
-    requested_demand_id = _int_or_none(requested.get("scheduling_demand_id")) if isinstance(requested, dict) else None
-    requested_meeting_sequence = (
-        _int_or_none(requested.get("meeting_sequence")) or 1
-        if isinstance(requested, dict)
-        else 1
-    )
-    requested_key = (requested_demand_id, requested_meeting_sequence)
-    baseline = _repair_baseline(operation)
-    changed_terms = [
-        variables[index]
-        for index, candidate in enumerate(candidates)
-        if _candidate_assignment_key(candidate) != requested_key
-        and _candidate_assignment_key(candidate) in baseline
-        and not _candidate_matches_assignment(candidate, baseline[_candidate_assignment_key(candidate)])
-    ]
-
-    return -sum(changed_terms)
-
-
-def _repair_baseline(operation: dict[str, Any]) -> dict[tuple[int, int], dict[str, Any]]:
-    source = operation.get("source_candidate")
-    assignments = source.get("assignments") if isinstance(source, dict) else None
-    if not isinstance(assignments, list):
-        return {}
-
-    baseline: dict[tuple[int, int], dict[str, Any]] = {}
-    for assignment in assignments:
-        if not isinstance(assignment, dict):
-            continue
-        demand_id = _int_or_none(assignment.get("scheduling_demand_id"))
-        meeting_sequence = _int_or_none(assignment.get("meeting_sequence")) or 1
-        key = (demand_id, meeting_sequence)
-        if demand_id is not None and key not in baseline:
-            baseline[key] = assignment
-
-    return baseline
-
-
-def _candidate_matches_assignment(candidate: Candidate, assignment: dict[str, Any]) -> bool:
-    return (
-        candidate.meeting_sequence == (_int_or_none(assignment.get("meeting_sequence")) or 1)
-        and candidate.day_of_week == _int_or_none(assignment.get("day_of_week") or assignment.get("day"))
-        and candidate.starts_at == _time_or_none(assignment.get("starts_at") or assignment.get("start_time"))
-        and candidate.ends_at == _time_or_none(assignment.get("ends_at") or assignment.get("end_time"))
-        and candidate.faculty_id == _int_or_none(assignment.get("faculty_user_id") or assignment.get("faculty_id"))
-        and candidate.room_id == _int_or_none(assignment.get("room_id"))
-    )
-
-
-def _repair_evidence(snapshot: dict[str, Any], selected: list[Candidate]) -> dict[str, Any] | None:
-    operation = snapshot.get("operation")
-    if not isinstance(operation, dict) or operation.get("kind") != "repair":
-        return None
-
-    source = operation.get("source_candidate") if isinstance(operation.get("source_candidate"), dict) else {}
-    requested = operation.get("requested_assignment") if isinstance(operation.get("requested_assignment"), dict) else {}
-    requested_demand_id = _int_or_none(requested.get("scheduling_demand_id"))
-    requested_meeting_sequence = _int_or_none(requested.get("meeting_sequence")) or 1
-    requested_key = (requested_demand_id, requested_meeting_sequence)
-    baseline = _repair_baseline(operation)
-    changes = []
-
-    for candidate in sorted(selected, key=_candidate_sort_key):
-        candidate_key = _candidate_assignment_key(candidate)
-        previous = baseline.get(candidate_key)
-        if previous is None or _candidate_matches_assignment(candidate, previous):
-            continue
-        changes.append({
-            "scheduling_demand_id": candidate.scheduling_demand_id,
-            "meeting_sequence": candidate.meeting_sequence,
-            "requested": candidate_key == requested_key,
-            "before": previous,
-            "after": _assignment(candidate),
-        })
-
-    return {
-        "source_run_id": source.get("run_id"),
-        "source_candidate_version": source.get("candidate_version"),
-        "requested_scheduling_demand_id": requested_demand_id,
-        "requested_meeting_sequence": requested_meeting_sequence,
-        "changed_non_requested_meetings": sum(1 for change in changes if not change["requested"]),
-        "changes": changes,
-    }
-
-
-def _add_same_faculty_constraints(
-    model: cp_model.CpModel,
-    variables: list[cp_model.IntVar],
-    candidates: list[Candidate],
-    demands: list[dict[str, Any]],
-    indexes: CandidateIndexes,
-) -> None:
-    grouped_assignments: dict[tuple[int, int], list[tuple[int, int]]] = {}
-
-    for demand in demands:
-        if not bool(demand.get("same_faculty_required")):
-            continue
-
-        demand_id = _int_or_none(demand.get("scheduling_demand_id"))
-        term_offering_id = _int_or_none(demand.get("term_offering_id"))
-        group_id = _int_or_none(demand.get("section_delivery_group_id"))
-
-        if demand_id is None or term_offering_id is None or group_id is None:
-            continue
-
-        grouped_assignments.setdefault((term_offering_id, group_id), []).extend(
-            (demand_id, meeting_sequence)
-            for meeting_sequence in range(1, (_meeting_count(demand) or 1) + 1)
-        )
-
-    for assignment_keys in grouped_assignments.values():
-        assignment_keys = sorted(set(assignment_keys))
-        if len(assignment_keys) < 2:
-            continue
-
-        faculty_ids = {
-            candidates[index].faculty_id
-            for assignment_key in assignment_keys
-            for index in indexes.by_assignment.get(assignment_key, ())
-        }
-
-        for left_key, right_key in zip(assignment_keys, assignment_keys[1:]):
-            for faculty_id in faculty_ids:
-                left_terms = [
-                    variables[index]
-                    for index in indexes.by_assignment.get(left_key, ())
-                    if candidates[index].faculty_id == faculty_id
-                ]
-                right_terms = [
-                    variables[index]
-                    for index in indexes.by_assignment.get(right_key, ())
-                    if candidates[index].faculty_id == faculty_id
-                ]
-
-                model.add(sum(left_terms) == sum(right_terms))
-
-
-def _add_distinct_day_spread_constraints(
-    model: cp_model.CpModel,
-    variables: list[cp_model.IntVar],
-    candidates: list[Candidate],
-    demands: list[dict[str, Any]],
-) -> None:
-    by_demand_day: dict[int, dict[int, list[int]]] = {}
-    meetings_by_demand: dict[int, set[int]] = {}
-
-    for index, candidate in enumerate(candidates):
-        by_demand_day.setdefault(candidate.scheduling_demand_id, {}).setdefault(
-            candidate.day_of_week,
-            [],
-        ).append(index)
-        meetings_by_demand.setdefault(candidate.scheduling_demand_id, set()).add(
-            candidate.meeting_sequence
-        )
-
-    for demand in demands:
-        demand_id = _int_or_none(demand.get("scheduling_demand_id"))
-        if demand_id is None:
-            continue
-
-        meetings_in_demand = meetings_by_demand.get(demand_id, set())
-        if len(meetings_in_demand) <= 1:
-            continue
-
-        available_days_for_demand = by_demand_day.get(demand_id, {})
-        if len(available_days_for_demand) < len(meetings_in_demand):
-            continue
-
-        for day_candidate_indexes in available_days_for_demand.values():
-            if len(day_candidate_indexes) > 1:
-                model.add(sum(variables[index] for index in day_candidate_indexes) <= 1)
-
-
-def _add_faculty_load_constraints(
-    model: cp_model.CpModel,
-    variables: list[cp_model.IntVar],
-    candidates: list[Candidate],
-    snapshot: dict[str, Any],
-) -> dict[int, cp_model.IntVar]:
-    max_units = {
-        int(row["faculty_id"]): _decimal_scaled(row.get("max_allowed_units"))
-        for row in snapshot.get("faculty", [])
-        if isinstance(row, dict) and _int_or_none(row.get("faculty_id")) is not None
-    }
-    grouped: dict[tuple[int, int, int], list[int]] = {}
-
-    for index, candidate in enumerate(candidates):
-        grouped.setdefault(
-            (candidate.faculty_id, candidate.term_offering_id, candidate.section_delivery_group_id),
-            [],
-        ).append(index)
-
-    load_terms: dict[int, list[tuple[cp_model.IntVar, int]]] = {}
-    for (faculty_id, offering_id, group_id), indexes in grouped.items():
-        group_selected = model.new_bool_var(f"load_group_{faculty_id}_{offering_id}_{group_id}")
-        for index in indexes:
-            model.add(variables[index] <= group_selected)
-        model.add(group_selected <= sum(variables[index] for index in indexes))
-        units = max(candidates[index].load_units_scaled for index in indexes)
-        load_terms.setdefault(faculty_id, []).append((group_selected, units))
-
-    load_variables: dict[int, cp_model.IntVar] = {}
-    for faculty_id, terms in load_terms.items():
-        upper_bound = sum(units for _, units in terms)
-        load = model.new_int_var(0, upper_bound, f"faculty_load_{faculty_id}")
-        model.add(load == sum(variable * units for variable, units in terms))
-        model.add(load <= max_units[faculty_id])
-        load_variables[faculty_id] = load
-
-    for faculty_id in max_units:
-        if faculty_id not in load_variables:
-            load_variables[faculty_id] = model.new_constant(0)
-
-    return load_variables
-
-
-def _idle_gap_objective_terms(
-    model: cp_model.CpModel,
-    variables: list[cp_model.IntVar],
-    candidates: list[Candidate],
-    weight: int,
-) -> list[cp_model.LinearExpr]:
-    terms: list[cp_model.LinearExpr] = []
-    faculty_days: dict[tuple[int, int], list[int]] = {}
-
-    for index, candidate in enumerate(candidates):
-        faculty_days.setdefault((candidate.faculty_id, candidate.day_of_week), []).append(index)
-
-    for (faculty_id, day_of_week), indexes in faculty_days.items():
-        if len(indexes) < 2:
-            continue
-
-        horizon_start = min(candidates[index].starts_minute for index in indexes)
-        horizon_end = max(candidates[index].ends_minute for index in indexes)
-        active = model.new_bool_var(f"faculty_day_active_{faculty_id}_{day_of_week}")
-        model.add_max_equality(active, [variables[index] for index in indexes])
-        effective_starts: list[cp_model.IntVar] = []
-        effective_ends: list[cp_model.IntVar] = []
-
-        for index in indexes:
-            candidate = candidates[index]
-            effective_start = model.new_int_var(
-                horizon_start,
-                horizon_end,
-                f"faculty_day_start_{faculty_id}_{day_of_week}_{index}",
-            )
-            effective_end = model.new_int_var(
-                horizon_start,
-                horizon_end,
-                f"faculty_day_end_{faculty_id}_{day_of_week}_{index}",
-            )
-            model.add(effective_start == candidate.starts_minute).only_enforce_if(variables[index])
-            model.add(effective_start == horizon_end).only_enforce_if(variables[index].Not())
-            model.add(effective_end == candidate.ends_minute).only_enforce_if(variables[index])
-            model.add(effective_end == horizon_start).only_enforce_if(variables[index].Not())
-            effective_starts.append(effective_start)
-            effective_ends.append(effective_end)
-
-        first_start = model.new_int_var(
-            horizon_start,
-            horizon_end,
-            f"faculty_day_first_start_{faculty_id}_{day_of_week}",
-        )
-        last_end = model.new_int_var(
-            horizon_start,
-            horizon_end,
-            f"faculty_day_last_end_{faculty_id}_{day_of_week}",
-        )
-        idle_gap = model.new_int_var(
-            0,
-            horizon_end - horizon_start,
-            f"faculty_day_idle_gap_{faculty_id}_{day_of_week}",
-        )
-        selected_duration = sum(
-            candidates[index].duration_minutes * variables[index]
-            for index in indexes
-        )
-
-        model.add_min_equality(first_start, effective_starts)
-        model.add_max_equality(last_end, effective_ends)
-        model.add(idle_gap == last_end - first_start - selected_duration).only_enforce_if(active)
-        model.add(idle_gap == 0).only_enforce_if(active.Not())
-        terms.append(-weight * idle_gap)
-
-    return terms
 
 
 def _load_balance_objective_terms(
@@ -2167,6 +3215,17 @@ def _conflict_assignment(
     }
 
 
+def _dedupe_reasons(reasons: list[dict[str, str]]) -> list[dict[str, str]]:
+    seen: set[tuple[str, str]] = set()
+    unique: list[dict[str, str]] = []
+    for reason in reasons:
+        key = (reason.get("type", ""), reason.get("message", ""))
+        if key not in seen:
+            seen.add(key)
+            unique.append(reason)
+    return unique
+
+
 def _room_required(demand: dict[str, Any]) -> bool:
     modality = str(demand.get("modality") or "").upper()
 
@@ -2222,50 +3281,6 @@ def _faculty_priority(demand: dict[str, Any], faculty_id: int) -> int:
     return 100
 
 
-def _conflicts_existing(candidate: Candidate, commitments: list[dict[str, Any]]) -> bool:
-    for commitment in commitments:
-        day = _int_or_none(commitment.get("day_of_week"))
-        starts = _time_to_minutes(commitment.get("starts_at"))
-        ends = _time_to_minutes(commitment.get("ends_at"))
-
-        if day != candidate.day_of_week or starts is None or ends is None:
-            continue
-
-        if candidate.starts_minute >= ends or candidate.ends_minute <= starts:
-            continue
-
-        same_delivery_group = _int_or_none(commitment.get("section_delivery_group_id")) == candidate.section_delivery_group_id
-        same_faculty = _int_or_none(commitment.get("faculty_id") or commitment.get("faculty_user_id")) == candidate.faculty_id
-        same_room = _int_or_none(commitment.get("room_id")) == candidate.room_id
-
-        if same_delivery_group or same_faculty or same_room:
-            return True
-
-    return False
-
-
-def _conflicts_calendar(candidate: Candidate, calendar_blocks: list[dict[str, Any]]) -> bool:
-    for block in calendar_blocks:
-        room_id = _int_or_none(block.get("room_id"))
-        faculty_id = _int_or_none(block.get("faculty_user_id") or block.get("faculty_id"))
-
-        if room_id is not None and room_id != candidate.room_id:
-            continue
-
-        if faculty_id is not None and faculty_id != candidate.faculty_id:
-            continue
-
-        block_day, block_start, block_end = _block_window(block)
-
-        if block_day != candidate.day_of_week or block_start is None or block_end is None:
-            continue
-
-        if candidate.starts_minute < block_end and candidate.ends_minute > block_start:
-            return True
-
-    return False
-
-
 def _block_window(block: dict[str, Any]) -> tuple[int | None, int | None, int | None]:
     if block.get("day_of_week") is not None:
         return (
@@ -2297,14 +3312,6 @@ def _datetime_or_none(value: Any) -> datetime | None:
         return None
 
 
-def _overlaps(left: Candidate, right: Candidate) -> bool:
-    return (
-        left.day_of_week == right.day_of_week
-        and left.starts_minute < right.ends_minute
-        and left.ends_minute > right.starts_minute
-    )
-
-
 def _candidate_weight(candidate: Candidate) -> int:
     return (
         10_000_000
@@ -2315,8 +3322,15 @@ def _candidate_weight(candidate: Candidate) -> int:
     )
 
 
-def _earlier_candidate_score(candidate: Candidate) -> int:
-    return max(0, 10_000 - ((candidate.day_of_week * 1_000) + candidate.starts_minute))
+def _slot_earlier_score(day_of_week: int, starts_minute: int) -> int:
+    return max(0, 10_000 - ((day_of_week * 1_000) + starts_minute))
+
+
+def _room_efficiency_value(room: dict[str, Any], expected_count: int) -> int:
+    room_capacity = _int_or_none(room.get("capacity")) or 0
+    if expected_count <= 0:
+        return max(0, 1_000 - room_capacity)
+    return -max(0, room_capacity - expected_count)
 
 
 def _room_efficiency_score(candidate: Candidate) -> int:
@@ -2350,7 +3364,11 @@ def _lexicographic_objective_details(
         total = 0
         for rows in groups.values():
             if rows:
-                total += max(candidate.ends_minute for candidate in rows) - min(candidate.starts_minute for candidate in rows) - sum(candidate.duration_minutes for candidate in rows)
+                total += (
+                    max(candidate.ends_minute for candidate in rows)
+                    - min(candidate.starts_minute for candidate in rows)
+                    - sum(candidate.duration_minutes for candidate in rows)
+                )
         return total
 
     mode_switches = 0
@@ -2383,7 +3401,10 @@ def _lexicographic_objective_details(
             "faculty_load_imbalance": load_imbalance,
             "faculty_idle_time": idle_minutes(faculty_days),
             "room_seat_waste": -sum(_room_efficiency_score(candidate) for candidate in selected),
-            "stable_earlier_placement": sum(_earlier_candidate_score(candidate) for candidate in selected),
+            "stable_earlier_placement": sum(
+                _slot_earlier_score(candidate.day_of_week, candidate.starts_minute)
+                for candidate in selected
+            ),
         },
         "completed_levels": completed_levels,
         "scalar_score": None,

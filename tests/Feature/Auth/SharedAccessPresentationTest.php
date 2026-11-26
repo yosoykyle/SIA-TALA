@@ -109,9 +109,19 @@ class SharedAccessPresentationTest extends TestCase
 
     public function test_workspace_choice_has_a_shared_appearance_and_an_empty_state_recovery(): void
     {
+        $this->actingAs(User::factory()->create([
+            ...User::staffNamePayload('Elena', null, 'Reyes'),
+            'email' => 'elena.reyes@example.test',
+        ]));
+
         $this->view('auth.workspace-chooser', ['contexts' => [], 'errors' => new ViewErrorBag])
             ->assertSee('data-tala-system-appearance', false)
             ->assertSee('css/tala-foundation.css', false)
+            ->assertSee('tala-ambient', false)
+            ->assertSee('tala-record-identity', false)
+            ->assertSee('tala-identity-surface', false)
+            ->assertSee('student-identity-art', false)
+            ->assertSee('Elena Reyes')
             ->assertSee('Skip to main content')
             ->assertSee('No workspace is currently authorized')
             ->assertSee('System Administrator')
@@ -119,27 +129,61 @@ class SharedAccessPresentationTest extends TestCase
             ->assertDontSee('—');
     }
 
-    public function test_staff_activation_retains_native_password_fields_with_associated_guidance(): void
+    public function test_staff_activation_uses_auth_designer_with_native_password_fields_and_guidance(): void
     {
-        $this->view('auth.staff-activation', [
-            'invitation' => (new StaffInvitation)->forceFill([
-                'id' => 1,
-                'email' => 'faculty.invitee@example.test',
-                'staff_roles' => [User::StaffRoleFaculty],
-            ]),
-            'token' => str_repeat('a', 64),
-            'isUsable' => true,
-            'errors' => new ViewErrorBag,
-        ])->assertSee('data-tala-system-appearance', false)
+        $inviter = User::factory()->create();
+        $invitee = User::factory()->create([
+            ...User::staffNamePayload('Ada', null, 'Lovelace'),
+            'email' => 'faculty.invitee@example.test',
+            'password' => null,
+            'status' => User::StatusInvitationPending,
+        ]);
+        $plainToken = str_repeat('a', 64);
+        $invitation = StaffInvitation::query()->create([
+            'user_id' => $invitee->id,
+            'invited_by' => $inviter->id,
+            'email' => $invitee->email,
+            'staff_roles' => [User::StaffRoleFaculty],
+            'token_digest' => hash('sha256', $plainToken),
+            'expires_at' => now()->addHour(),
+            'sent_at' => now(),
+        ]);
+
+        $response = $this->get(route('staff-invitations.activate', [
+            'invitation' => $invitation,
+            'token' => $plainToken,
+        ]))
+            ->assertOk()
+            ->assertSee('tala-auth-main', false)
+            ->assertSee('fi-auth-layout has-media media-top', false)
+            ->assertSee('fi-auth-media-section', false)
+            ->assertSee('images/auth/admin.webp', false)
+            ->assertSee('tala-ambient--auth', false)
+            ->assertSee('tala-record-identity', false)
+            ->assertSee('tala-identity-surface', false)
+            ->assertSee('student-identity-art', false)
+            ->assertSee('fi-auth-theme-switcher-wrapper', false)
+            ->assertSee('Enable light theme')
+            ->assertSee('Enable dark theme')
+            ->assertSee('Enable system theme')
+            ->assertSee('tala-auth-support-dialog', false)
+            ->assertSee('tala-auth-privacy-dialog', false)
             ->assertSee('autocomplete="new-password"', false)
-            ->assertSee('aria-describedby="password-guidance', false)
+            ->assertSee('enterkeyhint="next"', false)
+            ->assertSee('enterkeyhint="done"', false)
             ->assertSee('15 to 64 characters')
-            ->assertSee('Passwords match')
+            ->assertSee('Confirm password')
+            ->assertSee('Ada Lovelace')
             ->assertSee('faculty.invitee@example.test')
             ->assertSee('Faculty')
+            ->assertSee('Activate your account')
             ->assertSee('Activate account')
-            ->assertSee('Contact support')
-            ->assertDontSee('—');
+            ->assertSee('Back to school site')
+            ->assertSee('Contact support');
+
+        preg_match('/<main\b[^>]*>(.*?)<\/main>/s', $response->getContent(), $mainMatch);
+        $this->assertNotEmpty($mainMatch[1] ?? '');
+        $this->assertStringNotContainsString('—', $mainMatch[1]);
     }
 
     public function test_server_failure_rendering_does_not_require_authentication_data_or_compiled_assets(): void

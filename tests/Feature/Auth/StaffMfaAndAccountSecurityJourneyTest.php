@@ -136,6 +136,8 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
                 ->assertSee('Contact support')
                 ->assertSee('Sign out')
                 ->assertDontSee('/'.$panelId.'/account-profile', false)
+                ->assertDontSee('database-notifications', false)
+                ->assertDontSee('fi-topbar-database-notifications-btn', false)
                 ->assertDontSee("Applicant's History");
         }
     }

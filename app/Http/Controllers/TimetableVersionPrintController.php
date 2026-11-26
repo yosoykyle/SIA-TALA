@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Actions\Scheduling\BuildTimetableVersionOutput;
 use App\Filament\Pages\TermTimetable;
+use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
 use App\Models\User;
 use App\Support\TimetablePresentation;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -41,15 +43,47 @@ class TimetableVersionPrintController extends Controller
             'tableSearch',
         ]));
 
+        $timetableFormat = (string) ($validated['timetableFormat'] ?? 'list');
+        if ($timetableFormat !== 'week') {
+            $timetableFormat = 'list';
+        }
+
         $schedule = $output->execute($version, $actor, $request);
+        $filteredMeetings = null;
 
         if ($request->boolean('applyFilters')) {
-            $schedule = $this->applyPrintFilters($schedule, $version, $returnCriteria);
+            [$schedule, $filteredMeetings] = $this->applyPrintFilters($schedule, $version, $returnCriteria);
         }
+
+        $weeklyPresentation = null;
+        $weeklyMaxLanes = 1;
+
+        if ($timetableFormat === 'week') {
+            $meetings = $filteredMeetings ?? $this->loadVersionMeetings($version);
+            $weeklyPresentation = TimetablePresentation::forPublished($version, $meetings);
+            $enrichedMeetings = TermTimetable::enrichMeetingsWithScopeMetadata(
+                $weeklyPresentation['meetings'] ?? [],
+                (int) $version->term_id,
+            );
+            $weeklyPresentation['meetings'] = $enrichedMeetings;
+            $weeklyMaxLanes = max(
+                1,
+                (int) collect($enrichedMeetings)->max('lanes'),
+            );
+        }
+
+        $rawView = (string) ($returnCriteria['timetableView'] ?? 'whole');
+        $singleSectionScope = $request->boolean('applyFilters')
+            && $rawView === 'section'
+            && filled($returnCriteria['viewFilter'] ?? null);
 
         return view('schedules.print', [
             'schedule' => [
                 ...$schedule,
+                'timetable_format' => $timetableFormat,
+                'weekly_presentation' => $weeklyPresentation,
+                'weekly_max_lanes' => $weeklyMaxLanes,
+                'single_section_scope' => $singleSectionScope,
                 'back_url' => TermTimetable::getUrl(['termId' => $version->term_id, 'selectedVersionId' => $version->id, ...$returnCriteria]),
                 'back_label' => 'Return to official timetable',
             ],
@@ -61,7 +95,7 @@ class TimetableVersionPrintController extends Controller
      *
      * @param  array<string, mixed>  $schedule
      * @param  array<string, mixed>  $criteria
-     * @return array<string, mixed>
+     * @return array{0: array<string, mixed>, 1: EloquentCollection<int, PublishedTimetableMeeting>|null}
      */
     private function applyPrintFilters(array $schedule, PublishedTimetableVersion $version, array $criteria): array
     {
@@ -86,27 +120,10 @@ class TimetableVersionPrintController extends Controller
             || $tableSearch !== null;
 
         if (! $hasActiveFilter) {
-            return $schedule;
+            return [$schedule, null];
         }
 
-        $version->loadMissing('scheduleRun');
-        $meetings = $version->meetings()
-            ->with([
-                'faculty',
-                'room',
-                'classOffering.courseRevision.course',
-                'classOffering.cohorts.program',
-                'classOffering.cohorts.curriculumVersion.entries.courseSpecification',
-                'schedulingDemand.courseComponent.courseSpecification.course',
-                'schedulingDemand.sectionDeliveryGroup.section.cohorts.program',
-                'schedulingDemand.sectionDeliveryGroup.section.cohorts.curriculumVersion.entries.courseSpecification',
-                'schedulingDemand.termOffering.curriculumEntry.curriculumVersion.program',
-                'schedulingDemand.termOffering.curriculumEntry.courseSpecification.course',
-            ])
-            ->orderBy('day_of_week')
-            ->orderBy('starts_at')
-            ->orderBy('id')
-            ->get();
+        $meetings = $this->loadVersionMeetings($version);
 
         $presentation = TimetablePresentation::forPublished($version, $meetings);
         $enrichedMeetings = TermTimetable::enrichMeetingsWithScopeMetadata(
@@ -134,9 +151,13 @@ class TimetableVersionPrintController extends Controller
 
         $rows = is_array($schedule['rows'] ?? null) ? array_values($schedule['rows']) : [];
         $filteredRows = [];
+        $filteredMeetings = new EloquentCollection;
         foreach ($meetings->values() as $index => $meetingModel) {
-            if (isset($matchingIds[(string) $meetingModel->getKey()]) && isset($rows[$index])) {
-                $filteredRows[] = $rows[$index];
+            if (isset($matchingIds[(string) $meetingModel->getKey()])) {
+                if (isset($rows[$index])) {
+                    $filteredRows[] = $rows[$index];
+                }
+                $filteredMeetings->push($meetingModel);
             }
         }
 
@@ -167,6 +188,32 @@ class TimetableVersionPrintController extends Controller
         $schedule['filter_description'] = $filterSummary;
         $schedule['role_filter_context'] = $filterSummary;
 
-        return $schedule;
+        return [$schedule, $filteredMeetings];
+    }
+
+    /**
+     * @return EloquentCollection<int, PublishedTimetableMeeting>
+     */
+    private function loadVersionMeetings(PublishedTimetableVersion $version): EloquentCollection
+    {
+        $version->loadMissing('scheduleRun');
+
+        return $version->meetings()
+            ->with([
+                'faculty',
+                'room',
+                'classOffering.courseRevision.course',
+                'classOffering.cohorts.program',
+                'classOffering.cohorts.curriculumVersion.entries.courseSpecification',
+                'schedulingDemand.courseComponent.courseSpecification.course',
+                'schedulingDemand.sectionDeliveryGroup.section.cohorts.program',
+                'schedulingDemand.sectionDeliveryGroup.section.cohorts.curriculumVersion.entries.courseSpecification',
+                'schedulingDemand.termOffering.curriculumEntry.curriculumVersion.program',
+                'schedulingDemand.termOffering.curriculumEntry.courseSpecification.course',
+            ])
+            ->orderBy('day_of_week')
+            ->orderBy('starts_at')
+            ->orderBy('id')
+            ->get();
     }
 }

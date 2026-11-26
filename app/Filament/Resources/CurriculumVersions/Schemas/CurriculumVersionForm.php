@@ -285,7 +285,7 @@ class CurriculumVersionForm
                 ->helperText('Use the school year label, for example AY 2027-2028.')
                 ->required()
                 ->maxLength(255)
-                ->unique((new AcademicYear)->getTable(), 'label'),
+                ->unique((new AcademicYear)->getTable(), 'label', ignoreRecord: false),
             Grid::make(['default' => 1, 'sm' => 2])->schema([
                 DatePicker::make('starts_on')
                     ->label('Start date')

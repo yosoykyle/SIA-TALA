@@ -57,19 +57,22 @@
 
                 @if ($resourceView === 'faculty')
                     @php
+                        $resolvedNeedsReviewCount = (int) ($needsReviewCount ?? $needsGridReviewCount ?? 0);
+                        $resolvedNeedsHoursReviewCount = (int) ($needsHoursReviewCount ?? 0);
                         $replyPercent = $termFacultyCount > 0 ? (int) round(($facultyResponseCount / $termFacultyCount) * 100) : 0;
                         $replyBreakdown = collect([
                             $facultyResponseCount.' replied',
                             $noResponseCount.' no response',
                             $cannotTeachCount > 0 ? $cannotTeachCount.' cannot teach' : null,
-                            $needsGridReviewCount > 0 ? $needsGridReviewCount.' review needed' : null,
+                            $resolvedNeedsReviewCount > 0 ? $resolvedNeedsReviewCount.' review needed' : null,
                         ])->filter()->implode(' · ');
                         $uncoveredSubjectsList = $uncoveredSubjects ?? [];
                         $facultyBlockersList = $facultyReadinessBlockers ?? [];
                         $roomBlockersList = $roomReadinessBlockers ?? [];
                         $hasInlineNotices = ! $activePackage
                             || ! empty($unresolvedLateImpacts)
-                            || $needsGridReviewCount > 0
+                            || $resolvedNeedsReviewCount > 0
+                            || $resolvedNeedsHoursReviewCount > 0
                             || (! $isLiveOrClosed && ! empty($roomBlockersList));
                         $facultyTriageCounts = $this->facultyTriageCounts();
                         $activeFacultyStatusFilter = (string) ($this->getTableFilterState('availability_status')['value'] ?? 'all');
@@ -184,6 +187,18 @@
                                             <p>
                                                 <strong>Review needed: {{ $needsGridReviewCount }} {{ \Illuminate\Support\Str::plural('teacher', $needsGridReviewCount) }} chose times outside the updated teaching hours.</strong>
                                                 Outside hours remain excluded from scheduling. Affected teachers can adjust their teaching times on My Availability.
+                                            </p>
+                                        </div>
+                                    </div>
+                                @endif
+
+                                @if ($resolvedNeedsHoursReviewCount > 0)
+                                    <div class="tala-resource-readiness-bar__notice tala-resource-readiness-bar__notice--warning">
+                                        <div class="tala-resource-readiness-bar__notice-copy">
+                                            <x-filament::icon icon="heroicon-o-exclamation-triangle" class="tala-resource-readiness-bar__notice-icon" aria-hidden="true" />
+                                            <p>
+                                                <strong>Hours short: {{ $resolvedNeedsHoursReviewCount }} {{ \Illuminate\Support\Str::plural('teacher', $resolvedNeedsHoursReviewCount) }} submitted fewer open hours than their confirmed sole-teacher classes require.</strong>
+                                                Assign backup teachers via Subjects or coordinate updated availability before scheduling.
                                             </p>
                                         </div>
                                     </div>

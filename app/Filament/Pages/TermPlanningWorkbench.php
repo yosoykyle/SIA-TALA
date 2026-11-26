@@ -372,7 +372,7 @@ class TermPlanningWorkbench extends Page
                     ->default(fn (): ?int => $this->defaultCreateTermAcademicYearId())
                     ->createOptionAction(fn (Action $action): Action => $action->label('Add academic year')->modalHeading('Add academic year')->modalSubmitActionLabel('Create academic year'))
                     ->createOptionForm([
-                        TextInput::make('label')->label('Academic year')->required()->maxLength(255)->unique('academic_years', 'label'),
+                        TextInput::make('label')->label('Academic year')->required()->maxLength(255)->unique('academic_years', 'label', ignoreRecord: false),
                         Grid::make(['default' => 1, 'sm' => 2])
                             ->schema([
                                 DatePicker::make('starts_on')
@@ -2361,15 +2361,18 @@ class TermPlanningWorkbench extends Page
 
     protected function undecidedDraftRun(Term $term): ?ScheduleGenerationRun
     {
-        return ScheduleGenerationRun::query()
+        $runId = ScheduleGenerationRun::query()
             ->where('term_id', $term->id)
             ->where('status', ScheduleGenerationRun::StatusUnderReview)
             ->where(function ($query): void {
                 $query->whereNull('candidate_state')
                     ->orWhereNotIn('candidate_state', ['Accepted', 'Rejected', 'Stale', 'Superseded']);
             })
-            ->latest('id')
-            ->first();
+            ->max('id');
+
+        return $runId !== null
+            ? ScheduleGenerationRun::query()->find($runId)
+            : null;
     }
 
     public function openBlockingDraft(int $runId): void
@@ -2833,13 +2836,17 @@ class TermPlanningWorkbench extends Page
 
         }
 
-        return ScheduleGenerationRun::query()
+        $latestId = ScheduleGenerationRun::query()
 
             ->where('term_id', $this->termId)
 
-            ->latest('id')
+            ->max('id');
 
-            ->first();
+        return $latestId !== null
+
+            ? ScheduleGenerationRun::query()->find($latestId)
+
+            : null;
 
     }
 
@@ -3142,9 +3149,12 @@ class TermPlanningWorkbench extends Page
         $allRuns = $term instanceof Term
             ? ScheduleGenerationRun::query()
                 ->where('term_id', $term->id)
-                ->when(! $isTimetableView, fn ($query) => $query->select(['id', 'term_id', 'status', 'candidate_state', 'created_at']))
-                ->latest('id')
+                ->select($isTimetableView
+                    ? ['id', 'term_id', 'status', 'candidate_state', 'diagnostics', 'created_at']
+                    : ['id', 'term_id', 'status', 'candidate_state', 'created_at'])
                 ->get()
+                ->sortByDesc('id')
+                ->values()
             : collect();
 
         $allCandidateRows = collect();

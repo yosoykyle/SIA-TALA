@@ -511,17 +511,26 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
 
     public function updatedProgramFilter(): void
     {
+        $this->clearInvalidSectionViewFilter();
         $this->resetPage();
     }
 
     public function updatedYearFilter(): void
     {
+        $this->clearInvalidSectionViewFilter();
         $this->resetPage();
     }
 
     public function updatedViewFilter(): void
     {
         $this->resetPage();
+    }
+
+    private function clearInvalidSectionViewFilter(): void
+    {
+        if ($this->timetableView === 'section' && (blank($this->programFilter) || blank($this->yearFilter))) {
+            $this->viewFilter = null;
+        }
     }
 
     /** @return array<string, mixed> */
@@ -582,8 +591,9 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
 
         $allRuns = ScheduleGenerationRun::query()
             ->where('term_id', $term->id)
-            ->latest('id')
-            ->get(['id', 'term_id', 'status', 'candidate_state', 'diagnostics', 'created_at']);
+            ->get(['id', 'term_id', 'status', 'candidate_state', 'diagnostics', 'created_at'])
+            ->sortByDesc('id')
+            ->values();
 
         $nonPublishedRuns = $allRuns
             ->where('status', '!=', ScheduleGenerationRun::StatusPublished)
@@ -929,8 +939,14 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
             ->all();
         $groups = collect($groups)->sortBy(fn (array $group): string => $group['program'].' '.$group['label'])
             ->filter(fn (array $group): bool => (! $this->programFilter || $group['program'] === $this->programFilter) && (! $this->yearFilter || in_array($this->yearFilter, $group['years'], true)))->values()->all();
+        $canSelectSection = filled($this->programFilter) && filled($this->yearFilter);
+        if ($this->timetableView === 'section' && ! $canSelectSection) {
+            $this->viewFilter = null;
+        }
         $options = match ($this->timetableView) {
-            'section' => collect($groups)->mapWithKeys(fn (array $group): array => [$group['id'] => $group['label']])->all(),
+            'section' => $canSelectSection
+                ? collect($groups)->mapWithKeys(fn (array $group): array => [$group['id'] => $group['label']])->all()
+                : [],
             'faculty', 'room' => collect($allMeetings)->pluck($this->timetableView)->unique()->sort()->mapWithKeys(fn (string $value): array => [$value => $value])->all(),
             default => [],
         };
@@ -1067,13 +1083,16 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         $activeRunForDiagnosis = $data['activeRun'] ?? null;
         if (! $official && $activeRunForDiagnosis instanceof ScheduleGenerationRun) {
             $diagEvidence = $activeRunForDiagnosis->reviewEvidence();
-            $diagHasSolverIssue = ! empty($data['solverFailure'])
+            $isHumanRejectedFeasible = $this->isHumanRejectedFeasibleRun($activeRunForDiagnosis);
+            $diagHasSolverIssue = ! $isHumanRejectedFeasible && (
+                ! empty($data['solverFailure'])
                 || ! empty($data['solverOutcome']['message'])
                 || in_array($diagEvidence['outcome'] ?? '', ['Infeasible', 'Unknown', 'ModelInvalid', 'TechnicalFailure'], true)
                 || in_array($activeRunForDiagnosis->status, [
                     ScheduleGenerationRun::StatusBlocked,
                     ScheduleGenerationRun::StatusFailed,
-                ], true);
+                ], true)
+            );
             $diagDraftConflictCount = (int) ($activeRunForDiagnosis->publicationSummary()['conflicts'] ?? 0);
             $diagIsStale = $activeRunForDiagnosis->candidate_state === 'Stale';
 
@@ -1089,6 +1108,32 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
             'masterGroups' => $groups, 'programOptions' => $programs, 'yearOptions' => $years, 'viewOptions' => $options,
             'scopeMeetingCount' => count($allMeetings), 'generationReadiness' => $readiness,
             'interactiveContext' => $interactiveContext, 'conflictDiagnosis' => $conflictDiagnosis];
+    }
+
+    private function isHumanRejectedFeasibleRun(ScheduleGenerationRun $run): bool
+    {
+        if ($run->candidate_state !== 'Rejected') {
+            return false;
+        }
+
+        $isLocalAdjustment = data_get($run->diagnostics, 'candidate_origin') === 'LocalAdjustment';
+        $solverStatus = strtolower((string) data_get($run->diagnostics, 'solver_result.solver_status', ''));
+        $summary = (array) data_get(
+            $run->diagnostics,
+            $isLocalAdjustment ? 'current_revalidation.summary' : 'solver_result.summary',
+            [],
+        );
+        $summaryStatus = strtolower((string) ($summary['status'] ?? ''));
+
+        $validOrigin = $isLocalAdjustment
+            ? $summaryStatus === 'accepted'
+            : (in_array($solverStatus, ['feasible', 'optimal'], true)
+                && ! in_array($summaryStatus, ['blocked', 'failed', 'rejected'], true));
+
+        return $validOrigin
+            && (int) ($summary['unassigned_count'] ?? 0) === 0
+            && (int) ($summary['hard_violation_count'] ?? 0) === 0
+            && (int) ($summary['conflict_count'] ?? 0) === 0;
     }
 
     public function canEditActiveCandidate(): bool
@@ -2990,7 +3035,12 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
             }
         }
 
-        if ($viewFilter === null || $viewFilter === '' || $timetableView === 'whole') {
+        if (
+            $viewFilter === null
+            || $viewFilter === ''
+            || $timetableView === 'whole'
+            || ($timetableView === 'section' && ($programFilter === null || $programFilter === '' || $yearFilter === null || $yearFilter === ''))
+        ) {
             return true;
         }
 

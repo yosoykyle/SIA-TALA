@@ -137,6 +137,10 @@ class AdminPanelProvider extends PanelProvider
             ->multiFactorAuthenticationRequiredMiddlewareName(EnsureStaffMfaIsEnabled::class)
             ->databaseNotifications(
                 condition: function (): bool {
+                    if (TalaPanelTheme::isMandatoryMfaSetupRoute()) {
+                        return false;
+                    }
+
                     $user = auth()->user();
 
                     if (! $user instanceof User) {

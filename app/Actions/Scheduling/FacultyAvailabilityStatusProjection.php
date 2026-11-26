@@ -2,12 +2,14 @@
 
 namespace App\Actions\Scheduling;
 
+use App\Models\CandidateScheduleRow;
 use App\Models\CourseSpecification;
 use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\FacultyQualification;
 use App\Models\FacultyTermLoadOverride;
 use App\Models\OperationalEvent;
 use App\Models\PublishedTimetableVersion;
+use App\Models\ScheduleGenerationRun;
 use App\Models\ScheduleRevisionEvent;
 use App\Models\SectionMeeting;
 use App\Models\Term;
@@ -32,6 +34,8 @@ final class FacultyAvailabilityStatusProjection
      *     no_response_count: int,
      *     cannot_teach_count: int,
      *     needs_grid_review_count: int,
+     *     needs_hours_review_count: int,
+     *     needs_review_count: int,
      *     late_impact_count: int,
      *     faculty_rows: array<int, array<string, mixed>>,
      *     all_faculty_rows: array<int, array<string, mixed>>,
@@ -115,6 +119,28 @@ final class FacultyAvailabilityStatusProjection
 
         $officialAssignmentsByFaculty = $officialVersion?->meetings->groupBy('faculty_user_id') ?? collect();
 
+        $draftRunId = (! $officialVersion instanceof PublishedTimetableVersion && $includeOfficialAssignments)
+            ? ScheduleGenerationRun::query()
+                ->where('term_id', $term->id)
+                ->where('status', ScheduleGenerationRun::StatusUnderReview)
+                ->where(function ($query): void {
+                    $query->whereNull('candidate_state')
+                        ->orWhereNotIn('candidate_state', ['Rejected', 'Stale', 'Superseded']);
+                })
+                ->max('id')
+            : null;
+
+        $draftRowsByFaculty = $draftRunId !== null
+            ? CandidateScheduleRow::query()
+                ->where('schedule_run_id', (int) $draftRunId)
+                ->with([
+                    'schedulingDemand.courseComponent.courseSpecification',
+                    'schedulingDemand.sectionDeliveryGroup.section.courseRevision',
+                ])
+                ->get()
+                ->groupBy('faculty_user_id')
+            : collect();
+
         $activeOfficialMeetingsByFaculty = SectionMeeting::query()
             ->activeOfficial()
             ->whereHas('scheduleRun', fn ($query) => $query->where('term_id', $term->id))
@@ -154,6 +180,19 @@ final class FacultyAvailabilityStatusProjection
         $unresolvedLateImpacts = [];
         $allRows = collect();
 
+        $workloadProjection = app(FacultyTermWorkloadProjection::class);
+        $workloadContext = $activePackage instanceof TermCalendarPackage
+            ? $workloadProjection->buildTermContext(
+                term: $term,
+                confirmedOnly: true,
+                preloadedPackage: $activePackage,
+                preloadedQualificationsByFaculty: $qualifications,
+                preloadedOverridesByFaculty: $overrides,
+                preloadedDeclarationsByFaculty: $declarations,
+                preloadedActiveFacultyIds: $facultyUsers->pluck('id')->all(),
+            )
+            : null;
+
         foreach ($facultyUsers as $faculty) {
             $facultyId = (int) $faculty->id;
             /** @var FacultyAvailabilityDeclaration|null $declaration */
@@ -173,18 +212,46 @@ final class FacultyAvailabilityStatusProjection
                 ->pluck('classOffering')
                 ->filter()
                 ->unique('id');
+            $draftClasses = (! $officialVersion instanceof PublishedTimetableVersion && $draftRunId !== null)
+                ? $draftRowsByFaculty->get($facultyId, collect())
+                    ->unique(function (CandidateScheduleRow $candidateRow): string {
+                        $sectionId = $candidateRow->schedulingDemand?->sectionDeliveryGroup?->section_id;
+                        if ($sectionId !== null) {
+                            return 'section:'.$sectionId;
+                        }
+
+                        $groupId = $candidateRow->schedulingDemand?->section_delivery_group_id;
+                        if ($groupId !== null) {
+                            return 'group:'.$groupId;
+                        }
+
+                        return 'demand:'.$candidateRow->scheduling_demand_id;
+                    })
+                    ->values()
+                : collect();
             $facultyOfficialMeetings = $activeOfficialMeetingsByFaculty->get($facultyId, collect());
 
             $inTerm = $termCourseCount > 0
                 || $declaration !== null
                 || $request !== null
                 || $officialClasses->isNotEmpty()
+                || $draftClasses->isNotEmpty()
                 || $facultyOfficialMeetings->isNotEmpty();
 
             $outsideGridWindows = $declaration instanceof FacultyAvailabilityDeclaration
                 ? $declaration->windowsOutsideGrid($activePackage)
                 : [];
             $needsGridReview = $outsideGridWindows !== [];
+
+            $hoursShortfall = $workloadContext !== null
+                ? $workloadProjection->availabilityHoursShortfall($term, $facultyId, $qualifiedCourseIds, $workloadContext)
+                : [
+                    'needs_hours_review' => false,
+                    'summary' => null,
+                ];
+            $needsHoursReview = (bool) $hoursShortfall['needs_hours_review'];
+            $hoursReviewSummary = $hoursShortfall['summary'];
+            $needsReview = $needsGridReview || $needsHoursReview;
 
             $affectedMeetings = [];
             if ($declaration instanceof FacultyAvailabilityDeclaration && $facultyOfficialMeetings->isNotEmpty()) {
@@ -238,7 +305,25 @@ final class FacultyAvailabilityStatusProjection
             $limit = $override instanceof FacultyTermLoadOverride
                 ? $override->allowedLoadUnits()
                 : ($term->default_max_units !== null ? (float) $term->default_max_units : null);
-            $load = $officialClasses->sum(fn ($class): float => (float) ($class->courseRevision?->credit_units ?? 0));
+
+            if ($officialVersion instanceof PublishedTimetableVersion) {
+                $loadStage = 'official';
+                $load = $officialClasses->sum(fn ($class): float => (float) ($class->courseRevision?->credit_units ?? 0));
+                $assignedClassCount = $officialClasses->count();
+            } elseif ($draftRunId !== null) {
+                $loadStage = 'draft';
+                $load = $draftClasses->sum(function (CandidateScheduleRow $candidateRow): float {
+                    $spec = $candidateRow->schedulingDemand?->sectionDeliveryGroup?->section?->courseRevision
+                        ?? $candidateRow->schedulingDemand?->courseComponent?->courseSpecification;
+
+                    return (float) ($spec?->credit_units ?? 0);
+                });
+                $assignedClassCount = $draftClasses->count();
+            } else {
+                $loadStage = 'none';
+                $load = 0.0;
+                $assignedClassCount = 0;
+            }
 
             $courseLabels = $eligibleQualifications
                 ->map(function (FacultyQualification $qualification) use ($courseTitles): string {
@@ -279,9 +364,17 @@ final class FacultyAvailabilityStatusProjection
                 'detail' => implode(', ', $courseLabels) ?: 'No eligible courses recorded',
                 'load_limit' => $limit,
                 'load_units' => $load,
-                'load' => $officialVersion ? $load.' / '.($limit ?? 'not recorded').' units' : 'Unassigned · limit '.($limit ?? 'not recorded').' units',
+                'load_stage' => $loadStage,
+                'assigned_class_count' => $assignedClassCount,
+                'load' => $loadStage !== 'none'
+                    ? $load.' / '.($limit ?? 'not recorded').' units'
+                    : 'Unassigned · limit '.($limit ?? 'not recorded').' units',
                 'load_source' => $override instanceof FacultyTermLoadOverride ? 'Faculty-specific approved load' : 'Term teaching-load default',
-                'course_count' => $officialVersion ? $officialClasses->pluck('courseRevision.course_id')->unique()->count().' courses · official schedule' : 'No official assignments yet',
+                'course_count' => match ($loadStage) {
+                    'official' => $officialClasses->pluck('courseRevision.course_id')->unique()->count().' courses · official schedule',
+                    'draft' => $assignedClassCount.' '.str('class')->plural($assignedClassCount).' · draft timetable',
+                    default => 'No official assignments yet',
+                },
                 'declaration' => $declaration,
                 'declaration_id' => $declaration?->id !== null ? (int) $declaration->id : null,
                 'declaration_version' => $declaration?->version !== null ? (int) $declaration->version : null,
@@ -298,6 +391,9 @@ final class FacultyAvailabilityStatusProjection
                 'reminder_at' => $reminderAt,
                 'reminder_event' => $request,
                 'needs_grid_review' => $needsGridReview,
+                'needs_hours_review' => $needsHoursReview,
+                'hours_review_summary' => $hoursReviewSummary,
+                'needs_review' => $needsReview,
                 'outside_grid_windows' => $outsideGridWindows,
                 'has_official_impact' => $affectedMeetings !== [],
                 'affected_meetings' => $affectedMeetings,
@@ -315,6 +411,8 @@ final class FacultyAvailabilityStatusProjection
             'no_response_count' => $inTermRows->filter(fn (array $row): bool => $row['declaration'] === null && ! $row['registrar_not_teaching'])->count(),
             'cannot_teach_count' => $inTermRows->filter(fn (array $row): bool => $row['registrar_not_teaching'] || $row['effective_mode'] === FacultyAvailabilityDeclaration::ModeCannotTeach)->count(),
             'needs_grid_review_count' => $inTermRows->filter(fn (array $row): bool => $row['needs_grid_review'])->count(),
+            'needs_hours_review_count' => $inTermRows->filter(fn (array $row): bool => $row['needs_hours_review'])->count(),
+            'needs_review_count' => $inTermRows->filter(fn (array $row): bool => $row['needs_review'])->count(),
             'late_impact_count' => count($unresolvedLateImpacts),
             'faculty_rows' => $inTermRows->all(),
             'all_faculty_rows' => $allRows->all(),
@@ -339,6 +437,9 @@ final class FacultyAvailabilityStatusProjection
      *     teaching_windows: list<array{day_of_week:int,start_time:string,end_time:string}>,
      *     hard_unavailability: list<array{day_of_week:int,starts_at:string,ends_at:string}>,
      *     needs_grid_review: bool,
+     *     needs_hours_review: bool,
+     *     hours_review_summary: string|null,
+     *     needs_review: bool,
      *     outside_grid_windows: list<array{day_of_week:int,start_time:string,end_time:string,reason:string}>,
      *     has_official_impact: bool,
      *     late_impact: array<string, mixed>|null,
@@ -440,6 +541,9 @@ final class FacultyAvailabilityStatusProjection
             'teaching_windows' => $latestDeclaration?->normalizedTeachingWindows() ?? [],
             'hard_unavailability' => is_array($latestDeclaration?->hard_unavailability) ? $latestDeclaration->hard_unavailability : [],
             'needs_grid_review' => $outsideGridWindows !== [],
+            'needs_hours_review' => (bool) ($row['needs_hours_review'] ?? false),
+            'hours_review_summary' => $row['hours_review_summary'] ?? null,
+            'needs_review' => $outsideGridWindows !== [] || (bool) ($row['needs_hours_review'] ?? false),
             'outside_grid_windows' => $outsideGridWindows,
             'has_official_impact' => is_array($lateImpact),
             'late_impact' => is_array($lateImpact) ? $lateImpact : null,

@@ -178,10 +178,17 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
             }
 
             $curricula = $program->curriculumVersions
-                ->map(fn (CurriculumVersion $cv): array => [
-                    'id' => (int) $cv->id,
-                    'label' => $cv->batchLabel(),
-                ])
+                ->map(function (CurriculumVersion $cv) use ($program): array {
+                    $curriculumName = filled($cv->name) ? (string) $cv->name : (string) $cv->version_code;
+                    $label = ($program->curriculumVersions->count() > 1 && $cv->academicYears->isNotEmpty())
+                        ? "{$curriculumName} ({$cv->batchLabel()})"
+                        : $curriculumName;
+
+                    return [
+                        'id' => (int) $cv->id,
+                        'label' => $label,
+                    ];
+                })
                 ->values()
                 ->all();
 
@@ -266,10 +273,10 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
                     Select::make('curriculum_version_id')
                         ->label('Program & active curriculum')
                         ->options($options)
-                        ->searchable()
+                        ->native(true)
                         ->required()
                         ->placeholder('Select an active curriculum')
-                        ->helperText('Only active programs without a batch for this academic year are listed.'),
+                        ->helperText(fn (): string => 'Lists active programs without a curriculum batch assigned to '.($this->selectedAcademicYear()?->label ?? 'this academic year').'.'),
                 ];
             })
             ->action(function (array $data): void {
@@ -838,7 +845,7 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
                     ->placeholder('e.g., AY 2026–2027')
                     ->required()
                     ->maxLength(255)
-                    ->unique((new AcademicYear)->getTable(), 'label'),
+                    ->unique((new AcademicYear)->getTable(), 'label', ignoreRecord: false),
                 Grid::make(['default' => 1, 'sm' => 2])->schema([
                     DatePicker::make('starts_on')
                         ->label('Start date')

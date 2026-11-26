@@ -377,10 +377,13 @@ class HumanCenteredSharedThemeTest extends TestCase
         $themeCss = file_get_contents(resource_path('css/filament/tala/theme.css'));
 
         $this->assertMatchesRegularExpression('/\.fi-body\s+\.fi-modal-window\.tala-mfa-modal\s*\{[^}]*max-block-size:\s*calc\(100dvh/s', $themeCss);
+        $this->assertMatchesRegularExpression('/\.fi-body\s+\.fi-modal-window\.tala-mfa-setup-modal\s*\{[^}]*block-size:\s*min\(39rem/s', $themeCss);
         $this->assertMatchesRegularExpression('/\.fi-body\s+\.fi-modal-window\.tala-mfa-modal\s*>\s*\.fi-modal-header\s*\{[^}]*background-color:\s*var\(--tala-surface-sunken\);/s', $themeCss);
         $this->assertMatchesRegularExpression('/\.fi-body\s+\.fi-modal-window\.tala-mfa-modal\s*>\s*\.fi-modal-footer,\s*\.fi-body\s+\.fi-modal-window\.tala-mfa-modal\s+\.fi-sc-wizard-footer\s*\{[^}]*background-color:\s*var\(--tala-surface-sunken\);/s', $themeCss);
         $this->assertMatchesRegularExpression('/\.fi-body\s+\.fi-modal-window\.tala-mfa-modal\s*>\s*\.fi-modal-content\s*\{[^}]*overflow-y:\s*auto;/s', $themeCss);
         $this->assertMatchesRegularExpression('/\.fi-body\s+\.fi-modal-window\.tala-mfa-modal\s+\.fi-sc-wizard-step\.fi-active\s*\{[^}]*overflow-y:\s*auto;/s', $themeCss);
+        $this->assertMatchesRegularExpression('/dialog::backdrop,\s*\.fi-modal\s*>\s*\.fi-modal-close-overlay\s*\{[^}]*overflow:\s*hidden;\s*overscroll-behavior:\s*contain;/s', $themeCss);
+        $this->assertStringNotContainsString('max-block-size: none;', $themeCss);
     }
 
     /** @return array<string, array{string}> */

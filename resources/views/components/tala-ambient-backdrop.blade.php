@@ -21,8 +21,8 @@
     // [shape, desktopX%, desktopY%, sizePx, motion, tone, opacity, durationSec, delaySec, band, mobileX%, mobileYRem, midX%, midY%]
     $trinkets = [
         // Left flank (asymmetric coordinates outside the centered auth column across desktop & mid-width viewports)
-        ['spark', 6, 12, 22, 'twinkle', 'green', 0.44, 6.8, -1.3, 'top', 7, 0.75, 5, 9],
-        ['dot', 18, 9, 10, 'bob', 'gold', 0.34, 7.4, -3.1, 'top', 27, 1.85, 13, 22],
+        ['spark', 6, 12, 22, 'twinkle', 'green', 0.44, 6.8, -1.3, 'top', 4, 0.3, 5, 9],
+        ['dot', 18, 9, 10, 'bob', 'gold', 0.34, 7.4, -3.1, 'top', 82, 0.3, 13, 22],
         ['plus', 24, 21, 16, 'turn', 'green', 0.38, 16.4, -4.6, null, null, null, 7, 34],
         ['ring', 13, 34, 20, 'bob', 'gold', 0.32, 8.8, -2.5, null, null, null, 12, 49],
         ['arc', 7, 48, 25, 'sway', 'green', 0.36, 10.6, -5.8, null, null, null, 4, 62],
@@ -31,8 +31,8 @@
         ['plane', 17, 85, 28, 'glide', 'green', 0.46, 14.2, -6.2, 'bottom', 9, 1.9, 14, 91],
 
         // Right flank (asymmetric coordinates outside the centered auth column across desktop & mid-width viewports)
-        ['ring', 76, 14, 19, 'bob', 'green', 0.42, 8.2, -1.9, 'top', 69, 1.55, 86, 11],
-        ['star', 90, 19, 14, 'twinkle', 'gold', 0.36, 7.1, -4.2, 'top', 89, 0.65, 93, 25],
+        ['ring', 76, 14, 19, 'bob', 'green', 0.42, 8.2, -1.9, 'top', 91, 0.45, 86, 11],
+        ['star', 90, 19, 14, 'twinkle', 'gold', 0.36, 7.1, -4.2, 'top', 95, 1.35, 93, 25],
         ['plane', 82, 32, 27, 'glide', 'gold', 0.34, 15.6, -7.5, null, null, null, 85, 38],
         ['dot', 92, 46, 12, 'twinkle', 'green', 0.4, 6.9, -0.9, null, null, null, 94, 52],
         ['plus', 75, 56, 17, 'turn', 'gold', 0.33, 18.0, -8.4, 'bottom', 34, 0.85, 87, 64],

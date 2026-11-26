@@ -712,12 +712,20 @@
     .tala-ambient { display: none !important; }
 }
 
-/* Shared MFA setup & recovery modal family: fits viewport height, pins sunken header & action bar, and scrolls only body content. */
+/* Shared MFA setup & recovery modal family: fits viewport height, keeps consistent wizard step height, pins header & footer, and scrolls only body content. */
 .fi-body .fi-modal-window.tala-mfa-modal {
     display: flex;
     flex-direction: column;
+    inline-size: 100%;
+    min-block-size: 0;
     max-block-size: calc(100dvh - 2rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    margin-block: auto;
     overflow: hidden;
+    overscroll-behavior: contain;
+    padding: 0;
+}
+.fi-body .fi-modal-window.tala-mfa-setup-modal {
+    block-size: min(39rem, calc(100dvh - 2rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
 }
 .fi-body .fi-modal-window.tala-mfa-modal > .fi-modal-header {
     flex: none;
@@ -725,17 +733,23 @@
     gap: 0.875rem;
     padding: 1.25rem 3.5rem 1.125rem 1.5rem;
 }
+.fi-body .fi-modal-window.tala-mfa-modal .fi-modal-close-btn {
+    inset-block-start: 1rem;
+    inset-inline-end: 1.25rem;
+}
 .fi-body .fi-modal-window.tala-mfa-modal > .fi-modal-content {
     flex: 1 1 auto;
     min-block-size: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
+    scrollbar-gutter: stable;
     padding: 1.25rem 1.5rem;
 }
 .fi-body .fi-modal-window.tala-mfa-modal > .fi-modal-content:has(.fi-sc-wizard) {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    scrollbar-gutter: auto;
     padding: 0;
 }
 .fi-body .fi-modal-window.tala-mfa-modal > .fi-modal-content:has(.fi-sc-wizard) :is(.fi-sc, .fi-grid, .fi-grid-col, .fi-sc-component, div):has(.fi-sc-wizard),
@@ -747,17 +761,20 @@
 }
 .fi-body .fi-modal-window.tala-mfa-modal .fi-sc-wizard-header {
     flex: none;
-    background-color: var(--tala-surface-sunken);
-    border: 1px solid var(--tala-edge);
-    border-radius: var(--tala-card-radius);
+    background-color: var(--tala-surface);
+    border: 0;
+    border-block-end: 1px solid var(--tala-edge);
+    border-radius: 0;
     box-shadow: none;
-    margin: 1.125rem 1.5rem 0;
+    margin: 0;
+    padding-inline: 1.5rem;
 }
 .fi-body .fi-modal-window.tala-mfa-modal .fi-sc-wizard-step.fi-active {
     flex: 1 1 auto;
     min-block-size: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
+    scrollbar-gutter: stable;
     margin-top: 0;
     padding: 1.25rem 1.5rem;
 }
@@ -785,6 +802,9 @@
     }
 }
 @media (max-width: 39.999rem) {
+    .fi-body .fi-modal-window.tala-mfa-setup-modal {
+        block-size: calc(100dvh - 1.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    }
     .fi-body .fi-modal-window.tala-mfa-modal > .fi-modal-header {
         padding: 1rem 3.25rem 0.875rem 1.25rem;
     }
@@ -792,7 +812,8 @@
         padding: 1rem 1.25rem;
     }
     .fi-body .fi-modal-window.tala-mfa-modal .fi-sc-wizard-header {
-        margin: 1rem 1.25rem 0;
+        margin: 0;
+        padding-inline: 1rem;
     }
     .fi-body .fi-modal-window.tala-mfa-modal .fi-sc-wizard-step.fi-active {
         padding: 1rem 1.25rem;
@@ -954,6 +975,9 @@
     .tala-ambient--auth .tala-ambient-field {
         max-inline-size: 32rem;
         margin-inline: auto;
+    }
+    .tala-ambient--auth .tala-ambient-trinket--edge {
+        opacity: calc(var(--opacity, var(--trinket-opacity, .38)) * .45);
     }
     .tala-ambient-trinket--edge {
         inset-inline-start: var(--mx, var(--trinket-mx, 10%));
@@ -2221,9 +2245,14 @@
     padding: var(--tala-card-pad-compact) var(--tala-card-pad);
 }
 
-/* System-wide modal architecture: true centering, viewport height containment, internal scrolling, and slide-over symmetry. */
+/* System-wide modal architecture: true centering, viewport height containment, internal body scrolling, consistent wizard step height, and slide-over symmetry. */
+dialog:modal {
+    overscroll-behavior: contain;
+}
+
 dialog::backdrop,
 .fi-modal > .fi-modal-close-overlay {
+    overflow: hidden;
     overscroll-behavior: contain;
 }
 
@@ -2247,6 +2276,51 @@ dialog::backdrop,
     overscroll-behavior: contain;
     margin-block: auto;
     padding: 0;
+}
+
+/* Multi-step wizard modals hold a steady viewport-bounded height across steps while only the active step scrolls. */
+.fi-body .fi-modal:not(.fi-modal-slide-over, .fi-width-screen) > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal):has(.fi-sc-wizard) {
+    block-size: min(42rem, calc(100dvh - clamp(1.5rem, 5dvh, 3rem) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
+    overflow: hidden;
+}
+
+.fi-body .fi-modal:not(.fi-modal-slide-over, .fi-width-screen) > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal) > .fi-modal-content:has(.fi-sc-wizard) {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0;
+}
+
+.fi-body .fi-modal:not(.fi-modal-slide-over, .fi-width-screen) > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal) > .fi-modal-content:has(.fi-sc-wizard) :is(.fi-sc, .fi-grid, .fi-grid-col, .fi-sc-component, div):has(.fi-sc-wizard),
+.fi-body .fi-modal:not(.fi-modal-slide-over, .fi-width-screen) > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal) .fi-sc-wizard {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-block-size: 0;
+}
+
+.fi-body .fi-modal:not(.fi-modal-slide-over, .fi-width-screen) > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal) .fi-sc-wizard-header {
+    flex: none;
+    border-radius: 0;
+    border: 0;
+    border-block-end: 1px solid var(--tala-edge);
+    box-shadow: none;
+}
+
+.fi-body .fi-modal:not(.fi-modal-slide-over, .fi-width-screen) > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal) .fi-sc-wizard-step.fi-active {
+    flex: 1 1 auto;
+    min-block-size: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    padding: var(--tala-modal-pad);
+}
+
+.fi-body .fi-modal:not(.fi-modal-slide-over, .fi-width-screen) > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal) .fi-sc-wizard-footer {
+    flex: none;
+    border-block-start: 1px solid var(--tala-edge-strong);
+    background-color: color-mix(in srgb, var(--tala-surface-sunken) 45%, var(--tala-overlay));
+    padding: var(--tala-card-pad) var(--tala-modal-pad);
 }
 
 .fi-body .fi-modal:not(.fi-modal-slide-over, .fi-width-screen) > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal).fi-width-4xl {
@@ -2306,21 +2380,6 @@ dialog::backdrop,
     overscroll-behavior: contain;
     scrollbar-gutter: auto;
     padding: var(--tala-modal-pad);
-}
-
-/* Non-sticky centered modals let dropdowns and pickers escape cleanly without clipping or inner scroll traps. */
-.fi-body .fi-modal:not(.fi-modal-slide-over, .fi-width-screen, .fi-modal-has-sticky-header, .fi-modal-has-sticky-footer) > .fi-modal-window-ctn {
-    overflow-y: auto;
-}
-
-.fi-body .fi-modal:not(.fi-modal-slide-over, .fi-width-screen, .fi-modal-has-sticky-header, .fi-modal-has-sticky-footer) > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal) {
-    max-block-size: none;
-    overflow: visible;
-}
-
-.fi-body .fi-modal:not(.fi-modal-slide-over, .fi-width-screen, .fi-modal-has-sticky-header, .fi-modal-has-sticky-footer) > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal) > .fi-modal-content {
-    overflow: visible;
-    container-type: normal;
 }
 
 .fi-body .fi-modal > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal) :is(.fi-select-input .fi-dropdown-panel, .fi-fo-date-time-picker-panel) {
@@ -3075,16 +3134,73 @@ dialog::backdrop,
 .tala-home-greeting .fi-header-heading { font-size: var(--tala-type-page); letter-spacing: -0.02em; }
 .tala-home-greeting .fi-header-subheading { max-width: 46ch; }
 .tala-home-greeting__art { position: absolute; z-index: 0; inset-block: 0; inset-inline-end: 0; width: min(46%, 22.5rem); height: 100%; pointer-events: none; }
-.tala-home-greeting__hill { fill: var(--primary-100); opacity: 0.7; }
-.tala-home-greeting__hill--back { fill: var(--primary-200); opacity: 0.45; }
-.tala-home-greeting__trail { fill: none; stroke: var(--primary-600); stroke-width: 1.5; stroke-linecap: round; stroke-dasharray: 3 6; opacity: 0.7; }
-.tala-home-greeting__plane { fill: var(--primary-500); }
-.tala-home-greeting__plane-fold { fill: var(--primary-700); }
-.dark .tala-home-greeting__hill { fill: var(--primary-900); opacity: 0.55; }
-.dark .tala-home-greeting__hill--back { fill: var(--primary-800); opacity: 0.35; }
-.dark .tala-home-greeting__trail { stroke: var(--primary-400); }
-.dark .tala-home-greeting__plane { fill: var(--primary-400); }
-.dark .tala-home-greeting__plane-fold { fill: var(--primary-600); }
+.tala-home-greeting__hill { fill: var(--primary-100, #dff0e2); opacity: 0.7; }
+.tala-home-greeting__hill--back { fill: var(--primary-200, #c2e1c7); opacity: 0.45; }
+.tala-home-greeting__trail { fill: none; stroke: var(--primary-600, #2f7d3b); stroke-width: 1.5; stroke-linecap: round; stroke-dasharray: 3 6; opacity: 0.7; }
+.tala-home-greeting__plane { fill: var(--primary-500, #3e9d4d); }
+.tala-home-greeting__plane-fold { fill: var(--primary-700, #256331); }
+.dark .tala-home-greeting__hill { fill: var(--primary-900, #193e20); opacity: 0.55; }
+.dark .tala-home-greeting__hill--back { fill: var(--primary-800, #1f4f28); opacity: 0.35; }
+.dark .tala-home-greeting__trail { stroke: var(--primary-400, #6acb7c); }
+.dark .tala-home-greeting__plane { fill: var(--primary-400, #6acb7c); }
+.dark .tala-home-greeting__plane-fold { fill: var(--primary-600, #2f7d3b); }
+.tala-record-identity.tala-record-identity--access {
+    margin-block-start: 1.25rem;
+    padding: 1rem 1.125rem;
+    border-radius: var(--tala-card-radius);
+    box-shadow: var(--tala-material-detail);
+}
+.tala-record-identity--access .tala-record-identity-person {
+    gap: 0.875rem;
+    flex: 1 1 auto;
+}
+.tala-record-identity--access .student-profile-avatar {
+    inline-size: 3.25rem;
+    block-size: 3.25rem;
+    font-size: 1.0625rem;
+}
+.tala-record-identity--access :is(h1, h2) {
+    margin: 0;
+    font-size: 1.0625rem;
+    font-weight: var(--tala-weight-heading);
+    line-height: 1.25;
+    letter-spacing: -0.015em;
+    color: var(--tala-text);
+}
+.tala-record-identity--access p {
+    margin: 0.2rem 0 0;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: var(--tala-muted);
+    overflow-wrap: anywhere;
+}
+.tala-record-identity--access .tala-record-identity-number-label {
+    display: inline;
+    margin-inline-end: 0.35rem;
+    color: var(--tala-muted);
+    font-size: 0.8125rem;
+    font-weight: 500;
+}
+.tala-record-identity--access .tala-record-identity-number-label::after {
+    content: ':';
+}
+.tala-record-identity--access p:has(.tala-record-identity-number-label) {
+    margin-block-start: 0.375rem;
+    font-size: 0.8125rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: var(--tala-weight-emphasis);
+    color: var(--tala-text);
+}
+.tala-record-identity--access .student-identity-art {
+    inline-size: min(44%, 14rem);
+    opacity: 0.42;
+}
+.dark .tala-record-identity--access .student-identity-art {
+    opacity: 0.36;
+}
+.tala-record-identity--access .tala-access-invite-context__roles {
+    margin-top: 0.5rem;
+}
 @media (max-width: 39.999rem) {
     .tala-home-greeting { padding: 1.25rem 1.25rem 1.5rem; }
     .tala-home-greeting .fi-header-heading { font-size: 1.5rem; }

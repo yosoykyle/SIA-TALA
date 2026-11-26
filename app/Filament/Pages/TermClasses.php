@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Actions\Enrollment\RegistrationAcademicEligibilityQuery;
 use App\Actions\Scheduling\ConfirmClassOffering;
 use App\Actions\Scheduling\GenerateSchedulingDemand;
 use App\Actions\Scheduling\PrepareClassOffering;
@@ -445,13 +446,36 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                 TextColumn::make('source_code')->label('Class code')->state(fn (Section $record): string => $record->code)->wrap()->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('termOffering.curriculumEntry.curriculumVersion.program.code')
                     ->label('Program')
+                    ->state(function (Section $record): ?string {
+                        $codes = $this->linkedProgramsForClass($record)
+                            ->pluck('code')
+                            ->filter(fn (mixed $code): bool => filled($code))
+                            ->values();
+
+                        return $codes->isNotEmpty() ? $codes->implode(' · ') : null;
+                    })
                     ->placeholder('Not linked')
                     ->description(function (Section $record): ?HtmlString {
+                        $programs = $this->linkedProgramsForClass($record);
+                        if ($programs->count() > 1) {
+                            return new HtmlString('<span class="inline-block whitespace-nowrap">'.e('Merged · '.$programs->count().' programs').'</span>');
+                        }
+
                         $batchLabel = $record->termOffering?->curriculumEntry?->curriculumVersion?->batchLabel();
 
                         return filled($batchLabel)
                             ? new HtmlString('<span class="inline-block whitespace-nowrap">'.e($batchLabel).'</span>')
                             : null;
+                    })
+                    ->tooltip(function (Section $record): ?string {
+                        $programs = $this->linkedProgramsForClass($record);
+                        if ($programs->count() <= 1) {
+                            return null;
+                        }
+
+                        return $programs
+                            ->map(fn (Program $program): string => collect([$program->code, $program->name])->filter(fn (mixed $value): bool => filled($value))->implode(' — '))
+                            ->implode(' | ');
                     })
                     ->extraCellAttributes(['class' => 'whitespace-nowrap'])
                     ->sortable(),
@@ -1487,7 +1511,15 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                         }
 
                         $section = Section::query()
-                            ->with(['termOffering.curriculumEntry.curriculumVersion', 'termOffering.curriculumEntry.courseSpecification.components', 'courseRevision.components', 'cohorts', 'deliveryGroups'])
+                            ->with([
+                                'termOffering.curriculumEntry.curriculumVersion',
+                                'termOffering.curriculumEntry.courseSpecification.components',
+                                'termOffering.curriculumEntry.courseSpecification.course',
+                                'courseRevision.components',
+                                'courseRevision.course',
+                                'cohorts',
+                                'deliveryGroups',
+                            ])
                             ->lockForUpdate()
                             ->findOrFail($record->id);
 
@@ -1497,7 +1529,11 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                         }
 
                         $offering = TermOffering::query()
-                            ->with(['curriculumEntry.curriculumVersion', 'curriculumEntry.courseSpecification.components'])
+                            ->with([
+                                'curriculumEntry.curriculumVersion',
+                                'curriculumEntry.courseSpecification.components',
+                                'curriculumEntry.courseSpecification.course',
+                            ])
                             ->lockForUpdate()
                             ->findOrFail($section->term_offering_id);
 
@@ -1528,6 +1564,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
 
                         if ($cohortCounts !== []) {
                             $cohorts = TermCohort::query()
+                                ->with(['curriculumVersion.entries.courseSpecification'])
                                 ->where('term_id', $term->id)
                                 ->whereKey(array_keys($cohortCounts))
                                 ->lockForUpdate()
@@ -1538,12 +1575,50 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                                 throw ValidationException::withMessages(['cohorts' => 'Every linked student section must belong to this exact term.']);
                             }
 
+                            $courseRevision = $section->courseRevision ?? $offering->curriculumEntry?->courseSpecification;
+                            if (! $courseRevision instanceof CourseSpecification) {
+                                $classLabel = $section->class_reference ?: $section->code;
+                                throw ValidationException::withMessages(['cohorts' => "Cannot link student sections because {$classLabel} has no recorded subject revision."]);
+                            }
+
+                            $equivalentCourseIds = $courseRevision->course_id !== null
+                                ? app(RegistrationAcademicEligibilityQuery::class)->expandWithEquivalentCourseIds(collect([(int) $courseRevision->course_id]))
+                                : collect();
+                            $courseCode = $courseRevision->course?->code
+                                ?? $offering->curriculumEntry?->courseSpecification?->course?->code
+                                ?? ($section->class_reference ?: $section->code);
+
                             foreach ($cohortCounts as $cohortId => $count) {
                                 $cohort = $cohorts->get($cohortId);
 
                                 if ($cohort instanceof TermCohort && $cohort->confirmed_count !== null && $count > (int) $cohort->confirmed_count) {
                                     $cohortLabel = $this->formatSectionReference($cohort->reference);
                                     throw ValidationException::withMessages(['cohorts' => "Student count for {$cohortLabel} ({$count}) exceeds its confirmed count ({$cohort->confirmed_count})."]);
+                                }
+
+                                if ($cohort instanceof TermCohort) {
+                                    $cohortLabel = $this->formatSectionReference($cohort->reference);
+                                    $curriculum = $cohort->curriculumVersion;
+                                    $hasConsistentProgram = $curriculum instanceof CurriculumVersion
+                                        && (int) $curriculum->program_id === (int) $cohort->program_id;
+                                    $isPublishedCurriculum = $curriculum instanceof CurriculumVersion
+                                        && in_array($curriculum->state, [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded], true);
+                                    $containsCourse = $curriculum instanceof CurriculumVersion
+                                        && $curriculum->entries->contains(function (CurriculumEntry $entry) use ($courseRevision, $equivalentCourseIds): bool {
+                                            $entrySpecification = $entry->courseSpecification;
+
+                                            return (int) $entry->course_specification_id === (int) $courseRevision->id
+                                                || ($entrySpecification instanceof CourseSpecification
+                                                    && $courseRevision->course_id !== null
+                                                    && ((int) $entrySpecification->course_id === (int) $courseRevision->course_id
+                                                        || $equivalentCourseIds->contains((int) $entrySpecification->course_id)));
+                                        });
+
+                                    if (! $hasConsistentProgram || ! $isPublishedCurriculum || ! $containsCourse) {
+                                        throw ValidationException::withMessages([
+                                            'cohorts' => "{$cohortLabel} cannot be linked because its curriculum does not contain {$courseCode} (or an approved equivalent).",
+                                        ]);
+                                    }
                                 }
                             }
 
@@ -2193,11 +2268,29 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                 'termOffering.curriculumEntry.courseSpecification.components',
                 'courseRevision.course',
                 'courseRevision.components',
-                'cohorts',
+                'cohorts.program',
+                'cohorts.curriculumVersion.academicYears',
                 'deliveryGroups.schedulingDemands.courseComponent',
                 'calendarPackage.teachingGridRows',
                 'calendarPackage.datedExceptions',
             ]);
+    }
+
+    /** @return Collection<int, Program> */
+    private function linkedProgramsForClass(Section $record): Collection
+    {
+        $hostProgram = $record->termOffering?->curriculumEntry?->curriculumVersion?->program;
+        $cohortPrograms = $record->cohorts
+            ->pluck('program')
+            ->filter(fn (mixed $program): bool => $program instanceof Program)
+            ->sortBy(fn (Program $program): string => strtoupper((string) ($program->code ?: $program->name)))
+            ->values();
+
+        return collect([$hostProgram])
+            ->filter(fn (mixed $program): bool => $program instanceof Program)
+            ->merge($cohortPrograms)
+            ->unique('id')
+            ->values();
     }
 
     private function canEditClass(Section $class): bool
