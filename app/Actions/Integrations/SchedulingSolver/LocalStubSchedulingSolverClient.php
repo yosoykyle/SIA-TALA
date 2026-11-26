@@ -2,6 +2,7 @@
 
 namespace App\Actions\Integrations\SchedulingSolver;
 
+use App\Models\ScheduleGenerationRun;
 use Carbon\CarbonImmutable;
 
 class LocalStubSchedulingSolverClient implements SchedulingSolverClient
@@ -9,7 +10,6 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
     public function solve(SchedulingSolverRequest $request): SchedulingSolverResponse
     {
         $snapshot = $request->snapshot();
-        $isLexicographic = ($snapshot['contract_version'] ?? null) === 'tala-timetable-v2';
         $assignments = [];
         $used = [];
 
@@ -29,16 +29,15 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
             ->flatMap(fn (array $assignment): array => $assignment['violations'] ?? [])
             ->values()
             ->all();
-        $objectiveScore = $conflictCount === 0 && ! $isLexicographic ? count($assignments) : null;
-        $resultSource = $conflictCount === 0 ? ($isLexicographic ? 'feasibility_fallback' : 'optimization') : 'none';
+        $resultSource = $conflictCount === 0 ? 'feasibility_fallback' : 'none';
         $searchStages = $this->searchStages(
             feasibilityStatus: $conflictCount === 0 ? 'optimal' : 'unknown',
-            optimizationStatus: $conflictCount === 0 ? ($isLexicographic ? 'not_run' : 'optimal') : 'not_run',
+            optimizationStatus: 'not_run',
         );
 
         $payload = [
             'solver_run_id' => $snapshot['run_metadata']['solver_run_id'] ?? null,
-            'solver_status' => $conflictCount > 0 ? 'unknown' : ($isLexicographic ? 'feasible' : 'optimal'),
+            'solver_status' => $conflictCount > 0 ? 'unknown' : 'feasible',
             'candidate_schedule_id' => 'local-stub-'.($snapshot['run_metadata']['solver_run_id'] ?? 'unknown'),
             'assignments' => $assignments,
             'hard_constraint_violations' => $hardViolations,
@@ -46,7 +45,7 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
             'soft_constraint_scores' => [
                 'assigned_count' => count($assignments) - $conflictCount,
                 'conflict_count' => $conflictCount,
-                'stub_score' => $objectiveScore,
+                'stub_score' => null,
             ],
             'infeasible_reasons' => $hardViolations,
             'warnings' => $conflictCount > 0 ? [[
@@ -54,8 +53,8 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
                 'message' => 'The verification adapter attempted greedy placement only. It found no complete candidate and supplies no proof of infeasibility. Use CP-SAT generation.',
             ]] : [],
             'runtime_seconds' => 0.0,
-            'objective_score' => $objectiveScore,
-            'objective_details' => $this->objectiveDetails($snapshot, $objectiveScore),
+            'objective_score' => null,
+            'objective_details' => $this->objectiveDetails($snapshot),
             'solver_statistics' => [
                 'ortools_version' => 'local-stub',
                 'input_demand_count' => count($this->demands($snapshot)),
@@ -66,8 +65,8 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
                 'model_variable_count' => 0,
                 'model_constraint_count' => 0,
                 'no_overlap_constraint_count' => 0,
-                'best_objective_bound' => $objectiveScore,
-                'relative_optimality_gap' => $objectiveScore === null ? null : 0.0,
+                'best_objective_bound' => null,
+                'relative_optimality_gap' => null,
                 'boolean_variable_count' => null,
                 'branch_count' => null,
                 'conflict_count' => null,
@@ -78,8 +77,8 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
                 'result_source' => $resultSource,
                 'search_stages' => $searchStages,
             ],
-            'solver_version' => $isLexicographic ? 'local-stub-tala-timetable-v2' : 'local-stub-tal94-demand-v2',
-            'model_version' => (string) ($snapshot['contract_version'] ?? 'tal94-demand-v2'),
+            'solver_version' => 'local-stub-tala-timetable-v2',
+            'model_version' => (string) ($snapshot['contract_version'] ?? ScheduleGenerationRun::ContractVersion),
             'generated_at' => CarbonImmutable::now(config('app.timezone'))->toIso8601String(),
             'assigned_count' => count($assignments) - $conflictCount,
             'unassigned_count' => $conflictCount,
@@ -236,62 +235,25 @@ class LocalStubSchedulingSolverClient implements SchedulingSolverClient
      * @param  array<string, mixed>  $snapshot
      * @return array<string, mixed>
      */
-    private function objectiveDetails(array $snapshot, ?int $objectiveScore): array
+    private function objectiveDetails(array $snapshot): array
     {
         $profile = is_array($snapshot['constraint_profile'] ?? null)
             ? $snapshot['constraint_profile']
             : [];
-        $weights = is_array($profile['soft_weights'] ?? null)
-            ? $profile['soft_weights']
+        $hierarchy = is_array($profile['objective_hierarchy'] ?? null)
+            ? array_values($profile['objective_hierarchy'])
             : [];
-
-        if (($profile['key'] ?? null) === 'lexicographic_v1') {
-            $hierarchy = is_array($profile['objective_hierarchy'] ?? null)
-                ? array_values($profile['objective_hierarchy'])
-                : [];
-            $values = array_fill_keys($hierarchy, null);
-            ksort($values);
-
-            return [
-                'profile_key' => 'lexicographic_v1',
-                'profile_version' => 1,
-                'objective_hierarchy' => $hierarchy,
-                'values' => $values,
-                'completed_levels' => [],
-                'scalar_score' => null,
-                'verification_only' => true,
-            ];
-        }
-
-        if ($objectiveScore === null) {
-            return [
-                'profile_key' => $profile['key'] ?? null,
-                'profile_version' => $profile['version'] ?? null,
-                'terms' => collect($weights)
-                    ->map(fn (mixed $weight): array => [
-                        'raw' => null,
-                        'weight' => (int) $weight,
-                    ])
-                    ->all(),
-            ];
-        }
-
-        $terms = [];
-
-        foreach ($weights as $name => $weight) {
-            $raw = $name === 'prefer_earlier_time_blocks' ? $objectiveScore : 0;
-            $terms[$name] = [
-                'raw' => $raw,
-                'weight' => (int) $weight,
-                'weighted' => $raw * (int) $weight,
-            ];
-        }
+        $values = array_fill_keys($hierarchy, null);
+        ksort($values);
 
         return [
-            'profile_key' => $profile['key'] ?? null,
-            'profile_version' => $profile['version'] ?? null,
-            'terms' => $terms,
-            'total' => collect($terms)->sum('weighted'),
+            'profile_key' => 'lexicographic_v1',
+            'profile_version' => 1,
+            'objective_hierarchy' => $hierarchy,
+            'values' => $values,
+            'completed_levels' => [],
+            'scalar_score' => null,
+            'verification_only' => true,
         ];
     }
 

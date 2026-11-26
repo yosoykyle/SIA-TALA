@@ -97,7 +97,7 @@ class Issue64PublicEntryAccessTest extends TestCase
             ->assertViewHas('acceptingProgramIds', fn (array $ids): bool => in_array($first->id, $ids, true) && in_array($second->id, $ids, true));
 
         $this->get(route('home', ['duration' => 4, 'availability' => 'enquire']))->assertOk()
-            ->assertSee('No Programs match these filters')->assertSee('Clear filters');
+            ->assertSee('No programs match these filters')->assertSee('Clear filters');
     }
 
     public function test_apply_captures_available_program_intent_and_rejects_inactive_intent(): void

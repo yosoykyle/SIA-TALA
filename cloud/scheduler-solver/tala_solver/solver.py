@@ -13,7 +13,6 @@ from ortools.sat.python import cp_model
 from tala_solver.runtime import RequestBudgetExceeded, SolverRequestContext
 
 
-LEGACY_CONTRACT_VERSION = "tal94-demand-v2"
 CONTRACT_VERSION = "tala-timetable-v2"
 SOLVER_VERSION = "cloud-cp-sat-tala-timetable-v2-lexicographic-v1-deadline-v2"
 LEXICOGRAPHIC_TERMS = (
@@ -23,12 +22,6 @@ LEXICOGRAPHIC_TERMS = (
     "faculty_idle_time",
     "room_seat_waste",
     "stable_earlier_placement",
-)
-LEGACY_SOFT_TERMS = (
-    "prefer_earlier_time_blocks",
-    "reduce_faculty_idle_gaps",
-    "balance_faculty_load",
-    "use_rooms_efficiently",
 )
 HARD_CONSTRAINTS = (
     "assign_every_ready_scheduling_demand_once",
@@ -40,7 +33,6 @@ HARD_CONSTRAINTS = (
     "respect_room_capacity_type_and_features",
     "respect_faculty_qualification_and_load",
 )
-BALANCED_V1_WEIGHTS = {term: 1 for term in LEGACY_SOFT_TERMS}
 DEFAULT_SOLVER_WORKER_COUNT = 1
 DEFAULT_SOLVER_RANDOM_SEED = 20_260_718
 APPROVED_SOLVER_WORKER_COUNTS = (1, 2, 4, 8)
@@ -125,7 +117,7 @@ def solve_snapshot(
     request_context.checkpoint("normalization")
 
     contract_version = snapshot.get("contract_version")
-    if contract_version not in {CONTRACT_VERSION, LEGACY_CONTRACT_VERSION}:
+    if contract_version != CONTRACT_VERSION:
         return _result(
             snapshot=snapshot,
             solver_run_id=solver_run_id,
@@ -140,28 +132,7 @@ def solve_snapshot(
         )
 
     profile = snapshot.get("constraint_profile")
-    legacy_profile = contract_version == LEGACY_CONTRACT_VERSION
-    if legacy_profile and (
-        not isinstance(profile, dict)
-        or profile.get("key") != "balanced_v1"
-        or profile.get("version") != 1
-        or tuple(profile.get("hard_constraints") or ()) != HARD_CONSTRAINTS
-        or profile.get("soft_weights") != BALANCED_V1_WEIGHTS
-    ):
-        return _result(
-            snapshot=snapshot,
-            solver_run_id=solver_run_id,
-            solver_status="model_invalid",
-            assignments=[],
-            objective_score=None,
-            timeout=False,
-            started_at=started_at,
-            warnings=[_reason("unsupported_constraint_profile", "Legacy snapshots require the unchanged balanced_v1 profile at version 1.")],
-            infeasible_reasons=[_reason("unsupported_constraint_profile", "Legacy snapshots require the unchanged balanced_v1 profile at version 1.")],
-            runtime_configuration=runtime_configuration,
-        )
-
-    if not legacy_profile and (
+    if (
         not isinstance(profile, dict)
         or profile.get("key") != "lexicographic_v1"
         or profile.get("version") != 1
@@ -245,7 +216,7 @@ def solve_snapshot(
             runtime_configuration=runtime_configuration,
         )
 
-    if not legacy_profile and any((_int_or_none(demand.get("expected_count")) or 0) <= 0 for demand in demands):
+    if any((_int_or_none(demand.get("expected_count")) or 0) <= 0 for demand in demands):
         return _result(
             snapshot=snapshot,
             solver_run_id=solver_run_id,
@@ -405,188 +376,20 @@ def solve_snapshot(
         variables=variables,
         solver=feasibility_solver,
     )
-    feasibility_objective_details = _objective_details(
-        feasibility_selected,
-        BALANCED_V1_WEIGHTS,
-        snapshot,
-    )
-    feasibility_objective_score = int(feasibility_objective_details["total"])
 
-    if not legacy_profile:
-        return _solve_lexicographic(
-            snapshot=snapshot,
-            solver_run_id=solver_run_id,
-            model=model,
-            variables=variables,
-            candidates=candidates,
-            load_variables=load_variables,
-            feasibility_solver=feasibility_solver,
-            feasibility_selected=feasibility_selected,
-            feasibility_stage=feasibility_stage,
-            started_at=started_at,
-            request_context=request_context,
-            indexes=indexes,
-            runtime_configuration=runtime_configuration,
-        )
-
-    for variable in variables:
-        model.add_hint(variable, int(feasibility_solver.boolean_value(variable)))
-
-    with request_context.measure("objective_construction"):
-        _add_soft_objective(
-            model=model,
-            variables=variables,
-            candidates=candidates,
-            load_variables=load_variables,
-        )
-
-    remaining_seconds = request_context.remaining_search_seconds()
-
-    if remaining_seconds <= 0.001:
-        return _result(
-            snapshot=snapshot,
-            solver_run_id=solver_run_id,
-            solver_status="feasible",
-            assignments=[
-                _assignment(candidate)
-                for candidate in sorted(feasibility_selected, key=_candidate_sort_key)
-            ],
-            objective_score=feasibility_objective_score,
-            timeout=False,
-            started_at=started_at,
-            warnings=[
-                _reason(
-                    "optimization_budget_exhausted",
-                    "A complete timetable was found, but no solver budget remained for soft-preference optimization.",
-                ),
-            ],
-            infeasible_reasons=[],
-            objective_details=feasibility_objective_details,
-            solver_statistics=_solver_statistics(
-                snapshot=snapshot,
-                candidates=candidates,
-                model=model,
-                result_solver=feasibility_solver,
-                objective_score=feasibility_objective_score,
-                runtime_configuration=runtime_configuration,
-                result_source="feasibility_fallback",
-                feasibility_stage=feasibility_stage,
-                optimization_stage=_not_run_stage_statistics(),
-            ),
-            runtime_configuration=runtime_configuration,
-        )
-
-    optimization_solver = _configured_solver(
-        timeout_seconds=remaining_seconds,
-        runtime_configuration=runtime_configuration,
-    )
-    optimization_started_at = perf_counter()
-    with request_context.measure("optimization_search"):
-        optimization_status = optimization_solver.solve(model)
-    optimization_stage = _search_stage_statistics(
-        model=model,
-        solver=optimization_solver,
-        solver_status=optimization_status,
-        measured_wall_time_seconds=perf_counter() - optimization_started_at,
-    )
-
-    if optimization_status in {cp_model.OPTIMAL, cp_model.FEASIBLE}:
-        selected = _selected_candidates(
-            candidates=candidates,
-            variables=variables,
-            solver=optimization_solver,
-        )
-        objective_score = int(optimization_solver.objective_value)
-
-        return _result(
-            snapshot=snapshot,
-            solver_run_id=solver_run_id,
-            solver_status=_status_name(optimization_status),
-            assignments=[
-                _assignment(candidate)
-                for candidate in sorted(selected, key=_candidate_sort_key)
-            ],
-            objective_score=objective_score,
-            timeout=False,
-            started_at=started_at,
-            warnings=[],
-            infeasible_reasons=[],
-            objective_details=_objective_details(selected, BALANCED_V1_WEIGHTS, snapshot),
-            solver_statistics=_solver_statistics(
-                snapshot=snapshot,
-                candidates=candidates,
-                model=model,
-                result_solver=optimization_solver,
-                objective_score=objective_score,
-                runtime_configuration=runtime_configuration,
-                result_source="optimization",
-                feasibility_stage=feasibility_stage,
-                optimization_stage=optimization_stage,
-            ),
-            runtime_configuration=runtime_configuration,
-        )
-
-    if optimization_status == cp_model.UNKNOWN:
-        return _result(
-            snapshot=snapshot,
-            solver_run_id=solver_run_id,
-            solver_status="feasible",
-            assignments=[
-                _assignment(candidate)
-                for candidate in sorted(feasibility_selected, key=_candidate_sort_key)
-            ],
-            objective_score=feasibility_objective_score,
-            timeout=False,
-            started_at=started_at,
-            warnings=[
-                _reason(
-                    "optimization_limit_reached",
-                    "The soft-preference search reached its limit; the complete hard-valid feasibility timetable was retained.",
-                ),
-            ],
-            infeasible_reasons=[],
-            objective_details=feasibility_objective_details,
-            solver_statistics=_solver_statistics(
-                snapshot=snapshot,
-                candidates=candidates,
-                model=model,
-                result_solver=optimization_solver,
-                objective_score=feasibility_objective_score,
-                runtime_configuration=runtime_configuration,
-                result_source="feasibility_fallback",
-                feasibility_stage=feasibility_stage,
-                optimization_stage=optimization_stage,
-            ),
-            runtime_configuration=runtime_configuration,
-        )
-
-    return _result(
+    return _solve_lexicographic(
         snapshot=snapshot,
         solver_run_id=solver_run_id,
-        solver_status="model_invalid",
-        assignments=[],
-        objective_score=None,
-        timeout=False,
+        model=model,
+        variables=variables,
+        candidates=candidates,
+        load_variables=load_variables,
+        feasibility_solver=feasibility_solver,
+        feasibility_selected=feasibility_selected,
+        feasibility_stage=feasibility_stage,
         started_at=started_at,
-        warnings=[],
-        infeasible_reasons=[
-            _reason(
-                "optimization_model_inconsistent",
-                "The soft-objective stage rejected a hard-valid feasibility assignment.",
-            ),
-        ],
-        objective_details=_empty_objective_details(snapshot),
-        solver_statistics=_solver_statistics(
-            snapshot=snapshot,
-            candidates=candidates,
-            model=model,
-            result_solver=optimization_solver,
-            objective_score=None,
-            runtime_configuration=runtime_configuration,
-            result_source="none",
-            feasibility_stage=feasibility_stage,
-            optimization_stage=optimization_stage,
-        ),
+        request_context=request_context,
+        indexes=indexes,
         runtime_configuration=runtime_configuration,
     )
 
@@ -773,40 +576,6 @@ def _selected_candidates(
         for index, candidate in enumerate(candidates)
         if solver.boolean_value(variables[index])
     ]
-
-
-def _add_soft_objective(
-    model: cp_model.CpModel,
-    variables: list[cp_model.IntVar],
-    candidates: list[Candidate],
-    load_variables: dict[int, cp_model.IntVar],
-) -> None:
-    weights = BALANCED_V1_WEIGHTS
-    objective_terms: list[cp_model.LinearExpr] = []
-    objective_terms.extend(
-        weights["prefer_earlier_time_blocks"] * _earlier_candidate_score(candidate) * variables[index]
-        for index, candidate in enumerate(candidates)
-    )
-    objective_terms.extend(
-        weights["use_rooms_efficiently"] * _room_efficiency_score(candidate) * variables[index]
-        for index, candidate in enumerate(candidates)
-    )
-    objective_terms.extend(
-        _idle_gap_objective_terms(
-            model,
-            variables,
-            candidates,
-            weights["reduce_faculty_idle_gaps"],
-        )
-    )
-    objective_terms.extend(
-        _load_balance_objective_terms(
-            model,
-            load_variables,
-            weights["balance_faculty_load"],
-        )
-    )
-    model.maximize(sum(objective_terms))
 
 
 def _lexicographic_objectives(
@@ -1403,29 +1172,6 @@ def _time_slots(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
     )
 
 
-def _faculty_availability(snapshot: dict[str, Any]) -> dict[int, list[dict[str, Any]]]:
-    grouped: dict[int, list[dict[str, Any]]] = {}
-
-    for row in snapshot.get("faculty_availability", []):
-        if not isinstance(row, dict):
-            continue
-
-        faculty_id = _int_or_none(row.get("faculty_id") or row.get("faculty_user_id"))
-
-        if faculty_id is None:
-            continue
-
-        # Current v2 declarations project hard unavailability through
-        # calendar_blocks. Only the legacy availability contract owns windows.
-        if "windows" not in row:
-            continue
-
-        windows = [window for window in row.get("windows", []) if isinstance(window, dict)]
-        grouped[faculty_id] = windows
-
-    return grouped
-
-
 def _existing_commitments(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
     return [
         commitment
@@ -1543,7 +1289,6 @@ def _enumerate_candidates(
 ) -> tuple[list[Candidate], dict[int, list[dict[str, str]]]]:
     rooms = _rooms(snapshot)
     time_slots = _time_slots(snapshot)
-    availability = _faculty_availability(snapshot)
     existing_commitments = _commitment_indexes(_existing_commitments(snapshot))
     calendar_blocks = _calendar_block_indexes(_calendar_blocks(snapshot))
     candidates: list[Candidate] = []
@@ -1620,9 +1365,6 @@ def _enumerate_candidates(
                         )
 
                         if candidate is None:
-                            continue
-
-                        if not _inside_faculty_availability(candidate, availability):
                             continue
 
                         if _conflicts_existing(
@@ -2480,24 +2222,6 @@ def _faculty_priority(demand: dict[str, Any], faculty_id: int) -> int:
     return 100
 
 
-def _inside_faculty_availability(candidate: Candidate, availability: dict[int, list[dict[str, Any]]]) -> bool:
-    windows = availability.get(candidate.faculty_id)
-
-    if windows is None:
-        return True
-
-    for window in windows:
-        day = _int_or_none(window.get("day_of_week"))
-        starts = _time_to_minutes(window.get("starts_at"))
-        ends = _time_to_minutes(window.get("ends_at"))
-
-        if day == candidate.day_of_week and starts is not None and ends is not None:
-            if starts <= candidate.starts_minute and ends >= candidate.ends_minute:
-                return True
-
-    return False
-
-
 def _conflicts_existing(candidate: Candidate, commitments: list[dict[str, Any]]) -> bool:
     for commitment in commitments:
         day = _int_or_none(commitment.get("day_of_week"))
@@ -2605,73 +2329,6 @@ def _room_efficiency_score(candidate: Candidate) -> int:
     return -max(0, candidate.room_capacity - candidate.expected_count)
 
 
-def _objective_details(
-    selected: list[Candidate],
-    weights: dict[str, int],
-    snapshot: dict[str, Any],
-) -> dict[str, Any]:
-    faculty_days: dict[tuple[int, int], list[Candidate]] = {}
-    faculty_loads: dict[int, dict[tuple[int, int], int]] = {}
-
-    for candidate in selected:
-        faculty_days.setdefault((candidate.faculty_id, candidate.day_of_week), []).append(candidate)
-        faculty_loads.setdefault(candidate.faculty_id, {})[
-            (candidate.term_offering_id, candidate.section_delivery_group_id)
-        ] = candidate.load_units_scaled
-
-    idle_gap_minutes = 0
-    for rows in faculty_days.values():
-        ordered = sorted(rows, key=lambda candidate: (candidate.starts_minute, candidate.ends_minute))
-
-        if ordered:
-            idle_gap_minutes += max(
-                0,
-                max(candidate.ends_minute for candidate in ordered)
-                - min(candidate.starts_minute for candidate in ordered)
-                - sum(candidate.duration_minutes for candidate in ordered),
-            )
-
-    faculty_ids = {
-        int(row["faculty_id"])
-        for row in snapshot.get("faculty", [])
-        if isinstance(row, dict) and _int_or_none(row.get("faculty_id")) is not None
-    }
-    loads = [sum(faculty_loads.get(faculty_id, {}).values()) for faculty_id in sorted(faculty_ids)]
-    load_imbalance = sum(
-        abs(left - right)
-        for left_index, left in enumerate(loads)
-        for right in loads[left_index + 1:]
-    )
-    terms = {
-        "prefer_earlier_time_blocks": {
-            "raw": sum(_earlier_candidate_score(candidate) for candidate in selected),
-            "weight": weights["prefer_earlier_time_blocks"],
-        },
-        "reduce_faculty_idle_gaps": {
-            "raw": -idle_gap_minutes,
-            "weight": weights["reduce_faculty_idle_gaps"],
-        },
-        "balance_faculty_load": {
-            "raw": -load_imbalance,
-            "weight": weights["balance_faculty_load"],
-        },
-        "use_rooms_efficiently": {
-            "raw": sum(_room_efficiency_score(candidate) for candidate in selected),
-            "weight": weights["use_rooms_efficiently"],
-        },
-    }
-
-    for term in terms.values():
-        term["weighted"] = term["raw"] * term["weight"]
-
-    return {
-        "profile_key": "balanced_v1",
-        "profile_version": 1,
-        "terms": terms,
-        "total": sum(term["weighted"] for term in terms.values()),
-    }
-
-
 def _lexicographic_objective_details(
     snapshot: dict[str, Any],
     selected: list[Candidate],
@@ -2740,23 +2397,13 @@ def _lexicographic_objective_details(
 
 
 def _empty_objective_details(snapshot: dict[str, Any]) -> dict[str, Any]:
-    profile = snapshot.get("constraint_profile") if isinstance(snapshot.get("constraint_profile"), dict) else {}
-    weights = profile.get("soft_weights") if isinstance(profile.get("soft_weights"), dict) else {}
-
-    if profile.get("key") == "lexicographic_v1":
-        return {
-            "profile_key": "lexicographic_v1",
-            "profile_version": 1,
-            "objective_hierarchy": list(LEXICOGRAPHIC_TERMS),
-            "values": {term: None for term in LEXICOGRAPHIC_TERMS},
-            "completed_levels": [],
-            "scalar_score": None,
-        }
-
     return {
-        "profile_key": profile.get("key"),
-        "profile_version": profile.get("version"),
-        "terms": {term: {"raw": None, "weight": int(weights.get(term, 1))} for term in LEGACY_SOFT_TERMS},
+        "profile_key": "lexicographic_v1",
+        "profile_version": 1,
+        "objective_hierarchy": list(LEXICOGRAPHIC_TERMS),
+        "values": {term: None for term in LEXICOGRAPHIC_TERMS},
+        "completed_levels": [],
+        "scalar_score": None,
     }
 
 

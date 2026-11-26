@@ -414,7 +414,7 @@ final class TAL94E2aSolverQueueOperationsTest extends TestCase
         ?string $candidateKey = null,
     ): ScheduleGenerationRun {
         $snapshot = [
-            'contract_version' => 'tal94-demand-v2',
+            'contract_version' => ScheduleGenerationRun::ContractVersion,
             'run_metadata' => [
                 'term_id' => $term->id,
             ],

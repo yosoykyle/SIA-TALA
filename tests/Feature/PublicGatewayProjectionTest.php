@@ -51,7 +51,9 @@ class PublicGatewayProjectionTest extends TestCase
             ->assertDontSee($inactive->name)->assertDontSee($accepting->code)->assertDontSee($other->code)
             ->assertSee($accepting->duration_years.' '.($accepting->duration_years === 1 ? 'year' : 'years'))
             ->assertViewHas('acceptingProgramIds', [$accepting->id])
-            ->assertSee('Ask Admissions about applying');
+            ->assertSee('Not currently open')
+            ->assertSee('Not currently open for online applications')
+            ->assertDontSee('Ask Admissions');
     }
 
     public function test_active_programs_render_live_description_and_fallback_guidance_without_exposing_program_code(): void

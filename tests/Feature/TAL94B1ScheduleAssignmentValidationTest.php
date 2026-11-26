@@ -10,6 +10,7 @@ use App\Filament\Resources\ScheduleGenerationRuns\Pages\ViewScheduleGenerationRu
 use App\Filament\Resources\SchedulingDemands\SchedulingDemandResource;
 use App\Models\CandidateScheduleRow;
 use App\Models\CourseComponent;
+use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\FacultyQualification;
 use App\Models\OperationalEvent;
 use App\Models\Room;
@@ -243,7 +244,7 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
     public function test_legacy_captured_grid_is_validated_without_using_or_rewriting_the_different_live_package(): void
     {
         $this->freezeTime();
-        $context = $this->context();
+        $context = $this->context(withActiveCalendarPackage: false);
         $captured = $context['run']->fresh()->input_snapshot;
         $capturedHash = $context['run']->fresh()->input_hash;
         $this->assertArrayNotHasKey('teaching_grid_rows', $captured['term']);
@@ -353,35 +354,62 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
 
                 return $result;
             },
-            'objective_score_mismatch' => function (array $result): array {
-                $result['objective_score'] = 99;
+            'objective_score_non_null' => [
+                'code' => 'lexicographic_evidence_mismatch',
+                'mutate' => function (array $result): array {
+                    $result['objective_score'] = 99;
 
-                return $result;
-            },
-            'objective_weight_mismatch' => function (array $result): array {
-                $result['objective_details']['terms']['prefer_earlier_time_blocks']['weight'] = 2;
-                $result['objective_details']['terms']['prefer_earlier_time_blocks']['weighted'] = 2;
-                $result['objective_details']['total'] = 5;
-                $result['objective_score'] = 5;
+                    return $result;
+                },
+            ],
+            'legacy_profile_rejected' => [
+                'code' => 'objective_profile_mismatch',
+                'mutate' => function (array $result): array {
+                    $result['objective_details']['profile_key'] = 'balanced_v1';
 
-                return $result;
-            },
-            'objective_term_missing' => function (array $result): array {
-                unset($result['objective_details']['terms']['prefer_earlier_time_blocks']);
-                $result['objective_details']['total'] = 3;
-                $result['objective_score'] = 3;
+                    return $result;
+                },
+            ],
+            'legacy_terms_rejected' => [
+                'code' => 'lexicographic_evidence_mismatch',
+                'mutate' => function (array $result): array {
+                    $result['objective_details']['terms'] = [
+                        'prefer_earlier_time_blocks' => ['raw' => 1, 'weight' => 1, 'weighted' => 1],
+                    ];
 
-                return $result;
-            },
+                    return $result;
+                },
+            ],
+            'hierarchy_value_missing' => [
+                'code' => 'lexicographic_evidence_mismatch',
+                'mutate' => function (array $result): array {
+                    unset($result['objective_details']['values']['room_seat_waste']);
+
+                    return $result;
+                },
+            ],
         ];
 
-        foreach ($cases as $expectedCode => $mutate) {
+        foreach ($cases as $name => $case) {
+            $expectedCode = is_array($case) ? $case['code'] : $name;
+            $mutate = is_array($case) ? $case['mutate'] : $case;
             $validation = app(ScheduleAssignmentValidationService::class)
                 ->validate($context['run'], $mutate($valid));
 
-            $this->assertFalse($validation->passes(), $expectedCode);
+            $this->assertFalse($validation->passes(), $name);
             $this->assertContains($expectedCode, collect($validation->findings())->pluck('code')->all());
         }
+
+        $legacySnapshot = $context['run']->input_snapshot;
+        $legacySnapshot['contract_version'] = 'tal94-demand-v2';
+        $context['run']->forceFill(['input_snapshot' => $legacySnapshot])->save();
+        $legacyResult = $valid;
+        $legacyResult['model_version'] = 'tal94-demand-v2';
+        $legacyValidation = app(ScheduleAssignmentValidationService::class)
+            ->validate($context['run']->fresh(), $legacyResult);
+
+        $this->assertFalse($legacyValidation->passes());
+        $this->assertContains('input_snapshot_contract_mismatch', collect($legacyValidation->findings())->pluck('code')->all());
     }
 
     public function test_solver_statistics_must_be_present_typed_and_allowlisted(): void
@@ -470,11 +498,7 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
         ]];
         $result['runtime_seconds'] = 300.0;
         $result['objective_score'] = null;
-        $result['objective_details'] = [
-            'profile_key' => 'balanced_v1',
-            'profile_version' => 1,
-            'terms' => [],
-        ];
+        $result['objective_details'] = $this->emptyLexicographicObjectiveDetails();
         $result['solver_statistics']['best_objective_bound'] = null;
         $result['solver_statistics']['relative_optimality_gap'] = null;
         $result['solver_statistics']['result_source'] = 'none';
@@ -773,11 +797,7 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
             $result = $this->validResult($context);
             $result['solver_status'] = $status;
             $result['objective_score'] = null;
-            $result['objective_details'] = [
-                'profile_key' => 'balanced_v1',
-                'profile_version' => 1,
-                'terms' => [],
-            ];
+            $result['objective_details'] = $this->emptyLexicographicObjectiveDetails();
             $result['timeout'] = $status === 'unknown';
 
             if ($status === 'model_invalid') {
@@ -888,8 +908,8 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
 
         $diagnostics = $context['run']->fresh()->diagnostics;
         $this->assertSame(
-            1,
-            data_get($diagnostics, 'solver_result.objective_details.terms.prefer_earlier_time_blocks.weight'),
+            0,
+            data_get($diagnostics, 'solver_result.objective_details.values.faculty_load_imbalance'),
         );
 
         $registrar = User::factory()->create(['status' => User::StatusActive]);
@@ -902,13 +922,13 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
             ->assertSee('Every ready class placed once')
             ->assertSee('Passed')
             ->assertSee('Schedule quality')
-            ->assertSee('Prefer Earlier Time Blocks');
+            ->assertSee('Faculty load balance');
     }
 
     /**
      * @return array{run:ScheduleGenerationRun,term:Term,faculty:User,room:Room,demands:list<SchedulingDemand>,snapshot:array<string,mixed>}
      */
-    private function context(int $demandCount = 1): array
+    private function context(int $demandCount = 1, bool $withActiveCalendarPackage = true): array
     {
         $term = Term::factory()->create([
             'scheduling_days' => [1, 2, 3, 4, 5],
@@ -917,6 +937,22 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
             'scheduling_slot_minutes' => 60,
             'default_max_units' => 3.00,
         ]);
+
+        if ($withActiveCalendarPackage) {
+            $calendarPackage = TermCalendarPackage::factory()->for($term)->create([
+                'state' => TermCalendarPackage::StateActive,
+            ]);
+
+            foreach ([1, 2, 3, 4, 5] as $day) {
+                $calendarPackage->teachingGridRows()->create([
+                    'day_of_week' => $day,
+                    'starts_at' => '08:00:00',
+                    'ends_at' => '18:00:00',
+                    'breaks' => [],
+                ]);
+            }
+        }
+
         $offering = TermOffering::factory()->for($term)->create([
             'modality' => TermOffering::ModalityFaceToFace,
         ]);
@@ -927,6 +963,15 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
         ]);
         $faculty = User::factory()->create(['status' => User::StatusActive]);
         $faculty->assignRole(User::StaffRoleFaculty);
+        FacultyAvailabilityDeclaration::query()->create([
+            'term_id' => $term->id,
+            'faculty_user_id' => $faculty->id,
+            'version' => 1,
+            'declaration' => FacultyAvailabilityDeclaration::DeclarationAvailable,
+            'availability_mode' => FacultyAvailabilityDeclaration::ModeAnyApproved,
+            'hard_unavailability' => [],
+            'declared_at' => now(),
+        ]);
         $room = Room::factory()->create([
             'room_type' => Room::TypeLectureRoom,
             'capacity' => 40,
@@ -1015,7 +1060,7 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
             }
         }
         $snapshot = [
-            'contract_version' => 'tal94-demand-v2',
+            'contract_version' => ScheduleGenerationRun::ContractVersion,
             'run_metadata' => [
                 'solver_run_id' => $run->id,
                 'term_id' => $term->id,
@@ -1043,13 +1088,15 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
             ]],
             'calendar_blocks' => [],
             'constraint_profile' => [
-                'key' => 'balanced_v1',
+                'key' => ScheduleGenerationRun::QualityPolicyLexicographic,
                 'version' => 1,
-                'soft_weights' => [
-                    'prefer_earlier_time_blocks' => 1,
-                    'reduce_faculty_idle_gaps' => 1,
-                    'balance_faculty_load' => 1,
-                    'use_rooms_efficiently' => 1,
+                'objective_hierarchy' => [
+                    'cohort_mode_switches',
+                    'cohort_idle_time',
+                    'faculty_load_imbalance',
+                    'faculty_idle_time',
+                    'room_seat_waste',
+                    'stable_earlier_placement',
                 ],
             ],
         ];
@@ -1111,17 +1158,28 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
             'infeasible_reasons' => [],
             'warnings' => [],
             'runtime_seconds' => 0.25,
-            'objective_score' => 4,
+            'objective_score' => null,
             'objective_details' => [
-                'profile_key' => 'balanced_v1',
+                'profile_key' => ScheduleGenerationRun::QualityPolicyLexicographic,
                 'profile_version' => 1,
-                'terms' => [
-                    'prefer_earlier_time_blocks' => ['raw' => 1, 'weight' => 1, 'weighted' => 1],
-                    'reduce_faculty_idle_gaps' => ['raw' => 1, 'weight' => 1, 'weighted' => 1],
-                    'balance_faculty_load' => ['raw' => 1, 'weight' => 1, 'weighted' => 1],
-                    'use_rooms_efficiently' => ['raw' => 1, 'weight' => 1, 'weighted' => 1],
+                'objective_hierarchy' => [
+                    'cohort_mode_switches',
+                    'cohort_idle_time',
+                    'faculty_load_imbalance',
+                    'faculty_idle_time',
+                    'room_seat_waste',
+                    'stable_earlier_placement',
                 ],
-                'total' => 4,
+                'values' => [
+                    'cohort_mode_switches' => 0,
+                    'cohort_idle_time' => 0,
+                    'faculty_load_imbalance' => 0,
+                    'faculty_idle_time' => 0,
+                    'room_seat_waste' => 10 * count($assignments),
+                    'stable_earlier_placement' => 8520 * count($assignments),
+                ],
+                'completed_levels' => [],
+                'scalar_score' => null,
             ],
             'solver_statistics' => [
                 'ortools_version' => '9.15.6755',
@@ -1133,8 +1191,8 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
                 'model_variable_count' => count($assignments),
                 'model_constraint_count' => count($assignments),
                 'no_overlap_constraint_count' => 0,
-                'best_objective_bound' => 4.0,
-                'relative_optimality_gap' => 0.0,
+                'best_objective_bound' => null,
+                'relative_optimality_gap' => null,
                 'boolean_variable_count' => count($assignments),
                 'branch_count' => 0,
                 'conflict_count' => 0,
@@ -1142,7 +1200,7 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
                 'wall_time_seconds' => 0.02,
                 'worker_count' => 1,
                 'random_seed' => 20260718,
-                'result_source' => 'optimization',
+                'result_source' => 'lexicographic',
                 'search_stages' => [
                     'feasibility' => [
                         'status' => 'optimal',
@@ -1168,13 +1226,39 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
                     ],
                 ],
             ],
-            'solver_version' => 'cloud-cp-sat-tal94-demand-v2-staged-search-v1',
-            'model_version' => 'tal94-demand-v2',
+            'solver_version' => config('tala_integrations.scheduling_solver.driver') === 'local_stub'
+                ? 'local-stub-tala-timetable-v2'
+                : ScheduleGenerationRun::SolverVersion,
+            'model_version' => ScheduleGenerationRun::ContractVersion,
             'generated_at' => now()->toIso8601String(),
             'assigned_count' => count($assignments),
             'unassigned_count' => 0,
             'warning_count' => 0,
             'timeout' => false,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyLexicographicObjectiveDetails(): array
+    {
+        $hierarchy = [
+            'cohort_mode_switches',
+            'cohort_idle_time',
+            'faculty_load_imbalance',
+            'faculty_idle_time',
+            'room_seat_waste',
+            'stable_earlier_placement',
+        ];
+
+        return [
+            'profile_key' => ScheduleGenerationRun::QualityPolicyLexicographic,
+            'profile_version' => 1,
+            'objective_hierarchy' => $hierarchy,
+            'values' => array_fill_keys($hierarchy, null),
+            'completed_levels' => [],
+            'scalar_score' => null,
         ];
     }
 

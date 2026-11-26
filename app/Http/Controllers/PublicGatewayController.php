@@ -103,15 +103,23 @@ class PublicGatewayController extends Controller
             $data['unavailable'][] = 'cashChannel';
         }
 
-        $data['programDurations'] = $data['programs']->pluck('duration_years')->unique()->sort()->values();
+        $allActivePrograms = $data['programs'];
+        $data['totalProgramCount'] = $allActivePrograms->count();
+        $data['openProgramCount'] = $allActivePrograms->whereIn('id', $data['acceptingProgramIds'])->count();
+        $data['notOpenProgramCount'] = $data['totalProgramCount'] - $data['openProgramCount'];
+        $data['programDurations'] = $allActivePrograms->pluck('duration_years')->unique()->sort()->values();
+        $data['programDurationCounts'] = $allActivePrograms
+            ->groupBy('duration_years')
+            ->map(fn (Collection $group): int => $group->count())
+            ->all();
         $duration = $request->integer('duration');
         $availability = $request->query('availability');
         $data['programFilters'] = array_filter([
             'duration' => $data['programDurations']->contains($duration) ? $duration : null,
             'availability' => in_array($availability, ['open', 'enquire'], true) ? $availability : null,
         ], fn (mixed $value): bool => $value !== null);
-        $data['selectedProgram'] = $data['programs']->firstWhere('id', $request->integer('program'));
-        $data['programs'] = $data['programs']->filter(function (Program $program) use ($data): bool {
+        $data['selectedProgram'] = $allActivePrograms->firstWhere('id', $request->integer('program'));
+        $data['programs'] = $allActivePrograms->filter(function (Program $program) use ($data): bool {
             $accepting = in_array($program->id, $data['acceptingProgramIds'], true);
 
             return (! isset($data['programFilters']['duration']) || $program->duration_years === $data['programFilters']['duration'])
