@@ -2232,13 +2232,15 @@ dialog::backdrop,
     align-items: safe center;
     justify-items: center;
     padding: clamp(0.75rem, 2.5dvh, 1.5rem) clamp(0.75rem, 2vw, 1.5rem);
-    overflow: hidden;
+    /* Use clip (not hidden) so browser focus/scrollIntoView on tall wizard steps can never programmatically scroll the modal off-center. */
+    overflow: clip;
 }
 
 .fi-body .fi-modal:not(.fi-modal-slide-over, .fi-width-screen) > .fi-modal-window-ctn > .fi-modal-window:not(.tala-mfa-modal) {
     display: flex;
     flex-direction: column;
     inline-size: 100%;
+    min-block-size: 0;
     max-block-size: calc(100dvh - clamp(1.5rem, 5dvh, 3rem) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
     /* Keep visible so floating DatePicker / Select panels positioned against the modal window are not clipped in short modals. */
     overflow: visible;
