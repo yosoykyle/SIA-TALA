@@ -26,7 +26,7 @@ use Illuminate\Support\Collection;
 
 /**
  * The Registrar's transfer crediting table: the SIA curriculum grouped by year and term, with
- * Credited / Credit with bridging / Need to take per subject and the TOR source line for credited rows.
+ * Credited / Need to take per subject and the TOR source line for credited rows.
  * Shared by first-enrollment crediting and later corrections on the Student record.
  */
 class TransferCreditingForm
@@ -34,8 +34,6 @@ class TransferCreditingForm
     public const StatusNeed = 'need';
 
     public const StatusCredited = 'credited';
-
-    public const StatusBridging = 'bridging';
 
     /**
      * Split layout for the full-screen crediting modal: the sticky preview of the transferee's TOR and other
@@ -146,16 +144,11 @@ class TransferCreditingForm
                 $line = $lines->get($id);
 
                 return ['e'.$id => [
-                    'status' => match (true) {
-                        ! in_array($id, $creditedIds, true) => self::StatusNeed,
-                        $line?->bridging_units !== null => self::StatusBridging,
-                        default => self::StatusCredited,
-                    },
+                    'status' => in_array($id, $creditedIds, true) ? self::StatusCredited : self::StatusNeed,
                     'tor_grade' => $line?->tor_grade,
                     'source_course_code' => $line?->source_course_code,
                     'source_course_title' => $line?->source_course_title,
                     'source_units' => $line?->source_units,
-                    'bridging_units' => $line?->bridging_units,
                     'remarks' => $line?->remarks,
                 ]];
             })->all();
@@ -208,13 +201,12 @@ class TransferCreditingForm
     public static function creditLines(array $data): array
     {
         return collect($data['rows'] ?? [])
-            ->filter(fn (mixed $row): bool => is_array($row) && in_array($row['status'] ?? null, [self::StatusCredited, self::StatusBridging], true))
+            ->filter(fn (mixed $row): bool => is_array($row) && ($row['status'] ?? null) === self::StatusCredited)
             ->mapWithKeys(fn (array $row, string $key): array => [(int) substr($key, 1) => [
                 'source_course_code' => $row['source_course_code'] ?? null,
                 'source_course_title' => $row['source_course_title'] ?? null,
                 'source_units' => $row['source_units'] ?? null,
                 'tor_grade' => $row['tor_grade'] ?? null,
-                'bridging_units' => $row['status'] === self::StatusBridging ? ($row['bridging_units'] ?? null) : null,
                 'remarks' => $row['remarks'] ?? null,
             ]])->all();
     }
@@ -299,7 +291,7 @@ class TransferCreditingForm
         $specification = $entry->courseSpecification;
         $code = $specification->course->code;
         $units = number_format((float) $specification->credit_units, 2, '.', '');
-        $isCredited = fn (Get $get): bool => in_array($get('status'), [self::StatusCredited, self::StatusBridging], true);
+        $isCredited = fn (Get $get): bool => $get('status') === self::StatusCredited;
         $needsSource = fn (Get $get): bool => $isCredited($get) && $get('../../same_curriculum') !== 'same';
 
         return Group::make()->statePath('e'.$entry->id)->schema([
@@ -309,7 +301,6 @@ class TransferCreditingForm
                 ToggleButtons::make('status')->hiddenLabel()->inline()->grouped()
                     ->options([
                         self::StatusCredited => 'Credited',
-                        self::StatusBridging => 'Credit with bridging',
                         self::StatusNeed => 'Need to take',
                     ])
                     ->default(self::StatusNeed)
@@ -318,7 +309,7 @@ class TransferCreditingForm
             Grid::make(['default' => 2, 'lg' => 6])
                 ->extraAttributes(['class' => 'tala-crediting-source'])
                 ->visibleJs(<<<'JS'
-                    ['credited', 'bridging'].includes($get('status'))
+                    $get('status') === 'credited'
                     JS)
                 ->schema([
                     TextInput::make('tor_grade')->label('TOR grade')->placeholder('As printed')
@@ -329,13 +320,6 @@ class TransferCreditingForm
                         ->columnSpan(['lg' => 2]),
                     TextInput::make('source_course_title')->label('TOR course title')->placeholder($specification->title)
                         ->required($needsSource)->maxLength(StoreRegistrationCreditEvaluation::SourceTitleMaxLength)->columnSpanFull(),
-                    TextInput::make('bridging_units')->label('Bridging units')->numeric()->minValue(0.5)->maxValue((float) $units)
-                        ->placeholder('Units owed')
-                        ->required(fn (Get $get): bool => $get('status') === self::StatusBridging)
-                        ->visibleJs(<<<'JS'
-                            $get('status') === 'bridging'
-                            JS)
-                        ->columnSpan(['lg' => 2]),
                     TextInput::make('remarks')->label('Remarks')->maxLength(StoreRegistrationCreditEvaluation::RemarksMaxLength)
                         ->columnSpanFull(),
                 ]),

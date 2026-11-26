@@ -18,11 +18,11 @@ class RegistrationCreditLine extends Model
     use HasFactory;
 
     protected $fillable = ['registration_credit_evaluation_id', 'curriculum_entry_id', 'source_course_code', 'source_course_title',
-        'source_units', 'tor_grade', 'bridging_units', 'remarks'];
+        'source_units', 'tor_grade', 'remarks'];
 
     protected function casts(): array
     {
-        return ['source_units' => 'decimal:2', 'bridging_units' => 'decimal:2'];
+        return ['source_units' => 'decimal:2'];
     }
 
     /** @return BelongsTo<RegistrationCreditEvaluation, $this> */
@@ -39,8 +39,7 @@ class RegistrationCreditLine extends Model
 
     public function transcriptRemark(): string
     {
-        return 'Transfer credit from '.$this->source_course_code
-            .($this->bridging_units !== null ? ' · '.rtrim(rtrim($this->bridging_units, '0'), '.').' unit(s) bridging' : '');
+        return 'Transfer credit from '.$this->source_course_code;
     }
 
     protected static function booted(): void

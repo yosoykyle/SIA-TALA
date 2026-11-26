@@ -26,13 +26,7 @@ class RegistrationCreditLineFactory extends Factory
             'source_course_title' => 'Previous school subject',
             'source_units' => '3.00',
             'tor_grade' => '2.00',
-            'bridging_units' => null,
             'remarks' => null,
         ];
-    }
-
-    public function withBridging(string $units = '1.00'): static
-    {
-        return $this->state(['source_units' => '2.00', 'bridging_units' => $units]);
     }
 }
