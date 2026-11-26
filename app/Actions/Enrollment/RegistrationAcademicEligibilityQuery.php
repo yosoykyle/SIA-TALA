@@ -390,6 +390,7 @@ class RegistrationAcademicEligibilityQuery
         }
 
         return $this->acceptedCredits($profile)
+            ->filter(fn (ProgramShiftCreditEntry $credit): bool => $credit->numeric_grade === null || (float) $credit->numeric_grade <= 4.00)
             ->pluck('curriculum_entry_id')
             ->filter()
             ->map(fn (mixed $id): int => (int) $id)

@@ -124,7 +124,7 @@
                                 <p>Once Accounting verifies your receipt (or records your onsite Cashier payment), your enrollment becomes official automatically and your COR will be ready immediately. Onsite Cashier payments are recorded directly: no receipt upload needed.</p>
                             @else
                                 <p>Your subjects are confirmed. Pay {{ $money($paymentRequirement['balance'] ?? null) }} onsite at the Campus Cashier below: electronic transfer channels are currently unavailable.</p>
-                                <p>Once Accounting records your onsite Cashier payment (no receipt upload needed), your enrollment becomes official automatically and your COR will be ready immediately.</p>
+                                <p>Onsite Cashier payments are recorded directly: no receipt upload needed. Once Accounting records your onsite Cashier payment, your enrollment becomes official automatically and your COR will be ready immediately.</p>
                             @endif
                         @endif
                         @if (($readiness['shortages'] ?? []) !== [])
