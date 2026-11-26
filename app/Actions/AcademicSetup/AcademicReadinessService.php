@@ -87,7 +87,12 @@ class AcademicReadinessService
     {
         return [
             'courses_with_drafts' => Course::query()
-                ->whereHas('specifications', fn ($query) => $query->where('state', CourseSpecification::StateDraft))
+                ->whereHas('specifications', fn ($query) => $query
+                    ->where('state', CourseSpecification::StateDraft)
+                    ->whereDoesntHave(
+                        'curriculumEntries.curriculumVersion',
+                        fn ($curriculumQuery) => $curriculumQuery->where('state', CurriculumVersion::StateDraft),
+                    ))
                 ->count(),
             'curricula_pending' => CurriculumVersion::query()
                 ->where('state', CurriculumVersion::StateDraft)

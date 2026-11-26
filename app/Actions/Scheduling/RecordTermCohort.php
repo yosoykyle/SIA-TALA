@@ -15,6 +15,21 @@ use Illuminate\Validation\ValidationException;
 
 final class RecordTermCohort
 {
+    public static function normalizeReference(string $reference): string
+    {
+        $normalized = strtoupper((string) preg_replace('/\s+/', ' ', trim($reference)));
+
+        if ($normalized === '') {
+            return '';
+        }
+
+        if (preg_match('/^([A-Z]{2,})([1-8](?:-[A-Z0-9]+|[A-Z](?:-[A-Z0-9]+)?)?)$/', $normalized, $matches) === 1) {
+            return $matches[1].' '.$matches[2];
+        }
+
+        return $normalized;
+    }
+
     /** @param array<string, mixed> $data */
     public function execute(Term $term, User $actor, array $data): TermCohort
     {
@@ -28,7 +43,7 @@ final class RecordTermCohort
             }
             $validated = Validator::make([
                 'curriculum_version_id' => $data['curriculum_version_id'] ?? null,
-                'reference' => trim((string) ($data['reference'] ?? '')),
+                'reference' => self::normalizeReference((string) ($data['reference'] ?? '')),
                 'year_level' => filled($data['year_level'] ?? null) ? (int) $data['year_level'] : null,
                 'confirmed_count' => $data['confirmed_count'] ?? null,
             ], [

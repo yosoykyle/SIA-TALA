@@ -2,10 +2,14 @@
 
 namespace App\Actions\Calendar;
 
+use App\Actions\Scheduling\GenerateSchedulingDemand;
 use App\Filament\Pages\MyAvailability;
 use App\Models\AcademicYear;
+use App\Models\CourseEnrollment;
+use App\Models\Enrollment;
 use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\ScheduleGenerationRun;
+use App\Models\Section;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\User;
@@ -14,18 +18,31 @@ use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 final class ActivateTermCalendarPackage
 {
+    private int $lastStaleDraftRunCount = 0;
+
     public function __construct(private readonly TermCalendarPackageReadinessService $readiness) {}
+
+    public function lastStaleDraftRunCount(): int
+    {
+        return $this->lastStaleDraftRunCount;
+    }
 
     public function execute(TermCalendarPackage $package, User $actor, ?string $expectedToken = null): TermCalendarPackage
     {
         Gate::forUser($actor)->authorize('update', $package->term);
 
         $expectedToken ??= $package->concurrencyToken();
+        $this->lastStaleDraftRunCount = 0;
+        $markedStaleCount = 0;
+        $shouldRefreshDemands = false;
 
-        $activated = DB::transaction(function () use ($package, $actor, $expectedToken): TermCalendarPackage {
+        $activated = DB::transaction(function () use ($package, $actor, $expectedToken, &$markedStaleCount, &$shouldRefreshDemands): TermCalendarPackage {
+            $markedStaleCount = 0;
+            $shouldRefreshDemands = false;
             $lockedTerm = Term::query()->whereKey($package->term_id)->lockForUpdate()->firstOrFail();
 
             if ($lockedTerm->state === Term::StateClosed) {
@@ -105,7 +122,7 @@ final class ActivateTermCalendarPackage
             $locked->forceFill(['state' => TermCalendarPackage::StateActive, 'recorded_by' => $actor->id, 'activated_at' => now()])->save();
 
             if ($previousCoreSignature !== null && $previousCoreSignature !== $newCoreSignature) {
-                $staleNote = 'Marked stale because the active term calendar dates, teaching hours, or holidays changed.';
+                $staleNote = 'Marked stale because the active term calendar dates, teaching hours, daily breaks, or holidays changed.';
                 $activeRuns = ScheduleGenerationRun::query()
                     ->where('term_id', $locked->term_id)
                     ->whereIn('status', [
@@ -113,6 +130,10 @@ final class ActivateTermCalendarPackage
                         ScheduleGenerationRun::StatusDispatching,
                         ScheduleGenerationRun::StatusUnderReview,
                     ])
+                    ->where(function ($query): void {
+                        $query->whereNull('candidate_state')
+                            ->orWhereNotIn('candidate_state', ['Superseded', 'Rejected']);
+                    })
                     ->lockForUpdate()
                     ->get();
 
@@ -125,6 +146,35 @@ final class ActivateTermCalendarPackage
                         'candidate_review_reason' => $staleNote,
                         'diagnostics' => $diagnostics,
                     ])->save();
+
+                    $markedStaleCount++;
+                }
+
+                $hasOfficialEnrollments = CourseEnrollment::query()
+                    ->where('status', CourseEnrollment::StatusActive)
+                    ->where('is_current', true)
+                    ->whereHas('enrollment', fn ($query) => $query->where('term_id', $locked->term_id))
+                    ->exists()
+                    || Enrollment::query()
+                        ->where('term_id', $locked->term_id)
+                        ->where('canonical_outcome', Enrollment::OutcomeOfficiallyEnrolled)
+                        ->exists();
+
+                if (! $hasOfficialEnrollments) {
+                    $reboundCount = Section::query()
+                        ->whereNotNull('confirmed_at')
+                        ->whereNotIn('state', [Section::StateClosed, Section::StateCancelled])
+                        ->where(function ($query) use ($locked): void {
+                            $query->whereHas('termOffering', fn ($offeringQuery) => $offeringQuery->where('term_id', $locked->term_id))
+                                ->orWhereHas('calendarPackage', fn ($packageQuery) => $packageQuery->where('term_id', $locked->term_id));
+                        })
+                        ->where(function ($query) use ($locked): void {
+                            $query->whereNull('term_calendar_package_id')
+                                ->orWhere('term_calendar_package_id', '!=', $locked->id);
+                        })
+                        ->update(['term_calendar_package_id' => $locked->id]);
+
+                    $shouldRefreshDemands = $reboundCount > 0;
                 }
             }
 
@@ -147,6 +197,16 @@ final class ActivateTermCalendarPackage
 
             return $locked->fresh(['term', 'windows', 'teachingGridRows', 'datedExceptions']);
         }, attempts: 5);
+
+        $this->lastStaleDraftRunCount = $markedStaleCount;
+
+        if ($shouldRefreshDemands && $activated->term instanceof Term) {
+            try {
+                app(GenerateSchedulingDemand::class)->forTerm($actor, $activated->term);
+            } catch (Throwable) {
+                // Keep calendar activation non-blocking if draft classes or prerequisites are incomplete.
+            }
+        }
 
         $this->notifyAffectedFaculty($activated);
 

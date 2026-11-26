@@ -414,7 +414,7 @@ final class Issue93TimetablingPerformanceAndClassEditTest extends TestCase
 
         app(GenerateSchedulingDemand::class)->forTerm($registrar, $term);
 
-        $page = Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class);
+        $page = Livewire::withQueryParams(['termId' => $term->id, 'classesView' => 'classes'])->test(TermClasses::class);
         // Surfaces Load from curriculum + inline findings + shows Edit on confirmed unpublished class.
         $page->assertSee('Load from curriculum')
             ->assertSee('Room type needed')
@@ -467,13 +467,13 @@ final class Issue93TimetablingPerformanceAndClassEditTest extends TestCase
         $this->assertSame(SchedulingDemand::ValidationReadyForReview, $demands->get($newLab->id)?->validation_state);
 
         // Refreshed table shows human-readable room requirements inline.
-        Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
+        Livewire::withQueryParams(['termId' => $term->id, 'classesView' => 'classes'])->test(TermClasses::class)
             ->assertSee('Lecture room + Computer lab')
             ->assertDontSee('Face-to-Face demand needs a room type');
 
         // Once published, Edit action is hidden.
         PublishedTimetableMeeting::factory()->create(['section_id' => $section->id]);
-        Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
+        Livewire::withQueryParams(['termId' => $term->id, 'classesView' => 'classes'])->test(TermClasses::class)
             ->assertTableActionHidden('editClass', $section);
     }
 
@@ -610,7 +610,7 @@ final class Issue93TimetablingPerformanceAndClassEditTest extends TestCase
             'confirmed_at' => null,
             'capacity' => 30,
         ]);
-        Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
+        Livewire::withQueryParams(['termId' => $term->id, 'classesView' => 'classes'])->test(TermClasses::class)
             ->mountTableAction('prepareClassOffering', $draftSection)
             ->assertMountedActionModalDontSee('Stable class reference')
             ->setActionData([
@@ -682,7 +682,7 @@ final class Issue93TimetablingPerformanceAndClassEditTest extends TestCase
         ]);
         $unconfirmedSection->cohorts()->attach($cohort->id, ['expected_count' => 28]);
 
-        $classesPage = Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
+        $classesPage = Livewire::withQueryParams(['termId' => $term->id, 'classesView' => 'classes'])->test(TermClasses::class)
             ->assertSee('Load from curriculum')
             ->assertSee('Needs confirmation')
             ->assertSee('Confirm students')
@@ -694,16 +694,17 @@ final class Issue93TimetablingPerformanceAndClassEditTest extends TestCase
         // Exactly one occurrence of "Confirm students" (the row action button, never duplicated in the Status badge).
         $this->assertSame(1, substr_count($classesPage->html(), 'Confirm students'));
 
-        // 3. TermResources: uses compact tala-navigation tabs, keeps key actions, and removes static inline card styling.
+        // 3. TermResources: unlocks once a class is confirmed, uses compact tala-navigation tabs, keeps key inline actions, and removes static inline card styling.
+        $unconfirmedSection->update(['confirmed_at' => now()]);
         $resourcesPage = Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)
             ->assertSeeHtml('tala-navigation tala-navigation-compact')
             ->assertSee('Assign subjects')
-            ->assertSee('Edit qualified subjects in School Resources')
+            ->assertSee('School Resources')
             ->assertSee('24 units/teacher')
             ->assertDontSeeHtml('style="padding: var(--tala-card-pad);"');
 
         $roomsHtml = $resourcesPage->call('chooseResourceView', 'rooms')->html(true);
-        $this->assertSame(1, substr_count($roomsHtml, 'Edit room catalog in School Resources'));
+        $this->assertStringContainsString('Add room', $roomsHtml);
     }
 
     private function registrar(): User

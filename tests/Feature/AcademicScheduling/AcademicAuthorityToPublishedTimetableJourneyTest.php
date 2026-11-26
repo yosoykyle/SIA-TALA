@@ -517,9 +517,19 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
 
         $calendar = Livewire::actingAs($registrar)
             ->test(TermCalendar::class, ['termId' => $term->id]);
-        foreach ([TermCalendar::class, TermClasses::class, TermResources::class, TermTimetable::class] as $destination) {
-            $calendar->assertSeeHtml(e($destination::getUrl(['termId' => $term->id])));
-        }
+        $calendar->assertSeeHtml(e(TermCalendar::getUrl(['termId' => $term->id])))
+            ->assertSee('2. Sections & classes')
+            ->assertSee('3. Faculty & rooms')
+            ->assertSee('4. Timetable');
+
+        // Activate calendar to unlock Step 2 and verify direct TermClasses navigation link + default cohorts view.
+        TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateActive,
+            'activated_at' => now(),
+        ]);
+        Livewire::actingAs($registrar)
+            ->test(TermCalendar::class, ['termId' => $term->id])
+            ->assertSeeHtml(e(TermClasses::getUrl(['termId' => $term->id])));
         Livewire::actingAs($registrar)
             ->test(TermClasses::class, ['termId' => $term->id])
             ->assertSeeHtml(e(TermClasses::getUrl(['termId' => $term->id, 'classesView' => 'cohorts'])));

@@ -4,9 +4,12 @@ namespace App\Actions\Scheduling;
 
 use App\Models\CalendarEvent;
 use App\Models\CourseEnrollment;
+use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SectionMeeting;
+use App\Models\TermCalendarPackage;
+use App\Models\TermTeachingGridRow;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 
@@ -112,19 +115,52 @@ final class ScheduleAssignmentRevalidationService
             ->orderBy('id')
             ->first();
 
-        if (! $block instanceof CalendarEvent) {
+        if ($block instanceof CalendarEvent) {
+            $field = match ($block->scope_type) {
+                CalendarEvent::ScopeFaculty => 'faculty_user_id',
+                CalendarEvent::ScopeRoom => 'room_id',
+                default => 'day_of_week',
+            };
+
+            throw ValidationException::withMessages([
+                $field => "The assignment overlaps recurring scheduling block #{$block->id} ({$block->scope_type}). Update the authoritative calendar event before assigning this meeting.",
+            ]);
+        }
+
+        $activePackage = TermCalendarPackage::query()
+            ->where('term_id', $termId)
+            ->where('state', TermCalendarPackage::StateActive)
+            ->with('teachingGridRows')
+            ->first();
+
+        if (! $activePackage instanceof TermCalendarPackage) {
             return;
         }
 
-        $field = match ($block->scope_type) {
-            CalendarEvent::ScopeFaculty => 'faculty_user_id',
-            CalendarEvent::ScopeRoom => 'room_id',
-            default => 'day_of_week',
-        };
+        $gridRow = $activePackage->teachingGridRows->firstWhere('day_of_week', $dayOfWeek);
+        $assignStart = FacultyAvailabilityDeclaration::clockToMinutes($startsAt);
+        $assignEnd = FacultyAvailabilityDeclaration::clockToMinutes($endsAt);
 
-        throw ValidationException::withMessages([
-            $field => "The assignment overlaps recurring scheduling block #{$block->id} ({$block->scope_type}). Update the authoritative calendar event before assigning this meeting.",
-        ]);
+        if (! $gridRow instanceof TermTeachingGridRow || $assignStart === null || $assignEnd === null) {
+            return;
+        }
+
+        foreach (is_array($gridRow->breaks) ? $gridRow->breaks : [] as $break) {
+            if (! is_array($break)) {
+                continue;
+            }
+
+            $breakStart = FacultyAvailabilityDeclaration::clockToMinutes((string) ($break['starts_at'] ?? ''));
+            $breakEnd = FacultyAvailabilityDeclaration::clockToMinutes((string) ($break['ends_at'] ?? ''));
+
+            if ($breakStart !== null && $breakEnd !== null && $breakStart < $breakEnd && $assignStart < $breakEnd && $assignEnd > $breakStart) {
+                $range = FacultyAvailabilityDeclaration::minutesToHourMinute($breakStart).'–'.FacultyAvailabilityDeclaration::minutesToHourMinute($breakEnd);
+
+                throw ValidationException::withMessages([
+                    'day_of_week' => "The assignment overlaps the active calendar daily break ({$range}). Move the meeting outside institutional break hours.",
+                ]);
+            }
+        }
     }
 
     /**

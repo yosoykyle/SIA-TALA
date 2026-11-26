@@ -1280,7 +1280,19 @@ table.tala-data-table .tala-supporting-details__content { min-inline-size:12rem;
 .fi-body .tala-data-table .fi-ta-filters-above-content-ctn .fi-fo-field-label-col { padding-block-end:.25rem; }
 .fi-body .tala-data-table .fi-ta-filters-above-content-ctn .fi-fo-field-label-content { font-size:.75rem; font-weight:var(--tala-weight-emphasis); color:var(--tala-muted); }
 .fi-body .tala-data-table .fi-ta-filters-above-content-ctn .fi-input-wrp { background-color:var(--tala-surface); }
-.fi-body .tala-data-table .fi-ta-header-toolbar { padding:var(--tala-card-pad-compact) var(--tala-card-pad); border-block-end-color:var(--tala-edge); }
+.fi-body .tala-data-table .fi-ta-header-toolbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.5rem .75rem; padding:var(--tala-card-pad-compact) var(--tala-card-pad); border-block-end-color:var(--tala-edge); }
+.fi-body .tala-data-table .fi-ta-header-toolbar > .fi-ta-actions { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-start; gap:.5rem; }
+.fi-body .tala-data-table .fi-ta-header-toolbar > .fi-ta-actions:not(:has(> :not([x-cloak]):not([style*="display: none"]):not([style*="display:none"]))) { display:none; }
+.fi-body .tala-data-table .fi-ta-header-toolbar > .fi-ta-actions:has(> :is(a, button, .fi-btn):not([style*="display: none"]):not([style*="display:none"])) { display:flex; }
+.fi-body .tala-data-table .fi-ta-header-toolbar > div:not(.fi-ta-actions):last-child { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:.5rem; margin-inline-start:auto; min-inline-size:0; }
+@media (min-width:40rem) {
+    .fi-body .tala-data-table:not(.tala-inline-filters-table) .fi-ta-header-toolbar { flex-wrap:nowrap; align-items:center; }
+    .fi-body .tala-data-table:not(.tala-inline-filters-table) .fi-ta-header-toolbar > .fi-ta-actions { flex:0 0 auto; flex-wrap:nowrap; }
+    .fi-body .tala-data-table:not(.tala-inline-filters-table) .fi-ta-header-toolbar > div:not(.fi-ta-actions):last-child,
+    .fi-body .tala-data-table:not(.tala-inline-filters-table) .fi-ta-header-toolbar > div:not(.fi-ta-actions):last-child > div:has(.fi-ta-search-field) { display:flex; flex-wrap:nowrap; align-items:center; justify-content:flex-end; gap:.5rem; flex:0 1 auto; min-inline-size:0; }
+    .fi-body .tala-data-table:not(.tala-inline-filters-table) .fi-ta-header-toolbar .fi-ta-search-field { flex:0 1 16rem; inline-size:16rem; min-inline-size:10rem; max-inline-size:18rem; margin:0; }
+    .fi-body .tala-data-table:not(.tala-inline-filters-table) .fi-ta-header-toolbar :is(.fi-ta-filters-dropdown,.fi-ta-filters-modal,.fi-ta-filters-trigger-action-ctn) { flex:0 0 auto; }
+}
 /* Inline filters + search: one sunken toolbar row (filters left, search and bulk actions right). */
 .fi-body .tala-inline-filters-table .fi-ta-header-ctn { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.5rem .625rem; padding:.625rem var(--tala-card-pad); background-color:var(--tala-surface-sunken); border-block-end:1px solid var(--tala-edge); border-start-start-radius:inherit; border-start-end-radius:inherit; }
 .fi-body .tala-inline-filters-table .fi-ta-header-ctn > .fi-ta-header { flex:1 0 100%; padding:0; border:0; }
@@ -1306,6 +1318,7 @@ table.tala-data-table .tala-supporting-details__content { min-inline-size:12rem;
 .fi-body .tala-inline-filters-table .fi-ta-header-toolbar > div { display:flex; align-items:center; gap:.5rem; margin:0; padding:0; min-block-size:0; }
 .fi-body .tala-inline-filters-table .fi-ta-header-toolbar > :nth-child(2) { margin-inline-start:0; }
 .fi-body .tala-inline-filters-table .fi-ta-header-toolbar > .fi-ta-actions:not(:has(> :not([x-cloak]):not([style*="display: none"]):not([style*="display:none"]))) { display:none; }
+.fi-body .tala-inline-filters-table .fi-ta-header-toolbar > .fi-ta-actions:has(> :is(a, button, .fi-btn):not([style*="display: none"]):not([style*="display:none"])) { display:flex; }
 .fi-body .tala-inline-filters-table .fi-ta-header-toolbar > div:has(> .fi-ta-search-field) { flex:0 1 14rem; min-inline-size:11rem; max-inline-size:16rem; }
 .fi-body .tala-inline-filters-table .fi-ta-header-toolbar .fi-ta-search-field { flex:0 1 14rem; min-inline-size:11rem; max-inline-size:16rem; inline-size:100%; margin:0; padding:0; min-block-size:0; }
 .fi-body .tala-inline-filters-table .fi-ta-header-toolbar .fi-ta-search-field .fi-input-wrp { block-size:2.375rem; min-block-size:2.375rem; align-items:center; margin:0; padding:0; }

@@ -115,6 +115,7 @@ class FacultySchedule extends Page implements HasTable
         if ($publishedTermIds->isEmpty()) {
             $activeTermIds = TermCalendarPackage::query()
                 ->where('state', TermCalendarPackage::StateActive)
+                ->whereHas('term', fn ($query) => $query->where('state', '!=', Term::StateClosed))
                 ->distinct()
                 ->pluck('term_id');
 

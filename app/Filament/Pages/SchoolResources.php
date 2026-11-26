@@ -59,7 +59,7 @@ final class SchoolResources extends Page implements HasTable
     }
 
     #[Url]
-    public string $tab = 'rooms';
+    public string $tab = 'faculty';
 
     #[Url]
     public ?int $termId = null;
@@ -92,15 +92,15 @@ final class SchoolResources extends Page implements HasTable
 
     public function mount(): void
     {
-        if (! in_array($this->tab, ['rooms', 'faculty'], true)) {
-            $this->tab = 'rooms';
+        if (! in_array($this->tab, ['faculty', 'rooms'], true)) {
+            $this->tab = 'faculty';
         }
     }
 
     public function chooseTab(string $tab): void
     {
-        if (! in_array($tab, ['rooms', 'faculty'], true)) {
-            $tab = 'rooms';
+        if (! in_array($tab, ['faculty', 'rooms'], true)) {
+            $tab = 'faculty';
         }
 
         $this->tab = $tab;
@@ -120,10 +120,10 @@ final class SchoolResources extends Page implements HasTable
     public function getSubheading(): ?string
     {
         if ($this->isReadOnly()) {
-            return 'Read-only view of campus rooms and approved faculty subjects reused across every term\'s timetable.';
+            return 'Read-only view of approved faculty subjects and campus rooms reused across every term\'s timetable.';
         }
 
-        return 'Set up campus rooms and approved faculty subjects once. Every semester\'s Term Planning and timetable generator reuses them automatically.';
+        return 'Set up approved faculty subjects and campus rooms once. Every semester\'s Term Planning and timetable generator reuses them automatically.';
     }
 
     /**
@@ -174,11 +174,11 @@ final class SchoolResources extends Page implements HasTable
 
     public function table(Table $table): Table
     {
-        if ($this->tab === 'faculty') {
-            return $this->facultyTable($table);
+        if ($this->tab === 'rooms') {
+            return $this->roomsTable($table);
         }
 
-        return $this->roomsTable($table);
+        return $this->facultyTable($table);
     }
 
     private function roomsTable(Table $table): Table
@@ -202,6 +202,7 @@ final class SchoolResources extends Page implements HasTable
                 TextColumn::make('capacity')
                     ->label('Capacity')
                     ->suffix(' seats')
+                    ->extraCellAttributes(['class' => 'tabular-nums'])
                     ->sortable(),
                 TextColumn::make('building')
                     ->label('Building')
@@ -269,7 +270,7 @@ final class SchoolResources extends Page implements HasTable
                     ->size('sm')
                     ->extraAttributes(['class' => 'whitespace-nowrap'])
                     ->modalHeading(fn (Room $record): string => 'Edit '.$record->code.' · '.$record->name)
-                    ->modalDescription('Shared campus room catalog used across every term.')
+                    ->modalDescription(fn (): string => 'Shared campus room catalog used across every term.'.($this->hasActiveDraftTimetable() ? ' Changing this will mark active draft timetables outdated.' : ''))
                     ->modalWidth(Width::TwoExtraLarge)
                     ->stickyModalHeader()
                     ->stickyModalFooter()
@@ -309,7 +310,7 @@ final class SchoolResources extends Page implements HasTable
 
                             Notification::make()
                                 ->title("Cannot deactivate {$record->code}")
-                                ->body("{$record->code} is assigned to active official classes ({$summary}). Update the published schedule via Timetable → Revise schedule first.")
+                                ->body("{$record->code} is assigned to active official classes ({$summary}). Update the published schedule via Timetable → Revise official schedule first.")
                                 ->danger()
                                 ->persistent()
                                 ->send();
@@ -456,7 +457,8 @@ final class SchoolResources extends Page implements HasTable
                     ->badge()
                     ->state(fn (User $record): int => $record->facultyQualifications->unique('course_id')->count())
                     ->color(fn (int $state): string => $state > 0 ? 'success' : 'gray')
-                    ->formatStateUsing(fn (int $state): string => $state.' '.str('subject')->plural($state)),
+                    ->formatStateUsing(fn (int $state): string => $state.' '.str('subject')->plural($state))
+                    ->extraCellAttributes(['class' => 'tabular-nums']),
             ])
             ->defaultSort('name')
             ->columnManager(false)
@@ -485,7 +487,7 @@ final class SchoolResources extends Page implements HasTable
                     ->color('gray')
                     ->extraAttributes(['class' => 'whitespace-nowrap'])
                     ->modalHeading(fn (User $record): string => 'Subjects for '.$record->name)
-                    ->modalDescription('Shared across all terms · Check every catalog subject this teacher is approved to teach.')
+                    ->modalDescription(fn (): string => 'Shared across all terms · Check every catalog subject this teacher is approved to teach.'.($this->hasActiveDraftTimetable() ? ' Changing this will mark active draft timetables outdated.' : ''))
                     ->modalWidth(Width::ThreeExtraLarge)
                     ->stickyModalHeader()
                     ->stickyModalFooter()
@@ -584,7 +586,7 @@ final class SchoolResources extends Page implements HasTable
             ->color('primary')
             ->size('sm')
             ->modalHeading('Assign qualified subjects')
-            ->modalDescription('Shared across all terms · Choose a teacher and check the catalog subjects they are approved to teach.')
+            ->modalDescription(fn (): string => 'Shared across all terms · Choose a teacher and check the catalog subjects they are approved to teach.'.($this->hasActiveDraftTimetable() ? ' Changing this will mark active draft timetables outdated.' : ''))
             ->modalWidth(Width::ThreeExtraLarge)
             ->stickyModalHeader()
             ->stickyModalFooter()
@@ -1122,7 +1124,7 @@ final class SchoolResources extends Page implements HasTable
     /**
      * @return Collection<int, SectionMeeting>
      */
-    private function activeOfficialRoomMeetings(Room $room): Collection
+    public static function activeOfficialRoomMeetingsFor(Room $room): Collection
     {
         return SectionMeeting::query()
             ->activeOfficial()
@@ -1140,7 +1142,7 @@ final class SchoolResources extends Page implements HasTable
     /**
      * @param  Collection<int, SectionMeeting>  $meetings
      */
-    private function formatOfficialMeetingImpact(Collection $meetings): string
+    public static function formatOfficialMeetingImpactSummary(Collection $meetings): string
     {
         return $meetings
             ->groupBy(fn (SectionMeeting $meeting): string => (string) ($meeting->scheduleRun?->term?->label ?? 'Active term'))
@@ -1155,7 +1157,7 @@ final class SchoolResources extends Page implements HasTable
             ->implode('; ');
     }
 
-    private function meetingRequiredRoomType(SectionMeeting $meeting): ?string
+    private static function resolveMeetingRequiredRoomType(SectionMeeting $meeting): ?string
     {
         $demand = $meeting->schedulingDemand;
         $component = $demand?->courseComponent;
@@ -1174,13 +1176,13 @@ final class SchoolResources extends Page implements HasTable
         return filled($snapshotType) ? (string) $snapshotType : null;
     }
 
-    private function roomDeactivationModalDescription(Room $record): string
+    public static function roomDeactivationDescription(Room $record): string
     {
-        $officialMeetings = $this->activeOfficialRoomMeetings($record);
+        $officialMeetings = self::activeOfficialRoomMeetingsFor($record);
         if ($officialMeetings->isNotEmpty()) {
-            $summary = $this->formatOfficialMeetingImpact($officialMeetings);
+            $summary = self::formatOfficialMeetingImpactSummary($officialMeetings);
 
-            return "Blocked: {$record->code} is currently assigned to active official classes ({$summary}). Reassign them in Timetable → Revise schedule before deactivating this room.";
+            return "Blocked: {$record->code} is currently assigned to active official classes ({$summary}). Reassign them in Timetable → Revise official schedule before deactivating this room.";
         }
 
         $draftRuns = ScheduleGenerationRun::query()
@@ -1215,15 +1217,15 @@ final class SchoolResources extends Page implements HasTable
     /**
      * @param  array<string, mixed>  $data
      */
-    private function guardRoomEdit(Room $record, array $data, ?Schema $schema = null): void
+    public static function validateRoomEdit(Room $record, array $data, ?Schema $schema = null): void
     {
-        $officialMeetings = $this->activeOfficialRoomMeetings($record);
+        $officialMeetings = self::activeOfficialRoomMeetingsFor($record);
         if ($officialMeetings->isEmpty()) {
             return;
         }
 
-        $summary = $this->formatOfficialMeetingImpact($officialMeetings);
-        $guidance = 'Update the published schedule via Timetable → Revise schedule first.';
+        $summary = self::formatOfficialMeetingImpactSummary($officialMeetings);
+        $guidance = 'Update the published schedule via Timetable → Revise official schedule first.';
         $errors = [];
 
         if (! (bool) ($data['is_active'] ?? true)) {
@@ -1232,7 +1234,7 @@ final class SchoolResources extends Page implements HasTable
 
         $newType = (string) ($data['room_type'] ?? $record->room_type);
         $typeConflict = $officialMeetings->contains(function (SectionMeeting $meeting) use ($record, $newType): bool {
-            $requiredType = $this->meetingRequiredRoomType($meeting) ?? (string) $record->room_type;
+            $requiredType = self::resolveMeetingRequiredRoomType($meeting) ?? (string) $record->room_type;
 
             return $newType !== $requiredType;
         });
@@ -1305,7 +1307,7 @@ final class SchoolResources extends Page implements HasTable
                 $removedLabels = collect($missingFeatureKeys)
                     ->map(fn (string $key): string => RoomEquipment::label($key))
                     ->implode(', ');
-                $affectedSummary = $this->formatOfficialMeetingImpact($featureConflictMeetings);
+                $affectedSummary = self::formatOfficialMeetingImpactSummary($featureConflictMeetings);
                 $errors['features'] = "Cannot remove required equipment ({$removedLabels}) from {$record->code} while assigned to active official classes ({$affectedSummary}). {$guidance}";
             }
         }
@@ -1328,6 +1330,35 @@ final class SchoolResources extends Page implements HasTable
                 ->mapWithKeys(fn (string $message, string $field): array => [filled($statePath) ? $statePath.'.'.$field : $field => $message])
                 ->all(),
         );
+    }
+
+    /**
+     * @return Collection<int, SectionMeeting>
+     */
+    private function activeOfficialRoomMeetings(Room $room): Collection
+    {
+        return self::activeOfficialRoomMeetingsFor($room);
+    }
+
+    /**
+     * @param  Collection<int, SectionMeeting>  $meetings
+     */
+    private function formatOfficialMeetingImpact(Collection $meetings): string
+    {
+        return self::formatOfficialMeetingImpactSummary($meetings);
+    }
+
+    private function roomDeactivationModalDescription(Room $record): string
+    {
+        return self::roomDeactivationDescription($record);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function guardRoomEdit(Room $record, array $data, ?Schema $schema = null): void
+    {
+        self::validateRoomEdit($record, $data, $schema);
     }
 
     /**
@@ -1376,7 +1407,7 @@ final class SchoolResources extends Page implements HasTable
         $details = collect($blocked)
             ->map(fn (array $refs, string $code): string => $code.' in '.implode(', ', array_unique($refs)))
             ->implode('; ');
-        $message = "Cannot remove qualified subjects assigned to active official classes ({$details}). Update the published schedule via Timetable → Revise schedule first.";
+        $message = "Cannot remove qualified subjects assigned to active official classes ({$details}). Update the published schedule via Timetable → Revise official schedule first.";
 
         Notification::make()
             ->title("Cannot update subjects for {$faculty->name}")
@@ -1388,6 +1419,22 @@ final class SchoolResources extends Page implements HasTable
         throw ValidationException::withMessages([
             $schema->getStatePath().'.course_ids' => $message,
         ]);
+    }
+
+    private function hasActiveDraftTimetable(): bool
+    {
+        return ScheduleGenerationRun::query()
+            ->whereIn('status', [
+                ScheduleGenerationRun::StatusQueued,
+                ScheduleGenerationRun::StatusDispatching,
+                ScheduleGenerationRun::StatusUnderReview,
+            ])
+            ->where(function (Builder $query): void {
+                $query->whereNull('candidate_state')
+                    ->orWhereNotIn('candidate_state', ['Stale', 'Superseded', 'Rejected']);
+            })
+            ->whereHas('term', fn (Builder $query): Builder => $query->where('state', '!=', Term::StateClosed))
+            ->exists();
     }
 
     private function refreshActiveTermScheduling(User $actor): void
@@ -1410,6 +1457,10 @@ final class SchoolResources extends Page implements HasTable
                     ScheduleGenerationRun::StatusDispatching,
                     ScheduleGenerationRun::StatusUnderReview,
                 ])
+                ->where(function (Builder $query): void {
+                    $query->whereNull('candidate_state')
+                        ->orWhereNotIn('candidate_state', ['Superseded', 'Rejected']);
+                })
                 ->update(['candidate_state' => 'Stale', 'updated_at' => now()]);
         }
     }

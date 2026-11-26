@@ -8,6 +8,9 @@ use App\Filament\Pages\TermOverview;
 use App\Filament\Pages\TermPlanningWorkbench;
 use App\Filament\Pages\TermResources;
 use App\Filament\Pages\TermTimetable;
+use App\Models\Term;
+use App\Models\User;
+use App\Support\TermPlanningStepState;
 use BackedEnum;
 use Filament\Clusters\Cluster;
 use Filament\Navigation\NavigationItem;
@@ -41,25 +44,38 @@ class TermPlanningCluster extends Cluster
             return [];
         }
 
+        $term = Term::query()->find($termId);
+        $user = auth()->user();
+        $readOnly = ! $user instanceof User
+            || $user->hasRole(User::StaffRoleAcademicHead)
+            || ! $user->hasRole(User::StaffRoleRegistrar);
+        $stepState = $term instanceof Term
+            ? TermPlanningStepState::evaluate($term, $readOnly)
+            : null;
+
         $stages = [
             'overview' => [
                 'page' => TermCalendar::class,
-                'label' => 'Calendar',
+                'step_key' => 'calendar',
+                'label' => '1. Calendar',
                 'icon' => Heroicon::OutlinedCalendar,
             ],
             'classes' => [
                 'page' => TermClasses::class,
-                'label' => 'Classes & sections',
+                'step_key' => 'classes',
+                'label' => '2. Sections & classes',
                 'icon' => Heroicon::OutlinedRectangleGroup,
             ],
             'resources' => [
                 'page' => TermResources::class,
-                'label' => 'Faculty & rooms',
+                'step_key' => 'resources',
+                'label' => '3. Faculty & rooms',
                 'icon' => Heroicon::OutlinedUsers,
             ],
             'generate' => [
                 'page' => TermTimetable::class,
-                'label' => 'Timetable',
+                'step_key' => 'timetable',
+                'label' => '4. Timetable',
                 'icon' => Heroicon::OutlinedTableCells,
             ],
         ];
@@ -72,11 +88,25 @@ class TermPlanningCluster extends Cluster
                 continue;
             }
 
-            $items[] = NavigationItem::make($stage['label'])
-                ->icon($stage['icon'])
+            $step = $stepState['steps'][$stage['step_key']] ?? null;
+            $isLocked = is_array($step) && (bool) ($step['locked'] ?? false) && $active !== $key;
+
+            $item = NavigationItem::make($stage['label'])
+                ->icon($isLocked ? Heroicon::OutlinedLockClosed : $stage['icon'])
                 ->url($page::getUrl(['termId' => $termId]))
                 ->isActiveWhen(fn (): bool => $active === $key)
                 ->sort(count($items));
+
+            if ($isLocked) {
+                $item
+                    ->badge('Locked', 'gray')
+                    ->badgeTooltip((string) ($step['locked_reason'] ?? 'Complete the previous step first.'))
+                    ->extraAttributes([
+                        'data-step-locked' => 'true',
+                    ]);
+            }
+
+            $items[] = $item;
         }
 
         return $items;

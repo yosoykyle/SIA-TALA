@@ -44,6 +44,7 @@ use App\Models\TermOffering;
 use App\Models\TermTeachingGridRow;
 use App\Models\User;
 use Filament\Actions\Action;
+use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
@@ -460,7 +461,7 @@ class Issue93Checkpoint3OversightTest extends TestCase
             ->assertSee('1 draft')
             ->assertActionVisible('returnToOversight')
             ->assertActionHasUrl('returnToOversight', AcademicApprovals::getUrl(['termId' => $term->id]))
-            ->assertActionHidden('createProgram')
+            ->assertActionHidden(TestAction::make('createProgram')->table())
             ->call('switchTab', 'draft')
             ->assertSet('activeTab', 'draft')
             ->call('setStatusFilter', 'has_drafts')
@@ -486,7 +487,7 @@ class Issue93Checkpoint3OversightTest extends TestCase
             ->assertOk()
             ->assertSee('Read-only oversight of active and draft program study plans maintained by the Registrar.')
             ->assertActionVisible('returnToOversight')
-            ->assertActionHidden('createProgram');
+            ->assertActionHidden(TestAction::make('createProgram')->table());
         session()->forget(WorkspaceContextResolver::SessionKey);
     }
 

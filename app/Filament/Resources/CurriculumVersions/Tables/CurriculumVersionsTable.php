@@ -69,8 +69,12 @@ class CurriculumVersionsTable
                 TextColumn::make('batches_count')
                     ->label('Batches')
                     ->badge()
-                    ->color(fn (mixed $state): string => (int) $state > 0 ? 'primary' : 'gray')
-                    ->description(fn (CurriculumVersion $record): ?string => self::batchRangeDescription($record))
+                    ->color(fn (CurriculumVersion $record, mixed $state): string => (int) $state > 0
+                        ? 'primary'
+                        : (in_array($record->state, [CurriculumVersion::StateDraft, CurriculumVersion::StateActive], true) ? 'warning' : 'gray'))
+                    ->description(fn (CurriculumVersion $record): ?string => (int) $record->batches_count === 0 && $record->state === CurriculumVersion::StateActive
+                        ? 'Not in Admissions'
+                        : self::batchRangeDescription($record))
                     ->alignCenter()
                     ->sortable(),
                 TextColumn::make('student_profiles_count')
@@ -121,6 +125,21 @@ class CurriculumVersionsTable
                 'oversightTermId' => self::oversightTermId($table),
             ], fn (mixed $value): bool => $value !== null)))
             ->recordActions([
+                self::configureAddBatchAction(
+                    Action::make('assignBatch')
+                        ->label('Assign batch')
+                        ->button()
+                        ->size('sm')
+                        ->color('warning')
+                        ->icon(Heroicon::OutlinedPlus),
+                    submitLabel: 'Assign batch',
+                )
+                    ->authorize(fn (CurriculumVersion $record): bool => $record->state === CurriculumVersion::StateActive
+                        && (int) $record->batches_count === 0
+                        && (auth()->user()?->can('copy', $record) ?? false))
+                    ->visible(fn (CurriculumVersion $record): bool => $record->state === CurriculumVersion::StateActive
+                        && (int) $record->batches_count === 0
+                        && (auth()->user()?->can('copy', $record) ?? false)),
                 Action::make('open')
                     ->label('Open')
                     ->button()
@@ -133,56 +152,19 @@ class CurriculumVersionsTable
                         'oversightTermId' => self::oversightTermId($table),
                     ], fn (mixed $value): bool => $value !== null))),
                 ActionGroup::make([
-                    Action::make('addBatch')
-                        ->label('Add batch')
-                        ->color('primary')
-                        ->icon(Heroicon::OutlinedPlus)
-                        ->authorize(fn (CurriculumVersion $record): bool => $record->state === CurriculumVersion::StateActive
+                    self::configureAddBatchAction(
+                        Action::make('addBatch')
+                            ->label('Add batch')
+                            ->color('primary')
+                            ->icon(Heroicon::OutlinedPlus),
+                        submitLabel: 'Add batch',
+                    )
+                        ->authorize(fn (CurriculumVersion $record): bool => in_array($record->state, [CurriculumVersion::StateDraft, CurriculumVersion::StateActive], true)
+                            && ! ($record->state === CurriculumVersion::StateActive && (int) $record->batches_count === 0)
                             && (auth()->user()?->can('copy', $record) ?? false))
-                        ->visible(fn (CurriculumVersion $record): bool => $record->state === CurriculumVersion::StateActive
-                            && (auth()->user()?->can('copy', $record) ?? false))
-                        ->modalHeading(fn (CurriculumVersion $record): string => 'Add batch to '.$record->batchLabel())
-                        ->modalDescription('Assign an additional Academic Year batch to this Active curriculum without duplicating its subjects.')
-                        ->modalWidth(Width::Large)
-                        ->stickyModalHeader()
-                        ->stickyModalFooter()
-                        ->modalSubmitActionLabel(fn (CurriculumVersion $record): string => $record->program?->is_active === false
-                            ? 'Activate and proceed'
-                            : 'Add batch')
-                        ->fillForm(fn (CurriculumVersion $record): array => [
-                            'academic_year_id' => CurriculumVersionForm::suggestedBatchId($record->program_id),
-                            'activate_program_if_inactive' => false,
-                        ])
-                        ->schema(fn (CurriculumVersion $record): array => CurriculumVersionForm::addBatchFields($record))
-                        ->action(function (CurriculumVersion $record, array $data): void {
-                            $actor = auth()->user();
-                            abort_unless($actor instanceof User, 403);
-
-                            $academicYear = AcademicYear::query()->findOrFail((int) $data['academic_year_id']);
-
-                            try {
-                                app(CurriculumVersionLifecycleService::class)->addBatch(
-                                    actor: $actor,
-                                    curriculum: $record,
-                                    academicYear: $academicYear,
-                                    activateProgramIfInactive: (bool) ($data['activate_program_if_inactive'] ?? false),
-                                );
-                            } catch (ValidationException $exception) {
-                                Notification::make()
-                                    ->title('Could not assign batch')
-                                    ->body(collect($exception->errors())->flatten()->implode(' '))
-                                    ->danger()
-                                    ->send();
-
-                                return;
-                            }
-
-                            Notification::make()
-                                ->title('Batch '.CurriculumVersion::formatBatchShort($academicYear).' added')
-                                ->body("Assigned to {$record->fresh('batches.academicYear')->batchLabel()}.")
-                                ->success()
-                                ->send();
-                        }),
+                        ->visible(fn (CurriculumVersion $record): bool => in_array($record->state, [CurriculumVersion::StateDraft, CurriculumVersion::StateActive], true)
+                            && ! ($record->state === CurriculumVersion::StateActive && (int) $record->batches_count === 0)
+                            && (auth()->user()?->can('copy', $record) ?? false)),
                     Action::make('retire')
                         ->label('Retire')
                         ->color('gray')
@@ -330,12 +312,69 @@ class CurriculumVersionsTable
                 : 'Create a program study plan across year levels and semesters.')
             ->emptyStateActions([
                 CurriculumVersionResource::createDraftAction(name: 'emptyCreateCurriculum')
+                    ->icon(Heroicon::OutlinedPlus)
+                    ->color('primary')
                     ->visible(fn (HasTable $livewire): bool => ! filled($livewire->getTableSearch())
                         && ! $livewire->getTable()->isFiltered()
                         && (auth()->user()?->can('create', CurriculumVersion::class) ?? false)),
             ])
-            ->toolbarActions([])
+            ->toolbarActions([
+                CurriculumVersionResource::createDraftAction(oversightTermId: self::oversightTermId($table))
+                    ->icon(Heroicon::OutlinedPlus)
+                    ->color('primary')
+                    ->size('sm')
+                    ->visible(fn (): bool => auth()->user()?->can('create', CurriculumVersion::class) ?? false),
+            ])
             ->defaultSort('created_at', 'desc');
+    }
+
+    private static function configureAddBatchAction(Action $action, string $submitLabel): Action
+    {
+        return $action
+            ->modalHeading(fn (CurriculumVersion $record): string => (int) $record->batches_count === 0
+                ? 'Assign starting batch to '.$record->batchLabel()
+                : 'Add batch to '.$record->batchLabel())
+            ->modalDescription('Assign an Academic Year batch to this curriculum without duplicating its subjects.')
+            ->modalWidth(Width::Large)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
+            ->modalSubmitActionLabel(fn (CurriculumVersion $record): string => $record->program?->is_active === false
+                ? 'Activate and proceed'
+                : $submitLabel)
+            ->fillForm(fn (CurriculumVersion $record): array => [
+                'academic_year_id' => CurriculumVersionForm::suggestedBatchId($record->program_id),
+                'activate_program_if_inactive' => false,
+            ])
+            ->schema(fn (CurriculumVersion $record): array => CurriculumVersionForm::addBatchFields($record))
+            ->action(function (CurriculumVersion $record, array $data): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User, 403);
+
+                $academicYear = AcademicYear::query()->findOrFail((int) $data['academic_year_id']);
+
+                try {
+                    app(CurriculumVersionLifecycleService::class)->addBatch(
+                        actor: $actor,
+                        curriculum: $record,
+                        academicYear: $academicYear,
+                        activateProgramIfInactive: (bool) ($data['activate_program_if_inactive'] ?? false),
+                    );
+                } catch (ValidationException $exception) {
+                    Notification::make()
+                        ->title('Could not assign batch')
+                        ->body(collect($exception->errors())->flatten()->implode(' '))
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                Notification::make()
+                    ->title('Batch '.CurriculumVersion::formatBatchShort($academicYear).' added')
+                    ->body("Assigned to {$record->fresh('batches.academicYear')->batchLabel()}.")
+                    ->success()
+                    ->send();
+            });
     }
 
     private static function oversightTermId(Table $table): ?int

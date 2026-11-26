@@ -115,7 +115,7 @@ class ViewScheduleGenerationRun extends ViewRecord
     {
         $items = TermPlanningCluster::workspaceNavigation($this->run()->term_id, 'generate');
         foreach ($items as $item) {
-            if ($item->getLabel() === TermTimetable::getNavigationLabel()) {
+            if ($item->isActive() || $item->getLabel() === TermTimetable::getNavigationLabel()) {
                 $item->url($this->termPlanningReturnUrl());
             }
         }

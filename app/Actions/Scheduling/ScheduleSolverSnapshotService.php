@@ -773,14 +773,29 @@ class ScheduleSolverSnapshotService
             return [];
         }
 
-        $declaredFacultyIds ??= FacultyAvailabilityDeclaration::query()
-            ->where('term_id', $term->id)
-            ->distinct()
+        $latestDeclarations = $this->latestFacultyDeclarationsForTerm($term);
+        $cannotTeachIds = $latestDeclarations
+            ->filter(fn (FacultyAvailabilityDeclaration $declaration): bool => $declaration->effectiveMode() === FacultyAvailabilityDeclaration::ModeCannotTeach)
             ->pluck('faculty_user_id')
             ->map(fn (mixed $id): int => (int) $id)
             ->all();
 
-        $allowedFacultyIds = array_values(array_unique([...$declaredFacultyIds, ...$preservedFacultyIds]));
+        $fixedDemandFacultyIds = $demands
+            ->map(fn (SchedulingDemand $demand): ?int => $demand->fixed_faculty_user_id !== null ? (int) $demand->fixed_faculty_user_id : null)
+            ->filter(fn (?int $id): bool => $id !== null && $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        $keepIds = array_values(array_unique([...$preservedFacultyIds, ...$fixedDemandFacultyIds]));
+
+        $declaredFacultyIds ??= $latestDeclarations
+            ->pluck('faculty_user_id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->all();
+
+        $eligibleDeclaredIds = array_values(array_diff($declaredFacultyIds, array_diff($cannotTeachIds, $keepIds)));
+        $allowedFacultyIds = array_values(array_unique([...$eligibleDeclaredIds, ...$keepIds]));
 
         if ($allowedFacultyIds === []) {
             return [];

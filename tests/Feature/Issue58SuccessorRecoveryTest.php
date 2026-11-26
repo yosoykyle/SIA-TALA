@@ -169,6 +169,8 @@ class Issue58SuccessorRecoveryTest extends TestCase
         Role::findOrCreate(User::StaffRoleFaculty, 'web');
         $registrar = $this->staff();
         $package = $this->activePackage($registrar);
+        [$section] = $this->classAndCohort($package);
+        $section->forceFill(['confirmed_at' => now(), 'confirmed_by' => $registrar->id])->save();
         $prior = app(RecordFacultyAvailabilityDeadline::class)->execute($package->term, $registrar, '2026-10-31 17:00:00', 'Approved deadline', null, 0);
         $packageBefore = $package->fresh()->getAttributes();
 

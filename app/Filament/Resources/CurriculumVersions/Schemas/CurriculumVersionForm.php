@@ -7,11 +7,15 @@ use App\Models\AcademicYear;
 use App\Models\CurriculumVersion;
 use App\Models\Program;
 use App\Models\Term;
+use App\Models\User;
+use Filament\Actions\Action;
 use Filament\Forms\Components\Checkbox;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Text;
@@ -19,6 +23,8 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\GridDirection;
+use Filament\Support\Enums\Width;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 
 class CurriculumVersionForm
@@ -79,19 +85,21 @@ class CurriculumVersionForm
                     Text::make('Changes you make in this new draft will not affect the original curriculum or its assigned students.')
                         ->color('info')
                         ->visible(fn (Get $get): bool => $get('creation_mode') === 'copy'),
-                    Select::make('starting_academic_year_id')
-                        ->label('Starting batch (Academic Year)')
-                        ->options(fn (Get $get): array => self::availableBatchOptions(
-                            self::resolveProgramId($programId, $get('program_id')),
-                        ))
-                        ->default(fn (Get $get): ?int => self::suggestedBatchId(
-                            self::resolveProgramId($programId, $get('program_id')),
-                        ))
-                        ->placeholder('Select starting Academic Year batch')
-                        ->helperText('Each Academic Year batch can only belong to one curriculum per program.')
-                        ->native(true)
-                        ->nullable()
-                        ->live(),
+                    self::applyInlineAcademicYearCreation(
+                        Select::make('starting_academic_year_id')
+                            ->label('Starting batch (Academic Year)')
+                            ->options(fn (Get $get): array => self::availableBatchOptions(
+                                self::resolveProgramId($programId, $get('program_id')),
+                            ))
+                            ->default(fn (Get $get): ?int => self::suggestedBatchId(
+                                self::resolveProgramId($programId, $get('program_id')),
+                            ))
+                            ->placeholder('Select starting Academic Year batch')
+                            ->helperText('Each Academic Year batch can only belong to one curriculum per program. Use + to add a new academic year.')
+                            ->native(true)
+                            ->nullable()
+                            ->live(),
+                    ),
                     Text::make(fn (Get $get): string => self::inactiveProgramNotice(
                         self::resolveProgramId($programId, $get('program_id')),
                     ))
@@ -112,13 +120,13 @@ class CurriculumVersionForm
                         )),
                     TextInput::make('name')
                         ->label('Curriculum label (optional when a starting batch is chosen)')
-                        ->placeholder('e.g. Batch 2027–28 or BSIT Revised Curriculum')
+                        ->placeholder('e.g. Batch 2027-28 or BSIT Revised Curriculum')
                         ->helperText('Leave blank to auto-label from the selected starting batch.')
                         ->required(fn (Get $get): bool => blank($get('starting_academic_year_id')))
                         ->maxLength(255),
                     Select::make('effective_entry_term_id')
                         ->label('First student intake (optional)')
-                        ->helperText('Optional starting term override. Class dates are managed in Term Planning.')
+                        ->helperText('Optional starting term override (separate from starting batch). Class dates are managed in Term Planning.')
                         ->options(fn (): array => self::termOptions())
                         ->searchable()
                         ->preload()
@@ -157,14 +165,16 @@ class CurriculumVersionForm
         return [
             Text::make('Changes you make in the new draft will not affect the original curriculum or its assigned students.')
                 ->color('info'),
-            Select::make('starting_academic_year_id')
-                ->label('Starting batch (Academic Year)')
-                ->options(fn (): array => self::availableBatchOptions($source->program_id))
-                ->placeholder('Select starting Academic Year batch')
-                ->helperText('Assigns the new draft to an unassigned Academic Year batch for this program.')
-                ->native(true)
-                ->nullable()
-                ->live(),
+            self::applyInlineAcademicYearCreation(
+                Select::make('starting_academic_year_id')
+                    ->label('Starting batch (Academic Year)')
+                    ->options(fn (): array => self::availableBatchOptions($source->program_id))
+                    ->placeholder('Select starting Academic Year batch')
+                    ->helperText('Assigns the new draft to an unassigned Academic Year batch for this program. Use + to add a new academic year.')
+                    ->native(true)
+                    ->nullable()
+                    ->live(),
+            ),
             Text::make(fn (): string => self::inactiveProgramNotice($source->program_id))
                 ->color('warning')
                 ->visible($isInactive),
@@ -181,7 +191,7 @@ class CurriculumVersionForm
                 ->maxLength(255),
             Select::make('effective_entry_term_id')
                 ->label('First student intake (optional)')
-                ->helperText('Optional starting term override. Class dates are set in Term Planning.')
+                ->helperText('Optional starting term override (separate from starting batch). Class dates are set in Term Planning.')
                 ->options(fn (): array => self::termOptions())
                 ->searchable()
                 ->preload()
@@ -190,7 +200,7 @@ class CurriculumVersionForm
     }
 
     /**
-     * Schema fields for assigning an additional Academic Year batch to an Active curriculum.
+     * Schema fields for assigning an Academic Year batch to a Draft or Active curriculum.
      *
      * @return list<Component>
      */
@@ -201,13 +211,15 @@ class CurriculumVersionForm
         $isInactive = $program instanceof Program && ! $program->is_active;
 
         return [
-            Select::make('academic_year_id')
-                ->label('Batch (Academic Year)')
-                ->options(fn (): array => self::availableBatchOptions($curriculum->program_id))
-                ->placeholder('Select an unassigned Academic Year')
-                ->helperText('Only Academic Years not yet assigned to any curriculum for this program are listed.')
-                ->native(true)
-                ->required(),
+            self::applyInlineAcademicYearCreation(
+                Select::make('academic_year_id')
+                    ->label('Batch (Academic Year)')
+                    ->options(fn (): array => self::availableBatchOptions($curriculum->program_id))
+                    ->placeholder('Select an unassigned Academic Year')
+                    ->helperText('Only Academic Years not yet assigned to any curriculum for this program are listed. Use + to add a new academic year.')
+                    ->native(true)
+                    ->required(),
+            ),
             Text::make(fn (): string => self::inactiveProgramNotice($curriculum->program_id))
                 ->color('warning')
                 ->visible($isInactive),
@@ -217,6 +229,81 @@ class CurriculumVersionForm
                 ->default(false)
                 ->visible($isInactive)
                 ->accepted($isInactive),
+        ];
+    }
+
+    /**
+     * Attach inline "+ Add academic year" creation directly onto a batch Select field.
+     */
+    public static function applyInlineAcademicYearCreation(Select $select): Select
+    {
+        return $select
+            ->createOptionForm(self::inlineAcademicYearFormSchema())
+            ->createOptionAction(fn (Action $action): Action => $action
+                ->label('Add academic year')
+                ->tooltip('Add academic year')
+                ->modalHeading('Add academic year')
+                ->modalDescription('Create an academic year so it can be assigned as a curriculum batch right away.')
+                ->modalSubmitActionLabel('Create academic year')
+                ->modalCancelActionLabel('Cancel')
+                ->modalWidth(Width::Large)
+                ->authorize(fn (): bool => auth()->user()?->can('create', AcademicYear::class) ?? false)
+                ->visible(fn (): bool => auth()->user()?->can('create', AcademicYear::class) ?? false))
+            ->createOptionUsing(function (array $data): int {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User, 403);
+                Gate::forUser($actor)->authorize('create', AcademicYear::class);
+
+                $academicYear = AcademicYear::query()->create([
+                    'label' => trim((string) $data['label']),
+                    'starts_on' => $data['starts_on'],
+                    'ends_on' => $data['ends_on'],
+                    'state' => (string) ($data['state'] ?? AcademicYear::StateDraft),
+                ]);
+
+                Notification::make()
+                    ->title('Academic year created')
+                    ->body("{$academicYear->label} is now available and selected for batch assignment.")
+                    ->success()
+                    ->send();
+
+                return (int) $academicYear->id;
+            });
+    }
+
+    /**
+     * @return list<Component>
+     */
+    public static function inlineAcademicYearFormSchema(): array
+    {
+        $stateOptions = AcademicYear::stateOptions();
+
+        return [
+            TextInput::make('label')
+                ->label('Academic year')
+                ->placeholder('e.g., AY 2027-2028')
+                ->helperText('Use the school year label, for example AY 2027-2028.')
+                ->required()
+                ->maxLength(255)
+                ->unique((new AcademicYear)->getTable(), 'label'),
+            Grid::make(['default' => 1, 'sm' => 2])->schema([
+                DatePicker::make('starts_on')
+                    ->label('Start date')
+                    ->required(),
+                DatePicker::make('ends_on')
+                    ->label('End date')
+                    ->required()
+                    ->after('starts_on'),
+            ]),
+            Select::make('state')
+                ->label('Status')
+                ->options([
+                    AcademicYear::StateDraft => $stateOptions[AcademicYear::StateDraft] ?? 'Draft',
+                    AcademicYear::StateActive => $stateOptions[AcademicYear::StateActive] ?? 'Active',
+                ])
+                ->default(AcademicYear::StateDraft)
+                ->required()
+                ->helperText('Use Draft for upcoming school years or Active for the current school year.'),
         ];
     }
 

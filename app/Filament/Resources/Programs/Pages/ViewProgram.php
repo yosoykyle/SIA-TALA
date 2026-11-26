@@ -9,6 +9,7 @@ use App\Filament\Pages\TermClasses;
 use App\Filament\Pages\TermOverview;
 use App\Filament\Pages\TermTimetable;
 use App\Filament\Resources\CurriculumVersions\CurriculumVersionResource;
+use App\Filament\Resources\CurriculumVersions\Schemas\CurriculumVersionForm;
 use App\Filament\Resources\Programs\ProgramResource;
 use App\Filament\Resources\Programs\Schemas\ProgramForm;
 use App\Filament\Resources\Programs\Tables\ProgramsTable;
@@ -354,15 +355,7 @@ class ViewProgram extends ViewRecord
             })
             ->schema(function (): array {
                 $program = $this->programRecord();
-                $lifecycle = app(CurriculumVersionLifecycleService::class);
-                $availableYears = $lifecycle->availableAcademicYearsForProgram($program);
                 $copyable = $this->copyableCurricula($program);
-
-                $yearOptions = $availableYears
-                    ->mapWithKeys(fn (AcademicYear $year): array => [
-                        $year->id => 'Batch '.CurriculumVersion::formatBatchShort($year),
-                    ])
-                    ->all();
 
                 $sourceOptions = $copyable
                     ->mapWithKeys(function (CurriculumVersion $cv): array {
@@ -388,25 +381,29 @@ class ViewProgram extends ViewRecord
                     $modeDescriptions['copy'] = 'Start with all subjects copied from an active or retired curriculum.';
                 }
 
-                $academicYearsUrl = TermOverview::getUrl(['overviewTab' => 'academic-years']);
+                $academicYearsUrl = TermOverview::getUrl();
 
                 return [
                     TextInput::make('program_display')
                         ->label('Program')
                         ->disabled()
                         ->dehydrated(false),
-                    Select::make('starting_academic_year_id')
-                        ->label('Starting batch')
-                        ->options($yearOptions)
-                        ->native(true)
-                        ->required($yearOptions !== [])
-                        ->placeholder($yearOptions === [] ? 'No unassigned academic years available' : 'Select starting academic year batch')
-                        ->helperText(new HtmlString(
-                            ($yearOptions === []
-                                ? 'All configured academic years already have a curriculum for this program. '
-                                : 'Select the first incoming batch that will follow this curriculum. ')
-                            .'<a class="fi-link" href="'.e($academicYearsUrl).'">Manage academic years in Term Planning</a>.'
-                        )),
+                    CurriculumVersionForm::applyInlineAcademicYearCreation(
+                        Select::make('starting_academic_year_id')
+                            ->label('Starting batch')
+                            ->options(fn (): array => CurriculumVersionForm::availableBatchOptions($program->id))
+                            ->native(true)
+                            ->required()
+                            ->placeholder(fn (): string => CurriculumVersionForm::availableBatchOptions($program->id) === []
+                                ? 'No unassigned academic years available'
+                                : 'Select starting academic year batch')
+                            ->helperText(fn (): HtmlString => new HtmlString(
+                                (CurriculumVersionForm::availableBatchOptions($program->id) === []
+                                    ? 'All configured academic years already have a curriculum for this program. Use + to add an academic year, or '
+                                    : 'Select the first incoming batch that will follow this curriculum. Use + to add an academic year, or ')
+                                .'<a class="fi-link" href="'.e($academicYearsUrl).'">manage academic years in Term Planning</a>.'
+                            )),
+                    ),
                     Radio::make('creation_mode')
                         ->label('How would you like to start?')
                         ->options($modeOptions)
@@ -598,15 +595,25 @@ class ViewProgram extends ViewRecord
         return Action::make('addBatchToCurriculum')
             ->authorize(fn (): bool => $this->canManage())
             ->modalHeading(function (array $arguments): string {
-                $cv = CurriculumVersion::query()->with('academicYears')->find((int) ($arguments['curriculumId'] ?? 0));
+                $cv = CurriculumVersion::query()->with('academicYears')->withCount('batches')->find((int) ($arguments['curriculumId'] ?? 0));
 
-                return $cv instanceof CurriculumVersion
-                    ? 'Add batch to '.$cv->batchLabel()
-                    : 'Add batch to curriculum';
+                if (! $cv instanceof CurriculumVersion) {
+                    return 'Assign batch to curriculum';
+                }
+
+                return (int) $cv->batches_count === 0
+                    ? 'Assign starting batch to '.$cv->batchLabel()
+                    : 'Add batch to '.$cv->batchLabel();
             })
-            ->modalDescription('Assign an additional incoming batch to use this active curriculum without duplicating its subjects.')
+            ->modalDescription('Assign an Academic Year batch to this curriculum without duplicating its subjects.')
             ->modalWidth(Width::Large)
-            ->modalSubmitActionLabel('Add batch')
+            ->modalSubmitActionLabel(function (array $arguments): string {
+                $cv = CurriculumVersion::query()->withCount('batches')->find((int) ($arguments['curriculumId'] ?? 0));
+
+                return $cv instanceof CurriculumVersion && (int) $cv->batches_count === 0
+                    ? 'Assign batch'
+                    : 'Add batch';
+            })
             ->modalCancelActionLabel('Cancel')
             ->fillForm(function (): array {
                 $suggested = app(CurriculumVersionLifecycleService::class)
@@ -617,30 +624,26 @@ class ViewProgram extends ViewRecord
                 ];
             })
             ->schema(function (): array {
-                $available = app(CurriculumVersionLifecycleService::class)
-                    ->availableAcademicYearsForProgram($this->programRecord());
-
-                $options = $available
-                    ->mapWithKeys(fn (AcademicYear $year): array => [
-                        $year->id => 'Batch '.CurriculumVersion::formatBatchShort($year),
-                    ])
-                    ->all();
-
-                $academicYearsUrl = TermOverview::getUrl(['overviewTab' => 'academic-years']);
+                $program = $this->programRecord();
+                $academicYearsUrl = TermOverview::getUrl();
 
                 return [
-                    Select::make('academic_year_id')
-                        ->label('Batch (Academic Year)')
-                        ->options($options)
-                        ->native(true)
-                        ->required($options !== [])
-                        ->placeholder($options === [] ? 'No unassigned academic years available' : 'Select batch')
-                        ->helperText(new HtmlString(
-                            ($options === []
-                                ? 'All configured academic years are already assigned to a curriculum for this program. '
-                                : 'Only unassigned academic years are listed. ')
-                            .'<a class="fi-link" href="'.e($academicYearsUrl).'">Manage academic years in Term Planning</a>.'
-                        )),
+                    CurriculumVersionForm::applyInlineAcademicYearCreation(
+                        Select::make('academic_year_id')
+                            ->label('Batch (Academic Year)')
+                            ->options(fn (): array => CurriculumVersionForm::availableBatchOptions($program->id))
+                            ->native(true)
+                            ->required()
+                            ->placeholder(fn (): string => CurriculumVersionForm::availableBatchOptions($program->id) === []
+                                ? 'No unassigned academic years available'
+                                : 'Select batch')
+                            ->helperText(fn (): HtmlString => new HtmlString(
+                                (CurriculumVersionForm::availableBatchOptions($program->id) === []
+                                    ? 'All configured academic years are already assigned to a curriculum for this program. Use + to add an academic year, or '
+                                    : 'Only unassigned academic years are listed. Use + to add an academic year, or ')
+                                .'<a class="fi-link" href="'.e($academicYearsUrl).'">manage academic years in Term Planning</a>.'
+                            )),
+                    ),
                 ];
             })
             ->action(function (array $data, array $arguments): void {

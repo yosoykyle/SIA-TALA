@@ -1,7 +1,7 @@
 @php
     $taskTitle = match ($viewTab) {
         'overview' => 'Term calendar',
-        'classes' => 'Classes & sections',
+        'classes' => 'Sections & classes',
         'resources' => 'Faculty & rooms',
         'generate', 'published' => 'Timetable',
         default => 'Term Planning',

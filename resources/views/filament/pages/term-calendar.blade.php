@@ -5,6 +5,15 @@
             $scheduleSummary = $this->teachingScheduleSummary($overviewPackage, $term);
             $keyDatesLocked = ! $activePackage || $draftPackages->isNotEmpty();
             $hasAnyKeyDate = collect($operationalDates)->contains(fn (array $item): bool => $item['window'] !== null);
+            $resolvedStepState = (isset($stepState) && is_array($stepState))
+                ? $stepState
+                : \App\Support\TermPlanningStepState::evaluate($term, (bool) ($readOnly ?? false));
+            $isLiveOrClosed = (bool) ($resolvedStepState['is_live_or_closed'] ?? ($this->isTermClosed($term) || $this->hasPublishedTimetable($term)));
+            $classesUnlocked = (bool) ($resolvedStepState['steps']['classes']['unlocked'] ?? ($activePackage !== null));
+            $calendarScheduleLocked = $this->isCalendarScheduleLocked($term);
+            $hasPublished = $this->hasPublishedTimetable($term);
+            $enrolledStudentCount = $hasPublished ? $this->officialStudentEnrollmentCount($term) : 0;
+            $hasOfficialEnrollments = $enrolledStudentCount > 0;
         @endphp
         <div class="tala-calendar-grid">
             <section class="tala-task-surface tala-calendar-sheet" aria-labelledby="teaching-calendar-heading">
@@ -30,7 +39,7 @@
                                 <span class="tala-calendar-sheet-heading__meta tabular-nums">Updated {{ $overviewPackage->updated_at->timezone(config('app.display_timezone'))->format('M j, Y') }}</span>
                             @endif
                         </div>
-                        @if (! $readOnly && ! $this->isTermClosed($term) && ! $this->hasPublishedTimetable($term))
+                        @if (! $readOnly && ! $calendarScheduleLocked)
                             <div class="tala-calendar-sheet-heading__action flex flex-wrap items-center gap-2">
                                 @if ($draftPackages->isNotEmpty())
                                     {{ $this->discardDraftCalendarAction }}
@@ -41,17 +50,17 @@
                     </header>
 
                     @if ($this->isTermClosed($term))
-                        <div class="tala-calendar-published-strip" role="status">
+                        <div class="tala-calendar-published-strip">
                             <div class="tala-calendar-published-strip__copy">
                                 <x-filament::icon icon="heroicon-o-lock-closed" aria-hidden="true" />
                                 <span>This term is closed and read-only.</span>
                             </div>
                         </div>
-                    @elseif (! $readOnly && $this->hasPublishedTimetable($term))
-                        <div class="tala-calendar-published-strip" role="status">
+                    @elseif (! $readOnly && $hasPublished && ! $hasOfficialEnrollments)
+                        <div class="tala-warning-banner mt-3 flex flex-wrap items-center justify-between gap-3" role="status">
                             <div class="tala-calendar-published-strip__copy">
-                                <x-filament::icon icon="heroicon-o-lock-closed" aria-hidden="true" />
-                                <span>Official timetable is published. Make schedule changes in Timetable via Revise schedule.</span>
+                                <x-filament::icon icon="heroicon-o-information-circle" aria-hidden="true" />
+                                <span>Published timetable has 0 active student enrollments. Editing teaching hours or daily breaks is allowed, and you will need to generate and publish a new draft in 4. Timetable for the changes to take effect.</span>
                             </div>
                             <x-filament::button
                                 tag="a"
@@ -61,7 +70,24 @@
                                 icon="heroicon-m-arrow-right"
                                 icon-position="after"
                             >
-                                Open Timetable
+                                Open timetable
+                            </x-filament::button>
+                        </div>
+                    @elseif (! $readOnly && $hasPublished && $hasOfficialEnrollments)
+                        <div class="tala-calendar-published-strip">
+                            <div class="tala-calendar-published-strip__copy">
+                                <x-filament::icon icon="heroicon-o-lock-closed" aria-hidden="true" />
+                                <span>Teaching hours and daily breaks are locked because {{ $enrolledStudentCount === 1 ? '1 student is' : $enrolledStudentCount.' students are' }} enrolled in this term's official timetable. Daily breaks can no longer be changed for this term; use Revise official schedule in 4. Timetable only to move individual classes.</span>
+                            </div>
+                            <x-filament::button
+                                tag="a"
+                                :href="\App\Filament\Pages\TermTimetable::getUrl(['termId' => $term->id, 'timetableState' => 'official'])"
+                                color="gray"
+                                size="sm"
+                                icon="heroicon-m-arrow-right"
+                                icon-position="after"
+                            >
+                                Open timetable
                             </x-filament::button>
                         </div>
                     @endif
@@ -88,6 +114,10 @@
 
                     @include('filament.pages.partials.term-teaching-week', ['teachingWeekRows' => $this->teachingWeekRows($overviewPackage)])
 
+                    @if (! $readOnly && ! $calendarScheduleLocked && ! $scheduleSummary['has_breaks'] && $overviewPackage->teachingGridRows->isNotEmpty())
+                        <p class="tala-work-footnote">No daily breaks set yet. Add lunch or institutional breaks via Edit calendar before generating a timetable.</p>
+                    @endif
+
                     @php
                         $calendarMeta = implode(' · ', array_filter([
                             $activePackage && $coreReadiness['ready'] && $draftPackages->isEmpty() ? 'Calendar ready for class planning' : null,
@@ -96,7 +126,7 @@
                     @endphp
 
                     @if (! $coreReadiness['ready'])
-                        <div class="tala-task-finding" role="status">
+                        <div class="tala-task-finding">
                             <ul>
                                 @foreach ($coreReadiness['blockers'] as $blocker)
                                     <li><strong>{{ $blocker['reason'] }}</strong> {{ $readOnly ? 'Responsible: '.$blocker['owner'] : $blocker['next_action'] }}</li>
@@ -104,7 +134,7 @@
                             </ul>
                         </div>
                     @elseif ($draftPackages->isNotEmpty())
-                        <p class="tala-work-footnote" role="status">Review and activate this draft when ready. The active calendar stays in use until then.</p>
+                        <p class="tala-work-footnote">Review and activate this draft when ready. The active calendar stays in use until then.</p>
                     @endif
 
                     @if ($overviewPackage->datedExceptions->isNotEmpty())
@@ -130,7 +160,7 @@
                             <h2 id="teaching-calendar-heading"><x-filament::icon icon="heroicon-o-calendar" aria-hidden="true" /><span>Teaching schedule &amp; dates</span></h2>
                             <x-filament::badge color="gray" size="sm">Not set</x-filament::badge>
                         </div>
-                        @if (! $readOnly && ! $this->isTermClosed($term) && ! $this->hasPublishedTimetable($term))
+                        @if (! $readOnly && ! $calendarScheduleLocked)
                             <div class="tala-calendar-sheet-heading__action flex flex-wrap items-center gap-2">
                                 @if ($draftPackages->isNotEmpty())
                                     {{ $this->discardDraftCalendarAction }}
@@ -141,17 +171,17 @@
                     </header>
 
                     @if ($this->isTermClosed($term))
-                        <div class="tala-calendar-published-strip" role="status">
+                        <div class="tala-calendar-published-strip">
                             <div class="tala-calendar-published-strip__copy">
                                 <x-filament::icon icon="heroicon-o-lock-closed" aria-hidden="true" />
                                 <span>This term is closed and read-only.</span>
                             </div>
                         </div>
-                    @elseif (! $readOnly && $this->hasPublishedTimetable($term))
-                        <div class="tala-calendar-published-strip" role="status">
+                    @elseif (! $readOnly && $hasPublished && ! $hasOfficialEnrollments)
+                        <div class="tala-warning-banner mt-3 flex flex-wrap items-center justify-between gap-3" role="status">
                             <div class="tala-calendar-published-strip__copy">
-                                <x-filament::icon icon="heroicon-o-lock-closed" aria-hidden="true" />
-                                <span>Official timetable is published. Make schedule changes in Timetable via Revise schedule.</span>
+                                <x-filament::icon icon="heroicon-o-information-circle" aria-hidden="true" />
+                                <span>Published timetable has 0 active student enrollments. Editing teaching hours or daily breaks is allowed, and you will need to generate and publish a new draft in 4. Timetable for the changes to take effect.</span>
                             </div>
                             <x-filament::button
                                 tag="a"
@@ -161,7 +191,24 @@
                                 icon="heroicon-m-arrow-right"
                                 icon-position="after"
                             >
-                                Open Timetable
+                                Open timetable
+                            </x-filament::button>
+                        </div>
+                    @elseif (! $readOnly && $hasPublished && $hasOfficialEnrollments)
+                        <div class="tala-calendar-published-strip">
+                            <div class="tala-calendar-published-strip__copy">
+                                <x-filament::icon icon="heroicon-o-lock-closed" aria-hidden="true" />
+                                <span>Teaching hours and daily breaks are locked because {{ $enrolledStudentCount === 1 ? '1 student is' : $enrolledStudentCount.' students are' }} enrolled in this term's official timetable. Daily breaks can no longer be changed for this term; use Revise official schedule in 4. Timetable only to move individual classes.</span>
+                            </div>
+                            <x-filament::button
+                                tag="a"
+                                :href="\App\Filament\Pages\TermTimetable::getUrl(['termId' => $term->id, 'timetableState' => 'official'])"
+                                color="gray"
+                                size="sm"
+                                icon="heroicon-m-arrow-right"
+                                icon-position="after"
+                            >
+                                Open timetable
                             </x-filament::button>
                         </div>
                     @endif
@@ -186,7 +233,7 @@
                         </div>
                     </dl>
 
-                    <p class="tala-work-footnote">Pre-filled with term dates and default Mon–Sat hours. Review and activate to start planning.</p>
+                    <p class="tala-work-footnote">Pre-filled with term dates and default Mon–Sat hours. Activate the calendar to unlock Step 2 (Sections &amp; classes).</p>
                 @endif
             </section>
 
@@ -194,6 +241,7 @@
                 <header class="tala-calendar-sheet-heading">
                     <div class="tala-calendar-sheet-heading__title">
                         <h2 id="activity-dates-heading"><x-filament::icon icon="heroicon-o-calendar" aria-hidden="true" /><span>Key term dates</span></h2>
+                        <x-filament::badge color="gray" size="sm">Optional</x-filament::badge>
                     </div>
                     @if (! $readOnly && ! $this->isTermClosed($term) && ! $keyDatesLocked)
                         <div class="tala-calendar-sheet-heading__action">
@@ -201,10 +249,10 @@
                         </div>
                     @endif
                 </header>
-                <p class="tala-work-footnote">Optional for timetable generation. Required before opening student enrollment or faculty grading.</p>
+                <p class="tala-work-footnote">Optional before timetable generation. Activating the teaching schedule unlocks Step 2; configure these windows later before opening student enrollment or faculty grading.</p>
 
                 @if ($keyDatesLocked)
-                    <p class="tala-calendar-lock-note" role="status">
+                    <p class="tala-calendar-lock-note">
                         <x-filament::icon icon="heroicon-o-lock-closed" aria-hidden="true" />
                         <span>Activate the teaching schedule above before setting key term dates.</span>
                     </p>
@@ -270,11 +318,11 @@
                                     <span>{{ $item['label'] }}</span>
                                     @if ($item['type'] === \App\Models\TermCalendarWindow::TypeExaminationPeriod)
                                         <span class="tala-calendar-inline-tag">Calendar notice</span>
-                                        <span style="flex-basis: 100%; font-size: 0.75rem; font-weight: 400; line-height: 1.35; color: var(--tala-muted);">Shown on student &amp; faculty calendars · Does not pause classes or lock grades.</span>
+                                        <span class="tala-calendar-activity__hint">Shown on student &amp; faculty calendars · Does not pause classes or lock grades.</span>
                                     @elseif ($item['type'] === \App\Models\TermCalendarWindow::TypeEnrollment && ! $item['window'])
-                                        <span style="flex-basis: 100%; font-size: 0.75rem; font-weight: 400; line-height: 1.35; color: var(--tala-muted);">Required before opening student enrollment</span>
+                                        <span class="tala-calendar-activity__hint">Required before opening student enrollment</span>
                                     @elseif ($item['type'] === \App\Models\TermCalendarWindow::TypeGradeEntry && ! $item['window'])
-                                        <span style="flex-basis: 100%; font-size: 0.75rem; font-weight: 400; line-height: 1.35; color: var(--tala-muted);">Required before faculty can submit grades</span>
+                                        <span class="tala-calendar-activity__hint">Required before faculty can submit grades</span>
                                     @endif
                                 </span>
                             </dt>
@@ -296,14 +344,41 @@
                 <p class="tala-work-footnote tala-calendar-footnote">Times use Asia/Manila. Activity dates do not block class planning.</p>
             </section>
         </div>
+
+        @if (! $readOnly && ! $isLiveOrClosed && $classesUnlocked)
+            <div class="tala-stage-next">
+                <p class="tala-stage-next__copy">Term calendar is active. Continue to set up student sections and classes.</p>
+                <x-filament::button
+                    tag="a"
+                    :href="\App\Filament\Pages\TermClasses::getUrl(['termId' => $term->id])"
+                    color="primary"
+                    size="sm"
+                    icon="heroicon-m-arrow-right"
+                    icon-position="after"
+                >
+                    Next: 2. Sections &amp; classes
+                </x-filament::button>
+            </div>
+        @endif
     @else
         <section class="tala-task-surface" aria-label="Term calendar">
             <x-servitech-empty-state
                 :illustrated="false"
                 icon="heroicon-o-calendar"
                 heading="Choose a term"
-                description="Choose a term above to view its calendar."
-            />
+                description="Open Term Planning to select a term and view its calendar."
+            >
+                <x-filament::button
+                    tag="a"
+                    :href="\App\Filament\Pages\TermOverview::getUrl()"
+                    color="primary"
+                    size="sm"
+                    icon="heroicon-m-arrow-right"
+                    icon-position="after"
+                >
+                    Open Term Planning
+                </x-filament::button>
+            </x-servitech-empty-state>
         </section>
     @endif
     <x-filament-actions::modals />

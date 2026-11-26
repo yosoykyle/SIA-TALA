@@ -2,10 +2,13 @@
 
 namespace App\Filament\Pages;
 
+use App\Actions\AcademicSetup\CurriculumVersionLifecycleService;
 use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
 use App\Models\AcademicYear;
+use App\Models\CurriculumVersion;
 use App\Models\CurriculumVersionBatch;
 use App\Models\GraduationReviewBatch;
+use App\Models\Program;
 use App\Models\PublishedTimetableVersion;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Term;
@@ -124,10 +127,189 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
      */
     protected function getViewData(): array
     {
+        $selectedAcademicYear = $this->selectedAcademicYear();
+
         return [
             ...parent::getViewData(),
-            'selectedAcademicYear' => $this->selectedAcademicYear(),
+            'selectedAcademicYear' => $selectedAcademicYear,
+            'missingBatchPrograms' => $this->academicYearMissingBatchPrograms($selectedAcademicYear),
+            'programsCurriculaUrl' => CatalogCurriculaWorkbench::getUrl(),
         ];
+    }
+
+    /**
+     * Active programs that do not yet have a CurriculumVersionBatch linked to the opened Academic Year.
+     *
+     * @return list<array{
+     *     program_id: int,
+     *     code: string,
+     *     name: string,
+     *     has_active_curriculum: bool,
+     *     default_curriculum_id: ?int,
+     *     active_curricula: list<array{id: int, label: string}>
+     * }>
+     */
+    public function academicYearMissingBatchPrograms(?AcademicYear $year = null): array
+    {
+        $resolvedYear = $year ?? $this->selectedAcademicYear();
+        if (! $resolvedYear instanceof AcademicYear
+            || in_array($resolvedYear->state, [AcademicYear::StateClosed, AcademicYear::StateArchived], true)) {
+            return [];
+        }
+
+        $activePrograms = Program::query()
+            ->where('is_active', true)
+            ->with([
+                'curriculumVersionBatches' => fn ($query) => $query
+                    ->where('academic_year_id', $resolvedYear->id)
+                    ->select(['id', 'program_id', 'curriculum_version_id', 'academic_year_id']),
+                'curriculumVersions' => fn ($query) => $query
+                    ->where('state', CurriculumVersion::StateActive)
+                    ->with('academicYears')
+                    ->latest('id'),
+            ])
+            ->orderBy('code')
+            ->get();
+
+        $missing = [];
+        foreach ($activePrograms as $program) {
+            if ($program->curriculumVersionBatches->isNotEmpty()) {
+                continue;
+            }
+
+            $curricula = $program->curriculumVersions
+                ->map(fn (CurriculumVersion $cv): array => [
+                    'id' => (int) $cv->id,
+                    'label' => $cv->batchLabel(),
+                ])
+                ->values()
+                ->all();
+
+            $missing[] = [
+                'program_id' => (int) $program->id,
+                'code' => (string) $program->code,
+                'name' => (string) $program->name,
+                'has_active_curriculum' => $curricula !== [],
+                'default_curriculum_id' => $curricula[0]['id'] ?? null,
+                'active_curricula' => $curricula,
+            ];
+        }
+
+        return $missing;
+    }
+
+    private function canAssignBatchInSelectedAcademicYear(): bool
+    {
+        if (! auth()->user()?->hasRole(User::StaffRoleRegistrar)) {
+            return false;
+        }
+
+        return collect($this->academicYearMissingBatchPrograms())
+            ->contains(fn (array $item): bool => $item['has_active_curriculum']);
+    }
+
+    public function assignAcademicYearBatchAction(): Action
+    {
+        return Action::make('assignAcademicYearBatch')
+            ->label('Assign batch')
+            ->icon(Heroicon::OutlinedPlusCircle)
+            ->color('primary')
+            ->size('sm')
+            ->modalHeading(function (): string {
+                $year = $this->selectedAcademicYear();
+
+                return $year instanceof AcademicYear
+                    ? 'Assign Batch '.CurriculumVersion::formatBatchShort($year)
+                    : 'Assign curriculum batch';
+            })
+            ->modalDescription(function (): string {
+                $year = $this->selectedAcademicYear();
+                $label = $year instanceof AcademicYear ? $year->label : 'this academic year';
+
+                return "Attach an active curriculum to {$label} so student sections and admissions are ready for this academic year.";
+            })
+            ->modalSubmitActionLabel('Assign batch')
+            ->modalCancelActionLabel('Cancel')
+            ->modalWidth(Width::Large)
+            ->visible(fn (): bool => $this->canAssignBatchInSelectedAcademicYear())
+            ->fillForm(function (array $arguments): array {
+                $missing = $this->academicYearMissingBatchPrograms();
+                $requestedCurriculumId = isset($arguments['curriculumId']) ? (int) $arguments['curriculumId'] : null;
+                $requestedProgramId = isset($arguments['programId']) ? (int) $arguments['programId'] : null;
+
+                if ($requestedCurriculumId) {
+                    return ['curriculum_version_id' => $requestedCurriculumId];
+                }
+
+                if ($requestedProgramId) {
+                    $matched = collect($missing)->firstWhere('program_id', $requestedProgramId);
+                    if (is_array($matched) && $matched['default_curriculum_id'] !== null) {
+                        return ['curriculum_version_id' => $matched['default_curriculum_id']];
+                    }
+                }
+
+                $firstAssignable = collect($missing)->first(fn (array $item): bool => $item['default_curriculum_id'] !== null);
+
+                return [
+                    'curriculum_version_id' => is_array($firstAssignable) ? $firstAssignable['default_curriculum_id'] : null,
+                ];
+            })
+            ->schema(function (): array {
+                $options = [];
+                foreach ($this->academicYearMissingBatchPrograms() as $item) {
+                    foreach ($item['active_curricula'] as $curriculum) {
+                        $options[$curriculum['id']] = $item['code'].' · '.$curriculum['label'];
+                    }
+                }
+
+                return [
+                    Select::make('curriculum_version_id')
+                        ->label('Program & active curriculum')
+                        ->options($options)
+                        ->searchable()
+                        ->required()
+                        ->placeholder('Select an active curriculum')
+                        ->helperText('Only active programs without a batch for this academic year are listed.'),
+                ];
+            })
+            ->action(function (array $data): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User && $actor->hasRole(User::StaffRoleRegistrar), 403);
+
+                $year = $this->selectedAcademicYear();
+                abort_unless($year instanceof AcademicYear, 404);
+
+                $curriculum = CurriculumVersion::query()
+                    ->with('program')
+                    ->findOrFail((int) ($data['curriculum_version_id'] ?? 0));
+
+                try {
+                    app(CurriculumVersionLifecycleService::class)->addBatch(
+                        actor: $actor,
+                        curriculum: $curriculum,
+                        academicYear: $year,
+                        activateProgramIfInactive: false,
+                    );
+                } catch (ValidationException $exception) {
+                    $message = collect($exception->errors())->flatten()->first();
+                    Notification::make()
+                        ->title('Batch could not be assigned')
+                        ->body(is_string($message) ? $message : 'Review the selected curriculum and try again.')
+                        ->danger()
+                        ->persistent()
+                        ->send();
+
+                    return;
+                }
+
+                $short = CurriculumVersion::formatBatchShort($year);
+                $programCode = $curriculum->program?->code ?? 'Program';
+                Notification::make()
+                    ->title('Batch assigned')
+                    ->body("Batch {$short} is now assigned to {$programCode} ({$curriculum->fresh(['academicYears'])->batchLabel()}).")
+                    ->success()
+                    ->send();
+            });
     }
 
     protected function defaultCreateTermAcademicYearId(): ?int
@@ -555,6 +737,7 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
                                 }
                             };
                         },
+                        $this->academicYearNoOverlapRule($record->id),
                     ]),
             ]),
             Select::make('state')
@@ -598,6 +781,10 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
                 }
 
                 $newState = (string) $data['state'];
+                if ($newState !== AcademicYear::StateArchived) {
+                    $this->assertNoOverlappingAcademicYear($newStart->toDateString(), $newEnd->toDateString(), $locked->id);
+                }
+
                 $isClosingOrDeactivating = in_array($newState, [AcademicYear::StateClosed, AcademicYear::StateArchived], true)
                     || ($newState !== AcademicYear::StateActive && $newState !== $locked->state);
 
@@ -659,11 +846,14 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
                     DatePicker::make('ends_on')
                         ->label('End date')
                         ->required()
-                        ->after('starts_on'),
+                        ->after('starts_on')
+                        ->rules([$this->academicYearNoOverlapRule()]),
                 ]),
                 Select::make('state')
                     ->label('Status')
-                    ->options(AcademicYear::stateOptions())
+                    ->options(collect(AcademicYear::stateOptions())
+                        ->except([AcademicYear::StateClosed, AcademicYear::StateArchived])
+                        ->all())
                     ->default(AcademicYear::StateDraft)
                     ->required(),
             ])
@@ -672,11 +862,20 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
                 abort_unless($actor instanceof User, 403);
                 Gate::forUser($actor)->authorize('create', AcademicYear::class);
 
+                $state = (string) ($data['state'] ?? AcademicYear::StateDraft);
+                if (in_array($state, [AcademicYear::StateClosed, AcademicYear::StateArchived], true)) {
+                    throw ValidationException::withMessages([
+                        'state' => 'New academic years must start as Draft or Active.',
+                    ]);
+                }
+
+                $this->assertNoOverlappingAcademicYear((string) $data['starts_on'], (string) $data['ends_on']);
+
                 $year = AcademicYear::query()->create([
                     'label' => trim((string) $data['label']),
                     'starts_on' => $data['starts_on'],
                     'ends_on' => $data['ends_on'],
-                    'state' => (string) ($data['state'] ?? AcademicYear::StateDraft),
+                    'state' => $state,
                 ]);
 
                 Notification::make()

@@ -186,6 +186,10 @@ class Issue93TermPlanningQaGuardrailsTest extends TestCase
     {
         $this->actingAsRegistrar();
         $term = Term::factory()->create(['type' => Term::TypeFirstSemester, 'default_max_units' => 24]);
+        $package = TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateActive,
+            'activated_at' => now(),
+        ]);
         $faculty = $this->makeFaculty('Marco', 'Santos');
         $program = Program::factory()->create(['code' => 'BSIT']);
         $curriculum = CurriculumVersion::factory()->for($program)->create(['state' => CurriculumVersion::StateActive]);
@@ -195,7 +199,11 @@ class Issue93TermPlanningQaGuardrailsTest extends TestCase
             'year_level' => 'Second Year',
             'term_type' => Term::TypeFirstSemester,
         ]);
-        TermOffering::factory()->for($term)->for($entry, 'curriculumEntry')->create(['state' => TermOffering::StatePendingScheduling]);
+        $offering = TermOffering::factory()->for($term)->for($entry, 'curriculumEntry')->create(['state' => TermOffering::StatePendingScheduling]);
+        Section::factory()->for($offering, 'termOffering')->create([
+            'term_calendar_package_id' => $package->id,
+            'confirmed_at' => now(),
+        ]);
         FacultyQualification::factory()->create(['faculty_user_id' => $faculty->id, 'course_id' => $course->id, 'is_active' => true]);
 
         $component = Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)
