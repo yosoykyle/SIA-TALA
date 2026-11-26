@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Actions\Scheduling\FacultyAvailabilityStatusProjection;
+use App\Actions\Scheduling\FacultyTermWorkloadProjection;
 use App\Actions\Scheduling\RecordFacultyAvailabilityDeclaration;
 use App\Models\CalendarEvent;
 use App\Models\CourseComponent;
@@ -472,6 +473,16 @@ class MyAvailability extends Page
             ? $this->breakSplitDurationWarning($term, $faculty, $package, $draftWindows)
             : null;
 
+        $hoursTarget = $this->computeHoursTarget(
+            term: $term,
+            faculty: $faculty,
+            package: $package,
+            currentDeclaration: $currentDeclaration,
+            draftWindows: $draftWindows,
+            canEditAvailability: $canEditAvailability,
+            registrarNotTeaching: $registrarNotTeaching,
+        );
+
         $approvedWeekdayCount = $package instanceof TermCalendarPackage
             ? $package->teachingGridRows->filter(fn (TermTeachingGridRow $row): bool => $row->day_of_week >= 1 && $row->day_of_week <= 5)->count()
             : 0;
@@ -530,6 +541,7 @@ class MyAvailability extends Page
                 : $this->stateHeading($status['effective_mode'] ?? null),
             'teachingWindows' => $teachingWindows,
             'weeklyHoursSummary' => $liveHoursSummary,
+            'hoursTarget' => $hoursTarget,
             'breakSplitWarning' => $breakSplitWarning,
             'legacyUnavailableTimes' => $legacyUnavailableTimes,
             'needsGridReview' => (bool) ($status['needs_grid_review'] ?? false),
@@ -978,6 +990,140 @@ class MyAvailability extends Page
         $dayUnit = $daysWithHours === 1 ? 'day' : 'days';
 
         return sprintf('%s %s/week across %d %s (excluding breaks)', $formattedHours, $hourUnit, $daysWithHours, $dayUnit);
+    }
+
+    /**
+     * @param  list<array{day_of_week:int,start_time:string,end_time:string}>  $draftWindows
+     * @return array{
+     *     status: 'met'|'short'|'neutral',
+     *     label: string,
+     *     required_minutes: int,
+     *     required_longest_minutes: int,
+     *     open_minutes: int|null,
+     *     longest_open_block_minutes: int|null,
+     *     exclusive_classes: int
+     * }|null
+     */
+    private function computeHoursTarget(
+        ?Term $term,
+        ?User $faculty,
+        ?TermCalendarPackage $package,
+        ?FacultyAvailabilityDeclaration $currentDeclaration,
+        array $draftWindows,
+        bool $canEditAvailability,
+        bool $registrarNotTeaching,
+    ): ?array {
+        if (! $term instanceof Term || ! $faculty instanceof User || $registrarNotTeaching) {
+            return null;
+        }
+
+        $qualifiedCourseIds = FacultyQualification::query()
+            ->active()
+            ->where('faculty_user_id', $faculty->id)
+            ->pluck('course_id')
+            ->map(static fn (mixed $id): int => (int) $id)
+            ->filter(static fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        $preview = app(FacultyTermWorkloadProjection::class)->previewForFaculty(
+            term: $term,
+            facultyUserId: (int) $faculty->id,
+            selectedCourseIds: $qualifiedCourseIds,
+            confirmedOnly: true,
+        );
+
+        $requiredClasses = (int) $preview['exclusive']['classes'];
+        $requiredMinutes = (int) $preview['exclusive']['weekly_minutes'];
+        $requiredLongestMinutes = (int) $preview['exclusive']['longest_meeting_minutes'];
+
+        if ($requiredClasses === 0 || $requiredMinutes <= 0) {
+            return null;
+        }
+
+        $activeMode = $canEditAvailability
+            ? ($this->availabilityMode ?? (
+                $currentDeclaration instanceof FacultyAvailabilityDeclaration
+                    && $currentDeclaration->effectiveMode() === FacultyAvailabilityDeclaration::ModeLegacyUnavailability
+                    ? FacultyAvailabilityDeclaration::ModeLegacyUnavailability
+                    : null
+            ))
+            : ($currentDeclaration instanceof FacultyAvailabilityDeclaration
+                ? $currentDeclaration->effectiveMode()
+                : null);
+
+        $openMinutes = null;
+        $longestOpenBlock = null;
+
+        if ($activeMode === FacultyAvailabilityDeclaration::ModeCannotTeach) {
+            $openMinutes = 0;
+            $longestOpenBlock = 0;
+        } elseif ($package instanceof TermCalendarPackage) {
+            if ($activeMode === FacultyAvailabilityDeclaration::ModeWindows) {
+                $windows = $canEditAvailability
+                    ? $draftWindows
+                    : ($currentDeclaration instanceof FacultyAvailabilityDeclaration
+                        ? $currentDeclaration->normalizedTeachingWindows()
+                        : []);
+                $metrics = FacultyTermWorkloadProjection::usableMinutesFromWindows($windows, $package);
+                $openMinutes = $metrics['total_minutes'];
+                $longestOpenBlock = $metrics['longest_block_minutes'];
+            } elseif ($activeMode === FacultyAvailabilityDeclaration::ModeAnyApproved) {
+                $metrics = FacultyTermWorkloadProjection::usableMinutesFromGrid($package);
+                $openMinutes = $metrics['total_minutes'];
+                $longestOpenBlock = $metrics['longest_block_minutes'];
+            } elseif ($activeMode === FacultyAvailabilityDeclaration::ModeLegacyUnavailability) {
+                $hardUnavailability = $currentDeclaration instanceof FacultyAvailabilityDeclaration && is_array($currentDeclaration->hard_unavailability)
+                    ? $currentDeclaration->hard_unavailability
+                    : [];
+                $metrics = FacultyTermWorkloadProjection::usableMinutesFromGrid($package, $hardUnavailability);
+                $openMinutes = $metrics['total_minutes'];
+                $longestOpenBlock = $metrics['longest_block_minutes'];
+            }
+        }
+
+        $requiredHoursLabel = FacultyTermWorkloadProjection::formatHours($requiredMinutes);
+        $longestClassSuffix = $requiredLongestMinutes > 0
+            ? sprintf(' (longest class %s)', FacultyTermWorkloadProjection::formatDuration($requiredLongestMinutes))
+            : '';
+        $baseTarget = sprintf('%s hrs/week min%s', $requiredHoursLabel, $longestClassSuffix);
+
+        if ($activeMode === null || $openMinutes === null || $longestOpenBlock === null) {
+            $status = 'neutral';
+            $label = sprintf('Hours target: %s', $baseTarget);
+        } elseif ($activeMode === FacultyAvailabilityDeclaration::ModeCannotTeach) {
+            $status = 'short';
+            $label = sprintf('Hours target: %s — unavailable; Registrar will review', $baseTarget);
+        } elseif ($openMinutes >= $requiredMinutes && ($requiredLongestMinutes <= 0 || $longestOpenBlock >= $requiredLongestMinutes)) {
+            $status = 'met';
+            $label = sprintf('Hours target met: %s', $baseTarget);
+        } elseif ($openMinutes < $requiredMinutes) {
+            $status = 'short';
+            $shortMinutes = $requiredMinutes - $openMinutes;
+            $label = sprintf(
+                'Hours target: %s — short %s hrs/week; Registrar will review',
+                $baseTarget,
+                FacultyTermWorkloadProjection::formatHours($shortMinutes),
+            );
+        } else {
+            $status = 'short';
+            $label = sprintf(
+                'Hours target: %s — longest open block is %s; Registrar will review',
+                $baseTarget,
+                FacultyTermWorkloadProjection::formatDuration($longestOpenBlock),
+            );
+        }
+
+        return [
+            'status' => $status,
+            'label' => $label,
+            'required_minutes' => $requiredMinutes,
+            'required_longest_minutes' => $requiredLongestMinutes,
+            'open_minutes' => $openMinutes,
+            'longest_open_block_minutes' => $longestOpenBlock,
+            'exclusive_classes' => $requiredClasses,
+        ];
     }
 
     /**

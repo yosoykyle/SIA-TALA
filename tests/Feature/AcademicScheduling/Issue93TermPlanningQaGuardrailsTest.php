@@ -267,4 +267,30 @@ class Issue93TermPlanningQaGuardrailsTest extends TestCase
             ->assertDontSee('Initial publication')
             ->assertSee('Generated through TALA');
     }
+
+    public function test_printed_timetable_respects_weekly_grid_landscape_and_list_view_portrait_layouts(): void
+    {
+        $this->actingAsRegistrar();
+        $version = PublishedTimetableVersion::factory()->create(['authority_reference' => null]);
+        PublishedTimetableMeeting::factory()->create([
+            'published_timetable_version_id' => $version->id,
+            'day_of_week' => 1,
+            'starts_at' => '08:00:00',
+            'ends_at' => '09:30:00',
+        ]);
+
+        $this->get(route('timetable.version.print', ['version' => $version, 'timetableFormat' => 'week']))
+            ->assertSuccessful()
+            ->assertSee('size: A4 landscape;', false)
+            ->assertSee('Weekly grid (Landscape)')
+            ->assertSee('tt-week-grid', false)
+            ->assertDontSee('<table class="tt-table">', false);
+
+        $this->get(route('timetable.version.print', ['version' => $version, 'timetableFormat' => 'list']))
+            ->assertSuccessful()
+            ->assertSee('size: A4 portrait;', false)
+            ->assertSee('List view (Portrait)')
+            ->assertSee('<table class="tt-table">', false)
+            ->assertDontSee('<div class="tt-week-grid"', false);
+    }
 }

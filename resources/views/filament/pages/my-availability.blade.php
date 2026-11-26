@@ -122,10 +122,38 @@
                                     </p>
                                 @endif
                             </div>
-                            @if ($weeklyHoursSummary)
-                                <p class="tala-availability-hours-pill tabular-nums" role="status" aria-live="polite">
-                                    {{ $weeklyHoursSummary }}
-                                </p>
+                            @if ($weeklyHoursSummary || ! empty($hoursTarget))
+                                <div class="tala-availability-header__metrics">
+                                    @if ($weeklyHoursSummary)
+                                        <p class="tala-availability-hours-pill tabular-nums" role="status" aria-live="polite">
+                                            {{ $weeklyHoursSummary }}
+                                        </p>
+                                    @endif
+                                    @if (! empty($hoursTarget))
+                                        @php
+                                            $hoursTargetStatus = $hoursTarget['status'] ?? 'neutral';
+                                            $hoursTargetIcon = match ($hoursTargetStatus) {
+                                                'met' => 'heroicon-m-check-circle',
+                                                'short' => 'heroicon-m-exclamation-triangle',
+                                                default => 'heroicon-m-clock',
+                                            };
+                                        @endphp
+                                        <p
+                                            @class([
+                                                'tala-availability-target-pill',
+                                                'tabular-nums',
+                                                'is-met' => $hoursTargetStatus === 'met',
+                                                'is-short' => $hoursTargetStatus === 'short',
+                                                'is-neutral' => $hoursTargetStatus === 'neutral',
+                                            ])
+                                            role="status"
+                                            aria-live="polite"
+                                        >
+                                            <x-filament::icon :icon="$hoursTargetIcon" class="tala-availability-target-pill__icon" aria-hidden="true" />
+                                            <span>{{ $hoursTarget['label'] }}</span>
+                                        </p>
+                                    @endif
+                                </div>
                             @endif
                         </header>
 

@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Actions\Scheduling\FacultyAvailabilityRequestService;
+use App\Actions\Scheduling\FacultyTermWorkloadProjection;
 use App\Actions\Scheduling\GenerateSchedulingDemand;
 use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
 use App\Filament\Resources\Rooms\RoomResource;
@@ -59,6 +60,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\HtmlString;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Url;
 use UnitEnum;
@@ -105,6 +107,9 @@ class TermResources extends TermPlanningWorkbench implements HasTable
      * }|null
      */
     private ?array $catalogSubjectsCache = null;
+
+    /** @var array<string, mixed>|null */
+    private ?array $workloadTermContextCache = null;
 
     protected static ?string $cluster = TermPlanningCluster::class;
 
@@ -208,6 +213,8 @@ class TermResources extends TermPlanningWorkbench implements HasTable
             $this->resourceViewData['noResponseCount'] = (int) ($projection['no_response_count'] ?? 0);
             $this->resourceViewData['cannotTeachCount'] = (int) ($projection['cannot_teach_count'] ?? 0);
             $this->resourceViewData['needsGridReviewCount'] = (int) ($projection['needs_grid_review_count'] ?? 0);
+            $this->resourceViewData['needsHoursReviewCount'] = (int) ($projection['needs_hours_review_count'] ?? 0);
+            $this->resourceViewData['needsReviewCount'] = (int) ($projection['needs_review_count'] ?? ($projection['needs_grid_review_count'] ?? 0));
             $this->resourceViewData['lateImpactCount'] = (int) ($projection['late_impact_count'] ?? 0);
             $this->resourceViewData['unresolvedLateImpacts'] = $projection['unresolved_late_impacts'] ?? [];
             $this->resourceViewData['uncoveredSubjects'] = $this->resolveUncoveredOfferedSubjects($this->resourceViewData);
@@ -263,7 +270,7 @@ class TermResources extends TermPlanningWorkbench implements HasTable
             if ($row['declaration'] === null && empty($row['registrar_not_teaching'])) {
                 $counts['no_response']++;
             }
-            if (! empty($row['needs_grid_review'])) {
+            if (! empty($row['needs_review']) || ! empty($row['needs_grid_review']) || ! empty($row['needs_hours_review'])) {
                 $counts['needs_review']++;
             }
             if (! empty($row['registrar_not_teaching']) || ($row['effective_mode'] ?? null) === FacultyAvailabilityDeclaration::ModeCannotTeach) {
@@ -478,6 +485,9 @@ class TermResources extends TermPlanningWorkbench implements HasTable
             ->schema([
                 Hidden::make('retained_course_ids')
                     ->default([]),
+                Hidden::make('assigned_filter_course_ids')
+                    ->default([])
+                    ->dehydrated(false),
                 Select::make('faculty_user_id')
                     ->label('Faculty member')
                     ->placeholder('Choose a teacher')
@@ -496,6 +506,7 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                             $set('program_filter', 'all');
                             $set('course_ids', []);
                             $set('retained_course_ids', []);
+                            $set('assigned_filter_course_ids', []);
 
                             return;
                         }
@@ -518,6 +529,7 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                         $set('program_filter', $defaultFilter);
                         $set('course_ids', $visibleSelected);
                         $set('retained_course_ids', $retainedSelected);
+                        $set('assigned_filter_course_ids', $activeIds);
                     }),
                 Select::make('program_filter')
                     ->label('Filter subjects by program')
@@ -531,19 +543,36 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                     ->afterStateUpdated(function (Get $get, Set $set, ?string $state): void {
                         $this->repartitionSelectedCourseIdsForFilter($get, $set, $state);
                     }),
+                Placeholder::make('term_workload_preview')
+                    ->hiddenLabel()
+                    ->visible(fn (Get $get): bool => filled($get('faculty_user_id')))
+                    ->content(fn (Get $get): HtmlString => $this->renderWorkloadPreviewStrip(
+                        (int) ($get('faculty_user_id') ?? 0),
+                        $get('course_ids'),
+                        $get('retained_course_ids'),
+                    )),
                 CheckboxList::make('course_ids')
                     ->label('Qualified subjects')
                     ->options(fn (Get $get): array => $this->filteredCatalogSubjectOptions(
                         $get('program_filter'),
-                        $this->mergeSelectedCourseIds($get('course_ids'), $get('retained_course_ids')),
+                        $this->mergeSelectedCourseIds(
+                            $get('course_ids'),
+                            $get('retained_course_ids'),
+                            $get('assigned_filter_course_ids'),
+                        ),
                     ))
                     ->descriptions(fn (Get $get): array => $this->filteredCatalogSubjectDescriptions(
                         $get('program_filter'),
-                        $this->mergeSelectedCourseIds($get('course_ids'), $get('retained_course_ids')),
+                        $this->mergeSelectedCourseIds(
+                            $get('course_ids'),
+                            $get('retained_course_ids'),
+                            $get('assigned_filter_course_ids'),
+                        ),
                     ))
                     ->searchable()
                     ->searchPrompt('Search by subject code or title...')
                     ->bulkToggleable()
+                    ->live()
                     ->columns(['default' => 1, 'md' => 2])
                     ->gridDirection(GridDirection::Row)
                     ->extraAttributes(['class' => 'tala-card-picker'])
@@ -909,6 +938,9 @@ class TermResources extends TermPlanningWorkbench implements HasTable
         if (! empty($row['needs_grid_review'])) {
             $cues[] = 'Review needed';
         }
+        if (! empty($row['needs_hours_review'])) {
+            $cues[] = 'Hours short';
+        }
         if (empty($row['in_term'])) {
             $cues[] = (int) ($row['eligible_course_count'] ?? 0) === 0
                 ? 'Needs subject assignment'
@@ -940,20 +972,29 @@ class TermResources extends TermPlanningWorkbench implements HasTable
         $formatUnits = static fn (float $value): string => rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.');
         $assignedUnits = (float) ($row['load_units'] ?? 0.0);
         $limitUnits = $row['load_limit'] ?? null;
-        $loadDisplay = $limitUnits !== null
-            ? $formatUnits($assignedUnits).' / '.$formatUnits((float) $limitUnits).' units'
-            : $formatUnits($assignedUnits).' units';
-
-        $assignedClassCount = 0;
-        if (preg_match('/^(\d+)\s+courses?\b/i', (string) ($row['course_count'] ?? ''), $classMatches) === 1) {
+        $loadStage = (string) ($row['load_stage'] ?? 'none');
+        $assignedClassCount = (int) ($row['assigned_class_count'] ?? 0);
+        if ($assignedClassCount === 0 && preg_match('/^(\d+)\s+(?:courses?|class(?:es)?)\b/i', (string) ($row['course_count'] ?? ''), $classMatches) === 1) {
             $assignedClassCount = (int) $classMatches[1];
         }
+
+        $loadDisplay = match (true) {
+            $loadStage === 'none' && $limitUnits !== null => 'Cap: '.$formatUnits((float) $limitUnits).' units',
+            $loadStage === 'none' => 'Cap: Not recorded',
+            $limitUnits !== null => $formatUnits($assignedUnits).' / '.$formatUnits((float) $limitUnits).' units',
+            default => $formatUnits($assignedUnits).' units',
+        };
+
         $loadPolicyLabel = match (true) {
             ! empty($row['registrar_not_teaching']) => 'Excluded',
             ! empty($row['load_override_id']) || ($row['load_source'] ?? null) === 'Faculty-specific approved load' => 'Override',
             default => 'Default',
         };
-        $loadDetail = $assignedClassCount.' '.str('class')->plural($assignedClassCount).' · '.$loadPolicyLabel;
+        $loadDetail = match ($loadStage) {
+            'official' => $assignedClassCount.' '.str('class')->plural($assignedClassCount).' · '.$loadPolicyLabel,
+            'draft' => $assignedClassCount.' draft '.str('class')->plural($assignedClassCount).' · '.$loadPolicyLabel,
+            default => 'No timetable yet · '.$loadPolicyLabel,
+        };
 
         $reminderDate = $row['reminder_at']
             ? CarbonImmutable::parse($row['reminder_at'])->timezone($tz)->format('M j, Y · g:i A')
@@ -963,11 +1004,20 @@ class TermResources extends TermPlanningWorkbench implements HasTable
             ? 'Responded · '.$declaration->declared_at?->timezone($tz)->format('M j, Y')
             : $row['reminder_status'].($reminderDate ? ' · '.$reminderDate : '');
 
+        $hoursReviewSummary = filled($row['hours_review_summary'] ?? null)
+            ? trim((string) $row['hours_review_summary'])
+            : null;
+        $actionNeededDetail = collect([
+            $affectedMeetingsSummary !== '' ? $affectedMeetingsSummary : null,
+            $hoursReviewSummary,
+        ])->filter()->implode(' · ');
+
         return [
             ...$row,
             'cues' => $cues,
             'affected_meeting_ids' => $affectedMeetingIds,
             'affected_meetings_summary' => $affectedMeetingsSummary !== '' ? $affectedMeetingsSummary : null,
+            'action_needed_detail' => $actionNeededDetail !== '' ? $actionNeededDetail : null,
             'eligible_courses_summary' => $eligibleCoursesSummary,
             'eligible_courses_tooltip' => $eligibleCoursesTooltip,
             'load_display' => $loadDisplay,
@@ -1117,7 +1167,9 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                     'no_response' => $row['declaration'] === null && empty($row['registrar_not_teaching']),
                     'cannot_teach' => ! empty($row['registrar_not_teaching'])
                         || $row['effective_mode'] === FacultyAvailabilityDeclaration::ModeCannotTeach,
-                    'needs_review' => ! empty($row['needs_grid_review']),
+                    'needs_review' => ! empty($row['needs_review'])
+                        || ! empty($row['needs_grid_review'])
+                        || ! empty($row['needs_hours_review']),
                     default => true,
                 };
 
@@ -1168,11 +1220,13 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                 }),
             TextColumn::make('cues')->label('Action needed')
                 ->state(fn (array $record): array => $record['cues'] ?? [])
-                ->description(fn (array $record): ?string => filled($record['affected_meetings_summary'] ?? null) ? (string) $record['affected_meetings_summary'] : null)
+                ->description(fn (array $record): ?string => filled($record['action_needed_detail'] ?? null)
+                    ? (string) $record['action_needed_detail']
+                    : (filled($record['affected_meetings_summary'] ?? null) ? (string) $record['affected_meetings_summary'] : null))
                 ->badge()
                 ->color(fn (string $state): string => match (true) {
                     $state === 'Conflicts with live schedule' || str_contains($state, 'live class') => 'danger',
-                    in_array($state, ['Review needed', 'Needs subject assignment'], true) => 'warning',
+                    in_array($state, ['Review needed', 'Hours short', 'Needs subject assignment'], true) => 'warning',
                     default => 'gray',
                 })
                 ->placeholder('-')
@@ -1271,6 +1325,7 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                         return [
                             'program_filter' => $defaultFilter,
                             'retained_course_ids' => $retainedSelected,
+                            'assigned_filter_course_ids' => $activeIds,
                             'course_ids' => $visibleSelected,
                             'notes' => null,
                         ];
@@ -1278,6 +1333,9 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                     ->schema([
                         Hidden::make('retained_course_ids')
                             ->default([]),
+                        Hidden::make('assigned_filter_course_ids')
+                            ->default([])
+                            ->dehydrated(false),
                         Select::make('program_filter')
                             ->label('Filter subjects by program')
                             ->options(fn (): array => $this->programFilterOptions())
@@ -1289,19 +1347,35 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                             ->afterStateUpdated(function (Get $get, Set $set, ?string $state): void {
                                 $this->repartitionSelectedCourseIdsForFilter($get, $set, $state);
                             }),
+                        Placeholder::make('term_workload_preview')
+                            ->hiddenLabel()
+                            ->content(fn (Get $get, ?array $record = null): HtmlString => $this->renderWorkloadPreviewStrip(
+                                (int) ($record['faculty_user_id'] ?? 0),
+                                $get('course_ids'),
+                                $get('retained_course_ids'),
+                            )),
                         CheckboxList::make('course_ids')
                             ->label('Qualified subjects')
                             ->options(fn (Get $get): array => $this->filteredCatalogSubjectOptions(
                                 $get('program_filter'),
-                                $this->mergeSelectedCourseIds($get('course_ids'), $get('retained_course_ids')),
+                                $this->mergeSelectedCourseIds(
+                                    $get('course_ids'),
+                                    $get('retained_course_ids'),
+                                    $get('assigned_filter_course_ids'),
+                                ),
                             ))
                             ->descriptions(fn (Get $get): array => $this->filteredCatalogSubjectDescriptions(
                                 $get('program_filter'),
-                                $this->mergeSelectedCourseIds($get('course_ids'), $get('retained_course_ids')),
+                                $this->mergeSelectedCourseIds(
+                                    $get('course_ids'),
+                                    $get('retained_course_ids'),
+                                    $get('assigned_filter_course_ids'),
+                                ),
                             ))
                             ->searchable()
                             ->searchPrompt('Search by subject code or title...')
                             ->bulkToggleable()
+                            ->live()
                             ->columns(['default' => 1, 'md' => 2])
                             ->gridDirection(GridDirection::Row)
                             ->extraAttributes(['class' => 'tala-card-picker'])
@@ -2247,6 +2321,17 @@ class TermResources extends TermPlanningWorkbench implements HasTable
             is_array($get('retained_course_ids')) ? $get('retained_course_ids') : [],
         );
 
+        if ($filter === 'assigned') {
+            $assignedSnapshot = collect($allSelected)
+                ->map(fn (mixed $id): string => (string) (int) $id)
+                ->filter(fn (string $id): bool => (int) $id > 0)
+                ->unique()
+                ->values()
+                ->all();
+
+            $set('assigned_filter_course_ids', $assignedSnapshot);
+        }
+
         [$visible, $retained] = $this->partitionSelectedCourseIds($allSelected, $filter, $allSelected);
 
         $set('course_ids', $visible);
@@ -2256,10 +2341,11 @@ class TermResources extends TermPlanningWorkbench implements HasTable
     /**
      * @return list<int>
      */
-    private function mergeSelectedCourseIds(mixed $visibleIds, mixed $retainedIds): array
+    private function mergeSelectedCourseIds(mixed $visibleIds, mixed $retainedIds, mixed $extraIds = null): array
     {
         return collect(is_array($visibleIds) ? $visibleIds : [])
             ->merge(is_array($retainedIds) ? $retainedIds : [])
+            ->merge(is_array($extraIds) ? $extraIds : [])
             ->map(fn (mixed $id): int => (int) $id)
             ->filter(fn (int $id): bool => $id > 0)
             ->unique()
@@ -2554,10 +2640,52 @@ class TermResources extends TermPlanningWorkbench implements HasTable
         return round(array_sum($loadGroups), 2);
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function workloadTermContext(): ?array
+    {
+        if ($this->workloadTermContextCache !== null) {
+            return $this->workloadTermContextCache;
+        }
+
+        $term = $this->getViewData()['term'] ?? null;
+        if (! $term instanceof Term) {
+            return null;
+        }
+
+        return $this->workloadTermContextCache = app(FacultyTermWorkloadProjection::class)
+            ->buildTermContext($term, confirmedOnly: false);
+    }
+
+    private function renderWorkloadPreviewStrip(int $facultyUserId, mixed $visibleIds, mixed $retainedIds): HtmlString
+    {
+        $term = $this->getViewData()['term'] ?? null;
+        if (! $term instanceof Term || $facultyUserId <= 0) {
+            return new HtmlString('');
+        }
+
+        $selectedCourseIds = $this->mergeSelectedCourseIds($visibleIds, $retainedIds);
+        $preview = app(FacultyTermWorkloadProjection::class)->previewForFaculty(
+            term: $term,
+            facultyUserId: $facultyUserId,
+            selectedCourseIds: $selectedCourseIds,
+            confirmedOnly: false,
+            context: $this->workloadTermContext(),
+        );
+
+        return new HtmlString(
+            view('filament.pages.partials.faculty-workload-preview', [
+                'preview' => $preview,
+            ])->render(),
+        );
+    }
+
     private function resetResourceCaches(): void
     {
         $this->resourceViewData = null;
         $this->catalogSubjectsCache = null;
+        $this->workloadTermContextCache = null;
         $this->flushCachedTableRecords();
     }
 

@@ -586,14 +586,15 @@
                                 \App\Models\ScheduleGenerationRun::StatusSuperseded,
                             ], true)
                             || in_array($activeRun->candidate_state, ['Rejected', 'Stale', 'Superseded'], true);
+                        $isRejectedFeasibleOutcome = $activeRun instanceof \App\Models\ScheduleGenerationRun
+                            && $activeRun->candidate_state === 'Rejected'
+                            && in_array($reviewEvidence['outcome'] ?? '', ['Optimal', 'Feasible', 'Local adjustment'], true);
                         $isDraftEmptyHero = (bool) ($activeRun && ! $showOfficial);
                         $isErrorEmptyHero = $isDraftEmptyHero && ! $isCancelledRun && (
                             $isErrorSeverity
                             || $hasSolverIssue
-                            || in_array($activeRun->status, [
-                                \App\Models\ScheduleGenerationRun::StatusFailed,
-                                \App\Models\ScheduleGenerationRun::StatusBlocked,
-                            ], true)
+                            || $activeRun->status === \App\Models\ScheduleGenerationRun::StatusFailed
+                            || ($activeRun->status === \App\Models\ScheduleGenerationRun::StatusBlocked && ! $isRejectedFeasibleOutcome)
                         );
                         $emptyHeroTone = $isErrorEmptyHero ? ($isErrorSeverity ? 'danger' : 'warning') : ($isDraftEmptyHero ? 'neutral' : 'default');
                         $emptyStageMood = match ($emptyHeroTone) {
@@ -1107,18 +1108,43 @@
                                 const src = state || window.__talaTimetableFilterState;
                                 if (!src || typeof src !== 'object') return;
                                 this.scope = ['whole', 'section', 'faculty', 'room'].includes(src.viewMode) ? src.viewMode : 'whole';
-                                this.entity = this.scope === 'whole' ? '' : String(src.entityFilter || '');
                                 this.program = String(src.programFilter || '');
                                 this.year = String(src.yearFilter || '');
+                                this.entity = this.scope === 'whole' ? '' : String(src.entityFilter || '');
+                                this.onProgramOrYearChange();
                                 this.format = (src.format === 'list' || src.mode === 'list') ? 'list' : 'week';
                                 this.search = String(src.searchQuery || '');
                             },
                             onScopeChange() {
                                 this.entity = '';
                             },
+                            get canSelectSection() {
+                                return Boolean((this.program || '').trim() !== '' && (this.year || '').trim() !== '');
+                            },
+                            get filteredSectionOptions() {
+                                if (!this.canSelectSection) return [];
+                                return (this.sectionOptions || []).filter(sec => {
+                                    const progOk = sec.program === this.program;
+                                    const yearOk = Array.isArray(sec.years) && sec.years.includes(this.year);
+                                    return progOk && yearOk;
+                                });
+                            },
+                            onProgramOrYearChange() {
+                                if (this.scope !== 'section') return;
+                                if (!this.canSelectSection) {
+                                    this.entity = '';
+                                    return;
+                                }
+                                if (this.entity !== '') {
+                                    const stillValid = this.filteredSectionOptions.some(sec => String(sec.id) === String(this.entity));
+                                    if (!stillValid) {
+                                        this.entity = '';
+                                    }
+                                }
+                            },
                             matchesMeeting(m) {
                                 if (!m) return false;
-                                if (this.scope === 'section' && this.entity !== '') {
+                                if (this.scope === 'section' && this.entity !== '' && this.canSelectSection) {
                                     const secMatch = (m.sections || []).some(s => String(s.id) === String(this.entity) || s.label === this.entity)
                                         || m.class === this.entity;
                                     if (!secMatch) return false;
@@ -1216,16 +1242,45 @@
                             </x-filament::input.wrapper>
                         </div>
 
+                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2" x-show="programOptions.length > 0 || yearOptions.length > 0">
+                            <div class="grid gap-1.5" x-show="programOptions.length > 0">
+                                <label for="print-opt-program" class="text-sm font-medium text-zinc-800 dark:text-zinc-200">Program</label>
+                                <x-filament::input.wrapper>
+                                    <x-filament::input.select id="print-opt-program" x-model="program" x-on:change="onProgramOrYearChange()">
+                                        <option value="">All programs</option>
+                                        <template x-for="prog in programOptions" :key="prog">
+                                            <option :value="prog" x-text="prog"></option>
+                                        </template>
+                                    </x-filament::input.select>
+                                </x-filament::input.wrapper>
+                            </div>
+
+                            <div class="grid gap-1.5" x-show="yearOptions.length > 0">
+                                <label for="print-opt-year" class="text-sm font-medium text-zinc-800 dark:text-zinc-200">Year level</label>
+                                <x-filament::input.wrapper>
+                                    <x-filament::input.select id="print-opt-year" x-model="year" x-on:change="onProgramOrYearChange()">
+                                        <option value="">All years</option>
+                                        <template x-for="yr in yearOptions" :key="yr">
+                                            <option :value="yr" x-text="yr"></option>
+                                        </template>
+                                    </x-filament::input.select>
+                                </x-filament::input.wrapper>
+                            </div>
+                        </div>
+
                         <div class="grid gap-1.5" x-cloak x-show="scope === 'section'">
                             <label for="print-opt-section" class="text-sm font-medium text-zinc-800 dark:text-zinc-200">Student section</label>
-                            <x-filament::input.wrapper>
-                                <x-filament::input.select id="print-opt-section" x-model="entity">
-                                    <option value="">All student sections</option>
-                                    <template x-for="sec in sectionOptions" :key="sec.id">
-                                        <option :value="sec.id" x-text="sec.label + (sec.program && sec.program !== 'Program not associated' ? ' · ' + sec.program : '')"></option>
-                                    </template>
-                                </x-filament::input.select>
-                            </x-filament::input.wrapper>
+                            <div x-show="canSelectSection">
+                                <x-filament::input.wrapper>
+                                    <x-filament::input.select id="print-opt-section" x-model="entity">
+                                        <option value="" x-text="filteredSectionOptions.length === 0 ? 'No sections match selection' : 'All matching sections'"></option>
+                                        <template x-for="sec in filteredSectionOptions" :key="sec.id">
+                                            <option :value="sec.id" x-text="sec.label"></option>
+                                        </template>
+                                    </x-filament::input.select>
+                                </x-filament::input.wrapper>
+                            </div>
+                            <p class="tala-rail-hint" x-show="!canSelectSection">Choose a program and year level to filter by section.</p>
                         </div>
 
                         <div class="grid gap-1.5" x-cloak x-show="scope === 'faculty'">
@@ -1252,61 +1307,27 @@
                             </x-filament::input.wrapper>
                         </div>
 
-                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2" x-show="programOptions.length > 0 || yearOptions.length > 0">
-                            <div class="grid gap-1.5" x-show="programOptions.length > 0">
-                                <label for="print-opt-program" class="text-sm font-medium text-zinc-800 dark:text-zinc-200">Program</label>
-                                <x-filament::input.wrapper>
-                                    <x-filament::input.select id="print-opt-program" x-model="program">
-                                        <option value="">All programs</option>
-                                        <template x-for="prog in programOptions" :key="prog">
-                                            <option :value="prog" x-text="prog"></option>
-                                        </template>
-                                    </x-filament::input.select>
-                                </x-filament::input.wrapper>
-                            </div>
-
-                            <div class="grid gap-1.5" x-show="yearOptions.length > 0">
-                                <label for="print-opt-year" class="text-sm font-medium text-zinc-800 dark:text-zinc-200">Year level</label>
-                                <x-filament::input.wrapper>
-                                    <x-filament::input.select id="print-opt-year" x-model="year">
-                                        <option value="">All years</option>
-                                        <template x-for="yr in yearOptions" :key="yr">
-                                            <option :value="yr" x-text="yr"></option>
-                                        </template>
-                                    </x-filament::input.select>
-                                </x-filament::input.wrapper>
-                            </div>
-                        </div>
-
-                        <fieldset class="grid gap-1.5">
-                            <legend class="text-sm font-medium text-zinc-800 dark:text-zinc-200">Layout format</legend>
-                            <div class="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Print layout format">
-                                <button
-                                    type="button"
-                                    class="flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition"
-                                    :class="format === 'week'
-                                        ? 'border-[var(--tala-selected-edge)] bg-[var(--tala-brand-tint)] text-[var(--tala-on-brand-tint)]'
-                                        : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-white/10 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800'"
-                                    :aria-pressed="format === 'week' ? 'true' : 'false'"
+                        <div class="grid gap-1.5">
+                            <span class="text-sm font-medium text-zinc-800 dark:text-zinc-200">Layout format</span>
+                            <x-tala-navigation compact stretch label="Print layout format" class="tala-print-format-tabs">
+                                <x-filament::tabs.item
+                                    icon="heroicon-o-calendar-days"
+                                    alpine-active="format === 'week'"
+                                    x-bind:aria-pressed="format === 'week' ? 'true' : 'false'"
                                     x-on:click="format = 'week'"
                                 >
-                                    <x-filament::icon icon="heroicon-o-calendar-days" class="h-4 w-4" aria-hidden="true" />
-                                    <span>Weekly grid</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    class="flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition"
-                                    :class="format === 'list'
-                                        ? 'border-[var(--tala-selected-edge)] bg-[var(--tala-brand-tint)] text-[var(--tala-on-brand-tint)]'
-                                        : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-white/10 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800'"
-                                    :aria-pressed="format === 'list' ? 'true' : 'false'"
+                                    Weekly grid
+                                </x-filament::tabs.item>
+                                <x-filament::tabs.item
+                                    icon="heroicon-o-list-bullet"
+                                    alpine-active="format === 'list'"
+                                    x-bind:aria-pressed="format === 'list' ? 'true' : 'false'"
                                     x-on:click="format = 'list'"
                                 >
-                                    <x-filament::icon icon="heroicon-o-list-bullet" class="h-4 w-4" aria-hidden="true" />
-                                    <span>List view</span>
-                                </button>
-                            </div>
-                        </fieldset>
+                                    List view
+                                </x-filament::tabs.item>
+                            </x-tala-navigation>
+                        </div>
 
                         <div
                             class="flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm tabular-nums"

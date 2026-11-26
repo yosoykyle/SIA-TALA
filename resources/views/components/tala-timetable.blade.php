@@ -127,6 +127,7 @@
                 this.restoreFilterState();
             }
             if (this.interactive) {
+                this.syncSectionEntityGuard();
                 this.restoreSelectedMeeting();
             }
             this.$watch('selected', (val) => {
@@ -140,13 +141,66 @@
                 }
             });
             if (this.interactive) {
+                this.syncPrintPageOrientation();
                 this.broadcastFilterState();
                 ['viewMode', 'entityFilter', 'programFilter', 'yearFilter', 'searchQuery', 'mode', 'triageFilter'].forEach((prop) => {
                     this.$watch(prop, () => {
+                        if (prop === 'viewMode' || prop === 'programFilter' || prop === 'yearFilter') {
+                            this.syncSectionEntityGuard();
+                        }
+                        if (prop === 'mode') {
+                            this.syncPrintPageOrientation();
+                        }
                         this.persistFilterState();
                         this.broadcastFilterState();
                     });
                 });
+            }
+        },
+        syncPrintPageOrientation() {
+            if (!this.interactive || typeof document === 'undefined') {
+                return;
+            }
+            const id = 'tala-timetable-print-page-rule';
+            let styleEl = document.getElementById(id);
+            if (!styleEl) {
+                styleEl = document.createElement('style');
+                styleEl.id = id;
+                document.head.appendChild(styleEl);
+            }
+            const isWeek = this.mode !== 'list';
+            styleEl.textContent = isWeek
+                ? '@page { size: A4 landscape; margin: 10mm; }'
+                : '@page { size: A4 portrait; margin: 12mm; }';
+        },
+        get canSelectSection() {
+            return Boolean((this.programFilter || '').trim() !== '' && (this.yearFilter || '').trim() !== '');
+        },
+        get filteredSectionOptions() {
+            if (!this.canSelectSection) {
+                return [];
+            }
+            return (this.sectionOptions || []).filter(sec => {
+                const progOk = sec.program === this.programFilter;
+                const yearOk = Array.isArray(sec.years) && sec.years.includes(this.yearFilter);
+                return progOk && yearOk;
+            });
+        },
+        syncSectionEntityGuard() {
+            if (this.viewMode !== 'section') {
+                return;
+            }
+            if (!this.canSelectSection) {
+                if (this.entityFilter !== '') {
+                    this.entityFilter = '';
+                }
+                return;
+            }
+            if (this.entityFilter !== '') {
+                const stillValid = this.filteredSectionOptions.some(sec => String(sec.id) === String(this.entityFilter));
+                if (!stillValid) {
+                    this.entityFilter = '';
+                }
             }
         },
         broadcastFilterState() {
@@ -167,18 +221,21 @@
             if (!this.interactive || !detail || typeof detail !== 'object') return;
             const nextView = ['whole', 'section', 'faculty', 'room'].includes(detail.viewMode) ? detail.viewMode : 'whole';
             this.viewMode = nextView;
-            this.entityFilter = nextView === 'whole' ? '' : String(detail.entityFilter || '');
             this.programFilter = String(detail.programFilter || '');
             this.yearFilter = String(detail.yearFilter || '');
+            this.entityFilter = nextView === 'whole' ? '' : String(detail.entityFilter || '');
+            this.syncSectionEntityGuard();
             if (typeof detail.searchQuery === 'string') {
                 this.searchQuery = detail.searchQuery;
             }
             this.mode = detail.format === 'list' ? 'list' : 'weekly';
             this.selectedListDay = 'all';
+            this.syncPrintPageOrientation();
             this.persistFilterState();
             this.broadcastFilterState();
             if (detail.triggerPrint) {
                 this.$nextTick(() => {
+                    this.syncPrintPageOrientation();
                     window.setTimeout(() => window.print(), 200);
                 });
             }
@@ -300,8 +357,8 @@
             if (switched) {
                 this.entityFilter = '';
             }
-            if (newMode === 'section' && !this.entityFilter) {
-                this.entityFilter = this.sectionOptions[0]?.id ? String(this.sectionOptions[0].id) : '';
+            if (newMode === 'section') {
+                this.syncSectionEntityGuard();
             } else if (newMode === 'faculty' && !this.entityFilter) {
                 this.entityFilter = this.facultyOptions[0] ? String(this.facultyOptions[0]) : '';
             } else if (newMode === 'room' && !this.entityFilter) {
@@ -380,7 +437,7 @@
             if (this.triageFilter === 'online' && meeting.modality !== 'Online') {
                 return false;
             }
-            if (this.viewMode === 'section' && this.entityFilter !== '') {
+            if (this.viewMode === 'section' && this.entityFilter !== '' && this.canSelectSection) {
                 const secMatch = (meeting.sections || []).some(s => String(s.id) === String(this.entityFilter) || s.label === this.entityFilter)
                     || meeting.class === this.entityFilter;
                 if (!secMatch) return false;
@@ -471,6 +528,29 @@
         },
         get visibleCount() {
             return this.meetings.filter(meeting => this.matches(meeting)).length;
+        },
+        get maxVisibleLanes() {
+            let maxLanes = 1;
+            for (const box of Object.values(this.visibleLayout || {})) {
+                if (box && Number(box.lanes || 1) > maxLanes) {
+                    maxLanes = Number(box.lanes);
+                }
+            }
+            return maxLanes;
+        },
+        get printFilterSummary() {
+            const parts = ['Scope: ' + this.currentScopeLabel];
+            if (this.programFilter) parts.push('Program: ' + this.programFilter);
+            if (this.yearFilter) parts.push('Year: ' + this.yearFilter);
+            if ((this.searchQuery || '').trim() !== '') parts.push('Search: ' + this.searchQuery.trim());
+            return parts.join(' · ');
+        },
+        visibleMeetingsForDay(dayNumber) {
+            return (this.meetings || [])
+                .filter(m => m && Number(m.day) === Number(dayNumber) && this.matches(m))
+                .slice()
+                .sort((a, b) => (Number(a.start ?? 1441) - Number(b.start ?? 1441))
+                    || String(a.courseCode || '').localeCompare(String(b.courseCode || '')));
         },
         get selectedMeeting() {
             return this.meetings.find(meeting => meeting.id === this.selected) ?? null;
@@ -1056,6 +1136,17 @@
         @if ($interactive)
             <div class="tala-timetable-studio-split">
                 <div class="tala-timetable-studio-main">
+                    <header class="tala-timetable-print-header" aria-hidden="true">
+                        <div class="tala-timetable-print-header__main">
+                            <p class="tala-timetable-print-header__inst">{{ config('institution.name') }}</p>
+                            <h2>{{ $presentation['title'] }} · {{ $presentation['source'] }}</h2>
+                        </div>
+                        <div class="tala-timetable-print-header__meta">
+                            <span x-text="printFilterSummary"></span>
+                            <span>Layout: <strong x-text="mode === 'list' ? 'List view' : 'Weekly grid'"></strong></span>
+                            <span><strong x-text="visibleCount"></strong> <span x-text="visibleCount === 1 ? 'meeting' : 'meetings'"></span></span>
+                        </div>
+                    </header>
                     @if ($editable)
                         <div class="sr-only" role="status" aria-live="polite" aria-atomic="true" x-text="moveAnnouncement"></div>
                     @endif
@@ -1321,7 +1412,7 @@
 
         @if ($presentation['slots'] > 0 && $presentation['days'] !== [])
             @if ($showWindow)<p x-show="mode === 'weekly'" class="tala-timetable-window">Recorded teaching window · {{ $presentation['ticks'][0]['label'] }}–{{ $presentation['ticks'][count($presentation['ticks']) - 1]['label'] }}</p>@endif
-            <div x-show="mode === 'weekly'" class="tala-timetable-weekly" tabindex="0" role="region" aria-label="Weekly calendar, full recorded teaching window. Scroll to later hours." style="--timetable-days: {{ count($presentation['days']) }}; --timetable-slots: {{ $presentation['slots'] }};">
+            <div x-show="mode === 'weekly'" :class="{ 'is-print-dense': maxVisibleLanes > 4 }" class="tala-timetable-weekly" tabindex="0" role="region" aria-label="Weekly calendar, full recorded teaching window. Scroll to later hours." style="--timetable-days: {{ count($presentation['days']) }}; --timetable-slots: {{ $presentation['slots'] }};">
                 <div class="tala-timetable-axis" aria-hidden="true">
                     <div class="tala-timetable-day-heading tala-timetable-axis-heading">Time</div>
                     <div class="tala-timetable-axis-body">
@@ -1512,6 +1603,38 @@
                     </div>
                 @endif
             </div>
+            @if ($interactive)
+                <div
+                    x-cloak
+                    x-show="mode === 'weekly' && maxVisibleLanes > 4"
+                    class="tala-print-week-columns"
+                    style="--timetable-days: {{ max(1, count($presentation['days'])) }};"
+                    aria-hidden="true"
+                >
+                    @foreach ($presentation['days'] as $day)
+                        <section class="tala-print-week-col">
+                            <header class="tala-print-week-col__head">
+                                <strong>{{ $day['label'] }}</strong>
+                                <span x-text="visibleMeetingsForDay({{ $day['number'] }}).length"></span>
+                            </header>
+                            <div class="tala-print-week-col__list">
+                                <template x-for="m in visibleMeetingsForDay({{ $day['number'] }})" :key="'pcol-' + m.id">
+                                    <article class="tala-print-week-col__item" :class="(m.componentBadge === 'LAB' || m.component === 'Laboratory') ? 'is-lab' : 'is-lec'">
+                                        <div class="tala-print-week-col__time">
+                                            <span x-text="m.time"></span>
+                                            <span class="tala-print-week-col__badge" x-text="m.componentBadge || (m.component === 'Laboratory' ? 'LAB' : 'LEC')"></span>
+                                        </div>
+                                        <div class="tala-print-week-col__course" x-text="m.courseCode + (m.courseTitle ? ' · ' + m.courseTitle : '')"></div>
+                                        <div class="tala-print-week-col__meta" x-show="viewMode !== 'section' && (m.sectionDisplay || m.class)" x-text="'Sec: ' + (m.sectionDisplay || m.class)"></div>
+                                        <div class="tala-print-week-col__meta" x-text="(m.room || '') + (m.faculty ? ' · ' + m.faculty : '')"></div>
+                                    </article>
+                                </template>
+                                <div class="tala-print-week-col__empty" x-show="visibleMeetingsForDay({{ $day['number'] }}).length === 0">No meetings</div>
+                            </div>
+                        </section>
+                    @endforeach
+                </div>
+            @endif
         @endif
 
         <div class="tala-timetable-list" :class="{'tala-timetable-list-active': mode === 'list'}">
@@ -1727,42 +1850,6 @@
                             </x-filament::tabs.item>
                         </x-tala-navigation>
 
-                        <div class="tala-rail-field" x-cloak x-show="viewMode === 'section'">
-                            <label for="{{ $overviewId }}-section-select" class="sr-only">Student section</label>
-                            <x-filament::input.wrapper>
-                                <x-filament::input.select id="{{ $overviewId }}-section-select" x-model="entityFilter">
-                                    <option value="">All student sections</option>
-                                    <template x-for="sec in sectionOptions" :key="sec.id">
-                                        <option :value="sec.id" x-text="sec.label + (sec.program && sec.program !== 'Program not associated' ? ' · ' + sec.program : '')"></option>
-                                    </template>
-                                </x-filament::input.select>
-                            </x-filament::input.wrapper>
-                        </div>
-
-                        <div class="tala-rail-field" x-cloak x-show="viewMode === 'faculty'">
-                            <label for="{{ $overviewId }}-faculty-select" class="sr-only">Teacher</label>
-                            <x-filament::input.wrapper>
-                                <x-filament::input.select id="{{ $overviewId }}-faculty-select" x-model="entityFilter">
-                                    <option value="">All teachers</option>
-                                    <template x-for="fac in facultyOptions" :key="fac">
-                                        <option :value="fac" x-text="fac"></option>
-                                    </template>
-                                </x-filament::input.select>
-                            </x-filament::input.wrapper>
-                        </div>
-
-                        <div class="tala-rail-field" x-cloak x-show="viewMode === 'room'">
-                            <label for="{{ $overviewId }}-room-select" class="sr-only">Room</label>
-                            <x-filament::input.wrapper>
-                                <x-filament::input.select id="{{ $overviewId }}-room-select" x-model="entityFilter">
-                                    <option value="">All rooms</option>
-                                    <template x-for="rm in roomOptions" :key="rm">
-                                        <option :value="rm" x-text="rm"></option>
-                                    </template>
-                                </x-filament::input.select>
-                            </x-filament::input.wrapper>
-                        </div>
-
                         @php
                             $railProgramOptions = $scheduleContext['programOptions'] ?? [];
                             $railYearOptions = $scheduleContext['yearOptions'] ?? [];
@@ -1799,6 +1886,46 @@
                                 @endif
                             </div>
                         @endif
+
+                        <div class="tala-rail-field" x-cloak x-show="viewMode === 'section' && canSelectSection">
+                            <label for="{{ $overviewId }}-section-select" class="text-[0.7rem] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Student section</label>
+                            <x-filament::input.wrapper>
+                                <x-filament::input.select id="{{ $overviewId }}-section-select" x-model="entityFilter">
+                                    <option value="" x-text="filteredSectionOptions.length === 0 ? 'No sections match selection' : 'All matching sections'"></option>
+                                    <template x-for="sec in filteredSectionOptions" :key="sec.id">
+                                        <option :value="sec.id" x-text="sec.label"></option>
+                                    </template>
+                                </x-filament::input.select>
+                            </x-filament::input.wrapper>
+                        </div>
+
+                        <p class="tala-rail-hint" x-cloak x-show="viewMode === 'section' && !canSelectSection">
+                            Choose a program and year level to filter by section.
+                        </p>
+
+                        <div class="tala-rail-field" x-cloak x-show="viewMode === 'faculty'">
+                            <label for="{{ $overviewId }}-faculty-select" class="sr-only">Teacher</label>
+                            <x-filament::input.wrapper>
+                                <x-filament::input.select id="{{ $overviewId }}-faculty-select" x-model="entityFilter">
+                                    <option value="">All teachers</option>
+                                    <template x-for="fac in facultyOptions" :key="fac">
+                                        <option :value="fac" x-text="fac"></option>
+                                    </template>
+                                </x-filament::input.select>
+                            </x-filament::input.wrapper>
+                        </div>
+
+                        <div class="tala-rail-field" x-cloak x-show="viewMode === 'room'">
+                            <label for="{{ $overviewId }}-room-select" class="sr-only">Room</label>
+                            <x-filament::input.wrapper>
+                                <x-filament::input.select id="{{ $overviewId }}-room-select" x-model="entityFilter">
+                                    <option value="">All rooms</option>
+                                    <template x-for="rm in roomOptions" :key="rm">
+                                        <option :value="rm" x-text="rm"></option>
+                                    </template>
+                                </x-filament::input.select>
+                            </x-filament::input.wrapper>
+                        </div>
 
                         <div class="tala-rail-search-row">
                             <div class="tala-rail-field tala-rail-search">

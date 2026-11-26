@@ -1441,6 +1441,26 @@
     font-size: .75rem;
     white-space: nowrap;
 }
+.tala-rail-hint {
+    margin: 0;
+    padding: .5rem .625rem;
+    border-radius: .5rem;
+    border: 1px dashed var(--tala-edge);
+    background: var(--tala-surface-subtle, transparent);
+    color: var(--tala-muted);
+    font-size: .75rem;
+    line-height: 1.4;
+}
+.tala-print-format-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    inline-size: 100%;
+    margin: 0;
+}
+.tala-print-format-tabs .fi-tabs-item {
+    justify-content: center;
+    white-space: nowrap;
+}
 
 /* Floating Bottom Canvas Draft Dock & Move Mode Bar (Shared Surface Geometry) */
 .tala-studio-draft-dock {
@@ -2901,5 +2921,249 @@ button.tala-timetable-master-meeting:focus-visible {
         background: Canvas;
         color: CanvasText;
         border-color: CanvasText;
+    }
+}
+
+/* === Draft / In-Page Timetable Print Styles (Weekly grid & List view) === */
+.tala-timetable-print-header,
+.tala-print-week-columns {
+    display: none;
+}
+
+@media print {
+    .fi-body:has(.tala-timetable-workspace) {
+        background: #ffffff !important;
+        color: #18181b !important;
+        color-scheme: light !important;
+        --tala-canvas: #ffffff;
+        --tala-surface: #ffffff;
+        --tala-surface-sunken: #f4f4f5;
+        --tala-text: #18181b;
+        --tala-muted: #52525b;
+        --tala-edge: #d4d4d8;
+        --tala-edge-strong: #a1a1aa;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    .fi-body:has(.tala-timetable-workspace) :is(
+        .fi-sidebar,
+        .fi-sidebar-close-overlay,
+        .fi-topbar,
+        .tala-planning-heading,
+        .tala-studio-stepper,
+        .tala-timetable-toolbar,
+        .tala-studio-context-strip,
+        .tala-studio-pending-revision,
+        .tala-timetable-studio-rail,
+        .tala-studio-draft-dock,
+        .tala-timetable-next-strip,
+        .tala-timetable-guide,
+        .tala-timetable-window,
+        .tala-timetable-list-toolbar,
+        .tala-move-slot-banner,
+        .fi-modal
+    ) {
+        display: none !important;
+    }
+    .fi-body:has(.tala-timetable-workspace) :is(.fi-layout, .fi-main, .fi-main-ctn, .fi-page, .tala-timetable-studio, .tala-timetable-studio-split, .tala-timetable-studio-main) {
+        display: block !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        max-inline-size: none !important;
+        inline-size: 100% !important;
+        min-block-size: 0 !important;
+        background: #ffffff !important;
+        border: 0 !important;
+        box-shadow: none !important;
+    }
+    .fi-body:has(.tala-timetable-workspace) .tala-timetable {
+        --timetable-slot-height: 1.48rem;
+        --guide-course-1-bg: #e8f5ec;
+        --guide-course-1-ink: #17451e;
+        --guide-course-1-edge: #2f7d3b;
+        --guide-course-2-bg: #fff0dc;
+        --guide-course-2-ink: #703b0c;
+        --guide-course-2-edge: #b97a28;
+        --guide-course-3-bg: #f9e6eb;
+        --guide-course-3-ink: #7e122f;
+        --guide-course-3-edge: #b4113f;
+        --guide-course-4-bg: #f4f4f5;
+        --guide-course-4-ink: #27272a;
+        --guide-course-4-edge: #52525b;
+        color: #18181b !important;
+    }
+    .tala-timetable-print-header {
+        display: flex !important;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 6px 16px;
+        margin-block-end: 10px;
+        padding-block-end: 8px;
+        border-block-end: 2px solid #1f5f2c;
+    }
+    .tala-timetable-print-header__inst {
+        margin: 0;
+        font-size: 9.5px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #52525b;
+    }
+    .tala-timetable-print-header h2 {
+        margin: 2px 0 0;
+        font-size: 14px;
+        font-weight: 700;
+        color: #18181b;
+    }
+    .tala-timetable-print-header__meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 14px;
+        font-size: 10px;
+        color: #3f3f46;
+        font-variant-numeric: tabular-nums;
+    }
+    .fi-body .tala-timetable-studio .tala-studio-canvas.is-week .tala-timetable-day-heading,
+    .fi-body .tala-timetable-studio .tala-studio-canvas.is-week .tala-timetable-axis-heading,
+    .tala-timetable-axis {
+        position: static !important;
+        box-shadow: none !important;
+        background: #f4f4f5 !important;
+        color: #18181b !important;
+    }
+    .fi-body .tala-timetable-studio .tala-studio-canvas.is-week .tala-timetable-weekly {
+        overflow: visible !important;
+        grid-template-columns: 3.35rem repeat(var(--timetable-days), minmax(0, 1fr)) !important;
+        border-color: #a1a1aa !important;
+        background: #ffffff !important;
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+    .fi-body .tala-timetable-studio .tala-studio-canvas.is-week .tala-timetable-weekly.is-print-dense {
+        display: none !important;
+    }
+    .tala-print-week-columns {
+        display: grid !important;
+        grid-template-columns: repeat(var(--timetable-days, 6), minmax(0, 1fr));
+        gap: 6px;
+        align-items: start;
+    }
+    .tala-print-week-columns[style*="display: none"] {
+        display: none !important;
+    }
+    .tala-print-week-col {
+        border: 1px solid #d4d4d8;
+        border-radius: 4px;
+        background: #ffffff;
+        min-inline-size: 0;
+    }
+    .tala-print-week-col__head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 5px 7px;
+        background: #f4f4f5;
+        border-block-end: 1.5px solid #1f5f2c;
+        font-size: 10px;
+        font-weight: 700;
+        color: #18181b;
+    }
+    .tala-print-week-col__head span {
+        font-size: 8.5px;
+        font-weight: 600;
+        color: #52525b;
+    }
+    .tala-print-week-col__list {
+        display: grid;
+        gap: 4px;
+        padding: 5px;
+    }
+    .tala-print-week-col__item {
+        break-inside: avoid;
+        page-break-inside: avoid;
+        border: 1px solid #e4e4e7;
+        border-inline-start: 3px solid #15803d;
+        border-radius: 3px;
+        padding: 4px 5px;
+        background: #fafafa;
+        font-size: 8.5px;
+        line-height: 1.25;
+        color: #18181b;
+    }
+    .tala-print-week-col__item.is-lab {
+        border-inline-start-color: #b45309;
+        background: #fffbeb;
+    }
+    .tala-print-week-col__time {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 4px;
+        font-weight: 700;
+        font-size: 8px;
+        color: #18181b;
+    }
+    .tala-print-week-col__badge {
+        font-size: 7.5px;
+        font-weight: 700;
+        padding: 0 3px;
+        border-radius: 2px;
+        border: 1px solid #d4d4d8;
+        background: #ffffff;
+    }
+    .tala-print-week-col__course {
+        font-weight: 700;
+        color: #18181b;
+    }
+    .tala-print-week-col__meta {
+        font-size: 8px;
+        color: #3f3f46;
+    }
+    .tala-print-week-col__empty {
+        padding: 8px;
+        text-align: center;
+        font-size: 9px;
+        color: #71717a;
+    }
+    .fi-body .tala-timetable-studio .tala-timetable-meeting {
+        padding: 2px 4px !important;
+        box-shadow: none !important;
+        overflow: hidden !important;
+    }
+    .fi-body .tala-timetable-studio .tala-timetable-meeting .tala-timetable-course-title {
+        font-size: 8.5px !important;
+        line-height: 1.15 !important;
+    }
+    .fi-body .tala-timetable-studio .tala-timetable-meeting :is(.tala-timetable-tile-identity, .tala-timetable-tile-class, .tala-timetable-tile-subline, .tala-timetable-tile-teacher) {
+        font-size: 8px !important;
+        line-height: 1.15 !important;
+    }
+    .fi-body .tala-timetable-studio .tala-timetable-list.tala-timetable-list-active {
+        display: block !important;
+        padding: 0 !important;
+    }
+    .fi-body .tala-timetable-studio .tala-timetable-list.tala-timetable-list-active .tala-timetable-list-meeting {
+        border-block-end: 1px solid #d4d4d8 !important;
+        margin: 0 !important;
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+    .fi-body .tala-timetable-studio .tala-timetable-mobile-meeting {
+        display: grid !important;
+        grid-template-columns: 9rem minmax(0, 1fr) 12.5rem !important;
+        align-items: start !important;
+        gap: 0.75rem !important;
+        padding: 6px 4px !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        color: #18181b !important;
+        font-size: 10px !important;
+    }
+    .fi-body .tala-timetable-studio .tala-timetable-mobile-meeting .tala-timetable-meeting-room {
+        justify-content: flex-end !important;
+        text-align: end !important;
     }
 }

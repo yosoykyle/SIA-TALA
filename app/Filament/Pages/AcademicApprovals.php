@@ -240,10 +240,13 @@ class AcademicApprovals extends Page
             ];
         }
 
-        $latestRun = ScheduleGenerationRun::query()
+        $latestRunId = ScheduleGenerationRun::query()
             ->where('term_id', $term->id)
-            ->latest('id')
-            ->first();
+            ->max('id');
+
+        $latestRun = $latestRunId !== null
+            ? ScheduleGenerationRun::query()->find($latestRunId)
+            : null;
 
         if ($latestRun instanceof ScheduleGenerationRun
             && in_array($latestRun->status, [ScheduleGenerationRun::StatusFailed, ScheduleGenerationRun::StatusBlocked], true)) {

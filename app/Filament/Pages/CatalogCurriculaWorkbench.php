@@ -416,7 +416,7 @@ final class CatalogCurriculaWorkbench extends Page implements HasTable
                             ->placeholder('e.g., BSIT')
                             ->required()
                             ->maxLength(64)
-                            ->unique(table: Program::class, column: 'code')
+                            ->unique(table: Program::class, column: 'code', ignoreRecord: false)
                             ->columnSpan(['default' => 1, 'sm' => 1])
                             ->dehydrateStateUsing(fn (?string $state): ?string => $state === null ? null : strtoupper(trim($state))),
                         TextInput::make('name')

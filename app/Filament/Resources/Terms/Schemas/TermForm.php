@@ -47,7 +47,7 @@ class TermForm
                         ->default(fn (): ?int => Term::query()->find(request()->integer('termId'))?->academic_year_id)
                         ->createOptionAction(fn (Action $action): Action => $action->label('Add academic year')->modalHeading('Add academic year')->modalSubmitActionLabel('Create academic year'))
                         ->createOptionForm([
-                            TextInput::make('label')->label('Academic year')->required()->maxLength(255)->unique('academic_years', 'label'),
+                            TextInput::make('label')->label('Academic year')->required()->maxLength(255)->unique('academic_years', 'label', ignoreRecord: false),
                             Grid::make(['default' => 1, 'sm' => 2])
                                 ->schema([
                                     DatePicker::make('starts_on')

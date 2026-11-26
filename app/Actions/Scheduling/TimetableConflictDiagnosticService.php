@@ -2798,12 +2798,23 @@ final class TimetableConflictDiagnosticService
             return false;
         }
 
+        $solverStatus = strtolower((string) data_get($diagnostics, 'solver_result.solver_status', ''));
+        $summary = (array) data_get($diagnostics, 'solver_result.summary', []);
+        $summaryStatus = strtolower((string) ($summary['status'] ?? ''));
+        $outcome = (string) ($summary['outcome'] ?? '');
+
+        if ($run->candidate_state === 'Rejected'
+            && in_array($solverStatus, ['feasible', 'optimal'], true)
+            && ! in_array($summaryStatus, ['blocked', 'failed', 'rejected'], true)
+            && (int) ($summary['unassigned_count'] ?? 0) === 0
+            && (int) ($summary['hard_violation_count'] ?? 0) === 0
+            && (int) ($summary['conflict_count'] ?? 0) === 0) {
+            return false;
+        }
+
         if (in_array($run->status, [ScheduleGenerationRun::StatusBlocked, ScheduleGenerationRun::StatusFailed], true)) {
             return true;
         }
-
-        $solverStatus = strtolower((string) data_get($diagnostics, 'solver_result.solver_status', ''));
-        $outcome = (string) data_get($diagnostics, 'solver_result.summary.outcome', '');
 
         return in_array($solverStatus, ['infeasible', 'model_invalid', 'unknown'], true)
             || in_array($outcome, ['Infeasible', 'ModelInvalid'], true);
