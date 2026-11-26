@@ -485,13 +485,23 @@
     width: 1rem;
 }
 
-.tala-access-page { margin: 0; background: var(--tala-canvas); color: var(--tala-text); font-family: var(--tala-font-body); line-height: 1.6; }
-.tala-access-main { display: grid; place-items: center; min-height: 100dvh; padding: 2rem 1rem; max-width: 34rem; margin-inline: auto; }
+.tala-access-page { margin: 0; background: var(--tala-canvas); color: var(--tala-text); font-family: var(--tala-font-body); line-height: 1.6; min-height: 100dvh; position: relative; isolation: isolate; overflow-x: clip; }
+.tala-access-main { position: relative; z-index: 1; display: grid; place-items: center; min-height: 100dvh; padding: 2rem 1rem; max-width: 34rem; margin-inline: auto; }
 .tala-access-main-wide { max-width: 48rem; }
-.tala-access-card { width: 100%; min-width: 0; padding: clamp(1.25rem, 4vw, 2rem); border: 1px solid var(--tala-edge-strong); border-radius: 1rem; background: var(--tala-surface); box-shadow: var(--tala-shadow-surface); overflow-wrap: anywhere; }
+.tala-access-card { position: relative; width: 100%; min-width: 0; padding: clamp(1.25rem, 4vw, 2rem); border: 1px solid var(--tala-edge); border-radius: 1rem; background: var(--tala-surface); box-shadow: var(--tala-shadow-surface); overflow-wrap: anywhere; }
+@supports (backdrop-filter: blur(1px)) {
+    .tala-access-page:has(> .tala-ambient) .tala-access-card {
+        background-color: color-mix(in oklab, var(--tala-surface) 93%, transparent);
+        -webkit-backdrop-filter: blur(14px) saturate(135%);
+        backdrop-filter: blur(14px) saturate(135%);
+    }
+    .dark .tala-access-page:has(> .tala-ambient) .tala-access-card {
+        background-color: color-mix(in oklab, var(--tala-surface) 90%, transparent);
+    }
+}
 .tala-access-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
 .tala-access-header .tala-brand { margin-bottom: 0; }
-.tala-access-theme-toggle { display: inline-flex; align-items: center; justify-content: center; inline-size: 2.25rem; block-size: 2.25rem; flex: none; border-radius: 0.5rem; border: 1px solid var(--tala-edge-strong); background: var(--tala-surface-sunken); color: var(--tala-muted); cursor: pointer; transition: border-color 150ms ease, color 150ms ease, background-color 150ms ease; }
+.tala-access-theme-toggle { display: inline-flex; align-items: center; justify-content: center; inline-size: 2.75rem; block-size: 2.75rem; flex: none; border-radius: 0.5rem; border: 1px solid var(--tala-edge-strong); background: var(--tala-surface-sunken); color: var(--tala-muted); cursor: pointer; transition: border-color 150ms ease, color 150ms ease, background-color 150ms ease; }
 .tala-access-theme-toggle:hover { border-color: var(--tala-selected-edge); color: var(--tala-text); background: var(--tala-surface-raised); }
 .tala-access-theme-icon { inline-size: 1.125rem; block-size: 1.125rem; }
 .tala-access-theme-icon--sun { display: none; }
@@ -499,11 +509,6 @@
 html.dark .tala-access-theme-icon--sun { display: block; }
 html.dark .tala-access-theme-icon--moon { display: none; }
 .tala-access-heading-block { display: grid; gap: 0.25rem; }
-.tala-access-identity-pill { display: flex; align-items: center; gap: 0.75rem; margin-top: 1.25rem; padding: 0.75rem 0.875rem; border: 1px solid var(--tala-edge); border-radius: 0.75rem; background: var(--tala-surface-sunken); }
-.tala-access-identity-avatar { display: grid; place-items: center; inline-size: 2.25rem; block-size: 2.25rem; flex: none; border-radius: 9999px; background: var(--tala-brand-tint); color: var(--tala-on-brand-tint); border: 1px solid var(--tala-selected-edge); font-size: 0.8125rem; font-weight: 700; }
-.tala-access-identity-meta { display: grid; min-inline-size: 0; line-height: 1.3; }
-.tala-access-identity-name { font-size: 0.875rem; font-weight: 600; color: var(--tala-text); overflow-wrap: anywhere; }
-.tala-access-identity-email { font-size: 0.8125rem; color: var(--tala-muted); overflow-wrap: anywhere; }
 .tala-access-invite-context { display: grid; gap: 0.25rem; margin-top: 1.25rem; padding: 0.875rem 1rem; border: 1px solid var(--tala-edge); border-radius: 0.75rem; background: var(--tala-surface-sunken); }
 .tala-access-invite-context__name { margin: 0; font-size: 0.9375rem; font-weight: 600; color: var(--tala-text); }
 .tala-access-invite-context__email { margin: 0; font-size: 0.8125rem; color: var(--tala-muted); overflow-wrap: anywhere; }

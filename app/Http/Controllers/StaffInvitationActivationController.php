@@ -8,22 +8,10 @@ use App\Models\StaffInvitation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rules\Password;
-use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\Response;
 
 class StaffInvitationActivationController extends Controller
 {
-    public function show(Request $request, StaffInvitation $invitation, StaffInvitationService $service): View
-    {
-        $token = (string) $request->query('token');
-
-        return view('auth.staff-activation', [
-            'invitation' => $invitation,
-            'token' => $token,
-            'isUsable' => $service->isUsable($invitation, $token, now()),
-        ]);
-    }
-
     public function store(
         Request $request,
         StaffInvitation $invitation,

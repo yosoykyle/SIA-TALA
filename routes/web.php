@@ -1,6 +1,7 @@
 <?php
 
 use App\Filament\Pages\Auth\AccountSecurity;
+use App\Filament\Pages\Auth\StaffActivation;
 use App\Http\Controllers\AdmissionApplicationAcknowledgmentController;
 use App\Http\Controllers\AdmissionEvidenceDownloadController;
 use App\Http\Controllers\ApplicantEmailVerificationController;
@@ -44,7 +45,8 @@ Route::get('/application-status/{token?}', fn () => response()->view('admissions
         'X-Robots-Tag' => 'noindex, nofollow',
     ]))->name('applications.status.show');
 
-Route::get('/staff-activation/{invitation}', [StaffInvitationActivationController::class, 'show'])
+Route::get('/staff-activation/{invitation}', StaffActivation::class)
+    ->middleware($signInPanel->getMiddleware())
     ->name('staff-invitations.activate');
 Route::post('/staff-activation/{invitation}', [StaffInvitationActivationController::class, 'store'])
     ->middleware('throttle:5,1')

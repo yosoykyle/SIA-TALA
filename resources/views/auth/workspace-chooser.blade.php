@@ -1,8 +1,30 @@
 @php
     $user = auth()->user();
-    $userName = $user instanceof \App\Models\User ? \App\Filament\Resources\Users\Tables\UsersTable::displayName($user) : null;
-    $userEmail = $user instanceof \App\Models\User ? (string) $user->email : null;
-    $userInitials = $user instanceof \App\Models\User ? \App\Filament\Resources\Users\Tables\UsersTable::initials($user) : null;
+    $userName = null;
+    $userEmail = null;
+    $userInitials = null;
+    $userPhotoUrl = null;
+    $userIdentifier = null;
+    $userIdentifierLabel = null;
+
+    if ($user instanceof \App\Models\User) {
+        $user->loadMissing(['staffAccessProfile', 'studentProfile', 'currentAdmissionApplication']);
+        $userName = \App\Filament\Resources\Users\Tables\UsersTable::displayName($user);
+        $userEmail = (string) $user->email;
+        $userInitials = \App\Filament\Resources\Users\Tables\UsersTable::initials($user);
+        $userPhotoUrl = $user->getFilamentAvatarUrl();
+
+        if ($user->isStaffCapable() && filled($user->staffAccessProfile?->staff_identifier)) {
+            $userIdentifier = (string) $user->staffAccessProfile->staff_identifier;
+            $userIdentifierLabel = 'Staff ID';
+        } elseif ($user->hasRole('student') && filled($user->studentProfile?->student_number)) {
+            $userIdentifier = (string) $user->studentProfile->student_number;
+            $userIdentifierLabel = 'Student number';
+        } elseif (filled($user->currentAdmissionApplication?->application_reference)) {
+            $userIdentifier = (string) $user->currentAdmissionApplication->application_reference;
+            $userIdentifierLabel = 'Application reference';
+        }
+    }
 
     $roleDescriptions = [
         \App\Models\User::StaffRoleSystemSuperAdmin => 'Manage user accounts, public content, system health, and audit logs.',
@@ -32,13 +54,32 @@
     </div>
 
     @if ($userName !== null && $userEmail !== null)
-        <div class="tala-access-identity-pill" aria-label="Signed-in account">
-            <span class="tala-access-identity-avatar" aria-hidden="true">{{ $userInitials }}</span>
-            <div class="tala-access-identity-meta">
-                <span class="tala-access-identity-name">{{ $userName }}</span>
-                <span class="tala-access-identity-email">{{ $userEmail }}</span>
-            </div>
-        </div>
+        <x-record-identity
+            :name="$userName"
+            :program="$userEmail"
+            :number="$userIdentifier"
+            :number-label="$userIdentifierLabel"
+            :show-number-label="filled($userIdentifierLabel)"
+            :initials="$userInitials"
+            role="group"
+            aria-label="Signed-in account"
+            class="tala-record-identity--access"
+        >
+            <x-slot:avatar>
+                <div class="student-profile-avatar" aria-hidden="true">
+                    @if ($userPhotoUrl)
+                        <img
+                            src="{{ $userPhotoUrl }}"
+                            alt=""
+                            onerror="this.hidden = true; if (this.nextElementSibling) { this.nextElementSibling.hidden = false; }"
+                        >
+                        <span hidden>{{ $userInitials }}</span>
+                    @else
+                        {{ $userInitials }}
+                    @endif
+                </div>
+            </x-slot:avatar>
+        </x-record-identity>
     @endif
 
     <x-tala-context-entry-notice />

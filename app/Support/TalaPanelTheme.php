@@ -70,6 +70,8 @@ class TalaPanelTheme
             ? ['aria-label' => trim(strip_tags((string) $action->getLabel()))] : [], merge: true);
 
         $action->modalFooterActionsAlignment(Alignment::End);
+        $action->stickyModalHeader();
+        $action->stickyModalFooter();
 
         $action->closeModalByClickingAway(static function (Action $action): bool {
             if ($action->isSchemaDisabled() || $action->getModalSubmitAction() === false) {
@@ -114,6 +116,7 @@ class TalaPanelTheme
                 url('/sign-in*'),
                 url('/apply*'),
                 url('/workspace-chooser*'),
+                url('/staff-activation*'),
                 url('/outputs/*'),
                 url('/finance/*'),
                 url('/admissions/evidence/*'),
@@ -314,7 +317,7 @@ class TalaPanelTheme
 
     public static function isMandatoryMfaSetupRoute(): bool
     {
-        return request()->routeIs('filament.*.auth.multi-factor-authentication.set-up-required');
+        return \Filament\Support\original_request()->routeIs('filament.*.auth.multi-factor-authentication.set-up-required');
     }
 
     /** @param array<class-string> $scopes */

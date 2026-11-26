@@ -524,6 +524,7 @@ const snapshotHasValidationErrors = (snapshot) => {
 
 const AUTH_SUBMIT_METHODS = new Set([
     'authenticate',
+    'activate',
     'request',
     'resetPassword',
     'register',

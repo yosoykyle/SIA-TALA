@@ -69,7 +69,10 @@ class StudentPanelProvider extends PanelProvider
                 isRequired: true,
             )
             ->multiFactorAuthenticationRequiredMiddlewareName(EnsureStaffMfaIsEnabled::class)
-            ->databaseNotifications(livewireComponent: LiveDatabaseNotifications::class)
+            ->databaseNotifications(
+                condition: fn (): bool => ! TalaPanelTheme::isMandatoryMfaSetupRoute(),
+                livewireComponent: LiveDatabaseNotifications::class,
+            )
             ->databaseNotificationsPolling('8s')
             ->brandName('Servitech Institute Asia — Student Hub')
             ->plugin(
