@@ -298,9 +298,10 @@ class Issue58TermPlanningResourceContextTest extends TestCase
         $otherOffering = TermOffering::factory()->for($other)->create();
         $section = Section::factory()->for($offering, 'termOffering')->create();
         $otherSection = Section::factory()->for($otherOffering, 'termOffering')->create();
+        $selectedPackage = TermCalendarPackage::factory()->for($selected)->create(['state' => TermCalendarPackage::StateActive, 'activated_at' => now()]);
         $confirmed = Section::factory()->create([
             'term_offering_id' => $offering->id,
-            'term_calendar_package_id' => TermCalendarPackage::factory()->for($selected)->create()->id,
+            'term_calendar_package_id' => $selectedPackage->id,
         ]);
         $load = FacultyTermLoadOverride::factory()->for($selected)->create();
         $otherLoad = FacultyTermLoadOverride::factory()->for($other)->create();
@@ -312,18 +313,18 @@ class Issue58TermPlanningResourceContextTest extends TestCase
         $otherDemand = SchedulingDemand::factory()->for($otherOffering, 'termOffering')->create();
 
         foreach ([
-            [ListTermOfferings::class, $offering, $otherOffering],
-            [TermClasses::class, $section, $otherSection],
-            [ListFacultyTermLoadOverrides::class, $load, $otherLoad],
-            [ListScheduleGenerationRuns::class, $run, $otherRun],
-            [ListCalendarEvents::class, $block, $otherBlock],
-            [ListSchedulingDemands::class, $demand, $otherDemand],
-        ] as [$pageClass, $visible, $excluded]) {
-            Livewire::withQueryParams(['termId' => $selected->id])->test($pageClass)
+            [ListTermOfferings::class, $offering, $otherOffering, []],
+            [TermClasses::class, $section, $otherSection, ['classesView' => 'classes']],
+            [ListFacultyTermLoadOverrides::class, $load, $otherLoad, []],
+            [ListScheduleGenerationRuns::class, $run, $otherRun, []],
+            [ListCalendarEvents::class, $block, $otherBlock, []],
+            [ListSchedulingDemands::class, $demand, $otherDemand, []],
+        ] as [$pageClass, $visible, $excluded, $extraParams]) {
+            Livewire::withQueryParams(['termId' => $selected->id, ...$extraParams])->test($pageClass)
                 ->resetTableFilters()->assertCanSeeTableRecords([$visible])->assertCanNotSeeTableRecords([$excluded]);
         }
 
-        Livewire::withQueryParams(['termId' => $selected->id])->test(TermClasses::class)->assertCanSeeTableRecords([$confirmed]);
+        Livewire::withQueryParams(['termId' => $selected->id, 'classesView' => 'classes'])->test(TermClasses::class)->assertCanSeeTableRecords([$confirmed]);
     }
 
     public function test_load_exception_list_shows_term_default_and_keeps_term_on_actions(): void
@@ -584,14 +585,14 @@ class Issue58TermPlanningResourceContextTest extends TestCase
     public static function planningLists(): array
     {
         return [
-            'Offerings' => [ListTermOfferings::class, 'classes', 'Classes & sections'],
-            'Sections' => [ListSections::class, 'classes', 'Classes & sections'],
-            'Requirements' => [ListSchedulingDemands::class, 'classes', 'Classes & sections'],
-            'Rooms' => [ListRooms::class, 'resources', 'Faculty & rooms'],
-            'Qualifications' => [ListFacultyQualifications::class, 'resources', 'Faculty & rooms'],
-            'Loads' => [ListFacultyTermLoadOverrides::class, 'resources', 'Faculty & rooms'],
-            'Availability' => [ListCalendarEvents::class, 'resources', 'Faculty & rooms'],
-            'Runs' => [ListScheduleGenerationRuns::class, 'generate', 'Timetable'],
+            'Offerings' => [ListTermOfferings::class, 'classes', '2. Sections & classes'],
+            'Sections' => [ListSections::class, 'classes', '2. Sections & classes'],
+            'Requirements' => [ListSchedulingDemands::class, 'classes', '2. Sections & classes'],
+            'Rooms' => [ListRooms::class, 'resources', '3. Faculty & rooms'],
+            'Qualifications' => [ListFacultyQualifications::class, 'resources', '3. Faculty & rooms'],
+            'Loads' => [ListFacultyTermLoadOverrides::class, 'resources', '3. Faculty & rooms'],
+            'Availability' => [ListCalendarEvents::class, 'resources', '3. Faculty & rooms'],
+            'Runs' => [ListScheduleGenerationRuns::class, 'generate', '4. Timetable'],
         ];
     }
 

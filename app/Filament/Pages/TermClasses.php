@@ -1081,7 +1081,11 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
             ->fillForm(function (array $arguments): array {
                 $cohortId = isset($arguments['cohortId']) ? (int) $arguments['cohortId'] : null;
                 if ($cohortId === null || $cohortId <= 0) {
-                    return [];
+                    return [
+                        'cohorts' => [
+                            ['id' => null, 'count' => null],
+                        ],
+                    ];
                 }
 
                 $count = $this->cohortHeadcountsById()[$cohortId] ?? null;

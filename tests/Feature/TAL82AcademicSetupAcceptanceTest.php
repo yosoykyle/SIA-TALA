@@ -13,6 +13,7 @@ use App\Models\AcademicYear;
 use App\Models\Program;
 use App\Models\Term;
 use App\Models\User;
+use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -87,7 +88,7 @@ class TAL82AcademicSetupAcceptanceTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         Livewire::test(ListPrograms::class)
-            ->callAction('create', data: [
+            ->callAction(TestAction::make('create')->table(), data: [
                 'code' => 'BSIT',
                 'name' => 'Bachelor of Science in Information Technology',
                 'duration_years' => 4,

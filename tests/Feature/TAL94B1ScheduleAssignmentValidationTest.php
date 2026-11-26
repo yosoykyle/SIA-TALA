@@ -857,11 +857,16 @@ final class TAL94B1ScheduleAssignmentValidationTest extends TestCase
             ],
         ])->save();
 
+        $demandCourseCode = (string) ($context['demands'][0]->courseComponent?->courseSpecification?->course?->code
+            ?? $context['demands'][0]->termOffering?->curriculumEntry?->courseSpecification?->course?->code
+            ?? '');
+
         Livewire::actingAs($registrar)
             ->test(ViewScheduleGenerationRun::class, ['record' => $context['run']->getRouteKey()])
             ->assertOk()
             ->assertSee('Assigned faculty is not eligible.')
-            ->assertSee('Scheduling Demand #'.$context['demands'][0]->id)
+            ->assertSee($demandCourseCode)
+            ->assertDontSee('Scheduling Demand #'.$context['demands'][0]->id)
             ->assertSeeHtml('href="'.SchedulingDemandResource::getUrl('view', ['record' => $context['demands'][0], 'termId' => $context['term']->id]).'"');
     }
 

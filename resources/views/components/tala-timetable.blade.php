@@ -1473,7 +1473,7 @@
                                             <strong class="tala-timetable-course-title">{{ $meeting['courseTitle'] ?: $meeting['courseCode'] }}</strong>
                                             @if ($tileSectionLabel !== '')
                                                 <span
-                                                    class="inline-flex w-fit max-w-full items-center truncate rounded border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 text-[0.65rem] font-semibold leading-none tracking-wide text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                                                    class="tala-timetable-tile-class inline-flex w-fit max-w-full items-center truncate rounded border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 text-[0.65rem] font-semibold leading-none tracking-wide text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
                                                     x-show="viewMode !== 'section'"
                                                     title="{{ $tileSectionLabel }}"
                                                 >{{ $tileSectionLabel }}</span>

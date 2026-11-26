@@ -10,7 +10,6 @@ use App\Models\CourseSpecification;
 use App\Models\Enrollment;
 use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\FacultyQualification;
-use App\Models\FacultyTermLoadOverride;
 use App\Models\PublishedTimetableVersion;
 use App\Models\Room;
 use App\Models\SchedulingCommitment;
@@ -1070,12 +1069,6 @@ final class ReadyTermPlanningProjection
         Collection $recurringCalendarBlocks,
         array &$blockers,
     ): void {
-        $activeOverridesByFaculty = FacultyTermLoadOverride::query()
-            ->where('term_id', $term->id)
-            ->where('is_active', true)
-            ->get()
-            ->keyBy(fn (FacultyTermLoadOverride $override): int => (int) $override->faculty_user_id);
-
         $calendarOpenIntervalsByDay = $this->calendarOpenIntervalsByDay($activePackage, $recurringCalendarBlocks);
         $calendarWeeklyOpenMinutes = $this->totalMinutesInDayIntervals($calendarOpenIntervalsByDay);
 
@@ -1086,7 +1079,6 @@ final class ReadyTermPlanningProjection
             qualifiedFacultyByCourse: $qualifiedFacultyByCourse,
             allFacultyRows: $allFacultyRows,
             zeroUnitOverrideFacultyIds: $zeroUnitOverrideFacultyIds,
-            activeOverridesByFaculty: $activeOverridesByFaculty,
             commitmentsBySection: $commitmentsBySection,
             recurringCalendarBlocks: $recurringCalendarBlocks,
             blockers: $blockers,
@@ -1122,7 +1114,6 @@ final class ReadyTermPlanningProjection
      * @param  array<int, list<User>>  $qualifiedFacultyByCourse
      * @param  array<int, array<string, mixed>>  $allFacultyRows
      * @param  array<int, int>  $zeroUnitOverrideFacultyIds
-     * @param  Collection<int, FacultyTermLoadOverride>  $activeOverridesByFaculty
      * @param  Collection<int, Collection<int, SchedulingCommitment>>  $commitmentsBySection
      * @param  Collection<int, CalendarEvent>  $recurringCalendarBlocks
      * @param  list<array{code: string, source: string, owner: string, reason: string, next_action: string, recovery: string}>  $blockers
@@ -1134,15 +1125,15 @@ final class ReadyTermPlanningProjection
         array $qualifiedFacultyByCourse,
         array $allFacultyRows,
         array $zeroUnitOverrideFacultyIds,
-        Collection $activeOverridesByFaculty,
         Collection $commitmentsBySection,
         Collection $recurringCalendarBlocks,
         array &$blockers,
     ): void {
-        $resolveCap = function (int $facultyId) use ($activeOverridesByFaculty, $term): ?float {
-            $override = $activeOverridesByFaculty->get($facultyId);
-            if ($override instanceof FacultyTermLoadOverride) {
-                return $override->allowedLoadUnits();
+        $resolveCap = function (int $facultyId) use ($allFacultyRows, $term): ?float {
+            if (array_key_exists($facultyId, $allFacultyRows) && array_key_exists('load_limit', $allFacultyRows[$facultyId])) {
+                $limit = $allFacultyRows[$facultyId]['load_limit'];
+
+                return $limit !== null ? (float) $limit : null;
             }
 
             return $term->default_max_units !== null ? (float) $term->default_max_units : null;
