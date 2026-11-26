@@ -239,13 +239,45 @@ class PrepareStandardRegistration
                 return $reserved + $official < $section->capacity;
             });
         })->values();
-        if ($valid->count() === 1) {
-            return $valid->sole()->pluck('id')->map(fn ($id): int => (int) $id)->values()->all();
+        if ($valid->isNotEmpty()) {
+            return $this->roomiestBlock($valid, $enrollment)->pluck('id')->map(fn ($id): int => (int) $id)->values()->all();
         }
         if ($valid->isEmpty() && $blocks->count() === 1) {
             return $blocks->sole()->pluck('id')->map(fn ($id): int => (int) $id)->values()->all();
         }
         $this->unavailable('Registrar must choose a complete valid class block or advise the affected subjects; enrollment has not been confirmed.');
+    }
+
+    /**
+     * #103: when several complete blocks are valid, take the one whose fullest class has the most
+     * open seats (then the most open seats overall, then the earliest class) instead of stopping.
+     *
+     * @param  Collection<int, Collection<int, Section>>  $blocks
+     * @return Collection<int, Section>
+     */
+    private function roomiestBlock(Collection $blocks, Enrollment $enrollment): Collection
+    {
+        if ($blocks->count() === 1) {
+            return $blocks->sole();
+        }
+
+        $remaining = function (Section $section) use ($enrollment): int {
+            $reserved = EnrollmentSeatReservation::query()->where('section_id', $section->id)
+                ->where('enrollment_id', '!=', $enrollment->id)->whereIn('status', EnrollmentSeatReservation::capacityHoldingStatuses())->count();
+            $official = CourseEnrollment::query()->where('section_id', $section->id)->where('is_current', true)->where('status', CourseEnrollment::StatusActive)->count();
+
+            return max(0, (int) $section->capacity - $reserved - $official);
+        };
+
+        return $blocks
+            ->map(fn (Collection $block): array => [
+                'block' => $block,
+                'fullest' => $block->map($remaining)->min(),
+                'total' => $block->map($remaining)->sum(),
+                'first' => (int) $block->min('id'),
+            ])
+            ->sort(fn (array $a, array $b): int => [$b['fullest'], $b['total'], $a['first']] <=> [$a['fullest'], $a['total'], $b['first']])
+            ->first()['block'];
     }
 
     private function unavailable(string $reason): never

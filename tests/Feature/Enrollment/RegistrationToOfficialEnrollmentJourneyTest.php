@@ -24,6 +24,7 @@ use App\Actions\Enrollment\RegistrationNotificationLedger;
 use App\Actions\Enrollment\RegistrationReadinessQuery;
 use App\Actions\Enrollment\ReleaseExpiredEnrollmentReservations;
 use App\Actions\Enrollment\ReopenRegistrationCase;
+use App\Actions\Enrollment\RetryStandardRegistrationPreparation;
 use App\Actions\Enrollment\StartRegistrationCase;
 use App\Actions\Enrollment\StudentUnitLoadService;
 use App\Actions\Finance\CreateAssessmentFromPublishedFeePlan;
@@ -2895,6 +2896,70 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         Livewire::actingAs($student->user)->test(StudentEnrollmentPage::class)
             ->assertSee('Enrollment payment')
             ->assertSee('Not yet posted');
+    }
+
+    public function test_blocked_regular_case_explains_the_blocker_and_registrar_retry_prepares_it_automatically(): void
+    {
+        [$application, $term] = $this->readyApplicant();
+        [, $timetable] = $this->publishedOffering($application, $term);
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $accounting = $this->staff(User::StaffRoleAccounting);
+        $plan = $this->createFeePlanDraft($application->program, $term, [['code' => 'ENROLLMENT', 'label' => 'Enrollment obligation', 'amount' => '1000.00']], $accounting);
+        $this->publishFeePlan($plan, $accounting, 'Synthetic approved fee authority');
+        $timetable->update(['state' => PublishedTimetableVersion::StateSuperseded]);
+
+        $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $application->user);
+
+        $this->assertSame(Enrollment::SelectionStandardCurriculum, $case->selection_basis);
+        $this->assertNull($case->current_proposal_version_id);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        Livewire::actingAs($registrar)->test(RegistrarEnrollment::class, ['record' => $case->id])
+            ->assertSee('Subjects were not prepared automatically')
+            ->assertSee('Registrar must publish the exact-Term classes before enrollment can be prepared.')
+            ->assertActionVisible('retryAutomaticPreparation')
+            ->assertActionHidden('prepareProposal')
+            ->callAction('retryAutomaticPreparation')
+            ->assertNotified('Still not prepared');
+        $this->assertNull($case->fresh()->current_proposal_version_id);
+
+        $timetable->update(['state' => PublishedTimetableVersion::StatePublished]);
+        Livewire::actingAs($registrar)->test(RegistrarEnrollment::class, ['record' => $case->id])
+            ->assertSee('Ready to prepare automatically')
+            ->callAction('retryAutomaticPreparation')
+            ->assertNotified('Subjects prepared and sent to the student');
+
+        $case->refresh();
+        $this->assertSame(RegistrationProposalVersion::StateIssued, $case->currentProposalVersion->state);
+        $this->assertSame($case->current_proposal_version_id, $case->termAccount->assessments()->where('state', Assessment::StateActive)->sole()->source_proposal_version_id);
+        $this->assertSame(RetryStandardRegistrationPreparation::PreparedReason, $case->status_reason);
+        Livewire::actingAs($this->staff(User::StaffRoleRegistrar))->test(RegistrarEnrollment::class, ['record' => $case->id])
+            ->assertActionHidden('retryAutomaticPreparation');
+    }
+
+    public function test_term_retry_prepares_only_waiting_regular_cases_and_only_for_the_registrar(): void
+    {
+        [$application, $term] = $this->readyApplicant();
+        [, $timetable] = $this->publishedOffering($application, $term);
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $accounting = $this->staff(User::StaffRoleAccounting);
+        $plan = $this->createFeePlanDraft($application->program, $term, [['code' => 'ENROLLMENT', 'label' => 'Enrollment obligation', 'amount' => '1000.00']], $accounting);
+        $this->publishFeePlan($plan, $accounting, 'Synthetic approved fee authority');
+        $timetable->update(['state' => PublishedTimetableVersion::StateSuperseded]);
+        $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $application->user);
+        $advised = Enrollment::factory()->for($term)->create([
+            'canonical_outcome' => Enrollment::OutcomeInProgress,
+            'selection_basis' => Enrollment::SelectionIndividuallyAdvised,
+        ]);
+        $timetable->update(['state' => PublishedTimetableVersion::StatePublished]);
+        $retry = app(RetryStandardRegistrationPreparation::class);
+
+        $this->assertSame(['prepared' => 0, 'waiting' => 0], $retry->retryForTerm($term->id, $accounting));
+        $this->assertNull($case->fresh()->current_proposal_version_id);
+
+        $this->assertSame(['prepared' => 1, 'waiting' => 0], $retry->retryForTerm($term->id, $registrar));
+        $this->assertSame(RegistrationProposalVersion::StateIssued, $case->fresh()->currentProposalVersion->state);
+        $this->assertNull($advised->fresh()->current_proposal_version_id);
+        $this->assertNull($retry->blocker($advised->fresh()));
     }
 
     /** @return array{Enrollment, CourseEnrollment, Section, RegistrationProposalVersion, User} */

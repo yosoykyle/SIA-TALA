@@ -2,6 +2,7 @@
 
 namespace App\Actions\Scheduling;
 
+use App\Actions\Enrollment\RetryStandardRegistrationPreparation;
 use App\Models\CandidateScheduleRow;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
@@ -15,7 +16,10 @@ use Illuminate\Validation\ValidationException;
 
 final class PublishTimetableVersion
 {
-    public function __construct(private readonly SyncTeachingAssignmentsFromTimetable $teachingAssignments) {}
+    public function __construct(
+        private readonly SyncTeachingAssignmentsFromTimetable $teachingAssignments,
+        private readonly RetryStandardRegistrationPreparation $retryWaitingRegularCases,
+    ) {}
 
     /**
      * The caller owns the surrounding Term/run transaction and row locks.
@@ -109,6 +113,7 @@ final class PublishTimetableVersion
         }
 
         $this->teachingAssignments->apply($version, $publisher);
+        $this->retryWaitingRegularCases->afterCommit((int) $version->term_id, $publisher);
 
         return $version->fresh('meetings');
     }

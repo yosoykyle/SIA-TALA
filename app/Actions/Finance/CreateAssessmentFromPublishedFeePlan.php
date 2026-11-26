@@ -35,6 +35,8 @@ class CreateAssessmentFromPublishedFeePlan
         private readonly RegistrationReadinessQuery $readiness,
     ) {}
 
+    public const NotSentReasonPrefix = 'Subjects were not sent to the student after the assessment: ';
+
     public function execute(Enrollment $enrollment, User $actor, ?int $expectedProposalVersionId = null, ?int $expectedFeePlanId = null): Assessment
     {
         $this->authorizePublishedAssessment($enrollment, $actor);
@@ -230,7 +232,14 @@ class CreateAssessmentFromPublishedFeePlan
         $requirement = $this->paymentRequirement->forEnrollment($enrollment);
         if ($proposal?->purpose === RegistrationProposalVersion::PurposeInitial && $proposal->state === RegistrationProposalVersion::StateDraft
             && $requirement['state'] !== 'Unavailable') {
-            $this->issuer->issuePrepared($proposal);
+            try {
+                $this->issuer->issuePrepared($proposal);
+            } catch (ValidationException $exception) {
+                // #103: keep the recorded assessment; the Registrar sends the subjects once the reason is resolved.
+                $enrollment->forceFill([
+                    'status_reason' => self::NotSentReasonPrefix.(collect($exception->errors())->flatten()->first() ?: $exception->getMessage()),
+                ])->save();
+            }
         }
 
         if ($enrollment->canonical_outcome === Enrollment::OutcomeInProgress

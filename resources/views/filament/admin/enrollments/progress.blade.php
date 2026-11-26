@@ -31,11 +31,9 @@
                     </ul>
                 @endif
                 @if ($canReserve){{ $this->getAction('prepareProposal', isMounting: false)->link()->color('gray') }}@endif
-            @else
-                <p>{{ $paymentReview ? 'Submitted receipt needs Accounting review. Official enrollment completes automatically once Accounting verifies the payment or approved coverage.' : 'The student confirmed these subjects. Once Accounting verifies a submitted receipt, Campus Cashier/Accounting records an onsite payment, or approved coverage meets the requirement, official enrollment and the COR complete automatically.' }}</p>
             @endif
             @if ($reservationDeadline)
-                <p class="registrar-case-meta">Seats held until {{ \App\Support\DisplayDateTime::format($reservationDeadline) }} · {{ config('app.display_timezone') }}</p>
+                <p class="registrar-case-meta">Seats held until {{ \App\Support\DisplayDateTime::format($reservationDeadline) }}</p>
             @endif
             @if ($progressView === 'assessment-recovery')
                 <x-workflow-handoff current-owner="Accounting" current-task="Review charges" next-owner="Registrar" next-task="Continue enrollment review" current-icon="heroicon-o-banknotes" next-icon="heroicon-o-clipboard-document-check" />
