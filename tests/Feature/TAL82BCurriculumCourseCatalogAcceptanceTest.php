@@ -20,6 +20,7 @@ use App\Models\CurriculumVersion;
 use App\Models\Program;
 use App\Models\Term;
 use App\Models\User;
+use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -124,7 +125,7 @@ final class TAL82BCurriculumCourseCatalogAcceptanceTest extends TestCase
             ->create(['label' => 'First Semester']);
 
         Livewire::test(ListCourses::class)
-            ->callAction('create', data: [
+            ->callAction(TestAction::make('create')->table(), data: [
                 ...$this->subjectInput(),
                 'code' => 'IT101',
                 'title' => 'Introduction to Computing',
@@ -151,7 +152,7 @@ final class TAL82BCurriculumCourseCatalogAcceptanceTest extends TestCase
         $program = Program::factory()->create(['code' => 'BSIT', 'name' => 'Bachelor of Science in Information Technology']);
 
         $createCurriculum = Livewire::test(ListCurriculumVersions::class)
-            ->callAction('create', data: [
+            ->callAction(TestAction::make('create')->table(), data: [
                 'program_id' => $program->id,
                 'name' => 'BSIT 2026 Curriculum',
                 'effective_entry_term_id' => $term->id,
@@ -326,15 +327,15 @@ final class TAL82BCurriculumCourseCatalogAcceptanceTest extends TestCase
     {
         $this->actingAs($this->staff(User::StaffRoleRegistrar));
         Filament::setCurrentPanel(Filament::getPanel('admin'));
-        Livewire::test(ListPrograms::class)->callAction('create', data: [
+        Livewire::test(ListPrograms::class)->callAction(TestAction::make('create')->table(), data: [
             'code' => 'MODAL-P', 'name' => 'Modal Program', 'duration_years' => 4, 'is_active' => true,
         ])->assertHasNoActionErrors();
         $program = Program::query()->where('code', 'MODAL-P')->firstOrFail();
-        Livewire::test(ListCourses::class)->callAction('create', data: [...$this->subjectInput(), 'code' => 'MODAL101'])
+        Livewire::test(ListCourses::class)->callAction(TestAction::make('create')->table(), data: [...$this->subjectInput(), 'code' => 'MODAL101'])
             ->assertHasNoActionErrors();
         $course = Course::query()->where('code', 'MODAL101')->firstOrFail();
         $this->assertSame(CourseSpecification::StateDraft, $course->specifications()->firstOrFail()->state);
-        Livewire::test(ListCurriculumVersions::class)->callAction('create', data: [
+        Livewire::test(ListCurriculumVersions::class)->callAction(TestAction::make('create')->table(), data: [
             'program_id' => $program->id, 'version_code' => 'MODAL-C', 'name' => 'Modal Curriculum',
             'state' => CurriculumVersion::StateActive,
         ])->assertHasNoActionErrors();
@@ -351,9 +352,9 @@ final class TAL82BCurriculumCourseCatalogAcceptanceTest extends TestCase
         $this->actingAs($this->staff(User::StaffRoleRegistrar));
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $component = Livewire::test(ListPrograms::class)
-            ->callAction('create', data: ['code' => 'FIRST', 'name' => 'First Program', 'is_active' => true], arguments: ['another' => true])
+            ->callAction(TestAction::make('create')->table(), data: ['code' => 'FIRST', 'name' => 'First Program', 'is_active' => true], arguments: ['another' => true])
             ->assertHasNoActionErrors()
-            ->assertActionMounted('create')
+            ->assertActionMounted(TestAction::make('create')->table())
             ->assertNoRedirect();
         $component->fillForm(['code' => 'SECOND', 'name' => 'Second Program', 'is_active' => true])
             ->callMountedAction()
@@ -368,7 +369,7 @@ final class TAL82BCurriculumCourseCatalogAcceptanceTest extends TestCase
         $this->actingAs($this->staff(User::StaffRoleAcademicHead));
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         foreach ([ListPrograms::class, ListCourses::class, ListCurriculumVersions::class] as $page) {
-            Livewire::test($page)->assertActionHidden('create');
+            Livewire::test($page)->assertActionHidden(TestAction::make('create')->table());
         }
     }
 

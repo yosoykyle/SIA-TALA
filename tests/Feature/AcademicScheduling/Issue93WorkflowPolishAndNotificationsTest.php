@@ -566,7 +566,7 @@ final class Issue93WorkflowPolishAndNotificationsTest extends TestCase
             ->assertSeeHtml('tala-stage-bar')
             ->assertSeeHtml('aria-label="Term planning progress"')
             ->assertSee('1. Calendar')
-            ->assertSee('2. Classes & sections')
+            ->assertSee('2. Sections & classes')
             ->assertSee('3. Faculty & rooms')
             ->assertSee('4. Timetable')
             ->assertDontSeeHtml('fi-page-sub-navigation-tabs')

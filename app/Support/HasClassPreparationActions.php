@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Actions\Scheduling\PrepareClassOffering;
 use App\Actions\Scheduling\PrepareTermClassProposal;
 use App\Actions\Scheduling\RecordTermCohort;
+use App\Filament\Resources\CurriculumVersions\CurriculumVersionResource;
 use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
@@ -17,13 +18,14 @@ use App\Models\TermCohort;
 use App\Models\TermOffering;
 use App\Models\User;
 use Filament\Actions\Action;
-use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section as FormSection;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
@@ -31,6 +33,7 @@ use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -46,6 +49,8 @@ trait HasClassPreparationActions
             ->modalSubmitActionLabel('Add student section')
             ->modalCancelActionLabel('Cancel')
             ->modalWidth(Width::TwoExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
             ->visible(fn (): bool => $this->termId !== null
                 && (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar)
                 && ! $this->hasPublishedTimetable()
@@ -66,6 +71,7 @@ trait HasClassPreparationActions
                     ->keyBy('id');
 
                 return [
+                    Hidden::make('suggested_reference')->dehydrated(false),
                     Select::make('curriculum_version_id')
                         ->label('Program & curriculum')
                         ->placeholder('Choose a program curriculum')
@@ -82,6 +88,7 @@ trait HasClassPreparationActions
                             $currentYear = (int) ($get('year_level') ?? 1);
                             $resolvedYear = ($currentYear >= 1 && $currentYear <= $maxYear) ? $currentYear : 1;
                             $set('year_level', $resolvedYear);
+                            $this->syncSuggestedSectionReference($set, $get, $term, $curriculum, $resolvedYear);
 
                             $hasMatching = $activePackage !== null
                                 && $curriculum instanceof CurriculumVersion
@@ -95,9 +102,12 @@ trait HasClassPreparationActions
                             ->default(1)
                             ->required()
                             ->live()
-                            ->afterStateUpdated(function (Set $set, Get $get, mixed $state) use ($term, $activePackage): void {
+                            ->afterStateUpdated(function (Set $set, Get $get, mixed $state) use ($term, $activePackage, $curricula): void {
                                 $curriculumId = (int) ($get('curriculum_version_id') ?? 0);
-                                $yearLevel = (int) ($state ?? 1);
+                                $curriculum = $curricula->get($curriculumId);
+                                $yearLevel = max(1, (int) ($state ?? 1));
+                                $this->syncSuggestedSectionReference($set, $get, $term, $curriculum, $yearLevel);
+
                                 $hasMatching = $activePackage !== null
                                     && $curriculumId > 0
                                     && $yearLevel > 0
@@ -107,11 +117,58 @@ trait HasClassPreparationActions
                             ->helperText('Recorded on the student section for curriculum matching.'),
                         TextInput::make('reference')
                             ->label('Section name')
-                            ->placeholder('e.g., BSIT-1A')
-                            ->helperText('Block code shown on timetables (or starting code when creating multiple sections).')
+                            ->placeholder('e.g. BSIT 1-1')
+                            ->live(debounce: 250)
+                            ->helperText(function (Get $get) use ($curricula): string {
+                                $yearLevel = max(1, (int) ($get('year_level') ?? 1));
+                                $curriculum = $curricula->get((int) ($get('curriculum_version_id') ?? 0));
+                                $programCode = Str::upper(trim((string) ($curriculum?->program?->code ?? 'BSIT'))) ?: 'BSIT';
+
+                                return "Example: {$programCode} {$yearLevel}-1 (Year {$yearLevel}, Section 1)";
+                            })
                             ->required()
                             ->maxLength(64),
                     ]),
+                    Placeholder::make('curriculum_gap_warning')
+                        ->hiddenLabel()
+                        ->visible(function (Get $get) use ($term): bool {
+                            $curriculumId = (int) ($get('curriculum_version_id') ?? 0);
+                            $yearLevel = (int) ($get('year_level') ?? 1);
+                            if ($curriculumId <= 0 || $yearLevel <= 0) {
+                                return false;
+                            }
+
+                            return $this->confirmableEntriesForCohort($term, $curriculumId, $yearLevel)->isEmpty();
+                        })
+                        ->content(function (Get $get) use ($term, $curricula): HtmlString {
+                            $curriculumId = (int) ($get('curriculum_version_id') ?? 0);
+                            $yearLevel = max(1, (int) ($get('year_level') ?? 1));
+                            $curriculum = $curricula->get($curriculumId);
+                            $programCode = e($curriculum?->program?->code ?: ($curriculum?->program?->name ?? 'Program'));
+                            $batchLabel = e($curriculum?->batchLabel() ?? 'Selected curriculum');
+                            $termTypeLabel = e($term->typeLabel());
+                            $periodsByCurriculum = $this->configuredSubjectPeriodsByCurriculum([$curriculumId]);
+                            $configuredSummary = $this->formatConfiguredPeriods(
+                                $periodsByCurriculum[$curriculumId] ?? [],
+                                style: 'paren',
+                                skipTermType: $term->type,
+                                skipYearLevel: $yearLevel,
+                            );
+                            $url = e(CurriculumVersionResource::getUrl('review', ['record' => $curriculumId]));
+
+                            $detail = $configuredSummary !== null
+                                ? 'Subjects are currently configured for: '.e($configuredSummary).'.'
+                                : 'No subjects are configured in this curriculum yet.';
+
+                            return new HtmlString(
+                                '<div class="tala-inline-prereq">'
+                                .'<div class="tala-inline-prereq__body">'
+                                ."<p class=\"tala-inline-prereq__title\">{$programCode} · {$batchLabel} (Year {$yearLevel}) has 0 subjects configured for {$termTypeLabel}.</p>"
+                                ."<p class=\"tala-inline-prereq__text\">{$detail} You can still save this student section now, or <a href=\"{$url}\" class=\"fi-link font-medium\">Open curriculum</a>.</p>"
+                                .'</div>'
+                                .'</div>'
+                            );
+                        }),
                     Grid::make(['default' => 1, 'md' => 2])->schema([
                         TextInput::make('confirmed_count')
                             ->label('Expected students')
@@ -126,38 +183,109 @@ trait HasClassPreparationActions
                             ->integer()
                             ->minValue(1)
                             ->maxValue(10)
-                            ->helperText('Leave as 1, or enter 2–10 to create consecutive blocks (e.g., BSIT-1A, BSIT-1B).'),
+                            ->live(debounce: 200)
+                            ->helperText(function (Get $get) use ($curricula): string {
+                                $count = max(1, min(10, (int) ($get('section_count') ?? 1)));
+                                $yearLevel = max(1, (int) ($get('year_level') ?? 1));
+                                $curriculum = $curricula->get((int) ($get('curriculum_version_id') ?? 0));
+                                $programCode = Str::upper(trim((string) ($curriculum?->program?->code ?? 'BSIT'))) ?: 'BSIT';
+                                $baseRef = trim((string) ($get('reference') ?? ''));
+
+                                if ($count > 1) {
+                                    $preview = $this->deriveSectionReferences(
+                                        $baseRef !== '' ? $baseRef : $programCode,
+                                        $count,
+                                        $yearLevel,
+                                    );
+
+                                    return 'Will create: '.implode(', ', $preview);
+                                }
+
+                                return "Leave as 1, or enter 2 to 10 to create consecutive blocks (example: {$programCode} {$yearLevel}-1, {$programCode} {$yearLevel}-2).";
+                            }),
                     ]),
-                    Checkbox::make('auto_create_classes')
-                        ->label('Automatically create & confirm curriculum classes for this section')
-                        ->default($activePackage !== null)
-                        ->dehydrated()
+                    FormSection::make()
+                        ->compact()
                         ->visible($activePackage !== null)
-                        ->disabled(function (Get $get) use ($term): bool {
-                            $curriculumId = (int) ($get('curriculum_version_id') ?? 0);
-                            $yearLevel = (int) ($get('year_level') ?? 1);
-                            if ($curriculumId <= 0 || $yearLevel <= 0) {
-                                return false;
-                            }
+                        ->extraAttributes(fn (Get $get): array => [
+                            'class' => 'tala-auto-classes-card'.((bool) ($get('auto_create_classes') ?? false) ? ' is-enabled' : ''),
+                        ])
+                        ->schema([
+                            Toggle::make('auto_create_classes')
+                                ->label('Auto-load & confirm curriculum classes now')
+                                ->onColor('primary')
+                                ->live()
+                                ->default($activePackage !== null)
+                                ->dehydrated()
+                                ->disabled(function (Get $get) use ($term): bool {
+                                    $curriculumId = (int) ($get('curriculum_version_id') ?? 0);
+                                    $yearLevel = (int) ($get('year_level') ?? 1);
+                                    if ($curriculumId <= 0 || $yearLevel <= 0) {
+                                        return false;
+                                    }
 
-                            return $this->confirmableEntriesForCohort($term, $curriculumId, $yearLevel)->isEmpty();
-                        })
-                        ->helperText(function (Get $get) use ($term): string {
-                            $curriculumId = (int) ($get('curriculum_version_id') ?? 0);
-                            $yearLevel = (int) ($get('year_level') ?? 1);
-                            if ($curriculumId <= 0) {
-                                return 'Choose a program curriculum above to load matching subjects for this term in one step.';
-                            }
-                            $count = $this->confirmableEntriesForCohort($term, $curriculumId, $yearLevel)->count();
-                            if ($count === 0) {
-                                return 'No confirmable curriculum subjects match this year level and term period.';
-                            }
+                                    return $this->confirmableEntriesForCohort($term, $curriculumId, $yearLevel)->isEmpty();
+                                }),
+                            Placeholder::make('auto_create_classes_preview')
+                                ->hiddenLabel()
+                                ->content(function (Get $get) use ($term): HtmlString {
+                                    $curriculumId = (int) ($get('curriculum_version_id') ?? 0);
+                                    $yearLevel = max(1, (int) ($get('year_level') ?? 1));
+                                    $sectionCount = max(1, min(10, (int) ($get('section_count') ?? 1)));
+                                    $isEnabled = (bool) ($get('auto_create_classes') ?? false);
+                                    $termTypeLabel = $term->typeLabel();
 
-                            return "Creates and confirms {$count} matching curriculum ".Str::plural('class', $count).' for this student section in one step.';
-                        }),
+                                    if ($curriculumId <= 0) {
+                                        return new HtmlString('<p class="tala-auto-classes-card__copy">Select a program curriculum above to preview which classes will be created automatically.</p>');
+                                    }
+
+                                    $entries = $this->confirmableEntriesForCohort($term, $curriculumId, $yearLevel);
+                                    $subjectCount = $entries->count();
+
+                                    if ($subjectCount === 0) {
+                                        return new HtmlString(
+                                            '<p class="tala-auto-classes-card__copy">No '.e($termTypeLabel).' Year '.$yearLevel.' subjects are set up in this curriculum yet, so only the student '.Str::plural('section', $sectionCount).' will be created.</p>'
+                                        );
+                                    }
+
+                                    if (! $isEnabled) {
+                                        return new HtmlString(
+                                            '<p class="tala-auto-classes-card__copy">Only the student '.Str::plural('section', $sectionCount).' will be created. You can load and confirm the '.$subjectCount.' matching curriculum '.Str::plural('subject', $subjectCount).' manually later from the table.</p>'
+                                        );
+                                    }
+
+                                    $totalClasses = $subjectCount * $sectionCount;
+                                    $subjectPills = $entries->take(4)->map(function (CurriculumEntry $entry): string {
+                                        $code = trim((string) ($entry->courseSpecification?->course?->code ?? ''));
+                                        $title = trim((string) ($entry->courseSpecification?->title ?? ''));
+                                        $label = $code !== '' && $title !== '' ? "{$code} · {$title}" : ($code !== '' ? $code : $title);
+
+                                        return '<span class="tala-auto-classes-card__pill">'.e($label).'</span>';
+                                    })->implode('');
+
+                                    $extraCount = max(0, $subjectCount - 4);
+                                    if ($extraCount > 0) {
+                                        $subjectPills .= '<span class="tala-auto-classes-card__pill is-more">+'.$extraCount.' more</span>';
+                                    }
+
+                                    $breakdown = $sectionCount > 1
+                                        ? " ({$subjectCount} ".Str::plural('subject', $subjectCount)." × {$sectionCount} sections)"
+                                        : '';
+
+                                    return new HtmlString(
+                                        '<div class="tala-auto-classes-card__body">'
+                                        .'<div class="tala-auto-classes-card__summary">'
+                                        .'<span class="tala-auto-classes-card__badge">Recommended</span>'
+                                        .'<span class="tala-auto-classes-card__summary-text">Creates <strong>'.$totalClasses.' confirmed '.Str::plural('class', $totalClasses).'</strong>'.e($breakdown).' ready for Step 3, skipping manual subject loading.</span>'
+                                        .'</div>'
+                                        .'<div class="tala-auto-classes-card__pills">'.$subjectPills.'</div>'
+                                        .'</div>'
+                                    );
+                                }),
+                        ]),
                     Placeholder::make('auto_create_classes_notice')
                         ->hiddenLabel()
-                        ->content('Activate the term calendar in Step 1 to auto-create classes from curriculum.')
+                        ->content('Activate the term calendar in 1. Calendar to auto-create classes from curriculum.')
                         ->visible($activePackage === null),
                 ];
             })
@@ -177,10 +305,10 @@ trait HasClassPreparationActions
                 }
 
                 $sectionCount = max(1, min(10, (int) ($data['section_count'] ?? 1)));
-                $references = $this->deriveSectionReferences((string) ($data['reference'] ?? ''), $sectionCount);
                 $resolvedYearLevel = filled($data['year_level'] ?? null)
                     ? (int) $data['year_level']
                     : (TermCohort::parseYearLevelValue($data['reference'] ?? null) ?? 1);
+                $references = $this->deriveSectionReferences((string) ($data['reference'] ?? ''), $sectionCount, $resolvedYearLevel);
                 $createdClassesCount = 0;
 
                 try {
@@ -341,55 +469,204 @@ trait HasClassPreparationActions
         return CurriculumEntry::query()
             ->where('curriculum_version_id', $curriculumVersionId)
             ->where('term_type', $term->type)
-            ->with(['courseSpecification.components'])
+            ->with(['courseSpecification.course', 'courseSpecification.components'])
             ->orderBy('sequence')
             ->get()
             ->filter(function (CurriculumEntry $entry) use ($yearLevel, $lockedEntryIds): bool {
-                if (isset($lockedEntryIds[$entry->id])) {
-                    return false;
-                }
-
                 if (TermCohort::parseYearLevelValue($entry->year_level) !== $yearLevel) {
                     return false;
                 }
 
-                $spec = $entry->courseSpecification;
-                if (! $spec instanceof CourseSpecification || $spec->state !== CourseSpecification::StateActive) {
-                    return false;
-                }
-
-                if (empty($spec->allowed_modalities)) {
-                    return false;
-                }
-
-                if ($spec->scheduling_treatment === CourseSpecification::SchedulingExternallyArranged) {
-                    return true;
-                }
-
-                if ($spec->components->isEmpty()) {
-                    return false;
-                }
-
-                return ! $spec->components->contains(function (CourseComponent $component): bool {
-                    $pattern = CourseComponent::parseMeetingPattern($component->meeting_pattern);
-
-                    return $pattern === null
-                        || (int) round((float) $component->weekly_contact_hours * 60) !== $pattern['count'] * $pattern['duration_minutes'];
-                });
+                return $this->isConfirmableCurriculumEntry($entry, $lockedEntryIds);
             })
             ->unique(fn (CurriculumEntry $entry): int => (int) ($entry->courseSpecification?->course_id ?? $entry->id))
             ->values();
     }
 
-    /** @return list<string> */
-    private function deriveSectionReferences(string $baseReference, int $count): array
+    /** @param array<int, mixed> $lockedEntryIds */
+    protected function isConfirmableCurriculumEntry(CurriculumEntry $entry, array $lockedEntryIds = []): bool
     {
-        $base = trim($baseReference);
+        if (isset($lockedEntryIds[$entry->id])) {
+            return false;
+        }
+
+        $spec = $entry->courseSpecification;
+        if (! $spec instanceof CourseSpecification || $spec->state !== CourseSpecification::StateActive) {
+            return false;
+        }
+
+        if (empty($spec->allowed_modalities)) {
+            return false;
+        }
+
+        if ($spec->scheduling_treatment === CourseSpecification::SchedulingExternallyArranged) {
+            return true;
+        }
+
+        if ($spec->components->isEmpty()) {
+            return false;
+        }
+
+        return ! $spec->components->contains(function (CourseComponent $component): bool {
+            $pattern = CourseComponent::parseMeetingPattern($component->meeting_pattern);
+
+            return $pattern === null
+                || (int) round((float) $component->weekly_contact_hours * 60) !== $pattern['count'] * $pattern['duration_minutes'];
+        });
+    }
+
+    private function syncSuggestedSectionReference(Set $set, Get $get, Term $term, ?CurriculumVersion $curriculum, int $yearLevel): void
+    {
+        $nextSuggestion = $this->suggestSectionReference($term, $curriculum, $yearLevel);
+        $currentRef = RecordTermCohort::normalizeReference((string) ($get('reference') ?? ''));
+        $previousSuggestion = RecordTermCohort::normalizeReference((string) ($get('suggested_reference') ?? ''));
+
+        if ($nextSuggestion !== '' && ($currentRef === '' || ($previousSuggestion !== '' && $currentRef === $previousSuggestion))) {
+            $set('reference', $nextSuggestion);
+        }
+
+        $set('suggested_reference', $nextSuggestion);
+    }
+
+    private function suggestSectionReference(Term $term, ?CurriculumVersion $curriculum, int $yearLevel): string
+    {
+        if (! $curriculum instanceof CurriculumVersion) {
+            return '';
+        }
+
+        $programCode = Str::upper(trim((string) preg_replace('/\s+/', ' ', (string) ($curriculum->program?->code ?? ''))));
+        if ($programCode === '') {
+            return '';
+        }
+
+        $year = max(1, $yearLevel);
+        $existing = TermCohort::query()
+            ->where('term_id', $term->id)
+            ->pluck('reference')
+            ->map(fn (string $reference): string => RecordTermCohort::normalizeReference($reference))
+            ->flip()
+            ->all();
+
+        $sectionNumber = 1;
+        do {
+            $candidate = "{$programCode} {$year}-{$sectionNumber}";
+            $sectionNumber++;
+        } while (isset($existing[$candidate]) && $sectionNumber <= 99);
+
+        return $candidate;
+    }
+
+    /**
+     * @param  list<int>  $curriculumIds
+     * @return array<int, array<string, list<int>>>
+     */
+    protected function configuredSubjectPeriodsByCurriculum(array $curriculumIds): array
+    {
+        $normalizedIds = array_values(array_unique(array_filter(
+            array_map(static fn (mixed $id): int => (int) $id, $curriculumIds),
+            static fn (int $id): bool => $id > 0,
+        )));
+
+        if ($normalizedIds === []) {
+            return [];
+        }
+
+        $entries = CurriculumEntry::query()
+            ->whereIn('curriculum_version_id', $normalizedIds)
+            ->whereHas('courseSpecification', fn ($query) => $query->where('state', CourseSpecification::StateActive))
+            ->get(['curriculum_version_id', 'term_type', 'year_level']);
+
+        $grouped = [];
+        foreach ($entries as $entry) {
+            $curriculumId = (int) $entry->curriculum_version_id;
+            $termType = (string) $entry->term_type;
+            $year = TermCohort::parseYearLevelValue($entry->year_level);
+
+            if ($termType === '' || $year === null) {
+                continue;
+            }
+
+            $grouped[$curriculumId][$termType][$year] = $year;
+        }
+
+        $termOrder = [
+            Term::TypeFirstSemester => 1,
+            Term::TypeSecondSemester => 2,
+            Term::TypeSpecialTerm => 3,
+        ];
+
+        foreach ($grouped as $curriculumId => $periods) {
+            uksort($periods, static fn (string $a, string $b): int => ($termOrder[$a] ?? 99) <=> ($termOrder[$b] ?? 99));
+            foreach ($periods as $termType => $years) {
+                $sortedYears = array_values($years);
+                sort($sortedYears);
+                $periods[$termType] = $sortedYears;
+            }
+            $grouped[$curriculumId] = $periods;
+        }
+
+        return $grouped;
+    }
+
+    /**
+     * @param  array<string, list<int>>  $periods
+     */
+    protected function formatConfiguredPeriods(
+        array $periods,
+        string $style = 'paren',
+        ?string $skipTermType = null,
+        ?int $skipYearLevel = null,
+    ): ?string {
+        if ($periods === []) {
+            return null;
+        }
+
+        $termOptions = Term::typeOptions();
+        $parts = [];
+
+        foreach ($periods as $termType => $years) {
+            $filteredYears = array_values(array_filter(
+                $years,
+                static fn (int $year): bool => ! ($skipTermType !== null
+                    && $termType === $skipTermType
+                    && ($skipYearLevel === null || $year === $skipYearLevel)),
+            ));
+
+            if ($filteredYears === []) {
+                continue;
+            }
+
+            $termLabel = $termOptions[$termType] ?? $termType;
+            $yearText = implode(', ', array_map(static fn (int $year): string => "Year {$year}", $filteredYears));
+
+            $parts[] = $style === 'dot'
+                ? "{$termLabel} · {$yearText}"
+                : "{$termLabel} ({$yearText})";
+        }
+
+        return $parts !== [] ? implode(', ', $parts) : null;
+    }
+
+    /** @return list<string> */
+    private function deriveSectionReferences(string $baseReference, int $count, int $yearLevel = 1): array
+    {
+        $base = RecordTermCohort::normalizeReference(Str::upper(trim((string) preg_replace('/\s+/', ' ', $baseReference))));
         if ($count <= 1 || $base === '') {
             return [$base];
         }
 
-        if (preg_match('/^(.*?)([A-Z])$/', $base, $matches) === 1) {
+        $resolvedYear = max(1, $yearLevel);
+
+        if (preg_match('/^[A-Z]+$/', $base) === 1) {
+            $references = [];
+            for ($i = 1; $i <= $count; $i++) {
+                $references[] = "{$base} {$resolvedYear}-{$i}";
+            }
+
+            return $references;
+        }
+
+        if (preg_match('/^(.*[\d\s-])([A-Z])$/', $base, $matches) === 1) {
             $prefix = $matches[1];
             $startOrd = ord($matches[2]);
             $references = [];

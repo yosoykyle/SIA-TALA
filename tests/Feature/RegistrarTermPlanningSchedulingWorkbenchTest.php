@@ -154,6 +154,7 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $academicYear = $this->getOrCreateAcademicYear();
         $term = Term::factory()->for($academicYear, 'academicYear')->create();
+        TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive, 'activated_at' => now()]);
         $offering = $this->createTermOffering($term);
         $section = Section::factory()->for($offering, 'termOffering')->create();
         $qualification = FacultyQualification::factory()->create(['recorded_by' => $registrar->id]);
@@ -163,7 +164,7 @@ final class RegistrarTermPlanningSchedulingWorkbenchTest extends TestCase
             ->test(ListSections::class, ['termId' => $term->id])
             ->assertRedirect(TermClasses::getUrl(['termId' => $term->id]));
         $classes = Livewire::actingAs($registrar)
-            ->test(TermClasses::class, ['termId' => $term->id])
+            ->test(TermClasses::class, ['termId' => $term->id, 'classesView' => 'classes'])
             ->mountTableAction('viewClass', $section)
             ->assertMountedActionModalSee($section->code);
         $this->assertArrayNotHasKey('manageClass', $classes->instance()->getMountedAction()->getExtraModalFooterActions());

@@ -51,7 +51,6 @@ class ListPrograms extends ListRecords
                 ->color('gray')
                 ->url(AcademicApprovals::getUrl($oversightParameters))
                 ->visible(fn (): bool => auth()->user()?->hasRole(User::StaffRoleAcademicHead) ?? false),
-            ProgramResource::createProgramAction(),
         ];
     }
 }

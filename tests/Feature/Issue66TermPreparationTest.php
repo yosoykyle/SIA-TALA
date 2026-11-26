@@ -191,14 +191,28 @@ final class Issue66TermPreparationTest extends TestCase
         Role::query()->firstOrCreate(['name' => User::StaffRoleFaculty, 'guard_name' => 'web']);
         $faculty->assignRole(User::StaffRoleFaculty);
         FacultyQualification::factory()->create(['faculty_user_id' => $faculty->id, 'course_id' => $entry->courseSpecification->course_id]);
+
         Livewire::actingAs($actor)->test(TermResources::class, ['termId' => $term->id])
-            ->assertDontSee($faculty->name)->filterTable('faculty_scope', 'all')
+            ->assertSee('Complete Step 2 first');
+
+        $offering = TermOffering::factory()->for($term)->create([
+            'curriculum_entry_id' => $entry->id,
+        ]);
+        Section::factory()->for($offering, 'termOffering')->create([
+            'term_calendar_package_id' => $term->calendarPackages()->where('state', 'Active')->value('id'),
+            'course_specification_id' => $entry->course_specification_id,
+            'confirmed_at' => now(),
+            'confirmed_by' => $actor->id,
+        ]);
+
+        Livewire::actingAs($actor)->test(TermResources::class, ['termId' => $term->id])
+            ->filterTable('faculty_scope', 'all')
             ->assertSee($faculty->name)->assertSee('No response')->assertSee('Not sent')->assertDontSee('Reminder sent');
         OperationalEvent::factory()->create(['event_type' => OperationalEvent::TypeFacultyAvailabilityRequestedEmail, 'related_record_type' => TermCalendarPackage::class,
             'related_record_id' => $term->calendarPackages()->where('state', 'Active')->value('id'), 'user_id' => $faculty->id,
             'status' => OperationalEvent::StatusProcessed, 'sent_at' => now()]);
         Livewire::actingAs($actor)->test(TermResources::class, ['termId' => $term->id])->assertSee('No response')->assertSee('Reminder sent');
-        Livewire::actingAs($actor)->test(TermClasses::class, ['termId' => $term->id])->assertSee('Load from curriculum')->assertSee('Add class');
+        Livewire::actingAs($actor)->withQueryParams(['termId' => $term->id, 'classesView' => 'classes'])->test(TermClasses::class)->assertSee('Load from curriculum')->assertSee('Add class');
     }
 
     public function test_course_decision_keeps_class_fields_closed_until_the_course_is_included(): void
@@ -344,7 +358,7 @@ final class Issue66TermPreparationTest extends TestCase
             'term_type' => Term::TypeSecondSemester,
         ]);
 
-        Livewire::actingAs($actor)->withQueryParams(['termId' => $term->id])->test(TermClasses::class)
+        Livewire::actingAs($actor)->withQueryParams(['termId' => $term->id, 'classesView' => 'classes'])->test(TermClasses::class)
             ->assertSee('Load from curriculum')
             ->callAction('loadCurriculumSubjects', [
                 'term_cohort_id' => $cohort->id,

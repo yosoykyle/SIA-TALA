@@ -3,12 +3,14 @@
 namespace App\Filament\Pages;
 
 use App\Actions\Scheduling\AdjustCandidateMeeting;
+use App\Actions\Scheduling\FacultyAvailabilityStatusProjection;
 use App\Actions\Scheduling\GenerateSchedulingDemand;
 use App\Actions\Scheduling\PublishedScheduleRevisionService;
 use App\Actions\Scheduling\RevertCandidateRun;
 use App\Actions\Scheduling\ReviewTimetableCandidate;
 use App\Actions\Scheduling\ScheduleGenerationService;
 use App\Actions\Scheduling\TermCoverageProjection;
+use App\Actions\Scheduling\TimetableConflictDiagnosticService;
 use App\Actions\Scheduling\TimetableFailureLanguage;
 use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
 use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
@@ -91,6 +93,9 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
 
     #[Url]
     public ?int $meetingId = null;
+
+    #[Url]
+    public ?string $meetingIds = null;
 
     #[Url]
     public string $timetableState = 'draft';
@@ -352,7 +357,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         return Action::make('cancelActiveRun')
             ->label('Cancel generation')
             ->icon(Heroicon::OutlinedXMark)
-            ->color('gray')
+            ->color('danger')
             ->size('sm')
             ->requiresConfirmation()
             ->modalIconColor('danger')
@@ -655,7 +660,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
             'showOfficial' => $official,
             'candidatePresentation' => $official ? null : $presentation,
             'publishedPresentation' => $official ? $presentation : null,
-            'readOnly' => (bool) auth()->user()?->hasRole(User::StaffRoleAcademicHead),
+            'readOnly' => $this->isReadOnlyOversight(),
             'solverFailure' => $official ? [] : ($activeRun?->finalSolverFailure() ?? []),
             'solverOutcome' => $official ? [] : (array) ($diagnostics['solver_outcome'] ?? $diagnostics['solver_result'] ?? []),
         ];
@@ -844,6 +849,19 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
             }
         }
 
+        $term = $data['term'] ?? null;
+        $availabilityProjection = $term instanceof Term
+            ? app(FacultyAvailabilityStatusProjection::class)->forTerm($term, includeOfficialAssignments: $official)
+            : null;
+        $lateImpactMeetingIdLookup = $official && is_array($availabilityProjection)
+            ? collect($availabilityProjection['unresolved_late_impacts'] ?? [])
+                ->flatMap(fn (array $impact): array => $impact['affected_meeting_ids'] ?? [])
+                ->map(fn (mixed $id): int => (int) $id)
+                ->filter(fn (int $id): bool => $id > 0)
+                ->flip()
+                ->all()
+            : [];
+
         if ($official && ($data['selectedVersion'] ?? null) instanceof PublishedTimetableVersion && $allMeetings !== []) {
             $activeSectionMeetings = SectionMeeting::query()
                 ->where('schedule_run_id', $data['selectedVersion']->schedule_run_id)
@@ -857,12 +875,21 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                 $matchedSectionMeeting = $demandId > 0
                     ? $activeSectionMeetings->get($demandId.':'.$sequence)
                     : null;
-                $meeting['sectionMeetingId'] = $matchedSectionMeeting instanceof SectionMeeting
+                $sectionMeetingId = $matchedSectionMeeting instanceof SectionMeeting
                     ? (int) $matchedSectionMeeting->id
                     : null;
+                $meeting['sectionMeetingId'] = $sectionMeetingId;
+                $meeting['isLateImpact'] = $sectionMeetingId !== null && isset($lateImpactMeetingIdLookup[$sectionMeetingId]);
+            }
+            unset($meeting);
+        } else {
+            foreach ($allMeetings as &$meeting) {
+                $meeting['isLateImpact'] = false;
             }
             unset($meeting);
         }
+
+        $allMeetings = self::enrichMeetingsWithScopeMetadata($allMeetings, $this->termId);
 
         $courseColors = collect($allMeetings)->pluck('courseCode')->unique()->sort()->values()
             ->mapWithKeys(fn (string $code, int $index): array => [$code => ($index % 4) + 1])->all();
@@ -872,7 +899,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                 $key = $section['id'];
                 $groups[$key] ??= [...$section, 'meetings' => []];
                 $groups[$key]['meetings'][] = $meeting;
-                $groups[$key]['years'] = array_merge($groups[$key]['years'] ?? [], $section['years'] ?? []);
+                $groups[$key]['years'] = array_values(array_unique(array_merge($groups[$key]['years'] ?? [], $section['years'] ?? [])));
             }
         }
         $allSectionGroups = collect($groups)
@@ -881,12 +908,25 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                 'id' => (string) $group['id'],
                 'label' => (string) $group['label'],
                 'program' => (string) $group['program'],
+                'programCode' => (string) ($group['programCode'] ?? ''),
                 'years' => array_values(array_unique($group['years'] ?? [])),
             ])
             ->values()
             ->all();
-        $years = collect($groups)->flatMap(fn (array $group): array => $group['years'])->unique()->sort()->values()->all();
-        $programs = collect($groups)->pluck('program')->unique()->sort()->values()->all();
+        $years = collect($groups)
+            ->flatMap(fn (array $group): array => $group['years'])
+            ->filter(fn (mixed $year): bool => is_string($year) && trim($year) !== '' && $year !== 'Year not associated')
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+        $programs = collect($groups)
+            ->pluck('program')
+            ->filter(fn (mixed $program): bool => is_string($program) && trim($program) !== '' && $program !== 'Program not associated')
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
         $groups = collect($groups)->sortBy(fn (array $group): string => $group['program'].' '.$group['label'])
             ->filter(fn (array $group): bool => (! $this->programFilter || $group['program'] === $this->programFilter) && (! $this->yearFilter || in_array($this->yearFilter, $group['years'], true)))->values()->all();
         $options = match ($this->timetableView) {
@@ -894,22 +934,17 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
             'faculty', 'room' => collect($allMeetings)->pluck($this->timetableView)->unique()->sort()->mapWithKeys(fn (string $value): array => [$value => $value])->all(),
             default => [],
         };
-        $filtered = collect($allMeetings)->filter(function (array $meeting): bool {
-            if (($search = $this->getTableSearch()) !== null && ! collect(self::SearchableMeetingFields)->contains(fn (string $field): bool => str_contains(mb_strtolower((string) ($meeting[$field] ?? '')), mb_strtolower($search)))) {
-                return false;
-            }
-            if (($this->programFilter || $this->yearFilter) && ! collect($meeting['sections'])->contains(fn (array $section): bool => (! $this->programFilter || $section['program'] === $this->programFilter)
-                && (! $this->yearFilter || in_array($this->yearFilter, $section['years'] ?? [], true)))) {
-                return false;
-            }
-            if (! $this->viewFilter) {
-                return true;
-            }
-
-            return $this->timetableView === 'section'
-                ? collect($meeting['sections'])->contains('id', $this->viewFilter)
-                : ($meeting[$this->timetableView] ?? null) === $this->viewFilter;
-        })->values()->all();
+        $filtered = collect($allMeetings)
+            ->filter(fn (array $meeting): bool => self::meetingMatchesCriteria(
+                $meeting,
+                $this->timetableView,
+                $this->viewFilter,
+                $this->programFilter,
+                $this->yearFilter,
+                $this->getTableSearch(),
+            ))
+            ->values()
+            ->all();
         $visibleIds = array_column($filtered, 'id');
         $groups = collect($groups)->map(function (array $group) use ($visibleIds): array {
             $group['meetings'] = array_values(array_filter($group['meetings'], fn (array $meeting): bool => in_array($meeting['id'], $visibleIds, true)));
@@ -943,11 +978,15 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
             $draftPackages = TermCalendarPackage::query()
                 ->where('term_id', $term->id)
                 ->where('state', TermCalendarPackage::StateDraft)
+                ->when(
+                    $activePackage instanceof TermCalendarPackage,
+                    fn ($query) => $query->where('version', '>', $activePackage->version),
+                )
                 ->get(['id', 'term_id', 'state']);
             $sourceClasses = Section::query()
                 ->whereHas('termOffering', fn ($query) => $query->where('term_id', $term->id))
                 ->whereNotIn('state', [Section::StateCancelled, Section::StateClosed])
-                ->with(['termOffering:id,term_id,modality,curriculum_entry_id', 'calendarPackage.teachingGridRows', 'calendarPackage.datedExceptions'])
+                ->with(['termOffering:id,term_id,state,modality,curriculum_entry_id', 'calendarPackage.teachingGridRows', 'calendarPackage.datedExceptions'])
                 ->get(['id', 'term_offering_id', 'term_calendar_package_id', 'delivery_mode', 'confirmed_at', 'state']);
             $contextClasses = $sourceClasses->filter(
                 fn (Section $section): bool => $activePackage instanceof TermCalendarPackage
@@ -963,9 +1002,20 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
             $offerings = TermOffering::query()
                 ->where('term_id', $term->id)
                 ->where('state', '!=', TermOffering::StateCancelled)
-                ->with('curriculumEntry.courseSpecification:id,course_id')
+                ->with(['curriculumEntry.courseSpecification:id,course_id,scheduling_treatment', 'sections:id,term_offering_id,state,confirmed_at'])
                 ->get();
-            $offeringCourseIds = $offerings
+            $isLiveTerm = $this->hasPublishedTimetable($term);
+            $qualificationScopeOfferings = $offerings;
+            if ($isLiveTerm) {
+                $confirmedOfferings = $offerings->filter(fn (TermOffering $offering): bool => $offering->sections
+                    ->whereNotIn('state', [Section::StateCancelled, Section::StateClosed])
+                    ->whereNotNull('confirmed_at')
+                    ->isNotEmpty());
+                if ($confirmedOfferings->isNotEmpty()) {
+                    $qualificationScopeOfferings = $confirmedOfferings;
+                }
+            }
+            $offeringCourseIds = $qualificationScopeOfferings
                 ->map(fn (TermOffering $offering): ?int => $offering->curriculumEntry?->courseSpecification?->course_id)
                 ->filter()
                 ->unique();
@@ -973,18 +1023,27 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                 ? FacultyQualification::query()->active()->whereIn('course_id', $offeringCourseIds)->pluck('course_id')->unique()
                 : collect();
             $missingQualifications = $offeringCourseIds->diff($qualifiedCourseIds)->count();
-            $availabilityProjection = [
-                'total_faculty' => User::query()
-                    ->whereHas('roles', fn ($query) => $query->where('name', User::StaffRoleFaculty))
-                    ->count(),
-                'replied_count' => FacultyAvailabilityDeclaration::query()
-                    ->where('term_id', $term->id)
-                    ->distinct('faculty_user_id')
-                    ->count('faculty_user_id'),
-            ];
+            $availabilityProjection ??= app(FacultyAvailabilityStatusProjection::class)->forTerm($term, includeOfficialAssignments: $official);
+
+            $stepState = $this->stepState($term, [
+                'activePackage' => $activePackage,
+                'draftPackages' => $draftPackages,
+                'currentVersion' => $data['currentVersion'] ?? null,
+                'allRuns' => $data['allRuns'] ?? collect(),
+                'offerings' => $offerings,
+                'sourceClasses' => $sourceClasses,
+                'contextClasses' => $contextClasses,
+                'cohorts' => $cohorts,
+                'demands' => $demands,
+                'rooms' => $activeRooms,
+                'missingQualifications' => $missingQualifications,
+                'availabilityProjection' => $availabilityProjection,
+                'readiness' => $readiness,
+            ]);
 
             $stepperData = [
                 'readiness' => $readiness,
+                'stepState' => $stepState,
                 'activePackage' => $activePackage,
                 'draftPackages' => $draftPackages,
                 'offerings' => $offerings,
@@ -999,10 +1058,37 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
             ];
         }
 
+        $conflictDiagnosis = [
+            'has_conflicts' => false,
+            'summary' => '',
+            'items' => [],
+        ];
+
+        $activeRunForDiagnosis = $data['activeRun'] ?? null;
+        if (! $official && $activeRunForDiagnosis instanceof ScheduleGenerationRun) {
+            $diagEvidence = $activeRunForDiagnosis->reviewEvidence();
+            $diagHasSolverIssue = ! empty($data['solverFailure'])
+                || ! empty($data['solverOutcome']['message'])
+                || in_array($diagEvidence['outcome'] ?? '', ['Infeasible', 'Unknown', 'ModelInvalid', 'TechnicalFailure'], true)
+                || in_array($activeRunForDiagnosis->status, [
+                    ScheduleGenerationRun::StatusBlocked,
+                    ScheduleGenerationRun::StatusFailed,
+                ], true);
+            $diagDraftConflictCount = (int) ($activeRunForDiagnosis->publicationSummary()['conflicts'] ?? 0);
+            $diagIsStale = $activeRunForDiagnosis->candidate_state === 'Stale';
+
+            if ($diagHasSolverIssue || $diagDraftConflictCount > 0 || $diagIsStale) {
+                $conflictDiagnosis = app(TimetableConflictDiagnosticService::class)->diagnose(
+                    $activeRunForDiagnosis,
+                    $term instanceof Term ? $term : null,
+                );
+            }
+        }
+
         return [...$data, ...$stepperData, 'showOfficial' => $official, 'timetablePresentation' => $presentation,
             'masterGroups' => $groups, 'programOptions' => $programs, 'yearOptions' => $years, 'viewOptions' => $options,
             'scopeMeetingCount' => count($allMeetings), 'generationReadiness' => $readiness,
-            'interactiveContext' => $interactiveContext];
+            'interactiveContext' => $interactiveContext, 'conflictDiagnosis' => $conflictDiagnosis];
     }
 
     public function canEditActiveCandidate(): bool
@@ -1188,7 +1274,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
 
                     if ($this->hasPublishedTimetable($term) && $this->hasOfficialStudentEnrollments($term)) {
                         throw ValidationException::withMessages([
-                            'term' => 'Full timetable regeneration is blocked because active official student enrollments exist. Use Revise schedule instead.',
+                            'term' => 'Full timetable regeneration is blocked because active official student enrollments exist. Use Revise official schedule instead.',
                         ]);
                     }
 
@@ -1444,12 +1530,12 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         if ($this->timetableState === 'official' || ! $this->canEditActiveCandidate()) {
             Notification::make()
                 ->title('Official timetable is locked')
-                ->body('Published timetables are locked. Use Revise schedule for authorized mid-semester changes.')
+                ->body('Published timetables are locked. Use Revise official schedule for authorized mid-semester changes.')
                 ->danger()
                 ->send();
 
             throw ValidationException::withMessages([
-                'timetable' => 'Official timetable is locked. Use Revise schedule for authorized mid-semester changes.',
+                'timetable' => 'Official timetable is locked. Use Revise official schedule for authorized mid-semester changes.',
             ]);
         }
 
@@ -1571,12 +1657,12 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         if ($this->timetableState === 'official' || ! $this->canEditActiveCandidate()) {
             Notification::make()
                 ->title('Official timetable is locked')
-                ->body('Published timetables are locked. Use Revise schedule for authorized mid-semester changes.')
+                ->body('Published timetables are locked. Use Revise official schedule for authorized mid-semester changes.')
                 ->danger()
                 ->send();
 
             throw ValidationException::withMessages([
-                'timetable' => 'Official timetable is locked. Use Revise schedule for authorized mid-semester changes.',
+                'timetable' => 'Official timetable is locked. Use Revise official schedule for authorized mid-semester changes.',
             ]);
         }
 
@@ -2025,6 +2111,13 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         }
 
         if ($run->status === ScheduleGenerationRun::StatusFailed) {
+            if (
+                strtolower((string) data_get($run->diagnostics, 'solver_dispatch.status', '')) === 'cancelled'
+                || strtoupper((string) data_get($run->diagnostics, 'solver_dispatch.failure.code', '')) === 'CANCELLED_BY_REGISTRAR'
+            ) {
+                return 'Cancelled';
+            }
+
             return 'Cannot publish';
         }
 
@@ -2328,7 +2421,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
     private function publishedRevisionAction(bool $cancelClass): Action
     {
         $action = Action::make($cancelClass ? 'cancelPublishedClass' : 'revisePublishedSchedule')
-            ->label($cancelClass ? 'Cancel class' : 'Revise schedule')
+            ->label($cancelClass ? 'Cancel class' : 'Revise official schedule')
             ->icon($cancelClass ? Heroicon::OutlinedXCircle : Heroicon::OutlinedPencilSquare)
             ->color($cancelClass ? 'danger' : 'primary')
             ->modalHeading($cancelClass ? 'Cancel a class' : 'Revise official schedule')
@@ -2396,6 +2489,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                     }
                     $this->timetableState = 'official';
                     $this->meetingId = null;
+                    $this->meetingIds = null;
                     $this->meetingDetailsViewData = [];
                     $this->resetTable();
 
@@ -2436,7 +2530,13 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         }
 
         return $action
-            ->startOnStep(fn (array $arguments): int => filled($arguments['section_meeting_id'] ?? $arguments['meeting'] ?? $this->meetingId ?? null) ? 2 : 1)
+            ->startOnStep(function (array $arguments): int {
+                $hasSingle = filled($arguments['section_meeting_id'] ?? $arguments['meeting'] ?? $this->meetingId ?? null);
+                $hasMultiple = ! empty($arguments['section_meeting_ids'] ?? null)
+                    || filled($arguments['meetingIds'] ?? $this->meetingIds ?? null);
+
+                return ($hasSingle || $hasMultiple) ? 2 : 1;
+            })
             ->steps(function (): array {
                 $run = $this->officialPublishedRun();
 
@@ -2457,9 +2557,18 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
      */
     public function plainSolverFailureSummary(array $solverFailure, array $solverOutcome, ?array $reviewEvidence = null): array
     {
+        $rawCode = strtoupper(trim((string) ($solverFailure['code'] ?? '')));
         $rawMessage = trim((string) ($solverFailure['message'] ?? $solverOutcome['message'] ?? ''));
         $rawStatus = strtolower(trim((string) ($solverOutcome['solver_status'] ?? '')));
         $evidenceOutcome = (string) ($reviewEvidence['outcome'] ?? '');
+
+        if ($rawCode === 'CANCELLED_BY_REGISTRAR' || str_contains(strtolower($rawMessage), 'was cancelled by')) {
+            return [
+                'explanation' => 'This generation attempt was cancelled before a timetable was created.',
+                'nextStep' => 'Your schedule data was not changed. Click Generate timetable whenever you are ready to run it again.',
+                'technical' => $rawMessage !== '' ? $rawMessage : 'Cancelled by Registrar.',
+            ];
+        }
 
         $mappedOutcome = match ($rawStatus) {
             'infeasible' => 'Infeasible',
@@ -2582,6 +2691,59 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
      */
     private function officialRevisionTarget(array $arguments, bool $cancelClass): array
     {
+        $rawMultiple = array_key_exists('section_meeting_ids', $arguments)
+            ? $arguments['section_meeting_ids']
+            : (array_key_exists('meetingIds', $arguments)
+                ? $arguments['meetingIds']
+                : (! array_key_exists('section_meeting_id', $arguments)
+                    && ! array_key_exists('meeting', $arguments)
+                    ? $this->meetingIds
+                    : null));
+
+        if ($rawMultiple !== null && $rawMultiple !== '' && $rawMultiple !== []) {
+            abort_unless($this->canReviseOfficialSchedule(), 403);
+
+            $tokens = is_array($rawMultiple)
+                ? $rawMultiple
+                : explode(',', (string) $rawMultiple);
+
+            $parsedIds = [];
+            foreach ($tokens as $token) {
+                $trimmed = is_string($token) ? trim($token) : $token;
+                if ($trimmed === '' || $trimmed === null) {
+                    continue;
+                }
+                $meetingId = filter_var($trimmed, FILTER_VALIDATE_INT);
+                abort_unless($meetingId !== false && $meetingId > 0, 404);
+                $parsedIds[(int) $meetingId] = (int) $meetingId;
+            }
+
+            if ($parsedIds === []) {
+                return ['section_meeting_ids' => [], 'section_id' => null];
+            }
+
+            $run = $this->officialPublishedRun();
+            abort_unless($run instanceof ScheduleGenerationRun, 404);
+
+            $orderedIds = array_values($parsedIds);
+            $meetings = SectionMeeting::query()
+                ->where('schedule_run_id', $run->id)
+                ->where('state', SectionMeeting::StateActive)
+                ->whereIn('id', $orderedIds)
+                ->with('schedulingDemand.sectionDeliveryGroup')
+                ->get()
+                ->keyBy('id');
+
+            abort_unless($meetings->count() === count($orderedIds), 404);
+
+            $firstMeeting = $meetings->get($orderedIds[0]);
+
+            return [
+                'section_meeting_ids' => $cancelClass ? [] : $orderedIds,
+                'section_id' => $cancelClass ? (int) $firstMeeting?->schedulingDemand?->sectionDeliveryGroup?->section_id : null,
+            ];
+        }
+
         $rawMeeting = array_key_exists('section_meeting_id', $arguments)
             ? $arguments['section_meeting_id']
             : (array_key_exists('meeting', $arguments)
@@ -2634,5 +2796,241 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         $message = collect($exception->errors())->flatten()->first();
 
         return is_string($message) ? $message : 'The complete replacement schedule failed current hard-constraint validation.';
+    }
+
+    /**
+     * Enrich projected timetable meetings with resolved program, year level, and formatted section labels.
+     *
+     * @param  list<array<string, mixed>>  $meetings
+     * @return list<array<string, mixed>>
+     */
+    public static function enrichMeetingsWithScopeMetadata(array $meetings, ?int $termId): array
+    {
+        if ($meetings === []) {
+            return [];
+        }
+
+        $termCohorts = $termId !== null
+            ? TermCohort::query()
+                ->where('term_id', $termId)
+                ->with('program:id,code,name')
+                ->get()
+                ->keyBy('id')
+            : collect();
+
+        $sectionIds = collect($meetings)
+            ->pluck('sectionId')
+            ->filter(fn (mixed $id): bool => is_numeric($id) && (int) $id > 0)
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $sectionsById = $sectionIds !== []
+            ? Section::query()
+                ->whereIn('id', $sectionIds)
+                ->with([
+                    'cohorts.program:id,code,name',
+                    'termOffering.curriculumEntry.curriculumVersion.program:id,code,name',
+                ])
+                ->get()
+                ->keyBy('id')
+            : collect();
+
+        foreach ($meetings as &$meeting) {
+            $sectionId = isset($meeting['sectionId']) && is_numeric($meeting['sectionId'])
+                ? (int) $meeting['sectionId']
+                : null;
+            /** @var Section|null $sectionModel */
+            $sectionModel = $sectionId !== null ? $sectionsById->get($sectionId) : null;
+            $offeringProgram = $sectionModel?->termOffering?->curriculumEntry?->curriculumVersion?->program;
+            $offeringYear = trim((string) ($sectionModel?->termOffering?->curriculumEntry?->year_level ?? ''));
+
+            $rawSections = is_array($meeting['sections'] ?? null) ? $meeting['sections'] : [];
+            $isOnlyUnassociated = $rawSections !== []
+                && collect($rawSections)->every(fn (array $sec): bool => str_starts_with((string) ($sec['id'] ?? ''), 'unassociated-'));
+
+            if (($rawSections === [] || $isOnlyUnassociated) && $sectionModel instanceof Section && $sectionModel->cohorts->isNotEmpty()) {
+                $rawSections = $sectionModel->cohorts->map(function (TermCohort $cohort) use ($offeringProgram, $offeringYear): array {
+                    $resolvedYear = $offeringYear !== ''
+                        ? $offeringYear
+                        : (($level = $cohort->resolvedYearLevel()) !== null ? self::yearLevelLabel($level) : '');
+                    $years = $resolvedYear !== '' ? [$resolvedYear] : [];
+
+                    return [
+                        'id' => (string) $cohort->id,
+                        'label' => self::formatSectionDisplayLabel((string) $cohort->reference),
+                        'program' => (string) ($cohort->program?->name ?? $offeringProgram?->name ?? 'Program not associated'),
+                        'programCode' => (string) ($cohort->program?->code ?? $offeringProgram?->code ?? ''),
+                        'years' => $years,
+                        'year' => $resolvedYear !== '' ? $resolvedYear : 'Year not associated',
+                    ];
+                })->values()->all();
+            } else {
+                foreach ($rawSections as &$sec) {
+                    $cohortId = isset($sec['id']) && is_numeric($sec['id']) ? (int) $sec['id'] : null;
+                    /** @var TermCohort|null $cohort */
+                    $cohort = $cohortId !== null ? $termCohorts->get($cohortId) : null;
+
+                    $rawLabel = trim((string) ($sec['label'] ?? ''));
+                    if ($rawLabel !== ''
+                        && ! str_contains($rawLabel, 'student group not captured')
+                        && ! str_starts_with($rawLabel, 'Captured student group #')) {
+                        $sec['label'] = self::formatSectionDisplayLabel($rawLabel);
+                    }
+
+                    $programName = trim((string) ($sec['program'] ?? ''));
+                    if ($programName === '' || $programName === 'Program not associated') {
+                        $resolvedProgramName = (string) ($cohort?->program?->name ?? $offeringProgram?->name ?? '');
+                        if ($resolvedProgramName !== '') {
+                            $sec['program'] = $resolvedProgramName;
+                        }
+                    }
+
+                    $programCode = trim((string) ($sec['programCode'] ?? ''));
+                    if ($programCode === '') {
+                        $sec['programCode'] = (string) ($cohort?->program?->code ?? $offeringProgram?->code ?? '');
+                    }
+
+                    $existingYears = collect(is_array($sec['years'] ?? null) ? $sec['years'] : [])
+                        ->filter(fn (mixed $year): bool => is_string($year) && trim($year) !== '' && $year !== 'Year not associated')
+                        ->values()
+                        ->all();
+
+                    if ($existingYears === []) {
+                        $fallbackYear = $offeringYear !== ''
+                            ? $offeringYear
+                            : (($level = $cohort?->resolvedYearLevel()) !== null ? self::yearLevelLabel($level) : '');
+
+                        if ($fallbackYear !== '') {
+                            $sec['years'] = [$fallbackYear];
+                            $sec['year'] = $fallbackYear;
+                        }
+                    }
+                }
+                unset($sec);
+            }
+
+            $meeting['sections'] = $rawSections;
+
+            $displayLabels = collect($rawSections)
+                ->map(function (array $sec): string {
+                    $label = trim((string) ($sec['label'] ?? ''));
+                    if ($label === ''
+                        || str_contains($label, 'student group not captured')
+                        || str_starts_with($label, 'Captured student group #')) {
+                        return '';
+                    }
+
+                    $programCode = trim((string) ($sec['programCode'] ?? ''));
+                    if ($programCode !== '' && ! str_contains(strtoupper($label), strtoupper($programCode))) {
+                        return strtoupper($programCode).' '.$label;
+                    }
+
+                    return $label;
+                })
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            if ($displayLabels === []) {
+                $rawClass = trim((string) ($meeting['class'] ?? ''));
+                $rawCode = trim((string) ($meeting['courseCode'] ?? ''));
+                $cleanClass = ($rawClass !== '' && $rawClass !== 'Class unavailable' && strcasecmp($rawClass, $rawCode) !== 0)
+                    ? trim((string) preg_replace('/^'.preg_quote($rawCode, '/').'\s*[·\-:]\s*/iu', '', $rawClass))
+                    : '';
+                $compactPrefix = '/^'.preg_quote(str_replace(' ', '', $rawCode), '/').'[-_\s]+/i';
+                $shortClass = $cleanClass !== '' ? trim((string) preg_replace($compactPrefix, '', $cleanClass)) : '';
+                $formattedFallback = self::formatSectionDisplayLabel($shortClass !== '' ? $shortClass : $cleanClass);
+
+                if ($formattedFallback !== '') {
+                    $displayLabels[] = $formattedFallback;
+                } elseif (filled($offeringProgram?->code)) {
+                    $displayLabels[] = strtoupper((string) $offeringProgram->code);
+                }
+            }
+
+            $meeting['sectionDisplay'] = implode(' · ', $displayLabels);
+        }
+        unset($meeting);
+
+        return $meetings;
+    }
+
+    /**
+     * Evaluate whether a projected meeting matches the active scope, program, year, and search criteria.
+     *
+     * @param  array<string, mixed>  $meeting
+     */
+    public static function meetingMatchesCriteria(
+        array $meeting,
+        string $timetableView,
+        ?string $viewFilter,
+        ?string $programFilter,
+        ?string $yearFilter,
+        ?string $search,
+    ): bool {
+        if ($search !== null && trim($search) !== '') {
+            $needle = mb_strtolower(trim($search));
+            $searchable = [...self::SearchableMeetingFields, 'sectionDisplay'];
+            if (! collect($searchable)->contains(fn (string $field): bool => str_contains(mb_strtolower((string) ($meeting[$field] ?? '')), $needle))) {
+                return false;
+            }
+        }
+
+        if (($programFilter !== null && $programFilter !== '') || ($yearFilter !== null && $yearFilter !== '')) {
+            $matchesProgramYear = collect($meeting['sections'] ?? [])->contains(
+                fn (array $section): bool => ($programFilter === null || $programFilter === '' || ($section['program'] ?? null) === $programFilter)
+                    && ($yearFilter === null || $yearFilter === '' || in_array($yearFilter, $section['years'] ?? [], true)),
+            );
+
+            if (! $matchesProgramYear) {
+                return false;
+            }
+        }
+
+        if ($viewFilter === null || $viewFilter === '' || $timetableView === 'whole') {
+            return true;
+        }
+
+        if ($timetableView === 'section') {
+            return collect($meeting['sections'] ?? [])->contains(
+                fn (array $section): bool => (string) ($section['id'] ?? '') === $viewFilter
+                    || (string) ($section['label'] ?? '') === $viewFilter,
+            ) || ($meeting['class'] ?? null) === $viewFilter;
+        }
+
+        return ($meeting[$timetableView] ?? null) === $viewFilter;
+    }
+
+    public static function formatSectionDisplayLabel(string $label): string
+    {
+        $trimmed = trim($label);
+        if ($trimmed === '' || $trimmed === 'Class unavailable') {
+            return '';
+        }
+
+        if (preg_match('/^([a-zA-Z]{2,8})(\d{1,2}(?:-[a-zA-Z0-9]{1,3}|[a-zA-Z]{1,2})?)$/', $trimmed, $matches) === 1) {
+            return strtoupper($matches[1]).' '.strtoupper($matches[2]);
+        }
+
+        if (preg_match('/^([a-z]{2,8})([\s-]+)(\d{1,2}(?:-[a-zA-Z0-9]{1,3}|[a-zA-Z]{1,2})?)$/', $trimmed, $matches) === 1) {
+            return strtoupper($matches[1]).$matches[2].strtoupper($matches[3]);
+        }
+
+        return $trimmed;
+    }
+
+    private static function yearLevelLabel(int $level): string
+    {
+        return match ($level) {
+            1 => 'First Year',
+            2 => 'Second Year',
+            3 => 'Third Year',
+            4 => 'Fourth Year',
+            5 => 'Fifth Year',
+            default => 'Year '.$level,
+        };
     }
 }

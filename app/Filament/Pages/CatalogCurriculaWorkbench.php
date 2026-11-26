@@ -182,17 +182,9 @@ final class CatalogCurriculaWorkbench extends Page implements HasTable
      */
     protected function getHeaderActions(): array
     {
-        $query = $this->oversightQueryParameters();
-
         return [
             $this->returnToOversightAction('Academic Oversight')
                 ->visible(fn (): bool => $this->isReadOnly()),
-            Action::make('subjectCatalog')
-                ->label('Subject catalog')
-                ->icon(Heroicon::OutlinedBookOpen)
-                ->color('gray')
-                ->url(CourseResource::getUrl('index', $query)),
-            $this->configureCreateProgramAction(Action::make('createProgram')),
         ];
     }
 
@@ -304,7 +296,10 @@ final class CatalogCurriculaWorkbench extends Page implements HasTable
                     ->url(fn (): string => CourseResource::getUrl('index', $this->oversightQueryParameters()))
                     ->visible(fn (): bool => ! $this->hasAnyPrograms() && ! $this->isReadOnly()),
             ])
-            ->toolbarActions([]);
+            ->toolbarActions([
+                $this->configureCreateProgramAction(Action::make('createProgram'))
+                    ->size('sm'),
+            ]);
     }
 
     /**
@@ -390,8 +385,13 @@ final class CatalogCurriculaWorkbench extends Page implements HasTable
      */
     protected function getViewData(): array
     {
+        $referenceTerm = $this->resolveReferenceTerm();
+
         return [
             'readOnly' => $this->isReadOnly(),
+            'referenceTermLabel' => $referenceTerm instanceof Term
+                ? $this->formatTermOptionLabel($referenceTerm)
+                : null,
         ];
     }
 
@@ -399,7 +399,7 @@ final class CatalogCurriculaWorkbench extends Page implements HasTable
     {
         return $action
             ->label('Add program')
-            ->icon(Heroicon::Plus)
+            ->icon(Heroicon::OutlinedPlus)
             ->color('primary')
             ->visible(fn (): bool => ! $this->isReadOnly() && (auth()->user()?->can('create', Program::class) ?? false))
             ->authorize(fn (): bool => ! $this->isReadOnly() && (auth()->user()?->can('create', Program::class) ?? false))
@@ -566,10 +566,6 @@ final class CatalogCurriculaWorkbench extends Page implements HasTable
 
         if (filled($term->academicYear?->label)) {
             $label .= ' · '.$term->academicYear->label;
-        }
-
-        if ($term->state === Term::StateActive) {
-            $label .= ' (Active)';
         }
 
         return $label;

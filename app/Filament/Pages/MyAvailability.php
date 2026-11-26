@@ -5,12 +5,16 @@ namespace App\Filament\Pages;
 use App\Actions\Scheduling\FacultyAvailabilityStatusProjection;
 use App\Actions\Scheduling\RecordFacultyAvailabilityDeclaration;
 use App\Models\CalendarEvent;
+use App\Models\CourseComponent;
+use App\Models\CourseSpecification;
 use App\Models\FacultyAvailabilityDeadline;
 use App\Models\FacultyAvailabilityDeclaration;
+use App\Models\FacultyQualification;
 use App\Models\FacultyTermLoadOverride;
 use App\Models\SectionMeeting;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
+use App\Models\TermOffering;
 use App\Models\TermTeachingGridRow;
 use App\Models\User;
 use App\Support\HasSearchableTermSelection;
@@ -454,11 +458,19 @@ class MyAvailability extends Page
             ? $this->declarationsQuery()->orderByDesc('version')->get()
             : collect();
 
+        $draftWindows = $canEditAvailability && $this->availabilityMode === FacultyAvailabilityDeclaration::ModeWindows
+            ? $this->compiledDraftWindows()
+            : [];
+
         $liveHoursSummary = $canEditAvailability && $this->availabilityMode === FacultyAvailabilityDeclaration::ModeWindows
-            ? $this->weeklyHoursSummaryFromWindows($this->compiledDraftWindows(), $package)
+            ? $this->weeklyHoursSummaryFromWindows($draftWindows, $package)
             : ($currentDeclaration instanceof FacultyAvailabilityDeclaration && $currentDeclaration->effectiveMode() === FacultyAvailabilityDeclaration::ModeWindows
                 ? $this->weeklyHoursSummaryFromWindows($currentDeclaration->normalizedTeachingWindows(), $package)
                 : null);
+
+        $breakSplitWarning = $canEditAvailability && $this->availabilityMode === FacultyAvailabilityDeclaration::ModeWindows
+            ? $this->breakSplitDurationWarning($term, $faculty, $package, $draftWindows)
+            : null;
 
         $approvedWeekdayCount = $package instanceof TermCalendarPackage
             ? $package->teachingGridRows->filter(fn (TermTeachingGridRow $row): bool => $row->day_of_week >= 1 && $row->day_of_week <= 5)->count()
@@ -518,6 +530,7 @@ class MyAvailability extends Page
                 : $this->stateHeading($status['effective_mode'] ?? null),
             'teachingWindows' => $teachingWindows,
             'weeklyHoursSummary' => $liveHoursSummary,
+            'breakSplitWarning' => $breakSplitWarning,
             'legacyUnavailableTimes' => $legacyUnavailableTimes,
             'needsGridReview' => (bool) ($status['needs_grid_review'] ?? false),
             'hasPublishedImpact' => (bool) ($status['has_official_impact'] ?? false),
@@ -965,6 +978,186 @@ class MyAvailability extends Page
         $dayUnit = $daysWithHours === 1 ? 'day' : 'days';
 
         return sprintf('%s %s/week across %d %s (excluding breaks)', $formattedHours, $hourUnit, $daysWithHours, $dayUnit);
+    }
+
+    /**
+     * @param  list<array{day_of_week:int,start_time:string,end_time:string}>  $windows
+     * @return array{longest_block_label: string, longest_block_minutes: int, max_required_label: string, max_required_minutes: int, subjects_summary: string}|null
+     */
+    private function breakSplitDurationWarning(?Term $term, ?User $faculty, ?TermCalendarPackage $package, array $windows): ?array
+    {
+        if (! $term instanceof Term || ! $faculty instanceof User || ! $package instanceof TermCalendarPackage || $windows === []) {
+            return null;
+        }
+
+        $longestBlockMinutes = $this->longestUninterruptedMinutesFromWindows($windows, $package);
+        if ($longestBlockMinutes <= 0) {
+            return null;
+        }
+
+        $qualifiedCourseIds = FacultyQualification::query()
+            ->active()
+            ->where('faculty_user_id', $faculty->id)
+            ->pluck('course_id')
+            ->map(static fn (mixed $id): int => (int) $id)
+            ->filter(static fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($qualifiedCourseIds === []) {
+            return null;
+        }
+
+        $offerings = TermOffering::query()
+            ->where('term_id', $term->id)
+            ->where('state', '!=', TermOffering::StateCancelled)
+            ->whereHas('curriculumEntry.courseSpecification', fn (Builder $query): Builder => $query
+                ->whereIn('course_id', $qualifiedCourseIds)
+                ->where(function (Builder $treatment): void {
+                    $treatment->whereNull('scheduling_treatment')
+                        ->orWhere('scheduling_treatment', '!=', CourseSpecification::SchedulingExternallyArranged);
+                }))
+            ->with(['curriculumEntry.courseSpecification.course', 'curriculumEntry.courseSpecification.components'])
+            ->get();
+
+        if ($offerings->isEmpty()) {
+            return null;
+        }
+
+        /** @var array<string, array{code: string, component_label: string, duration_minutes: int}> $exceeding */
+        $exceeding = [];
+
+        foreach ($offerings as $offering) {
+            $spec = $offering->curriculumEntry?->courseSpecification;
+            $course = $spec?->course;
+            if (! $spec instanceof CourseSpecification || $course === null) {
+                continue;
+            }
+
+            foreach ($spec->components as $component) {
+                $parsed = CourseComponent::parseMeetingPattern($component->meeting_pattern);
+                if ($parsed === null && (float) $component->weekly_contact_hours > 0) {
+                    $fallbackPattern = CourseComponent::defaultMeetingPatternForHours(
+                        (float) $component->weekly_contact_hours,
+                        (string) ($component->room_type_default ?: CourseComponent::RoomTypeLectureRoom),
+                    );
+                    $parsed = CourseComponent::parseMeetingPattern($fallbackPattern);
+                }
+
+                $durationMinutes = (int) ($parsed['duration_minutes'] ?? 0);
+                if ($durationMinutes <= $longestBlockMinutes) {
+                    continue;
+                }
+
+                $componentLabel = $component->component_type === CourseComponent::TypeLaboratory ? ' Lab' : '';
+                $key = $course->code.'|'.$componentLabel;
+                if (! isset($exceeding[$key]) || $durationMinutes > $exceeding[$key]['duration_minutes']) {
+                    $exceeding[$key] = [
+                        'code' => (string) $course->code,
+                        'component_label' => $componentLabel,
+                        'duration_minutes' => $durationMinutes,
+                    ];
+                }
+            }
+        }
+
+        if ($exceeding === []) {
+            return null;
+        }
+
+        $sorted = collect($exceeding)
+            ->sort(fn (array $a, array $b): int => ($b['duration_minutes'] <=> $a['duration_minutes']) ?: strcmp($a['code'], $b['code']))
+            ->values();
+
+        $maxRequiredMinutes = (int) $sorted->first()['duration_minutes'];
+        $displayed = $sorted->take(3)
+            ->map(fn (array $item): string => $item['code'].$item['component_label'].' ('.$this->formatDurationLabel($item['duration_minutes']).')')
+            ->all();
+        $remaining = $sorted->count() - count($displayed);
+        $summary = implode(', ', $displayed);
+        if ($remaining > 0) {
+            $summary .= ' and '.$remaining.' more '.Str::plural('subject', $remaining);
+        }
+
+        return [
+            'longest_block_label' => $this->formatDurationLabel($longestBlockMinutes),
+            'longest_block_minutes' => $longestBlockMinutes,
+            'max_required_label' => $this->formatDurationLabel($maxRequiredMinutes),
+            'max_required_minutes' => $maxRequiredMinutes,
+            'subjects_summary' => $summary,
+        ];
+    }
+
+    /** @param list<array{day_of_week:int,start_time:string,end_time:string}> $windows */
+    private function longestUninterruptedMinutesFromWindows(array $windows, TermCalendarPackage $package): int
+    {
+        $package->loadMissing('teachingGridRows');
+        $gridByDay = $package->teachingGridRows->keyBy('day_of_week');
+        $windowsByDay = collect($windows)->groupBy('day_of_week');
+        $longest = 0;
+
+        foreach ($windowsByDay as $day => $dayWindows) {
+            $gridRow = $gridByDay->get((int) $day);
+            if (! $gridRow instanceof TermTeachingGridRow) {
+                continue;
+            }
+
+            $gridStart = FacultyAvailabilityDeclaration::clockToMinutes((string) $gridRow->starts_at);
+            $gridEnd = FacultyAvailabilityDeclaration::clockToMinutes((string) $gridRow->ends_at);
+            if ($gridStart === null || $gridEnd === null || $gridStart >= $gridEnd) {
+                continue;
+            }
+
+            $clipped = [];
+            foreach ($dayWindows as $window) {
+                $wStart = FacultyAvailabilityDeclaration::clockToMinutes($window['start_time']);
+                $wEnd = FacultyAvailabilityDeclaration::clockToMinutes($window['end_time']);
+                if ($wStart === null || $wEnd === null) {
+                    continue;
+                }
+                $cStart = max($gridStart, $wStart);
+                $cEnd = min($gridEnd, $wEnd);
+                if ($cStart < $cEnd) {
+                    $clipped[] = ['start' => $cStart, 'end' => $cEnd];
+                }
+            }
+
+            $breaks = [];
+            foreach (is_array($gridRow->breaks) ? $gridRow->breaks : [] as $break) {
+                if (! is_array($break)) {
+                    continue;
+                }
+                $bStart = FacultyAvailabilityDeclaration::clockToMinutes((string) ($break['starts_at'] ?? ''));
+                $bEnd = FacultyAvailabilityDeclaration::clockToMinutes((string) ($break['ends_at'] ?? ''));
+                if ($bStart !== null && $bEnd !== null && $bStart < $bEnd) {
+                    $breaks[] = ['start' => $bStart, 'end' => $bEnd];
+                }
+            }
+
+            foreach (FacultyAvailabilityDeclaration::subtractIntervals($clipped, $breaks) as $segment) {
+                $length = $segment['end'] - $segment['start'];
+                if ($length > $longest) {
+                    $longest = $length;
+                }
+            }
+        }
+
+        return $longest;
+    }
+
+    private function formatDurationLabel(int $minutes): string
+    {
+        if ($minutes < 60) {
+            return $minutes.' '.Str::plural('minute', $minutes);
+        }
+
+        $hours = $minutes / 60;
+        $formatted = fmod($hours, 1.0) === 0.0
+            ? (string) (int) $hours
+            : rtrim(rtrim(number_format($hours, 2, '.', ''), '0'), '.');
+
+        return $formatted.' '.($formatted === '1' ? 'hour' : 'hours');
     }
 
     private function declarationSummary(FacultyAvailabilityDeclaration $record): string

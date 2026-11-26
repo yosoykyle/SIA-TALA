@@ -11,25 +11,25 @@
                 <x-tala-navigation label="School resources view" compact stretch class="tala-work-tabs__nav">
                     <x-filament::tabs.item
                         tag="a"
+                        :href="\App\Filament\Pages\SchoolResources::getUrl(['tab' => 'faculty', ...($termId ? ['termId' => $termId] : [])])"
+                        :active="$tab === 'faculty'"
+                        icon="heroicon-o-user"
+                        wire:click.prevent="chooseTab('faculty')"
+                        wire:loading.attr="aria-disabled"
+                        wire:target="chooseTab"
+                    >
+                        Faculty
+                    </x-filament::tabs.item>
+                    <x-filament::tabs.item
+                        tag="a"
                         :href="\App\Filament\Pages\SchoolResources::getUrl(['tab' => 'rooms', ...($termId ? ['termId' => $termId] : [])])"
                         :active="$tab === 'rooms'"
                         icon="heroicon-o-building-office-2"
                         wire:click.prevent="chooseTab('rooms')"
-                        wire:loading.attr="disabled"
+                        wire:loading.attr="aria-disabled"
                         wire:target="chooseTab"
                     >
                         Rooms
-                    </x-filament::tabs.item>
-                    <x-filament::tabs.item
-                        tag="a"
-                        :href="\App\Filament\Pages\SchoolResources::getUrl(['tab' => 'faculty', ...($termId ? ['termId' => $termId] : [])])"
-                        :active="$tab === 'faculty'"
-                        icon="heroicon-o-academic-cap"
-                        wire:click.prevent="chooseTab('faculty')"
-                        wire:loading.attr="disabled"
-                        wire:target="chooseTab"
-                    >
-                        Qualified faculty
                     </x-filament::tabs.item>
                 </x-tala-navigation>
             </div>

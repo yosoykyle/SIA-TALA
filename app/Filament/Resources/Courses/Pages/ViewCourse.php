@@ -163,8 +163,8 @@ class ViewCourse extends ViewRecord
 
         return [
             CatalogCurriculaWorkbench::getUrl($params) => 'Programs & Curricula',
-            CourseResource::getUrl('index', $params) => 'Subjects',
-            $course instanceof Course ? $course->code : 'Course',
+            CourseResource::getUrl('index', $params) => 'Subject catalog',
+            $course instanceof Course ? $course->code : 'Subject',
         ];
     }
 

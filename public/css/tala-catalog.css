@@ -72,14 +72,14 @@
     }
 
     .fi-body:has(.fi-layout) .fi-page:has(.tala-curriculum-board) .fi-header-actions-ctn {
-        width: auto;
+        inline-size: auto;
         flex: 0 0 auto;
         align-self: center;
         justify-self: end;
     }
 
     .fi-body:has(.fi-layout) .fi-page:has(.tala-curriculum-board) .fi-header-actions-ctn > .fi-ac {
-        width: auto;
+        inline-size: auto;
         flex-wrap: wrap;
         justify-content: flex-end;
     }
@@ -117,16 +117,23 @@
     color: var(--tala-text);
     text-align: start;
     cursor: pointer;
-    transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
 }
 
-.tala-year-card:hover {
-    border-color: var(--tala-edge-strong);
-    background: var(--tala-surface-sunken);
+@media (prefers-reduced-motion: no-preference) {
+    .tala-year-card {
+        transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
+    }
+}
+
+@media (hover: hover) {
+    .tala-year-card:hover {
+        border-color: var(--tala-edge-strong);
+        background: var(--tala-surface-sunken);
+    }
 }
 
 .tala-year-card:focus-visible {
-    outline: 3px solid var(--tala-focus);
+    outline: 2px solid var(--tala-focus-ring);
     outline-offset: 2px;
 }
 
@@ -208,9 +215,11 @@
     justify-items: start;
 }
 
-.tala-year-card--add:hover {
-    border-color: var(--tala-brand-foreground);
-    background: var(--tala-surface);
+@media (hover: hover) {
+    .tala-year-card--add:hover {
+        border-color: var(--tala-brand-foreground);
+        background: var(--tala-surface);
+    }
 }
 
 .tala-year-card__add-icon {
@@ -250,7 +259,12 @@
     min-inline-size: 0;
     max-inline-size: 100%;
     padding: var(--tala-card-pad);
-    transition: opacity 120ms ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .tala-year-workspace-card__body {
+        transition: opacity 120ms ease;
+    }
 }
 
 .tala-year-workspace-card__body.is-loading {
@@ -483,15 +497,22 @@
     color: var(--tala-text);
     text-align: start;
     cursor: pointer;
-    transition: background-color 150ms ease, box-shadow 150ms ease;
 }
 
-.tala-semester-row:hover {
-    background: var(--tala-surface-sunken);
+@media (prefers-reduced-motion: no-preference) {
+    .tala-semester-row {
+        transition: background-color 150ms ease, box-shadow 150ms ease;
+    }
+}
+
+@media (hover: hover) {
+    .tala-semester-row:hover {
+        background: var(--tala-surface-sunken);
+    }
 }
 
 .tala-semester-row:focus-visible {
-    outline: 2px solid var(--tala-focus);
+    outline: 2px solid var(--tala-focus-ring);
     outline-offset: -2px;
 }
 
@@ -535,7 +556,12 @@
     color: var(--tala-muted);
     opacity: 0.45;
     cursor: grab;
-    transition: opacity 150ms ease, color 150ms ease, background-color 150ms ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .tala-semester-row__grip {
+        transition: opacity 150ms ease, color 150ms ease, background-color 150ms ease;
+    }
 }
 
 .tala-semester-row__grip .fi-icon {
@@ -543,10 +569,12 @@
     block-size: 0.9375rem;
 }
 
-.tala-semester-row:hover .tala-semester-row__grip,
-.tala-semester-row__grip:hover {
-    opacity: 0.9;
-    color: var(--tala-text);
+@media (hover: hover) {
+    .tala-semester-row:hover .tala-semester-row__grip,
+    .tala-semester-row__grip:hover {
+        opacity: 0.9;
+        color: var(--tala-text);
+    }
 }
 
 .tala-semester-row__grip:active {
@@ -686,13 +714,24 @@
     color: var(--tala-muted);
     opacity: 0.55;
     flex-shrink: 0;
-    transition: opacity 150ms ease, color 150ms ease;
 }
 
-.tala-semester-row:hover .tala-semester-row__chevron,
+@media (prefers-reduced-motion: no-preference) {
+    .tala-semester-row__chevron {
+        transition: opacity 150ms ease, color 150ms ease;
+    }
+}
+
 .tala-semester-row:focus-visible .tala-semester-row__chevron {
     opacity: 1;
     color: var(--tala-brand-foreground);
+}
+
+@media (hover: hover) {
+    .tala-semester-row:hover .tala-semester-row__chevron {
+        opacity: 1;
+        color: var(--tala-brand-foreground);
+    }
 }
 
 .tala-semester-row.is-selected .tala-semester-row__chevron {
@@ -897,8 +936,13 @@
     font-weight: var(--tala-weight-emphasis);
     color: var(--tala-brand-foreground);
     opacity: 0;
-    transition: opacity 150ms ease;
     white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .tala-row-edit-hint {
+        transition: opacity 150ms ease;
+    }
 }
 
 .tala-semester-row:focus-visible .tala-row-edit-hint,
@@ -1259,6 +1303,47 @@
     }
 }
 
+/* Programs & Curricula persistent term-scope caption */
+.tala-ref-term-note {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.125rem 0.3125rem;
+    max-inline-size: 100%;
+    padding: 0.375rem 0.75rem;
+    border: 1px solid var(--tala-border);
+    border-radius: var(--tala-control-radius, 0.5rem);
+    background: var(--tala-surface-sunken);
+    color: var(--tala-muted);
+    font-size: 0.8125rem;
+    font-weight: 400;
+    line-height: 1.45;
+    font-variant-numeric: tabular-nums;
+}
+
+.tala-ref-term-note .fi-icon {
+    inline-size: 0.9375rem;
+    block-size: 0.9375rem;
+    flex: none;
+    align-self: center;
+    color: var(--tala-muted);
+}
+
+.tala-ref-term-note__label,
+.tala-ref-term-note__hint {
+    color: var(--tala-muted);
+}
+
+.tala-ref-term-note strong,
+.tala-ref-term-note__value {
+    font-weight: 600;
+    color: var(--tala-text);
+}
+
+.tala-workbench-directory > .tala-ref-term-note {
+    margin: 0 0 0.625rem;
+}
+
 /* CatalogCurriculaWorkbench: single balanced horizontal toolbar */
 .fi-body .tala-curricula-workbench-table .fi-ta-header-ctn,
 .tala-curricula-workbench-table .fi-ta-header-ctn {
@@ -1275,15 +1360,22 @@
 .fi-body .tala-curricula-workbench-table .fi-ta-header-toolbar,
 .tala-curricula-workbench-table .fi-ta-header-toolbar {
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: center;
-    justify-content: flex-end;
-    gap: 0.5rem;
-    flex: 0 1 auto;
-    margin-inline-start: auto;
+    justify-content: space-between;
+    gap: 0.5rem 0.75rem;
+    flex: 1 1 auto;
     padding: 0;
     border: 0;
     background: transparent;
+}
+
+.fi-body .tala-curricula-workbench-table .fi-ta-header-toolbar > .fi-ta-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.5rem;
 }
 
 .fi-body .tala-curricula-workbench-table .fi-ta-header-toolbar > .fi-ta-actions:empty,
@@ -1291,12 +1383,18 @@
     display: none;
 }
 
-.fi-body .tala-curricula-workbench-table .fi-ta-header-toolbar > div:last-child {
+.fi-body .tala-curricula-workbench-table .fi-ta-header-toolbar > .fi-ta-actions:has(> :is(a, button, .fi-btn):not([style*="display: none"]):not([style*="display:none"])) {
+    display: flex;
+}
+
+.fi-body .tala-curricula-workbench-table .fi-ta-header-toolbar > div:not(.fi-ta-actions):last-child {
     display: flex;
     flex-wrap: nowrap;
     align-items: center;
+    justify-content: flex-end;
     gap: 0.5rem;
-    width: auto;
+    margin-inline-start: auto;
+    inline-size: auto;
     min-inline-size: 0;
 }
 
@@ -1361,7 +1459,24 @@
     background: color-mix(in srgb, var(--tala-brand-tint) 30%, var(--tala-surface));
 }
 
-/* CoursesTable toolbar order: Draft curricula (when selected) -> Search -> Program / Status / Classification */
+/* CoursesTable toolbar order: New subject + bulk actions (left) -> Search & Filters (right) */
+.fi-body .tala-courses-table .fi-ta-header-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 0.75rem;
+}
+.fi-body .tala-courses-table .fi-ta-header-toolbar > .fi-ta-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.5rem;
+}
+.fi-body .tala-courses-table .fi-ta-header-toolbar > .fi-ta-actions:has(> :is(a, button, .fi-btn):not([style*="display: none"]):not([style*="display:none"])) {
+    display: flex;
+}
 .fi-body .tala-courses-table.tala-inline-filters-table .fi-ta-header-ctn {
     justify-content: flex-start;
 }
@@ -1590,15 +1705,17 @@
     text-decoration: none;
 }
 
-.tala-prospectus-table__code a:hover {
-    text-decoration: underline;
-    text-underline-offset: 0.18em;
+@media (hover: hover) {
+    .tala-prospectus-table__code a:hover {
+        text-decoration: underline;
+        text-underline-offset: 0.18em;
+    }
 }
 
 .tala-prospectus-table__code a:focus-visible {
-    outline: 2px solid var(--tala-focus);
+    outline: 2px solid var(--tala-focus-ring);
     outline-offset: 2px;
-    border-radius: 0.375rem;
+    border-radius: var(--tala-compact-radius, 0.375rem);
 }
 
 .tala-prospectus-table__subject {
@@ -1913,15 +2030,22 @@
 .tala-import-preview__table tbody tr {
     border-block-end: 1px solid var(--tala-edge);
     background: var(--tala-surface);
-    transition: background-color 120ms ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .tala-import-preview__table tbody tr {
+        transition: background-color 120ms ease;
+    }
 }
 
 .tala-import-preview__table tbody tr:nth-child(even):not(.is-blocked):not(.is-skipped) {
     background: color-mix(in srgb, var(--tala-surface-sunken) 52%, var(--tala-surface));
 }
 
-.tala-import-preview__table tbody tr:hover:not(.is-blocked):not(.is-skipped) {
-    background: color-mix(in srgb, var(--tala-brand-tint) 36%, var(--tala-surface));
+@media (hover: hover) {
+    .tala-import-preview__table tbody tr:hover:not(.is-blocked):not(.is-skipped) {
+        background: color-mix(in srgb, var(--tala-brand-tint) 36%, var(--tala-surface));
+    }
 }
 
 .tala-import-preview__table tbody tr:last-child {
@@ -2141,12 +2265,19 @@
     text-align: start;
     cursor: pointer;
     min-inline-size: 0;
-    transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
 }
 
-.tala-import-step:hover:not(:disabled) {
-    border-color: var(--tala-edge-strong);
-    background: var(--tala-surface-sunken);
+@media (prefers-reduced-motion: no-preference) {
+    .tala-import-step {
+        transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
+    }
+}
+
+@media (hover: hover) {
+    .tala-import-step:hover:not(:disabled) {
+        border-color: var(--tala-edge-strong);
+        background: var(--tala-surface-sunken);
+    }
 }
 
 .tala-import-step:disabled {
@@ -2155,7 +2286,7 @@
 }
 
 .tala-import-step:focus-visible {
-    outline: 3px solid var(--tala-focus);
+    outline: 2px solid var(--tala-focus-ring);
     outline-offset: 2px;
 }
 
@@ -2326,7 +2457,12 @@
     border-radius: 0.5rem;
     background: var(--tala-surface);
     cursor: pointer;
-    transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .tala-import-mode-option {
+        transition: border-color 150ms ease, background-color 150ms ease;
+    }
 }
 
 .tala-import-mode-option.is-selected {
@@ -2400,13 +2536,24 @@
     border-radius: 0.625rem;
     background: var(--tala-surface-sunken);
     cursor: pointer;
-    transition: border-color 150ms ease, background-color 150ms ease;
 }
 
-.tala-import-dropzone:hover,
+@media (prefers-reduced-motion: no-preference) {
+    .tala-import-dropzone {
+        transition: border-color 150ms ease, background-color 150ms ease;
+    }
+}
+
 .tala-import-dropzone.is-dragging {
     border-color: var(--tala-selected-edge);
     background: color-mix(in srgb, var(--tala-brand-tint) 55%, var(--tala-surface));
+}
+
+@media (hover: hover) {
+    .tala-import-dropzone:hover {
+        border-color: var(--tala-selected-edge);
+        background: color-mix(in srgb, var(--tala-brand-tint) 55%, var(--tala-surface));
+    }
 }
 
 .tala-import-dropzone__icon {
@@ -2522,8 +2669,10 @@
     cursor: pointer;
 }
 
-.tala-import-file-replace-btn:hover {
-    background: var(--tala-surface-sunken);
+@media (hover: hover) {
+    .tala-import-file-replace-btn:hover {
+        background: var(--tala-surface-sunken);
+    }
 }
 
 .tala-import-upload-progress {
@@ -2543,8 +2692,13 @@
 
 .tala-import-upload-progress__fill {
     block-size: 100%;
-    background: var(--tala-brand-foreground);
-    transition: width 150ms ease;
+    background: var(--tala-brand-fill, var(--tala-brand-foreground));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .tala-import-upload-progress__fill {
+        transition: inline-size 150ms ease;
+    }
 }
 
 .tala-import-worksheet-box {
@@ -2651,7 +2805,12 @@
     background: var(--tala-surface);
     box-shadow: var(--tala-material-detail);
     min-inline-size: 0;
-    transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .tala-import-mapping-card {
+        transition: border-color 140ms ease, background-color 140ms ease;
+    }
 }
 
 .tala-import-mapping-card.is-mapped {
@@ -2708,7 +2867,7 @@
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     font-weight: 600;
     line-height: 1.3;
     padding: 0.125rem 0.5rem;
@@ -2932,6 +3091,12 @@
 }
 
 @media (forced-colors: active) {
+    .tala-ref-term-note {
+        background: Canvas;
+        color: CanvasText;
+        border-color: CanvasText;
+    }
+
     .tala-import-step.is-active,
     .tala-import-mode-option.is-selected,
     .tala-import-file-card {

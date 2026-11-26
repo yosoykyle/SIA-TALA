@@ -92,6 +92,7 @@
         yearFilter: {{ \Illuminate\Support\Js::from((string) ($initialYear ?? '')) }},
         searchQuery: {{ \Illuminate\Support\Js::from((string) ($initialSearch ?? '')) }},
         selectedListDay: 'all',
+        triageFilter: 'all',
         teachingGrid: {{ \Illuminate\Support\Js::from($scheduleContext['teachingGrid'] ?? []) }},
         blockedPeriods: {{ \Illuminate\Support\Js::from($presentation['blockedPeriods'] ?? []) }},
         teacherAvailability: {{ \Illuminate\Support\Js::from($scheduleContext['teacherAvailability'] ?? []) }},
@@ -104,6 +105,8 @@
         sectionOptions: {{ \Illuminate\Support\Js::from($scheduleContext['sectionOptions'] ?? []) }},
         facultyOptions: {{ \Illuminate\Support\Js::from($scheduleContext['facultyOptions'] ?? []) }},
         roomOptions: {{ \Illuminate\Support\Js::from($scheduleContext['roomOptions'] ?? []) }},
+        programOptions: {{ \Illuminate\Support\Js::from($scheduleContext['programOptions'] ?? []) }},
+        yearOptions: {{ \Illuminate\Support\Js::from($scheduleContext['yearOptions'] ?? []) }},
         gridDays: {{ \Illuminate\Support\Js::from($presentation['days'] ?? []) }},
         gridSlots: {{ \Illuminate\Support\Js::from($gridSlots) }},
         reviseOfficialUrl: {{ \Illuminate\Support\Js::from($scheduleContext['reviseOfficialUrl'] ?? '') }},
@@ -137,8 +140,46 @@
                 }
             });
             if (this.interactive) {
-                ['viewMode', 'entityFilter', 'programFilter', 'yearFilter', 'searchQuery', 'mode'].forEach((prop) => {
-                    this.$watch(prop, () => this.persistFilterState());
+                this.broadcastFilterState();
+                ['viewMode', 'entityFilter', 'programFilter', 'yearFilter', 'searchQuery', 'mode', 'triageFilter'].forEach((prop) => {
+                    this.$watch(prop, () => {
+                        this.persistFilterState();
+                        this.broadcastFilterState();
+                    });
+                });
+            }
+        },
+        broadcastFilterState() {
+            if (!this.interactive) return;
+            const snapshot = {
+                viewMode: this.viewMode,
+                entityFilter: this.entityFilter,
+                programFilter: this.programFilter,
+                yearFilter: this.yearFilter,
+                searchQuery: this.searchQuery,
+                mode: this.mode,
+                format: this.mode === 'list' ? 'list' : 'week',
+            };
+            window.__talaTimetableFilterState = snapshot;
+            window.dispatchEvent(new CustomEvent('tala-timetable-filter-sync', { detail: snapshot }));
+        },
+        applyPrintFilters(detail) {
+            if (!this.interactive || !detail || typeof detail !== 'object') return;
+            const nextView = ['whole', 'section', 'faculty', 'room'].includes(detail.viewMode) ? detail.viewMode : 'whole';
+            this.viewMode = nextView;
+            this.entityFilter = nextView === 'whole' ? '' : String(detail.entityFilter || '');
+            this.programFilter = String(detail.programFilter || '');
+            this.yearFilter = String(detail.yearFilter || '');
+            if (typeof detail.searchQuery === 'string') {
+                this.searchQuery = detail.searchQuery;
+            }
+            this.mode = detail.format === 'list' ? 'list' : 'weekly';
+            this.selectedListDay = 'all';
+            this.persistFilterState();
+            this.broadcastFilterState();
+            if (detail.triggerPrint) {
+                this.$nextTick(() => {
+                    window.setTimeout(() => window.print(), 200);
                 });
             }
         },
@@ -184,6 +225,7 @@
                     yearFilter: this.yearFilter,
                     searchQuery: this.searchQuery,
                     mode: this.mode,
+                    triageFilter: this.triageFilter,
                 }));
             } catch (e) {}
         },
@@ -210,6 +252,9 @@
                 }
                 if (saved.mode === 'list' || saved.mode === 'weekly') {
                     this.mode = saved.mode;
+                }
+                if (['all', 'late_impact', 'conflicts', 'locked', 'face_to_face', 'online'].includes(saved.triageFilter)) {
+                    this.triageFilter = saved.triageFilter;
                 }
             } catch (e) {}
         },
@@ -268,11 +313,37 @@
         setFormat(newFormat) {
             this.mode = newFormat === 'list' ? 'list' : 'weekly';
         },
+        toggleTriageFilter(key) {
+            this.triageFilter = this.triageFilter === key ? 'all' : key;
+        },
+        get lateImpactCount() {
+            return (this.meetings || []).filter(m => Boolean(m && m.isLateImpact)).length;
+        },
+        get conflictCount() {
+            return (this.meetings || []).filter(m => Boolean(m && (m.status === 'Conflict recorded' || m.offGrid))).length;
+        },
+        get pinnedCount() {
+            return (this.meetings || []).filter(m => Boolean(m && m.isPinned)).length;
+        },
+        get faceToFaceCount() {
+            return (this.meetings || []).filter(m => Boolean(m && m.modality === 'Face-to-Face')).length;
+        },
+        get onlineCount() {
+            return (this.meetings || []).filter(m => Boolean(m && m.modality === 'Online')).length;
+        },
+        get hasTriageChips() {
+            return this.lateImpactCount > 0
+                || (!this.isOfficial && this.conflictCount > 0)
+                || this.pinnedCount > 0
+                || this.faceToFaceCount > 0
+                || this.onlineCount > 0;
+        },
         hasActiveFilters() {
             return this.viewMode !== 'whole'
                 || this.entityFilter !== ''
                 || this.programFilter !== ''
                 || this.yearFilter !== ''
+                || this.triageFilter !== 'all'
                 || (this.mode === 'list' && this.selectedListDay !== 'all')
                 || (this.searchQuery || '').trim() !== '';
         },
@@ -283,6 +354,7 @@
             this.yearFilter = '';
             this.searchQuery = '';
             this.selectedListDay = 'all';
+            this.triageFilter = 'all';
             this.filters = {faculty: '', room: '', class: '', modality: ''};
         },
         matches(meeting) {
@@ -292,6 +364,21 @@
             }
             if (!this.interactive) {
                 return Object.entries(this.filters).every(([key, value]) => !value || meeting[key] === value);
+            }
+            if (this.triageFilter === 'late_impact' && !meeting.isLateImpact) {
+                return false;
+            }
+            if (this.triageFilter === 'conflicts' && !(meeting.status === 'Conflict recorded' || meeting.offGrid)) {
+                return false;
+            }
+            if (this.triageFilter === 'locked' && !meeting.isPinned) {
+                return false;
+            }
+            if (this.triageFilter === 'face_to_face' && meeting.modality !== 'Face-to-Face') {
+                return false;
+            }
+            if (this.triageFilter === 'online' && meeting.modality !== 'Online') {
+                return false;
             }
             if (this.viewMode === 'section' && this.entityFilter !== '') {
                 const secMatch = (meeting.sections || []).some(s => String(s.id) === String(this.entityFilter) || s.label === this.entityFilter)
@@ -316,6 +403,7 @@
                     meeting.courseCode,
                     meeting.courseTitle,
                     meeting.class,
+                    meeting.sectionDisplay,
                     meeting.faculty,
                     meeting.room,
                     meeting.dayLabel,
@@ -403,7 +491,7 @@
             if (this.viewMode === 'room') {
                 return this.entityFilter || 'By room';
             }
-            return 'Whole Term';
+            return 'Whole term';
         },
         isMeetingPinned(id) {
             const m = this.meetings.find(item => item.id === id);
@@ -523,6 +611,43 @@
                 this.moveAnnouncement = 'Move cancelled.';
             }
         },
+        formatMinutesClock(mins) {
+            const total = Number(mins || 0);
+            const hour24 = Math.floor(total / 60);
+            const min = total % 60;
+            const meridiem = hour24 < 12 ? 'AM' : 'PM';
+            const hour12 = (hour24 % 12) || 12;
+            return hour12 + ':' + String(min).padStart(2, '0') + ' ' + meridiem;
+        },
+        formatMinutesRange(startMin, endMin) {
+            return this.formatMinutesClock(startMin) + '–' + this.formatMinutesClock(endMin);
+        },
+        resolveTeacherName(facultyId, meeting = null) {
+            const fid = Number(facultyId || 0);
+            if (fid <= 0) return '';
+            if (meeting) {
+                const qualified = this.qualifiedTeachersFor(meeting);
+                const match = qualified.find(t => Number(t.id) === fid);
+                if (match && match.name) return match.name;
+                if (Number(meeting.facultyId || 0) === fid && meeting.faculty && meeting.faculty !== 'Faculty unassigned') {
+                    return meeting.faculty;
+                }
+            }
+            const fromMeetings = (this.meetings || []).find(
+                m => Number(m.facultyId || 0) === fid && m.faculty && m.faculty !== 'Faculty unassigned'
+            );
+            return fromMeetings ? fromMeetings.faculty : '';
+        },
+        resolveRoomLabel(roomId, meeting = null) {
+            const rid = Number(roomId || 0);
+            if (rid <= 0) return '';
+            const roomObj = (this.rooms || []).find(r => Number(r.id) === rid);
+            if (roomObj && roomObj.code) return roomObj.code;
+            if (meeting && Number(meeting.roomId || 0) === rid && meeting.room && meeting.room !== 'Room unassigned') {
+                return meeting.room;
+            }
+            return '';
+        },
         evaluateSlotForMeeting(meeting, dayNumber, slotStart, overrideRoomId = null, overrideFacultyId = null) {
             if (!meeting) return { valid: false, reason: '' };
             const duration = Number(meeting.durationMinutes || ((meeting.end || 0) - (meeting.start || 0)) || 60);
@@ -531,12 +656,14 @@
             const isOnlineMeeting = meeting.modality === 'Online' || (meeting.roomId === null && meeting.room === 'Online');
             const targetFacultyId = overrideFacultyId !== null && overrideFacultyId !== '' ? Number(overrideFacultyId) : Number(meeting.facultyId || 0);
             const targetRoomId = isOnlineMeeting ? 0 : (overrideRoomId !== null && overrideRoomId !== '' ? Number(overrideRoomId) : Number(meeting.roomId || 0));
+            const teacherName = this.resolveTeacherName(targetFacultyId, meeting);
+            const roomLabel = this.resolveRoomLabel(targetRoomId, meeting);
 
             if (targetRoomId > 0) {
                 const roomObj = (this.rooms || []).find(r => Number(r.id) === targetRoomId);
                 const reqCap = Number(meeting.requiredCapacity || 0);
                 if (roomObj && reqCap > 0 && Number(roomObj.capacity || 0) < reqCap) {
-                    return { valid: false, reason: 'Room too small (' + roomObj.capacity + ' < ' + reqCap + ' seats)' };
+                    return { valid: false, reason: 'Room ' + (roomObj.code || '') + ' is too small (' + roomObj.capacity + ' seats, needs ' + reqCap + ')' };
                 }
             }
 
@@ -550,24 +677,27 @@
 
             const breakHit = (this.blockedPeriods || []).find(b => Number(b.day) === day && Number(slotStart) < Number(b.end) && slotEnd > Number(b.start));
             if (breakHit) {
-                return { valid: false, reason: breakHit.label || 'Institutional break' };
+                const breakDesc = breakHit.label && breakHit.label !== 'Approved break'
+                    ? (breakHit.label + ' (' + this.formatMinutesRange(breakHit.start, breakHit.end) + ')')
+                    : this.formatMinutesRange(breakHit.start, breakHit.end);
+                return { valid: false, reason: 'Daily break: ' + breakDesc };
             }
 
             if (targetFacultyId > 0) {
                 const avail = this.teacherAvailability[targetFacultyId] || this.teacherAvailability[String(targetFacultyId)];
                 if (avail) {
                     if (avail.mode === 'cannot_teach') {
-                        return { valid: false, reason: 'Teacher unavailable this Term' };
+                        return { valid: false, reason: (teacherName || 'Teacher') + ' is marked unavailable this term' };
                     }
                     if (avail.mode === 'windows') {
                         const fitsWindow = (avail.windows || []).some(w => Number(w.day) === day && Number(w.start) <= Number(slotStart) && Number(w.end) >= slotEnd);
                         if (!fitsWindow) {
-                            return { valid: false, reason: 'Outside teacher availability' };
+                            return { valid: false, reason: (teacherName || 'Teacher') + ' is marked unavailable at this time' };
                         }
                     }
                     const blockedByDecl = (avail.unavailability || []).some(u => Number(u.day) === day && Number(slotStart) < Number(u.end) && slotEnd > Number(u.start));
                     if (blockedByDecl) {
-                        return { valid: false, reason: 'Teacher unavailable at this time' };
+                        return { valid: false, reason: (teacherName || 'Teacher') + ' is marked unavailable at this time' };
                     }
                 }
             }
@@ -580,20 +710,95 @@
                 const overlaps = Number(slotStart) < Number(other.end) && slotEnd > Number(other.start);
                 if (!overlaps) continue;
 
+                const otherClass = this.selectedClassLabel(other) || other.class || '';
+                const otherClassPart = otherClass ? (' (' + otherClass + ')') : '';
+                const otherTime = other.timeLabel || other.time || this.formatMinutesRange(other.start, other.end);
+
                 if (targetFacultyId > 0 && Number(other.facultyId) === targetFacultyId) {
-                    return { valid: false, reason: 'Teacher busy (' + other.courseCode + ')' };
+                    return {
+                        valid: false,
+                        reason: (teacherName || other.faculty || 'Teacher') + ' already teaches ' + other.courseCode + otherClassPart + (otherTime ? ' · ' + otherTime : ''),
+                    };
                 }
                 if (targetRoomId > 0 && Number(other.roomId) === targetRoomId) {
-                    return { valid: false, reason: 'Room occupied (' + other.courseCode + ')' };
+                    return {
+                        valid: false,
+                        reason: 'Room ' + (roomLabel || other.room || '') + ' is occupied by ' + other.courseCode + otherClassPart,
+                    };
                 }
-                const sharesSection = (other.class && meeting.class && other.class === meeting.class)
-                    || (other.sections || []).some(s => meetingSectionIds.includes(String(s.id)));
+                const sharedSection = (other.sections || []).find(s => meetingSectionIds.includes(String(s.id)));
+                const sharesSection = (other.class && meeting.class && other.class === meeting.class) || Boolean(sharedSection);
                 if (sharesSection) {
-                    return { valid: false, reason: 'Section busy (' + other.courseCode + ')' };
+                    const secName = (sharedSection && sharedSection.label) || otherClass || this.selectedClassLabel(meeting) || meeting.class || '';
+                    return {
+                        valid: false,
+                        reason: 'Section ' + secName + ' already has ' + other.courseCode + ' at this time',
+                    };
                 }
             }
 
             return { valid: true, reason: 'Available · Conflict-free' };
+        },
+        suggestedFreeSlots(limit = 3) {
+            const meeting = this.selectedMeeting;
+            if (!meeting) return [];
+            const load = this.selectedTeacherLoadSummary();
+            if (load && load.isOverloaded && load.added > 0) {
+                return [];
+            }
+
+            const days = (this.dayOptions && this.dayOptions.length > 0)
+                ? this.dayOptions.map(d => ({ number: Number(d.value), label: String(d.label || '') }))
+                : (this.gridDays || []).map(d => ({ number: Number(d.number), label: String(d.label || '') }));
+            const slots = (this.timeSlotOptions && this.timeSlotOptions.length > 0)
+                ? this.timeSlotOptions.map(s => ({ value: String(s.value), minutes: Number(s.minutes) }))
+                : (this.gridSlots || []).map(s => ({ value: String(s.startsAt), minutes: Number(s.start) }));
+            const duration = Number(meeting.durationMinutes || ((meeting.end || 0) - (meeting.start || 0)) || 60);
+
+            const spaced = [];
+            const extras = [];
+            const lastPickedStartByDay = {};
+
+            for (const day of days) {
+                for (const slot of slots) {
+                    const isSelected = Number(this.editForm.day) === day.number && String(this.editForm.startsAt) === slot.value;
+                    if (isSelected) continue;
+                    const check = this.evaluateSlotForMeeting(
+                        meeting,
+                        day.number,
+                        slot.minutes,
+                        this.editForm.roomId,
+                        this.editForm.facultyId
+                    );
+                    if (!check.valid) continue;
+
+                    const entry = {
+                        day: day.number,
+                        dayLabel: day.label.slice(0, 3) || day.label,
+                        fullDayLabel: day.label,
+                        start: slot.value,
+                        timeLabel: this.formatMinutesRange(slot.minutes, slot.minutes + duration),
+                    };
+
+                    const lastStart = lastPickedStartByDay[day.number];
+                    if (lastStart === undefined || (slot.minutes - lastStart) >= Math.max(60, duration)) {
+                        spaced.push(entry);
+                        lastPickedStartByDay[day.number] = slot.minutes;
+                        if (spaced.length >= limit) {
+                            return spaced;
+                        }
+                    } else if (extras.length < limit) {
+                        extras.push(entry);
+                    }
+                }
+            }
+
+            return spaced.concat(extras).slice(0, limit);
+        },
+        applySuggestedSlot(suggestion) {
+            if (!suggestion) return;
+            this.editForm.day = Number(suggestion.day);
+            this.editForm.startsAt = String(suggestion.start);
         },
         slotClasses(dayNumber, startsAt) {
             const check = this.slotEvaluation(dayNumber, startsAt);
@@ -823,6 +1028,7 @@
         }
     }"
     x-on:keydown.escape.window="if (activeMoveId !== null) { cancelMoveMode() }"
+    x-on:tala-timetable-apply-print-filters.window="applyPrintFilters($event.detail)"
 >
     @if ($interactive)
         <div wire:key="meetings-payload-{{ md5(json_encode($renderMeetings)) }}" x-init="syncServerMeetings({{ \Illuminate\Support\Js::from($renderMeetings) }})" hidden aria-hidden="true"></div>
@@ -1058,6 +1264,22 @@
                                 </div>
                             </template>
 
+                            <div class="tala-conflict-suggestions" x-cloak x-show="selectedMeeting && !evaluateProposedEdit().valid" role="region" aria-label="Conflict resolution suggestions">
+                                <p x-text="evaluateProposedEdit().reason"></p>
+                                <span x-show="suggestedFreeSlots(3).length > 0">Conflict-free slots you can switch to:</span>
+                                <template x-for="slot in suggestedFreeSlots(3)" :key="slot.day + ':' + slot.start">
+                                    <button
+                                        type="button"
+                                        class="tala-conflict-suggestion-btn"
+                                        x-on:click="applySuggestedSlot(slot)"
+                                        :title="'Switch to ' + slot.fullDayLabel + ' ' + slot.timeLabel"
+                                    >
+                                        <span x-text="slot.dayLabel + ' · ' + slot.timeLabel"></span>
+                                    </button>
+                                </template>
+                                <span x-show="suggestedFreeSlots(3).length === 0">No open slots with this teacher and room. Try choosing another qualified teacher or room above.</span>
+                            </div>
+
                             <div class="tala-inspector-edit-card__footer">
                                 <span class="tala-inspector-edit-note">Draft adjustment · No approval memo required while under review.</span>
                                 <x-filament::button
@@ -1176,6 +1398,7 @@
                                             : '';
                                         $componentBadge = $meeting['componentBadge'] ?? (($meeting['component'] ?? '') === 'Laboratory' ? 'LAB' : 'LEC');
                                         $isPinned = (bool) ($meeting['isPinned'] ?? false);
+                                        $isLateImpact = (bool) ($meeting['isLateImpact'] ?? false);
                                         $hasConflict = ($meeting['status'] ?? '') === 'Conflict recorded' || (bool) ($meeting['offGrid'] ?? false);
                                         $teacherLabel = filled($meeting['faculty'] ?? null) && ! in_array($meeting['faculty'], ['Faculty unassigned', 'Faculty unavailable'], true)
                                             ? $meeting['faculty']
@@ -1190,7 +1413,8 @@
                                         data-component="{{ $componentBadge }}"
                                         data-meeting-id="{{ $meeting['id'] }}"
                                         data-status="{{ $hasConflict ? 'conflict' : 'ok' }}"
-                                        class="tala-timetable-meeting tala-timetable-tile {{ $componentBadge === 'LAB' || ($meeting['component'] ?? '') === 'Laboratory' ? 'tala-timetable-laboratory' : 'tala-timetable-lecture' }} {{ $durationMins > 0 && $durationMins < 60 ? 'tala-timetable-short-meeting' : ($durationMins <= 60 ? 'tala-timetable-compact-meeting' : '') }} {{ $isPinned ? 'is-pinned' : '' }} {{ $hasConflict ? 'is-conflict' : '' }}"
+                                        @if ($isLateImpact) data-late-impact="true" @endif
+                                        class="tala-timetable-meeting tala-timetable-tile {{ $componentBadge === 'LAB' || ($meeting['component'] ?? '') === 'Laboratory' ? 'tala-timetable-laboratory' : 'tala-timetable-lecture' }} {{ $durationMins > 0 && $durationMins < 60 ? 'tala-timetable-short-meeting' : ($durationMins <= 60 ? 'tala-timetable-compact-meeting' : '') }} {{ $isPinned ? 'is-pinned' : '' }} {{ $hasConflict ? 'is-conflict' : '' }} {{ $isLateImpact ? 'is-late-impact' : '' }}"
                                         style="top: {{ $meeting['top'] }}%; height: {{ $meeting['height'] }}%; inset-inline-start: {{ $meeting['lane'] / $meeting['lanes'] * 100 }}%; width: {{ 100 / $meeting['lanes'] }}%;"
                                         :style="meetingStyle({{ \Illuminate\Support\Js::from($meeting['id']) }}, {{ $meeting['top'] }}, {{ $meeting['height'] }}, {{ $meeting['lane'] }}, {{ $meeting['lanes'] }})"
                                         x-show="matches(meetings.find(meeting => meeting.id === {{ \Illuminate\Support\Js::from($meeting['id']) }}))"
@@ -1213,12 +1437,17 @@
                                             aria-haspopup="dialog"
                                             aria-controls="{{ $meetingId }}"
                                         @endif
-                                        aria-label="{{ $meeting['courseCode'] }}, {{ $meeting['courseTitle'] }}, {{ $meeting['class'] }}, {{ $day['label'] }} {{ $meeting['time'] }}, {{ $meeting['faculty'] }}, {{ $meeting['room'] }}, {{ $meeting['component'] }} ({{ $componentBadge }}), {{ $meeting['modality'] }}{{ $isPinned ? ', Locked' : '' }}{{ $meeting['offGrid'] ? ', outside recorded teaching grid' : '' }}"
+                                        aria-label="{{ $meeting['courseCode'] }}, {{ $meeting['courseTitle'] }}, {{ $meeting['class'] }}, {{ $day['label'] }} {{ $meeting['time'] }}, {{ $meeting['faculty'] }}, {{ $meeting['room'] }}, {{ $meeting['component'] }} ({{ $componentBadge }}), {{ $meeting['modality'] }}{{ $isPinned ? ', Locked' : '' }}{{ $isLateImpact ? ', Late availability impact' : '' }}{{ $meeting['offGrid'] ? ', outside recorded teaching grid' : '' }}"
                                     >
                                         @php
                                             $coursePrefixPattern = '/^'.preg_quote(str_replace(' ', '', (string) $meeting['courseCode']), '/').'[-_\s]+/i';
                                             $shortSection = $cleanClass !== '' ? trim((string) preg_replace($coursePrefixPattern, '', $cleanClass)) : '';
                                             $shortSection = $shortSection !== '' ? $shortSection : $cleanClass;
+                                            $tileSectionLabel = trim((string) ($meeting['sectionDisplay'] ?? ''));
+                                            if ($tileSectionLabel === '' && $shortSection !== '') {
+                                                $tileSectionLabel = \App\Filament\Pages\TermTimetable::formatSectionDisplayLabel($shortSection);
+                                            }
+                                            $tileMetaSummary = collect([$tileSectionLabel !== '' ? $tileSectionLabel : null, $meeting['time'], $rawRoom !== '' ? $rawRoom : null, $teacherLabel])->filter()->implode(' · ');
                                         @endphp
                                         <span class="tala-timetable-tile-header">
                                             <span class="tala-timetable-tile-identity">
@@ -1234,16 +1463,23 @@
                                                     <x-filament::icon icon="heroicon-m-lock-closed" />
                                                     <span class="sr-only">Locked</span>
                                                 </span>
+                                                @if ($isLateImpact)
+                                                    <span class="tala-timetable-late-badge" title="Affected by late faculty availability change">Late impact</span>
+                                                @endif
                                                 <span class="tala-timetable-component-badge {{ $componentBadge === 'LAB' ? 'is-lab' : 'is-lec' }}">{{ $componentBadge }}@if (($meeting['meetingCount'] ?? 1) > 1) {{ $meeting['meetingSequence'] ?? 1 }}/{{ $meeting['meetingCount'] }}@endif</span>
                                             </span>
                                         </span>
                                         <span class="tala-timetable-tile-body">
                                             <strong class="tala-timetable-course-title">{{ $meeting['courseTitle'] ?: $meeting['courseCode'] }}</strong>
-                                            <span class="tala-timetable-tile-subline" title="{{ $metaSummary }}">
+                                            @if ($tileSectionLabel !== '')
+                                                <span
+                                                    class="tala-timetable-tile-class inline-flex w-fit max-w-full items-center truncate rounded border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 text-[0.65rem] font-semibold leading-none tracking-wide text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                                                    x-show="viewMode !== 'section'"
+                                                    title="{{ $tileSectionLabel }}"
+                                                >{{ $tileSectionLabel }}</span>
+                                            @endif
+                                            <span class="tala-timetable-tile-subline" title="{{ $tileMetaSummary }}">
                                                 <span class="tala-timetable-tile-time">{{ $compactTime }}</span>
-                                                @if ($shortSection !== '')
-                                                    <span class="tala-timetable-tile-class">{{ $shortSection }}</span>
-                                                @endif
                                                 @if ($roomLabel !== '')
                                                     <span class="tala-timetable-tile-room">{{ $roomLabel }}</span>
                                                 @endif
@@ -1310,15 +1546,20 @@
                     $componentBadge = $meeting['componentBadge'] ?? (($meeting['component'] ?? '') === 'Laboratory' ? 'LAB' : 'LEC');
                     $isLab = $componentBadge === 'LAB' || ($meeting['component'] ?? '') === 'Laboratory';
                     $isPinned = (bool) ($meeting['isPinned'] ?? false);
+                    $isLateImpact = (bool) ($meeting['isLateImpact'] ?? false);
                     $rawListClass = trim((string) ($meeting['class'] ?? ''));
                     $rawListCode = trim((string) ($meeting['courseCode'] ?? ''));
                     $cleanListClass = ($rawListClass !== '' && $rawListClass !== 'Class unavailable' && strcasecmp($rawListClass, $rawListCode) !== 0)
                         ? trim((string) preg_replace('/^'.preg_quote($rawListCode, '/').'\s*[·\-:]\s*/iu', '', $rawListClass))
                         : '';
+                    $displayListSection = trim((string) ($meeting['sectionDisplay'] ?? ''));
+                    if ($displayListSection === '' && $cleanListClass !== '') {
+                        $displayListSection = \App\Filament\Pages\TermTimetable::formatSectionDisplayLabel($cleanListClass);
+                    }
                 @endphp
                 @if ($nativeDetails)
                     <div wire:key="list-meeting-{{ $meeting['id'] }}" class="tala-timetable-list-meeting {{ ! $meeting['plottable'] ? 'tala-timetable-unplaced' : '' }}" x-show="matches(meetings.find(meeting => meeting.id === {{ \Illuminate\Support\Js::from($meeting['id']) }}))">
-                        <button type="button" class="tala-timetable-mobile-meeting {{ $isLab ? 'is-lab' : 'is-lec' }}" data-component="{{ $componentBadge }}" data-course-color="{{ $presentation['courseColors'][$meeting['courseCode']] ?? (crc32($meeting['courseCode']) % 4) + 1 }}" wire:click="mountAction('viewMeeting', {}, { table: true, recordKey: '{{ $meeting['id'] }}' })">
+                        <button type="button" class="tala-timetable-mobile-meeting {{ $isLab ? 'is-lab' : 'is-lec' }} {{ $isLateImpact ? 'is-late-impact' : '' }}" data-component="{{ $componentBadge }}" data-course-color="{{ $presentation['courseColors'][$meeting['courseCode']] ?? (crc32($meeting['courseCode']) % 4) + 1 }}" @if ($isLateImpact) data-late-impact="true" @endif wire:click="mountAction('viewMeeting', {}, { table: true, recordKey: '{{ $meeting['id'] }}' })">
                             <span class="tala-timetable-list-time">
                                 <strong class="tala-timetable-list-day">{{ $meeting['dayLabel'] }}</strong>
                                 <span class="tala-timetable-list-clock">{{ $meeting['time'] }}</span>
@@ -1327,10 +1568,13 @@
                                 <span class="tala-timetable-list-primary">
                                     <span class="tala-timetable-tile-code">{{ $meeting['courseCode'] }}</span>
                                     <strong class="tala-timetable-list-course-name">{{ $meeting['courseTitle'] ?: $meeting['courseCode'] }}</strong>
-                                    @if ($cleanListClass !== '')
-                                        <span class="tala-timetable-list-section">· {{ $cleanListClass }}</span>
+                                    @if ($displayListSection !== '')
+                                        <span class="tala-timetable-list-section">· {{ $displayListSection }}</span>
                                     @endif
                                     <span class="tala-timetable-component-badge {{ $isLab ? 'is-lab' : 'is-lec' }}">{{ $componentBadge }}</span>
+                                    @if ($isLateImpact)
+                                        <span class="tala-timetable-late-badge">Late impact</span>
+                                    @endif
                                 </span>
                             </span>
                             <span class="tala-timetable-meeting-room">
@@ -1343,9 +1587,10 @@
                 <div wire:key="list-meeting-{{ $meeting['id'] }}" class="tala-timetable-list-meeting {{ ! $meeting['plottable'] ? 'tala-timetable-unplaced' : '' }}" x-show="matches(meetings.find(meeting => meeting.id === {{ \Illuminate\Support\Js::from($meeting['id']) }}))">
                     <button
                         type="button"
-                        class="tala-timetable-mobile-meeting {{ $isLab ? 'is-lab' : 'is-lec' }}"
+                        class="tala-timetable-mobile-meeting {{ $isLab ? 'is-lab' : 'is-lec' }} {{ $isLateImpact ? 'is-late-impact' : '' }}"
                         data-component="{{ $componentBadge }}"
                         data-course-color="{{ $presentation['courseColors'][$meeting['courseCode']] ?? (crc32($meeting['courseCode']) % 4) + 1 }}"
+                        @if ($isLateImpact) data-late-impact="true" @endif
                         @if ($interactive)
                             :class="{ 'is-selected': selected === {{ \Illuminate\Support\Js::from($meeting['id']) }} }"
                             :aria-current="selected === {{ \Illuminate\Support\Js::from($meeting['id']) }} ? 'true' : null"
@@ -1364,10 +1609,13 @@
                             <span class="tala-timetable-list-primary">
                                 <span class="tala-timetable-tile-code">{{ $meeting['courseCode'] }}</span>
                                 <strong class="tala-timetable-list-course-name">{{ $meeting['courseTitle'] ?: $meeting['courseCode'] }}</strong>
-                                @if ($cleanListClass !== '')
-                                    <span class="tala-timetable-list-section">· {{ $cleanListClass }}</span>
+                                @if ($displayListSection !== '')
+                                    <span class="tala-timetable-list-section">· {{ $displayListSection }}</span>
                                 @endif
                                 <span class="tala-timetable-component-badge {{ $isLab ? 'is-lab' : 'is-lec' }}">{{ $componentBadge }}</span>
+                                @if ($isLateImpact)
+                                    <span class="tala-timetable-late-badge">Late impact</span>
+                                @endif
                                 <span @if (! $isPinned) x-cloak @endif x-show="isMeetingPinned({{ \Illuminate\Support\Js::from($meeting['id']) }})" class="tala-timetable-pin-inline">· Locked</span>
                             </span>
                         </span>
@@ -1515,28 +1763,34 @@
                             </x-filament::input.wrapper>
                         </div>
 
-                        @if (count($scheduleContext['programOptions'] ?? []) > 1 || count($scheduleContext['yearOptions'] ?? []) > 1)
-                            <div class="tala-rail-filter-pair">
-                                @if (count($scheduleContext['programOptions'] ?? []) > 1)
-                                    <div class="tala-rail-field">
-                                        <label for="{{ $overviewId }}-program-select" class="sr-only">Program</label>
+                        @php
+                            $railProgramOptions = $scheduleContext['programOptions'] ?? [];
+                            $railYearOptions = $scheduleContext['yearOptions'] ?? [];
+                            $hasRailPrograms = count($railProgramOptions) >= 1;
+                            $hasRailYears = count($railYearOptions) >= 1;
+                        @endphp
+                        @if ($hasRailPrograms || $hasRailYears)
+                            <div @class(['tala-rail-filter-pair' => $hasRailPrograms && $hasRailYears, 'grid gap-2' => ! ($hasRailPrograms && $hasRailYears)])>
+                                @if ($hasRailPrograms)
+                                    <div class="tala-rail-field grid gap-1">
+                                        <label for="{{ $overviewId }}-program-select" class="text-[0.7rem] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Program</label>
                                         <x-filament::input.wrapper>
                                             <x-filament::input.select id="{{ $overviewId }}-program-select" x-model="programFilter">
                                                 <option value="">All programs</option>
-                                                @foreach ($scheduleContext['programOptions'] as $prog)
+                                                @foreach ($railProgramOptions as $prog)
                                                     <option value="{{ $prog }}">{{ $prog }}</option>
                                                 @endforeach
                                             </x-filament::input.select>
                                         </x-filament::input.wrapper>
                                     </div>
                                 @endif
-                                @if (count($scheduleContext['yearOptions'] ?? []) > 1)
-                                    <div class="tala-rail-field">
-                                        <label for="{{ $overviewId }}-year-select" class="sr-only">Year level</label>
+                                @if ($hasRailYears)
+                                    <div class="tala-rail-field grid gap-1">
+                                        <label for="{{ $overviewId }}-year-select" class="text-[0.7rem] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Year level</label>
                                         <x-filament::input.wrapper>
                                             <x-filament::input.select id="{{ $overviewId }}-year-select" x-model="yearFilter">
                                                 <option value="">All years</option>
-                                                @foreach ($scheduleContext['yearOptions'] as $yr)
+                                                @foreach ($railYearOptions as $yr)
                                                     <option value="{{ $yr }}">{{ $yr }}</option>
                                                 @endforeach
                                             </x-filament::input.select>
@@ -1572,8 +1826,69 @@
                             </x-filament::button>
                         </div>
 
+                        <div class="tala-rail-triage" x-cloak x-show="hasTriageChips" role="toolbar" aria-label="Quick timetable filters">
+                            <span class="tala-rail-triage__label">Quick filters</span>
+                            <div class="tala-triage-chips">
+                                <button
+                                    type="button"
+                                    class="tala-triage-chip tala-triage-chip--danger"
+                                    x-show="lateImpactCount > 0"
+                                    :class="{ 'is-active': triageFilter === 'late_impact' }"
+                                    :aria-pressed="triageFilter === 'late_impact' ? 'true' : 'false'"
+                                    x-on:click="toggleTriageFilter('late_impact')"
+                                >
+                                    <span>Late impact</span>
+                                    <span class="tala-triage-chip__count" x-text="lateImpactCount"></span>
+                                </button>
+                                <button
+                                    type="button"
+                                    class="tala-triage-chip tala-triage-chip--warning"
+                                    x-show="!isOfficial && conflictCount > 0"
+                                    :class="{ 'is-active': triageFilter === 'conflicts' }"
+                                    :aria-pressed="triageFilter === 'conflicts' ? 'true' : 'false'"
+                                    x-on:click="toggleTriageFilter('conflicts')"
+                                >
+                                    <span>Conflicts</span>
+                                    <span class="tala-triage-chip__count" x-text="conflictCount"></span>
+                                </button>
+                                <button
+                                    type="button"
+                                    class="tala-triage-chip"
+                                    x-show="pinnedCount > 0"
+                                    :class="{ 'is-active': triageFilter === 'locked' }"
+                                    :aria-pressed="triageFilter === 'locked' ? 'true' : 'false'"
+                                    x-on:click="toggleTriageFilter('locked')"
+                                >
+                                    <span>Locked</span>
+                                    <span class="tala-triage-chip__count" x-text="pinnedCount"></span>
+                                </button>
+                                <button
+                                    type="button"
+                                    class="tala-triage-chip"
+                                    x-show="faceToFaceCount > 0"
+                                    :class="{ 'is-active': triageFilter === 'face_to_face' }"
+                                    :aria-pressed="triageFilter === 'face_to_face' ? 'true' : 'false'"
+                                    x-on:click="toggleTriageFilter('face_to_face')"
+                                >
+                                    <span>Face-to-Face</span>
+                                    <span class="tala-triage-chip__count" x-text="faceToFaceCount"></span>
+                                </button>
+                                <button
+                                    type="button"
+                                    class="tala-triage-chip"
+                                    x-show="onlineCount > 0"
+                                    :class="{ 'is-active': triageFilter === 'online' }"
+                                    :aria-pressed="triageFilter === 'online' ? 'true' : 'false'"
+                                    x-on:click="toggleTriageFilter('online')"
+                                >
+                                    <span>Online</span>
+                                    <span class="tala-triage-chip__count" x-text="onlineCount"></span>
+                                </button>
+                            </div>
+                        </div>
+
                         <p class="tala-rail-scope-line">
-                            <strong x-text="currentScopeLabel">Whole Term</strong>
+                            <strong x-text="currentScopeLabel">Whole term</strong>
                             <template x-if="programFilter"><span> · <span x-text="programFilter"></span></span></template>
                             <template x-if="yearFilter"><span> · <span x-text="yearFilter"></span></span></template>
                             · <span x-text="visibleCount">{{ count($renderMeetings) }}</span>/{{ count($renderMeetings) }}
@@ -1623,6 +1938,9 @@
                                         :class="(selectedMeeting?.componentBadge || (selectedMeeting?.component === 'Laboratory' ? 'LAB' : 'LEC')) === 'LAB' ? 'is-lab' : 'is-lec'"
                                         x-text="selectedMeeting?.componentBadge || (selectedMeeting?.component === 'Laboratory' ? 'LAB' : 'LEC')"
                                     ></span>
+                                    <template x-if="selectedMeeting?.isLateImpact">
+                                        <span class="tala-timetable-late-badge">Late impact</span>
+                                    </template>
                                     <template x-if="selectedMeeting?.isPinned">
                                         <span class="tala-inspector-pinned-pill">
                                             <x-filament::icon icon="heroicon-m-lock-closed" />
@@ -1776,6 +2094,22 @@
                                                 </p>
                                             </div>
                                         </template>
+
+                                        <div class="tala-conflict-suggestions" x-cloak x-show="selectedMeeting && !evaluateProposedEdit().valid" role="region" aria-label="Conflict resolution suggestions">
+                                            <p x-text="evaluateProposedEdit().reason"></p>
+                                            <span x-show="suggestedFreeSlots(3).length > 0">Conflict-free slots you can switch to:</span>
+                                            <template x-for="slot in suggestedFreeSlots(3)" :key="slot.day + ':' + slot.start">
+                                                <button
+                                                    type="button"
+                                                    class="tala-conflict-suggestion-btn"
+                                                    x-on:click="applySuggestedSlot(slot)"
+                                                    :title="'Switch to ' + slot.fullDayLabel + ' ' + slot.timeLabel"
+                                                >
+                                                    <span x-text="slot.dayLabel + ' · ' + slot.timeLabel"></span>
+                                                </button>
+                                            </template>
+                                            <span x-show="suggestedFreeSlots(3).length === 0">No open slots with this teacher and room. Try choosing another qualified teacher or room above.</span>
+                                        </div>
                                     </div>
 
                                     <div class="tala-rail-edit-footer">

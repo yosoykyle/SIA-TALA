@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Rooms\Pages;
 
+use App\Actions\Scheduling\GenerateSchedulingDemand;
 use App\Filament\Resources\Rooms\RoomResource;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
@@ -9,6 +10,8 @@ use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
+use App\Models\User;
 use App\Support\HasTermPlanningContext;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -36,6 +39,9 @@ class EditRoom extends EditRecord
 
     private string $previousRoomType = '';
 
+    /** @var list<string> */
+    private array $previousFeatureKeys = [];
+
     /** @return array<string> */
     public function getPageClasses(): array
     {
@@ -44,7 +50,22 @@ class EditRoom extends EditRecord
 
     public function getSubheading(): string
     {
-        return 'Room records apply across Terms.';
+        $hasDraft = ScheduleGenerationRun::query()
+            ->whereIn('status', [
+                ScheduleGenerationRun::StatusQueued,
+                ScheduleGenerationRun::StatusDispatching,
+                ScheduleGenerationRun::StatusUnderReview,
+            ])
+            ->where(function ($query): void {
+                $query->whereNull('candidate_state')
+                    ->orWhereNotIn('candidate_state', ['Stale', 'Superseded', 'Rejected']);
+            })
+            ->whereHas('term', fn ($query) => $query->where('state', '!=', Term::StateClosed))
+            ->exists();
+
+        return $hasDraft
+            ? 'Room records apply across Terms. Changing this will mark active draft timetables outdated.'
+            : 'Room records apply across Terms.';
     }
 
     protected function beforeSave(): void
@@ -59,6 +80,7 @@ class EditRoom extends EditRecord
         $this->previousIsActive = (bool) $this->record->is_active;
         $this->previousCapacity = (int) $this->record->capacity;
         $this->previousRoomType = (string) $this->record->room_type;
+        $this->previousFeatureKeys = $this->normalizedFeatureKeys();
 
         $newIsActive = (bool) ($this->data['is_active'] ?? $this->record->is_active);
         $newCapacity = (int) ($this->data['capacity'] ?? $this->record->capacity);
@@ -137,20 +159,59 @@ class EditRoom extends EditRecord
             return;
         }
 
+        $featuresChanged = $this->normalizedFeatureKeys() !== $this->previousFeatureKeys;
+
         if (! $this->record->wasChanged('is_active')
             && ! $this->record->wasChanged('capacity')
-            && ! $this->record->wasChanged('room_type')) {
+            && ! $this->record->wasChanged('room_type')
+            && ! $featuresChanged) {
             return;
         }
 
-        ScheduleGenerationRun::query()
-            ->whereHas('term', fn ($query) => $query->where('state', Term::StateActive))
-            ->whereIn('status', [
-                ScheduleGenerationRun::StatusQueued,
-                ScheduleGenerationRun::StatusDispatching,
-                ScheduleGenerationRun::StatusUnderReview,
-            ])
-            ->update(['candidate_state' => 'Stale', 'updated_at' => now()]);
+        $activeTerms = Term::query()
+            ->where('state', '!=', Term::StateClosed)
+            ->where(function ($query): void {
+                $query->where('state', Term::StateActive)
+                    ->orWhereHas('calendarPackages', fn ($pkg) => $pkg->where('state', TermCalendarPackage::StateActive));
+            })
+            ->orderBy('starts_on')
+            ->get();
+
+        $actor = auth()->user();
+        $demandGenerator = app(GenerateSchedulingDemand::class);
+
+        foreach ($activeTerms as $targetTerm) {
+            if ($actor instanceof User
+                && $targetTerm->calendarPackages()->where('state', TermCalendarPackage::StateActive)->exists()) {
+                $demandGenerator->forTerm($actor, $targetTerm);
+            }
+
+            ScheduleGenerationRun::query()
+                ->where('term_id', $targetTerm->id)
+                ->whereIn('status', [
+                    ScheduleGenerationRun::StatusQueued,
+                    ScheduleGenerationRun::StatusDispatching,
+                    ScheduleGenerationRun::StatusUnderReview,
+                ])
+                ->where(function ($query): void {
+                    $query->whereNull('candidate_state')
+                        ->orWhereNotIn('candidate_state', ['Superseded', 'Rejected']);
+                })
+                ->update(['candidate_state' => 'Stale', 'updated_at' => now()]);
+        }
+    }
+
+    /** @return list<string> */
+    private function normalizedFeatureKeys(): array
+    {
+        return $this->record->features()
+            ->pluck('feature_key')
+            ->map(static fn (mixed $key): string => strtoupper(trim((string) $key)))
+            ->filter(static fn (string $key): bool => $key !== '')
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
     }
 
     private function publishedMeetingExpectedCount(PublishedTimetableMeeting $meeting): int

@@ -324,6 +324,18 @@
                                             @endforeach
                                         </ul>
 
+                                        @if (! empty($breakSplitWarning))
+                                            <section class="tala-warning-banner" role="status" aria-labelledby="faculty-break-split-warning-heading">
+                                                <h4 id="faculty-break-split-warning-heading" class="flex items-center gap-2 text-sm font-semibold">
+                                                    <x-filament::icon icon="heroicon-o-exclamation-triangle" class="h-5 w-5" aria-hidden="true" />
+                                                    <span>Selected time blocks may be too short for a qualified subject</span>
+                                                </h4>
+                                                <p class="text-sm">
+                                                    After daily breaks, your longest uninterrupted block is <strong class="tabular-nums">{{ $breakSplitWarning['longest_block_label'] }}</strong>, which is shorter than <strong>{{ $breakSplitWarning['subjects_summary'] }}</strong>. Extend a range before or after the break so this class can fit, or save as-is if you do not expect to teach it.
+                                                </p>
+                                            </section>
+                                        @endif
+
                                         @error('teachingWindows')
                                             <p class="tala-availability-error" role="alert">{{ $message }}</p>
                                         @enderror

@@ -81,15 +81,24 @@ class TermCalendarPackage extends Model
 
         return hash('sha256', (string) json_encode([
             $this->only(['term_id', 'administrative_starts_on', 'administrative_ends_on', 'classes_start_on', 'classes_end_on', 'special_term_schedule_basis']),
-            $this->teachingGridRows->sortBy('day_of_week')->map(fn ($row): array => [
-                'day_of_week' => $row->day_of_week,
-                'starts_at' => $this->normalizedClock((string) $row->starts_at),
-                'ends_at' => $this->normalizedClock((string) $row->ends_at),
-                'breaks' => collect($row->breaks ?? [])->map(fn ($break): array => [
-                    'starts_at' => $this->normalizedClock((string) ($break['starts_at'] ?? '')),
-                    'ends_at' => $this->normalizedClock((string) ($break['ends_at'] ?? '')),
-                ])->sortBy(fn ($break): string => $break['starts_at'].'|'.$break['ends_at'])->values()->all(),
-            ])->values()->all(),
+            $this->teachingGridRows
+                ->map(fn ($row): array => [
+                    'day_of_week' => (int) $row->day_of_week,
+                    'starts_at' => $this->normalizedClock((string) $row->starts_at),
+                    'ends_at' => $this->normalizedClock((string) $row->ends_at),
+                    'breaks' => collect(is_array($row->breaks) ? $row->breaks : [])
+                        ->filter(fn (mixed $break): bool => is_array($break))
+                        ->map(fn (array $break): array => [
+                            'starts_at' => $this->normalizedClock((string) ($break['starts_at'] ?? '')),
+                            'ends_at' => $this->normalizedClock((string) ($break['ends_at'] ?? '')),
+                        ])
+                        ->sortBy(fn (array $break): string => $break['starts_at'].'|'.$break['ends_at'])
+                        ->values()
+                        ->all(),
+                ])
+                ->sortBy(fn (array $row): string => sprintf('%02d|%s|%s', $row['day_of_week'], $row['starts_at'], $row['ends_at']))
+                ->values()
+                ->all(),
             $this->datedExceptions->map(fn ($exception): array => $exception->only(['starts_on', 'ends_on', 'exception_type', 'label', 'blocks_teaching', 'authority_reference']))->sortBy(fn ($exception): string => (string) json_encode($exception))->values()->all(),
         ]));
     }
@@ -101,7 +110,13 @@ class TermCalendarPackage extends Model
 
     private function normalizedClock(string $time): string
     {
-        return strlen($time) === 5 ? $time.':00' : substr($time, 0, 8);
+        $trimmed = trim($time);
+
+        if (preg_match('/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/', $trimmed, $matches) === 1) {
+            return sprintf('%02d:%02d:%02d', (int) $matches[1], (int) $matches[2], isset($matches[3]) ? (int) $matches[3] : 0);
+        }
+
+        return strlen($trimmed) === 5 ? $trimmed.':00' : substr($trimmed, 0, 8);
     }
 
     /** @return list<int> */

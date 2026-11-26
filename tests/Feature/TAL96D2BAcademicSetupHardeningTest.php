@@ -19,6 +19,7 @@ use App\Models\Program;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\User;
+use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -261,7 +262,7 @@ final class TAL96D2BAcademicSetupHardeningTest extends TestCase
         $this->assertSame(CourseSpecification::StateDraft, $specification->fresh()->state);
 
         Livewire::test(ListCurriculumVersions::class)
-            ->callAction('create', data: [
+            ->callAction(TestAction::make('create')->table(), data: [
                 'program_id' => $program->id,
                 'version_code' => 'TAMPERED-CURRICULUM',
                 'name' => 'Server-owned curriculum lifecycle',

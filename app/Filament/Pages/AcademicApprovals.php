@@ -56,7 +56,11 @@ class AcademicApprovals extends Page
             abort_unless(Term::query()->whereKey($this->termId)->exists(), 404);
         }
         if ($this->termId === null) {
-            $activeIds = TermCalendarPackage::query()->where('state', TermCalendarPackage::StateActive)->distinct()->pluck('term_id');
+            $activeIds = TermCalendarPackage::query()
+                ->where('state', TermCalendarPackage::StateActive)
+                ->whereHas('term', fn ($query) => $query->where('state', '!=', Term::StateClosed))
+                ->distinct()
+                ->pluck('term_id');
             $this->termId = $activeIds->count() === 1 ? (int) $activeIds->sole() : null;
         }
     }

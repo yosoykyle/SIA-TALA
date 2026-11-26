@@ -25,6 +25,7 @@ use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
+use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Str;
@@ -59,7 +60,7 @@ final class Issue93SubjectShortcutAndCurriculumBatchTest extends TestCase
         $bsedDraft = CurriculumVersion::factory()->for($bsed)->create(['state' => CurriculumVersion::StateDraft, 'name' => 'BSED Archived Draft']);
 
         Livewire::test(ListCourses::class)
-            ->callAction('create', data: [
+            ->callAction(TestAction::make('create')->table(), data: [
                 ...$this->subjectPayload('GE101', 'Understanding the Self'),
                 'apply_to' => 'all_active',
                 'placement_year_level' => 1,
@@ -105,7 +106,7 @@ final class Issue93SubjectShortcutAndCurriculumBatchTest extends TestCase
 
         // Default ("Do not assign yet") leaves curricula untouched.
         Livewire::test(ListCourses::class)
-            ->callAction('create', data: $this->subjectPayload('CAT100', 'Catalog Only Subject'))
+            ->callAction(TestAction::make('create')->table(), data: $this->subjectPayload('CAT100', 'Catalog Only Subject'))
             ->assertHasNoActionErrors()
             ->assertNotified('Draft subject created');
 
@@ -114,7 +115,7 @@ final class Issue93SubjectShortcutAndCurriculumBatchTest extends TestCase
 
         // Selected programs places only into the selected program's draft.
         Livewire::test(ListCourses::class)
-            ->callAction('create', data: [
+            ->callAction(TestAction::make('create')->table(), data: [
                 ...$this->subjectPayload('IT202', 'Systems Integration'),
                 'apply_to' => 'selected',
                 'program_ids' => [$bsit->id],
@@ -249,7 +250,7 @@ final class Issue93SubjectShortcutAndCurriculumBatchTest extends TestCase
             ->assertDontSee($supersededUlid)
             ->assertDontSee($activeUlid)
             ->assertTableActionVisible('duplicate', $activeCurriculum)
-            ->mountAction('create')
+            ->mountAction(TestAction::make('create')->table())
             ->assertMountedActionModalSee('Start blank');
 
         $duplicateCall = Livewire::test(ListCurriculumVersions::class)
@@ -296,7 +297,7 @@ final class Issue93SubjectShortcutAndCurriculumBatchTest extends TestCase
 
         // Create ONE single RIZAL subject and place it into BSIT Year 3 · 2nd Sem AND DBM Year 2 · 1st Sem in 1 screen.
         Livewire::test(ListCourses::class)
-            ->callAction('create', data: [
+            ->callAction(TestAction::make('create')->table(), data: [
                 ...$this->subjectPayload('RIZAL', 'Life and Works of Rizal'),
                 'apply_to' => 'custom',
                 'placements' => [
@@ -598,7 +599,7 @@ final class Issue93SubjectShortcutAndCurriculumBatchTest extends TestCase
 
         // Create Subject modal has clear Section cards, plain Registrar labels, no Consecutive block, and selectable option cards.
         $createModal = Livewire::test(ListCourses::class)
-            ->mountAction('create')
+            ->mountAction(TestAction::make('create')->table())
             ->assertMountedActionModalSee('Subject basics')
             ->assertMountedActionModalSee('Weekly classes & teaching')
             ->assertMountedActionModalSee('Prerequisites & equivalents (optional)')

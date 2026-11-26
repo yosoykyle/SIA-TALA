@@ -317,6 +317,7 @@ class SwarmAuditGapsRegressionTest extends TestCase
         $unusedRoom = Room::factory()->create();
         $this->assertFalse($policy->delete($registrar, $unusedRoom));
         Livewire::actingAs($registrar)
+            ->withQueryParams(['tab' => 'rooms'])
             ->test(SchoolResources::class)
             ->assertTableActionVisible('deleteRoom', $unusedRoom);
 
@@ -339,10 +340,12 @@ class SwarmAuditGapsRegressionTest extends TestCase
         $academicHead->assignRole(Role::findOrCreate(User::StaffRoleAcademicHead, 'web'));
 
         Livewire::actingAs($academicHead)
+            ->withQueryParams(['tab' => 'rooms'])
             ->test(SchoolResources::class)
             ->assertTableActionHidden('deleteRoom', $deletableRoom);
 
         Livewire::actingAs($registrar)
+            ->withQueryParams(['tab' => 'rooms'])
             ->test(SchoolResources::class)
             ->assertTableActionHidden('deleteRoom', $unusedRoom)
             ->callTableAction('deleteRoom', $deletableRoom)
@@ -540,6 +543,7 @@ class SwarmAuditGapsRegressionTest extends TestCase
 
         // 1. Valid save through SchoolResources::editRoom must succeed without throwing a Schema TypeError.
         Livewire::actingAs($registrar)
+            ->withQueryParams(['tab' => 'rooms'])
             ->test(SchoolResources::class)
             ->callTableAction('editRoom', $room, data: [
                 'code' => 'CHEM01',

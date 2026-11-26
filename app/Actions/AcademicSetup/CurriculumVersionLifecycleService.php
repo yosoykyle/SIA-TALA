@@ -436,7 +436,7 @@ class CurriculumVersionLifecycleService
     }
 
     /**
-     * Assign an additional Academic Year batch to an Active curriculum without duplicating subjects.
+     * Assign an Academic Year batch to a Draft or Active curriculum without duplicating subjects.
      */
     public function addBatch(
         User $actor,
@@ -453,9 +453,9 @@ class CurriculumVersionLifecycleService
                 ->lockForUpdate()
                 ->findOrFail($curriculum->id);
 
-            if ($locked->state !== CurriculumVersion::StateActive) {
+            if (! in_array($locked->state, [CurriculumVersion::StateDraft, CurriculumVersion::StateActive], true)) {
                 throw ValidationException::withMessages([
-                    'curriculum_version' => 'Only an Active curriculum can accept new batches.',
+                    'curriculum_version' => 'Only a Draft or Active curriculum can accept new batches.',
                 ]);
             }
 

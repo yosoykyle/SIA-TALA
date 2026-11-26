@@ -145,8 +145,8 @@ class FacultyAvailabilityDeclaration extends Model
                 continue;
             }
 
-            $breaks = is_array($gridRow->breaks) ? $gridRow->breaks : [];
-            foreach ($breaks as $break) {
+            $breakIntervals = [];
+            foreach (is_array($gridRow->breaks) ? $gridRow->breaks : [] as $break) {
                 if (! is_array($break)) {
                     continue;
                 }
@@ -154,13 +154,17 @@ class FacultyAvailabilityDeclaration extends Model
                 $breakStart = self::clockToMinutes((string) ($break['starts_at'] ?? ''));
                 $breakEnd = self::clockToMinutes((string) ($break['ends_at'] ?? ''));
 
-                if ($breakStart !== null && $breakEnd !== null && $winStart < $breakEnd && $winEnd > $breakStart) {
-                    $outside[] = [
-                        ...$window,
-                        'reason' => 'Chosen teaching window overlaps a mandatory institutional break.',
-                    ];
-                    break;
+                if ($breakStart !== null && $breakEnd !== null && $breakStart < $breakEnd) {
+                    $breakIntervals[] = ['start' => $breakStart, 'end' => $breakEnd];
                 }
+            }
+
+            if ($breakIntervals !== []
+                && self::subtractIntervals([['start' => $winStart, 'end' => $winEnd]], $breakIntervals) === []) {
+                $outside[] = [
+                    ...$window,
+                    'reason' => 'Chosen teaching window falls wholly inside a mandatory institutional break.',
+                ];
             }
         }
 

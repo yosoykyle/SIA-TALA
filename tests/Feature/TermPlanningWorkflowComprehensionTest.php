@@ -255,7 +255,7 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
         Livewire::withQueryParams(['termId' => $term->id])->test(TermCalendar::class)
             ->assertSee('Term calendar')
             ->assertSee('Classes run');
-        Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
+        Livewire::withQueryParams(['termId' => $term->id, 'classesView' => 'classes'])->test(TermClasses::class)
             ->assertSee('24 students')->toggleAllTableColumns()->assertSee($prefix.'-MAIN-CLASS1');
         Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)
             ->assertSee('Synthetic Faculty Alex')
@@ -279,7 +279,7 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
             ->update(['state' => TermCalendarPackage::StateClosed]);
 
         Livewire::withQueryParams(['termId' => $term->id])->test(TermCalendar::class)
-            ->assertSeeInOrder(['1. Calendar', '2. Classes & sections', '3. Faculty & rooms', '4. Timetable']);
+            ->assertSeeInOrder(['1. Calendar', '2. Sections & classes', '3. Faculty & rooms', '4. Timetable']);
 
         Livewire::withQueryParams(['termId' => $term->id])->test(TermTimetable::class)
             ->assertSee('Official timetable');
@@ -401,8 +401,8 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
         $projection = app(TermCoverageProjection::class)->forTerm($term);
         $this->assertSame(3, $projection['summary']['class_count']);
 
-        Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
-            ->assertSee('Needs active calendar source')->mountTableAction('prepareClassOffering', $unprepared)
+        Livewire::withQueryParams(['termId' => $term->id, 'classesView' => 'classes'])->test(TermClasses::class)
+            ->assertSee('Needs preparation')->mountTableAction('prepareClassOffering', $unprepared)
             ->assertActionDataSet(['section_id' => $unprepared->id]);
     }
 

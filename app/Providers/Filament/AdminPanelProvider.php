@@ -630,8 +630,8 @@ class AdminPanelProvider extends PanelProvider
 
         return [
             $programsItem,
-            $coursesItem,
             $curriculaItem,
+            $coursesItem,
         ];
     }
 
