@@ -248,8 +248,8 @@ class NavigationBadgeCountsTest extends TestCase
         $this->resolveCurrentAdminPage(GradesAndCompletion::getRouteName());
 
         $items = $this->flattenNavigationItems($this->staffNavigation());
-        $this->assertSame('1', $items['Class grades']->getBadge());
-        $this->assertSame('warning', $items['Class grades']->getBadgeColor());
+        $this->assertSame('1', $items['Class list & grades']->getBadge());
+        $this->assertSame('warning', $items['Class list & grades']->getBadgeColor());
         $this->assertNull($items['My schedule']->getBadge());
         $this->assertNull($items['My availability']->getBadge());
     }

@@ -79,7 +79,7 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
         return [
             'Registrar' => [User::StaffRoleRegistrar, ['Admissions', 'Students & Enrollment', 'Students Record', 'Programs & Curricula', 'School Resources', 'Term Planning', 'Admission cycles']],
             'Accounting' => [User::StaffRoleAccounting, ['Overview', 'Student accounts', 'Fee plans', 'Payment channels']],
-            'Faculty' => [User::StaffRoleFaculty, ['Overview', 'My schedule', 'My availability', 'Class grades']],
+            'Faculty' => [User::StaffRoleFaculty, ['Overview', 'My schedule', 'Academic calendar', 'My availability', 'Class list & grades']],
             'Academic Head' => [User::StaffRoleAcademicHead, ['Academic Oversight']],
             'System Administrator' => [User::StaffRoleSystemSuperAdmin, ['Users & Access', 'Public Content', 'System Health', 'Governance & Audit']],
         ];
@@ -115,7 +115,7 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
         $this->assertStringContainsString('FacultyOverview::class', $provider);
         $this->assertStringContainsString('MyAvailability::class', $provider);
         $this->assertStringContainsString("NavigationItem::make('My schedule')", $provider);
-        $this->assertStringContainsString("NavigationItem::make('Class grades')", $provider);
+        $this->assertStringContainsString("NavigationItem::make('Class list & grades')", $provider);
         $this->assertStringContainsString("'Public Content' => PublicContent::class", $provider);
         $this->assertStringNotContainsString("'Admission Cycles' =>", $provider);
         $this->assertStringNotContainsString("'My Unavailable Times' =>", $provider);
