@@ -107,6 +107,7 @@ use Filament\Schemas\Components\View as SchemaView;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\Alignment;
 use Filament\Support\Enums\Width;
+use Filament\Support\RawJs;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -1952,8 +1953,8 @@ class ViewEnrollment extends ViewRecord
             ->stickyModalHeader()
             ->stickyModalFooter()
             ->extraModalWindowAttributes(['class' => 'registrar-enrollment-entry-modal'])
-            ->authorize(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting))
-            ->visible(fn (): bool => $this->actor()->hasRole(User::StaffRoleAccounting)
+            ->authorize(fn (): bool => $this->actor()->canAuthenticate() && $this->isAccountingActor())
+            ->visible(fn (): bool => $this->isAccountingActor()
                 && ($this->coverageFeeOptions() !== [] || $replacements !== []))
             ->fillForm(fn (): array => [
                 'reviewed_assessment_id' => $this->accountingViewData()['assessment']?->id,
@@ -2002,6 +2003,7 @@ class ViewEnrollment extends ViewRecord
                 DatePicker::make('effective_date')->label('Effective from')->helperText('Coverage reduces the balance from this date.')->required(),
             ])
             ->action(function (array $data): void {
+                abort_unless($this->isAccountingActor(), 403);
                 try {
                     $account = $this->getRecord()->termAccount()->firstOrFail();
                     $assessment = $account->assessments()->where('state', Assessment::StateActive)->latest('version')->firstOrFail();
@@ -2029,7 +2031,15 @@ class ViewEnrollment extends ViewRecord
                         $this->actor(),
                     );
                     Notification::make()->title('Approved coverage recorded')->success()->send();
-                    $this->redirect($this->enrollmentUrl());
+                    if ($this->isAccountingWorkspace()) {
+                        $this->record = $this->getRecord()->refresh()->load('currentCorVersion');
+                        $this->accountingContext = null;
+                        $this->accountingMemo = [];
+                        $this->dispatch('accounting-record-updated');
+                        $this->resetPage('accountHistoryCoveragePage');
+                    } else {
+                        $this->redirect($this->enrollmentUrl());
+                    }
                 } catch (Throwable $exception) {
                     $this->failure('Coverage was not recorded', $exception);
                 }
@@ -2138,9 +2148,13 @@ class ViewEnrollment extends ViewRecord
                 Grid::make(['md' => 2])->schema([
                     TextInput::make('amount')
                         ->label('Payment amount')
+                        ->mask(RawJs::make('$money($input)'))
+                        ->stripCharacters(',')
                         ->numeric()
                         ->minValue(0.01)
                         ->prefix('PHP')
+                        ->extraInputAttributes(['inputmode' => 'decimal'])
+                        ->helperText('Applies automatically to the oldest unpaid payment date first. Partial and advance payments are supported.')
                         ->required(),
                     TextInput::make('or_number')
                         ->label('Official Receipt (OR) number')
@@ -2198,7 +2212,7 @@ class ViewEnrollment extends ViewRecord
 
                     app(PaymentConfirmationService::class)->confirmManualPayment(
                         enrollmentId: (int) $this->getRecord()->id,
-                        amount: (string) $data['amount'],
+                        amount: str_replace(',', '', trim((string) $data['amount'])),
                         channel: $channel,
                         paymentReference: $reference,
                         actor: $this->actor(),

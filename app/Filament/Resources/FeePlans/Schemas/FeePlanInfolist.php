@@ -17,7 +17,12 @@ class FeePlanInfolist
                 'readiness' => $record->state === FeePlan::StateDraft
                     ? (method_exists($livewire, 'draftReadiness') ? $livewire->draftReadiness() : app(PublishFeePlan::class)->readiness($record))
                     : null,
-                'versions' => FeePlan::query()->where('program_id', $record->program_id)->where('term_id', $record->term_id)->orderByDesc('version')->get(),
+                'versions' => FeePlan::query()
+                    ->where('program_id', $record->program_id)
+                    ->where('term_id', $record->term_id)
+                    ->withSum('charges', 'amount')
+                    ->orderByDesc('version')
+                    ->get(),
             ])->columnSpanFull(),
         ]);
     }

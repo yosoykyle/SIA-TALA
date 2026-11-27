@@ -22,6 +22,7 @@ use Filament\Support\Enums\Alignment;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Filament\View\PanelsRenderHook;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Arr;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Url;
@@ -99,7 +100,11 @@ class ListFeePlans extends ListRecords
 
     public function hasMultipleTerms(): bool
     {
-        return $this->multipleTermsCache ??= Term::query()->count() > 1;
+        return $this->multipleTermsCache ??= Term::query()
+            ->where(fn (Builder $query): Builder => $query
+                ->where('state', '!=', Term::StateDraft)
+                ->orWhereIn('id', FeePlan::query()->select('term_id')))
+            ->count() > 1;
     }
 
     public function hasActiveFilterValue(string $name): bool

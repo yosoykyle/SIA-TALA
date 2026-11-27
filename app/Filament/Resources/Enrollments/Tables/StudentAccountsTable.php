@@ -11,6 +11,7 @@ use App\Filament\Resources\Enrollments\Pages\ListEnrollments;
 use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\Program;
+use App\Models\Term;
 use Filament\Actions\Action;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\ViewColumn;
@@ -32,7 +33,7 @@ class StudentAccountsTable
                     .($livewire instanceof ListEnrollments && $livewire->accountingTermGateActive() ? ' tala-table--gated' : ''),
             ])
             ->modifyQueryUsing(fn (Builder $query, $livewire): Builder => $query->with([
-                'credentialUser', 'admissionApplication.program', 'studentProfile.program', 'term',
+                'credentialUser', 'admissionApplication.program', 'studentProfile.program', 'term.academicYear',
                 'currentProposalVersion.items.reservation', 'currentProposalVersion.confirmation', 'currentCorVersion',
                 'termAccount.enrollment', 'termAccount.assessments.obligations.paymentAllocations.payment',
                 'termAccount.assessments.obligations.coverages',
@@ -60,7 +61,16 @@ class StudentAccountsTable
             })])
             ->searchPlaceholder('Name or ID')
             ->filters([
-                SelectFilter::make('term')->relationship('term', 'label')->searchable()->preload(),
+                SelectFilter::make('term')
+                    ->label('Term')
+                    ->placeholder('All terms')
+                    ->searchable()
+                    ->preload()
+                    ->options(fn (): array => self::termFilterOptions())
+                    ->query(fn (Builder $query, array $data): Builder => $query->when(
+                        filled($data['value'] ?? null),
+                        fn (Builder $query): Builder => $query->where('term_id', (int) $data['value']),
+                    )),
                 SelectFilter::make('program')->options(fn (): array => Program::query()->orderBy('name')->pluck('name', 'id')->all())
                     ->searchable()
                     ->preload()
@@ -100,6 +110,41 @@ class StudentAccountsTable
                         ? EnrollmentResource::getUrl('index')
                         : EnrollmentResource::getUrl('index', ['tab' => 'accounts'])),
             ]);
+    }
+
+    /**
+     * Scope Accounting term selectors to non-Draft terms while preserving any historical
+     * term that already carries an enrollment account or in-progress registration case.
+     *
+     * @return Builder<Term>
+     */
+    public static function applicableTermsQuery(): Builder
+    {
+        return Term::query()
+            ->where(fn (Builder $query): Builder => $query
+                ->where('state', '!=', Term::StateDraft)
+                ->orWhereHas('enrollments', fn (Builder $enrollment): Builder => $enrollment
+                    ->whereHas('termAccount')
+                    ->orWhere('canonical_outcome', Enrollment::OutcomeInProgress)));
+    }
+
+    public static function formatTermLabel(Term $term): string
+    {
+        return collect([$term->academicYear?->label, $term->label])
+            ->filter()
+            ->implode(' · ');
+    }
+
+    /** @return array<int, string> */
+    public static function termFilterOptions(): array
+    {
+        return self::applicableTermsQuery()
+            ->with('academicYear')
+            ->orderByDesc('starts_on')
+            ->orderByDesc('id')
+            ->get()
+            ->mapWithKeys(fn (Term $term): array => [$term->getKey() => self::formatTermLabel($term)])
+            ->all();
     }
 
     private static function hasSearchOrFilters(ListEnrollments $livewire): bool

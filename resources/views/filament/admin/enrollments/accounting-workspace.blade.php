@@ -1,5 +1,17 @@
 @assets
     <link rel="stylesheet" href="{{ asset('css/tala-enrollment.css').'?v='.filemtime(public_path('css/tala-enrollment.css')) }}">
+    <script>
+        if (! window.__talaEnrollmentsBackGuard) {
+            window.__talaEnrollmentsBackGuard = true;
+            const enrollmentsPath = @js(parse_url(\App\Filament\Resources\Enrollments\EnrollmentResource::getUrl('index'), PHP_URL_PATH) ?: '/admin/enrollments');
+            document.addEventListener('alpine:navigate', (event) => {
+                if (event.detail?.history && event.detail?.url?.pathname?.startsWith(enrollmentsPath)) {
+                    event.preventDefault();
+                    window.location.reload();
+                }
+            });
+        }
+    </script>
 @endassets
 @php
     $gated = $this->accountingTermGateActive();
@@ -12,6 +24,7 @@
     $workCounts = $scope['workCounts'];
 @endphp
 <div class="accounting-collection">
+    <x-filament-actions::modals />
     @if ($gated)
         @php
             $attentionItems = collect([

@@ -129,6 +129,7 @@ class TalaPanelTheme
                 url('/'.$panel->getPath().'/password-reset*'),
                 url('/'.$panel->getPath().'/email-verification*'),
                 url('/'.$panel->getPath().'/account-profile*'),
+                ...($panel->getId() === 'admin' ? [url('/'.$panel->getPath().'/enrollments*')] : []),
             ])
             ->viteTheme('resources/css/filament/tala/theme.css')
             ->brandLogo(fn (): View => self::brand($panel))

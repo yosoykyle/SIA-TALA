@@ -2,12 +2,12 @@
 <x-filament-actions::modals />
 <div {{ $attributes->class(['tala-record-workspace', 'tala-record-workspace--framed', 'tala-record-workspace--document' => $scrollMode === 'document', 'tala-record-workspace--sheet' => $layout === 'sheet']) }} wire:loading.attr="aria-busy"
     x-data="{ detailOpen: @js($detailVisible) && new URL(window.location.href).searchParams.has(@js($selectionParameter)) }"
-    x-init="$nextTick(() => { const selected = $refs.recordBrowser.querySelector('.tala-record-option[aria-pressed=true]'); const list = selected?.closest('.tala-record-list'); if (list) list.scrollTop += selected.getBoundingClientRect().top - list.getBoundingClientRect().top })"
+    x-init="$nextTick(() => { const selected = $refs.recordBrowser?.querySelector('.tala-record-option[aria-pressed=true]'); const list = selected?.closest('.tala-record-list'); if (list) list.scrollTop += selected.getBoundingClientRect().top - list.getBoundingClientRect().top })"
     x-bind:data-record-view="detailOpen ? 'detail' : 'list'"
-    x-on:record-list-requested.window="detailOpen = false; $nextTick(() => $refs.recordBrowser.focus())"
-    x-on:roster-student-selected.window="detailOpen = true; $nextTick(() => { $refs.recordInspector.scrollTop = 0; $refs.recordInspector.focus() })"
+    x-on:record-list-requested.window="detailOpen = false; $nextTick(() => $refs.recordBrowser?.focus())"
+    x-on:roster-student-selected.window="detailOpen = true; $nextTick(() => { if ($refs.recordInspector) { $refs.recordInspector.scrollTop = 0; $refs.recordInspector.focus(); } })"
     x-on:record-selected.window="detailOpen = true; $nextTick(() => { if ($refs.recordInspector) { $refs.recordInspector.scrollTop = 0; $refs.recordInspector.focus(); } })"
-    x-on:click="if ($event.target.closest('.tala-record-option, .tala-record-selection-navigation button')) { detailOpen = true; $nextTick(() => { $refs.recordInspector.scrollTop = 0; if ($refs.recordReturn.offsetParent !== null) $refs.recordInspector.focus() }) }">
+    x-on:click="if ($event.target.closest('.tala-record-option, .tala-record-selection-navigation button')) { detailOpen = true; $nextTick(() => { if ($refs.recordInspector) { $refs.recordInspector.scrollTop = 0; if ($refs.recordReturn?.offsetParent !== null) $refs.recordInspector.focus(); } }) }">
     @isset($toolbar)<header {{ $toolbar->attributes->class(['tala-record-toolbar']) }}>{{ $toolbar }}</header>@endisset
     <section {{ $browser->attributes->class(['tala-record-browser']) }} x-ref="recordBrowser" tabindex="-1">
         {{ $browser }}
@@ -16,7 +16,7 @@
     @if ($detailVisible)
     <div class="tala-record-detail">
     <section {{ $inspector->attributes->class(['tala-record-inspector']) }} x-ref="recordInspector" tabindex="0">
-        <div class="tala-record-mobile-back" x-ref="recordReturn"><x-filament::button type="button" color="gray" icon="heroicon-m-arrow-left" x-on:click="detailOpen = false; if (typeof $wire.closeSubjectEditor === 'function') { $wire.closeSubjectEditor(); } $nextTick(() => $refs.recordBrowser.focus())">{{ $returnLabel ?? 'Show '.$collectionLabel }}</x-filament::button></div>
+        <div class="tala-record-mobile-back" x-ref="recordReturn"><x-filament::button type="button" color="gray" icon="heroicon-m-arrow-left" x-on:click="detailOpen = false; if (typeof $wire.closeSubjectEditor === 'function') { $wire.closeSubjectEditor(); } $nextTick(() => $refs.recordBrowser?.focus())">{{ $returnLabel ?? 'Show '.$collectionLabel }}</x-filament::button></div>
         <div class="tala-content-region" wire:loading.attr="aria-busy" wire:target="{{ $selectionActions }}">
             <x-content-progress :label="$loadingLabel" wire:loading.delay.short.block wire:target="{{ $selectionActions }}" />
             {{ $inspector }}

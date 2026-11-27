@@ -2,15 +2,20 @@
     $balanced = $chargeTotal !== null && $paymentTotal !== null && $chargeTotal === $paymentTotal;
     $unbalanced = $chargeTotal !== null && $paymentTotal !== null && ! $balanced;
 @endphp
-<div class="tala-live-totals accounting-fee-plan-form-totals" role="status" aria-live="polite">
+<div @class([
+    'tala-live-totals',
+    'accounting-fee-plan-form-totals',
+    'is-balanced' => $balanced,
+    'is-unbalanced' => $unbalanced,
+]) role="status" aria-live="polite">
     <dl>
         <div>
             <dt>Total charges</dt>
-            <dd>{{ $chargeTotal === null ? 'Enter amounts' : \App\Actions\Finance\AccountingDisplay::cents($chargeTotal) }}</dd>
+            <dd @class(['is-empty' => $chargeTotal === null])>{{ $chargeTotal === null ? 'Enter amounts' : \App\Actions\Finance\AccountingDisplay::cents($chargeTotal) }}</dd>
         </div>
         <div>
             <dt>Scheduled payments</dt>
-            <dd>{{ $paymentTotal === null ? 'Enter amounts' : \App\Actions\Finance\AccountingDisplay::cents($paymentTotal) }}</dd>
+            <dd @class(['is-empty' => $paymentTotal === null])>{{ $paymentTotal === null ? 'Enter amounts' : \App\Actions\Finance\AccountingDisplay::cents($paymentTotal) }}</dd>
         </div>
     </dl>
     @if ($chargeTotal !== null && $paymentTotal !== null)
