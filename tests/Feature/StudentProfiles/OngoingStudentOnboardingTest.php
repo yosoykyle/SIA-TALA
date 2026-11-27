@@ -698,7 +698,7 @@ final class OngoingStudentOnboardingTest extends TestCase
             ->assertSee('Onboard continuing students');
 
         Livewire::test(ListEnrollments::class)
-            ->assertSee('Import continuing students');
+            ->assertDontSee('Import continuing students');
     }
 
     /**

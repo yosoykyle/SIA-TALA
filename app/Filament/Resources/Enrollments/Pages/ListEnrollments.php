@@ -401,6 +401,9 @@ class ListEnrollments extends ListRecords
     /** @var array<string, mixed>|null */
     private ?array $memoContinuationSummary = null;
 
+    /** @var array{total: int, for_verification: int, pending_payment: int}|null */
+    private ?array $memoPaymentQueueSummary = null;
+
     /** @return list<int> */
     private function accountingCaseIds(string $kind): array
     {
@@ -692,6 +695,41 @@ class ListEnrollments extends ListRecords
         return $this->memoContinuationSummary ??= app(EnrollmentContinuationSummary::class)->forActiveTerm();
     }
 
+    /** @return array{total: int, for_verification: int, pending_payment: int} */
+    public function paymentQueueSummary(): array
+    {
+        abort_unless($this->isRegistrar(), 403);
+
+        if ($this->memoPaymentQueueSummary !== null) {
+            return $this->memoPaymentQueueSummary;
+        }
+
+        $financeIds = $this->currentCaseIds('finance');
+        if ($financeIds === []) {
+            return $this->memoPaymentQueueSummary = [
+                'total' => 0,
+                'for_verification' => 0,
+                'pending_payment' => 0,
+            ];
+        }
+
+        $forVerification = Enrollment::query()
+            ->whereIn('id', $financeIds)
+            ->whereHas(
+                'termAccount.paymentEvidenceVersions',
+                fn (Builder $query): Builder => $query->where('state', PaymentEvidenceVersion::StateSubmitted),
+            )
+            ->count();
+
+        $total = count($financeIds);
+
+        return $this->memoPaymentQueueSummary = [
+            'total' => $total,
+            'for_verification' => $forVerification,
+            'pending_payment' => max(0, $total - $forVerification),
+        ];
+    }
+
     public function content(Schema $schema): Schema
     {
         $this->normalizeAccountingTab();
@@ -729,6 +767,7 @@ class ListEnrollments extends ListRecords
                 SchemaView::make('filament.admin.enrollments.workbench')->viewData(fn (): array => [
                     'counts' => $this->workCounts(),
                     'continuation' => $this->enrollmentContinuationSummary(),
+                    'paymentQueueSummary' => $this->paymentQueueSummary(),
                     'continuationBreakdownAction' => $this->getAction('viewContinuationBreakdown', isMounting: false),
                     'continuingAction' => $this->getAction('startContinuingEnrollment', isMounting: false),
                     'shiftProgramAction' => $this->getAction('shiftProgramAndEnroll', isMounting: false),

@@ -274,7 +274,10 @@ final class EnrollmentContinuationSummaryTest extends TestCase
             ->assertSee('1 did not proceed')
             ->assertSee('1st → 2nd')
             ->assertSee('View breakdown')
-            ->assertSee('Waiting for payment or fee review')
+            ->assertSee('Students Payment in Queue')
+            ->assertSee('Open payment queue')
+            ->assertDontSee('Waiting on others')
+            ->assertDontSee('Import continuing students')
             ->assertDontSee('Waiting for subject confirmation')
             ->assertDontSee('Make enrollment official')
             ->assertSeeHtml('role="region"')
@@ -316,6 +319,13 @@ final class EnrollmentContinuationSummaryTest extends TestCase
         try {
             $component->instance()->enrollmentContinuationSummary();
             $this->fail('Accounting must not be allowed to read the Registrar enrollment continuation summary.');
+        } catch (HttpException $exception) {
+            $this->assertSame(403, $exception->getStatusCode());
+        }
+
+        try {
+            $component->instance()->paymentQueueSummary();
+            $this->fail('Accounting must not be allowed to read the Registrar payment queue summary.');
         } catch (HttpException $exception) {
             $this->assertSame(403, $exception->getStatusCode());
         }
