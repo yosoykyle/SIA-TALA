@@ -2,6 +2,7 @@
 
 namespace App\Actions\Scheduling;
 
+use App\Actions\Enrollment\RetryStandardRegistrationPreparation;
 use App\Models\CorVersion;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
@@ -24,6 +25,7 @@ final class RevisePublishedTimetable
         private readonly ScheduleAssignmentRevalidationService $revalidator,
         private readonly TimetableRevisionImpactGuard $impactGuard,
         private readonly SyncTeachingAssignmentsFromTimetable $teachingAssignments,
+        private readonly RetryStandardRegistrationPreparation $retryWaitingRegularCases,
     ) {}
 
     /**
@@ -263,6 +265,7 @@ final class RevisePublishedTimetable
             $sourceRun->forceFill(['status' => ScheduleGenerationRun::StatusSuperseded])->save();
             $this->impactGuard->markPublished($preparedRevision, $successor, $actor);
             $this->teachingAssignments->apply($successor, $actor);
+            $this->retryWaitingRegularCases->afterCommit((int) $successor->term_id, $actor);
 
             $changedSectionIds = $meetings
                 ->filter(fn (PublishedTimetableMeeting $meeting): bool => array_key_exists((int) $meeting->id, $changesByMeetingId)

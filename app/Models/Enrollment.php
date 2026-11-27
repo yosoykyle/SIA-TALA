@@ -39,6 +39,12 @@ class Enrollment extends Model
 
     public const FinalizationModeAutomatic = 'automatic';
 
+    public const StartSelfService = 'SelfService';
+
+    public const StartRegistrarAssisted = 'RegistrarAssisted';
+
+    public const StartLateAuthority = 'LateAuthority';
+
     public function statusLabel(): string
     {
         return str($this->canonical_outcome === self::OutcomeInProgress ? $this->status : $this->canonical_outcome)
@@ -174,6 +180,21 @@ class Enrollment extends Model
     public function studentSection(): BelongsTo
     {
         return $this->belongsTo(TermCohort::class, 'student_section_id');
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function starter(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'started_by');
+    }
+
+    /**
+     * A Registrar started this case at the office (assisted or late enrollment), so the learner's
+     * subjects are confirmed on their behalf when they are sent (#103 Scope 8).
+     */
+    public function wasStartedByRegistrar(): bool
+    {
+        return in_array($this->start_method, [self::StartRegistrarAssisted, self::StartLateAuthority], true);
     }
 
     /** @return BelongsTo<User, $this> */

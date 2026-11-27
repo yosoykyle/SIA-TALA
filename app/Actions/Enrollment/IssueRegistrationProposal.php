@@ -15,6 +15,7 @@ class IssueRegistrationProposal
         private readonly StudentUnitLoadService $unitLoad,
         private readonly RegistrationNotificationLedger $notifications,
         private readonly RegistrationReadinessQuery $readiness,
+        private readonly ConfirmRegistrationProposal $confirm,
     ) {}
 
     public function execute(RegistrationProposalVersion $proposal, User $actor): RegistrationProposalVersion
@@ -65,8 +66,49 @@ class IssueRegistrationProposal
 
             return $locked->refresh();
         }, attempts: 3);
+
+        if ($this->confirmForRegistrarStartedCase($issued, $actor)) {
+            return $issued->refresh();
+        }
+
         $this->notifications->recordProposalReady($issued);
 
         return $issued;
+    }
+
+    /**
+     * When a Registrar started the case at the office, record the learner's confirmation as
+     * Registrar-assisted as soon as the subjects are sent, so payment alone completes enrollment.
+     * Falls back to ordinary learner confirmation when no active Registrar can be attributed.
+     */
+    private function confirmForRegistrarStartedCase(RegistrationProposalVersion $proposal, ?User $actor): bool
+    {
+        if ($proposal->purpose !== RegistrationProposalVersion::PurposeInitial) {
+            return false;
+        }
+
+        $enrollment = Enrollment::query()->with(['credentialUser', 'starter'])->find($proposal->enrollment_id);
+
+        if (! $enrollment instanceof Enrollment || ! $enrollment->wasStartedByRegistrar() || $enrollment->credentialUser === null) {
+            return false;
+        }
+
+        $registrar = collect([$actor, $enrollment->starter])->first(
+            fn (?User $candidate): bool => $candidate instanceof User
+                && $candidate->canAuthenticate()
+                && $candidate->hasRole(User::StaffRoleRegistrar),
+        );
+
+        if (! $registrar instanceof User) {
+            return false;
+        }
+
+        try {
+            $this->confirm->execute($proposal, $enrollment->credentialUser, $registrar);
+        } catch (AuthorizationException|ValidationException) {
+            return false;
+        }
+
+        return true;
     }
 }

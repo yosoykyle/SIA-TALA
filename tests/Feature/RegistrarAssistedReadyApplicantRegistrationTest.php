@@ -78,7 +78,7 @@ class RegistrarAssistedReadyApplicantRegistrationTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         Livewire::actingAs($registrar)->test(ViewEnrollment::class, ['record' => $case->id])
-            ->assertSee('Prepare subjects')->assertSee('No subjects selected')
+            ->assertSee('Suggested subjects')->assertSee('Nothing is reserved until you approve.')
             ->assertDontSee('Assessed total')->assertDontSee('Five finalization checkpoints')
             ->mountAction('prepareProposal')
             ->assertMountedActionModalSee('Published subject')->assertMountedActionModalSee('Externally arranged subject')

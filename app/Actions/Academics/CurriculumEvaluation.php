@@ -119,7 +119,7 @@ class CurriculumEvaluation
     }
 
     /**
-     * Where a credited subject came from: a transfer credit (TOR course, grade, bridging) or a program-shift credit.
+     * Where a credited subject came from: a transfer credit (TOR course and grade) or a program-shift credit.
      *
      * @return array{kind: string, label: string, detail: ?string}
      */
@@ -142,7 +142,6 @@ class CurriculumEvaluation
             'detail' => $line === null ? null : collect([
                 'From '.trim($line->source_course_code.' '.($line->source_course_title !== $entry->courseSpecification?->title ? '– '.$line->source_course_title : '')),
                 filled($line->tor_grade) ? 'TOR grade '.$line->tor_grade : null,
-                $line->bridging_units !== null ? rtrim(rtrim((string) $line->bridging_units, '0'), '.').' unit(s) bridging' : null,
             ])->filter()->implode(' · '),
         ];
     }

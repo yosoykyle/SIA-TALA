@@ -48,7 +48,7 @@ class TransfereeCreditingTest extends TestCase
     public function test_registrar_saves_credited_bridging_and_need_to_take_rows_from_the_crediting_table(): void
     {
         [$case, $curriculum, $entries] = $this->transfereeCase();
-        [$credited, $bridged, $needed] = $entries;
+        [$credited, $fewerUnits, $needed] = $entries;
 
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $component = Livewire::actingAs($this->staff(User::StaffRoleRegistrar))
@@ -56,13 +56,14 @@ class TransfereeCreditingTest extends TestCase
             ->mountAction('recordAcademicEvaluation')
             ->assertMountedActionModalSee('Is the previous school’s curriculum the same as SIA’s?')
             ->assertMountedActionModalSee('Year 1 · First Semester')
-            ->assertMountedActionModalSee($needed->courseSpecification->course->code);
+            ->assertMountedActionModalSee($needed->courseSpecification->course->code)
+            ->assertMountedActionModalDontSee('Credit with bridging');
         $component->setActionData([
             'curriculum_version_id' => $curriculum->id,
             'same_curriculum' => 'different',
             'rows' => [
                 'e'.$credited->id => ['status' => 'credited', 'tor_grade' => '1.75', 'source_course_code' => 'CS 101', 'source_course_title' => 'Computer Fundamentals', 'source_units' => '3'],
-                'e'.$bridged->id => ['status' => 'bridging', 'tor_grade' => '2.00', 'source_course_code' => 'MATH 1', 'source_course_title' => 'College Algebra', 'source_units' => '2', 'bridging_units' => '1'],
+                'e'.$fewerUnits->id => ['status' => 'credited', 'tor_grade' => '2.00', 'source_course_code' => 'MATH 1', 'source_course_title' => 'College Algebra', 'source_units' => '2'],
                 'e'.$needed->id => ['status' => 'need'],
             ],
             'authority_reference' => 'SYN-CREDITING-MEMO',
@@ -71,12 +72,12 @@ class TransfereeCreditingTest extends TestCase
         $component->callMountedAction()->assertHasNoActionErrors()->assertNotified('Academic evaluation recorded');
 
         $evaluation = RegistrationCreditEvaluation::query()->where('enrollment_id', $case->id)->sole();
-        $this->assertSame([$credited->id, $bridged->id], $evaluation->credited_curriculum_entry_ids);
+        $this->assertSame([$credited->id, $fewerUnits->id], $evaluation->credited_curriculum_entry_ids);
         $this->assertFalse($evaluation->same_curriculum);
         $lines = $evaluation->creditLines()->get()->keyBy('curriculum_entry_id');
-        $this->assertSame(['CS 101', '1.75', null], [$lines[$credited->id]->source_course_code, $lines[$credited->id]->tor_grade, $lines[$credited->id]->bridging_units]);
-        $this->assertSame(['2.00', '1.00'], [$lines[$bridged->id]->source_units, $lines[$bridged->id]->bridging_units]);
-        $this->assertSame('Transfer credit from MATH 1 · 1 unit(s) bridging', $lines[$bridged->id]->transcriptRemark());
+        $this->assertSame(['CS 101', '1.75'], [$lines[$credited->id]->source_course_code, $lines[$credited->id]->tor_grade]);
+        $this->assertSame('2.00', $lines[$fewerUnits->id]->source_units, 'A subject with fewer TOR units is still credited in full.');
+        $this->assertSame('Transfer credit from MATH 1', $lines[$fewerUnits->id]->transcriptRemark());
     }
 
     public function test_credited_rows_need_a_tor_grade_and_source_unless_the_curriculum_is_the_same(): void
@@ -94,7 +95,6 @@ class TransfereeCreditingTest extends TestCase
             'missing line' => [[], false],
             'missing TOR grade' => [['source_course_code' => 'CS 101', 'source_course_title' => 'Fundamentals'], false],
             'missing source on a different curriculum' => [['tor_grade' => '1.50'], false],
-            'bridging above the SIA units' => [['tor_grade' => '1.50', 'source_course_code' => 'CS 101', 'source_course_title' => 'Fundamentals', 'bridging_units' => '4'], false],
             'non-numeric units' => [['tor_grade' => '1.50', 'source_course_code' => 'CS 101', 'source_course_title' => 'Fundamentals', 'source_units' => 'three'], false],
         ];
         foreach ($failures as $failure => [$line, $same]) {

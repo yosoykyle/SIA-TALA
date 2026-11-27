@@ -20,6 +20,12 @@
             @endif
             {{ $this->getAction('prepareProposal', isMounting: false) }}
         </div>
+        @if ($placementCurrent && $requirement['state'] !== 'Unavailable' && str_starts_with((string) $case->status_reason, \App\Actions\Finance\CreateAssessmentFromPublishedFeePlan::NotSentReasonPrefix))
+            <div class="registrar-auto-preparation-reason tala-warning-banner registrar-draft-not-sent">
+                <h3>Not sent automatically</h3>
+                <p>{{ \Illuminate\Support\Str::after((string) $case->status_reason, \App\Actions\Finance\CreateAssessmentFromPublishedFeePlan::NotSentReasonPrefix) }}</p>
+            </div>
+        @endif
     </section>
     @if ($placementCurrent && $requirement['state'] === 'Unavailable')
         <x-workflow-handoff

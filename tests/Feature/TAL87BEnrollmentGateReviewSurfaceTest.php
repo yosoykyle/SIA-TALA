@@ -81,7 +81,7 @@ final class TAL87BEnrollmentGateReviewSurfaceTest extends TestCase
         Livewire::actingAs($registrar)
             ->test(ViewEnrollment::class, ['record' => $enrollment->getRouteKey()])
             ->assertSee($enrollment->term->label)
-            ->assertSee('Prepare subjects')
+            ->assertSee('Retry automatic preparation')
             ->assertSee('Enrollment history')
             ->assertDontSee('Enrollment Gate Review');
 
