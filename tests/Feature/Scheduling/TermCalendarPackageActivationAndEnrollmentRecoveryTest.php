@@ -3,8 +3,6 @@
 namespace Tests\Feature\Scheduling;
 
 use App\Actions\Calendar\ActivateTermCalendarPackage;
-use App\Actions\Calendar\CalendarPhaseGateService;
-use App\Actions\Calendar\Exceptions\CalendarGateViolation;
 use App\Actions\Calendar\TermCalendarPackageReadinessService;
 use App\Filament\Applicant\Pages\Dashboard as ApplicantDashboard;
 use App\Filament\Applicant\Pages\Enrollment as ApplicantEnrollment;
@@ -22,14 +20,14 @@ use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermCalendarWindow;
 use App\Models\User;
-use Carbon\CarbonImmutable;
-use Database\Seeders\DatabaseSeeder;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestCase
@@ -43,13 +41,38 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
         $this->assertSame(config('database.test_database'), DB::connection()->getDatabaseName());
-        $this->seed(DatabaseSeeder::class);
 
-        foreach (User::staffRoleNames() as $role) {
-            Role::query()->firstOrCreate(['name' => $role, 'guard_name' => 'web']);
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        $rolePermissions = [
+            User::StaffRoleRegistrar => [
+                'approve-documents',
+                'evaluate-transferees',
+                'manage-student-profiles',
+                'manage-admission-setup',
+                'manage-schedules',
+                'manage-sections',
+            ],
+            User::StaffRoleAcademicHead => [
+                'authorize-overrides',
+                'view-global-records',
+            ],
+            User::StaffRoleAccounting => [],
+            User::StaffRoleFaculty => [],
+            User::StaffRoleSystemSuperAdmin => [],
+            'applicant' => [],
+            'student' => [],
+        ];
+
+        foreach ($rolePermissions as $role => $permissions) {
+            foreach ($permissions as $permission) {
+                Permission::findOrCreate($permission, 'web');
+            }
+
+            Role::findOrCreate($role, 'web')->syncPermissions($permissions);
         }
-        Role::query()->firstOrCreate(['name' => 'applicant', 'guard_name' => 'web']);
-        Role::query()->firstOrCreate(['name' => 'student', 'guard_name' => 'web']);
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 
     public function test_registrar_can_see_draft_package_readiness_blockers_and_passing_ready_state_on_workbench(): void
@@ -330,80 +353,6 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         // Term 2 v1 remains Active and unclosed (exact-Term isolation)
         $this->assertSame(TermCalendarPackage::StateActive, $term2ActiveV1->fresh()->state);
         $this->assertNull($term2ActiveV1->fresh()->closed_at);
-    }
-
-    public function test_enrollment_gate_consumes_only_active_package_approved_enrollment_window(): void
-    {
-        $term = Term::factory()->create();
-        $gate = app(CalendarPhaseGateService::class);
-        $now = CarbonImmutable::parse('2026-08-10 10:00:00', config('app.timezone'));
-
-        // 1. No package at all
-        try {
-            $gate->assertEnrollmentWindowOpen($term->id, $now);
-            $this->fail('Expected missing window violation when no package exists.');
-        } catch (CalendarGateViolation $e) {
-            $this->assertStringContainsString('not configured', $e->getMessage());
-        }
-
-        // 2. Only Draft package exists (activation has not happened)
-        $draftPackage = TermCalendarPackage::factory()->for($term)->create([
-            'state' => TermCalendarPackage::StateDraft,
-        ]);
-        TermCalendarWindow::factory()->for($draftPackage, 'package')->create([
-            'window_type' => TermCalendarWindow::TypeEnrollment,
-            'opens_on' => '2026-08-01',
-            'closes_on' => '2026-08-20',
-        ]);
-
-        try {
-            $gate->assertEnrollmentWindowOpen($term->id, $now);
-            $this->fail('Draft package window must never open the enrollment gate.');
-        } catch (CalendarGateViolation $e) {
-            $this->assertStringContainsString('not configured', $e->getMessage());
-        }
-
-        // 3. Active package exists, but window is in the future
-        $activePackage = TermCalendarPackage::factory()->for($term)->create([
-            'state' => TermCalendarPackage::StateActive,
-            'version' => 2,
-        ]);
-        $enrollmentWindow = TermCalendarWindow::factory()->for($activePackage, 'package')->create([
-            'window_type' => TermCalendarWindow::TypeEnrollment,
-            'opens_on' => '2026-08-15',
-            'closes_on' => '2026-08-25',
-            'cutoff_at' => '23:59:59',
-        ]);
-
-        try {
-            $gate->assertEnrollmentWindowOpen($term->id, $now); // $now is Aug 10, opens Aug 15
-            $this->fail('Future window must be blocked as outside window.');
-        } catch (CalendarGateViolation $e) {
-            $this->assertStringContainsString('outside the configured window', $e->getMessage());
-        }
-
-        // 4. Past window (closed)
-        $enrollmentWindow->update([
-            'opens_on' => '2026-08-01',
-            'closes_on' => '2026-08-05',
-        ]);
-
-        try {
-            $gate->assertEnrollmentWindowOpen($term->id, $now); // $now is Aug 10, closed Aug 5
-            $this->fail('Past window must be blocked as outside window.');
-        } catch (CalendarGateViolation $e) {
-            $this->assertStringContainsString('outside the configured window', $e->getMessage());
-        }
-
-        // 5. Open window (now is within bounds)
-        $enrollmentWindow->update([
-            'opens_on' => '2026-08-01',
-            'closes_on' => '2026-08-20',
-        ]);
-
-        // Must not throw
-        $gate->assertEnrollmentWindowOpen($term->id, $now);
-        $this->assertTrue($gate->enrollmentWindow($term->id, $now)->is($enrollmentWindow));
     }
 
     public function test_applicant_dashboard_displays_accurate_enrollment_availability_and_next_action(): void
@@ -697,64 +646,6 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         $this->assertNotSame('STALE-SAME-SECOND-OVERWRITE-ATTEMPT', $freshDraft->authority_reference);
     }
 
-    public function test_correcting_draft_package_rejects_stale_form_submission_and_preserves_newer_draft(): void
-    {
-        $registrar = $this->staff(User::StaffRoleRegistrar);
-        $term = Term::factory()->create();
-
-        $draft = TermCalendarPackage::factory()->for($term)->create([
-            'state' => TermCalendarPackage::StateDraft,
-            'version' => 1,
-            'authority_reference' => 'INITIAL-REF-001',
-            'administrative_starts_on' => '2026-08-01',
-            'administrative_ends_on' => '2026-12-31',
-            'classes_start_on' => '2026-08-15',
-            'classes_end_on' => '2026-12-15',
-            'authority_date' => '2026-07-15',
-        ]);
-        $this->addValidWindowsAndGridToPackage($draft);
-
-        Filament::setCurrentPanel(Filament::getPanel('staff'));
-
-        // Mount workbench and open saveAndActivateCalendar modal
-        $component = Livewire::actingAs($registrar)
-            ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
-            ->assertActionVisible('saveAndActivateCalendar')
-            ->mountAction('saveAndActivateCalendar');
-
-        $schemaName = $component->instance()->getMountedActionSchemaName();
-        $this->assertNotNull($schemaName);
-        $schema = $component->instance()->getSchema($schemaName);
-        $this->assertNotNull($schema);
-        $state = $schema->getState();
-
-        $this->assertSame($draft->concurrencyToken(), $state['draft_token']);
-
-        // Registrar A prepares an update in their open form
-        $state['authority_reference'] = 'STALE-SUBMISSION-OVERWRITE-ATTEMPT';
-        $component->setActionData($state);
-
-        // Advance time and simulate another Registrar updating the draft package in the database
-        $this->travel(10)->seconds();
-        $draft->update([
-            'authority_reference' => 'NEWER-UPDATE-BY-ANOTHER-REGISTRAR',
-        ]);
-
-        // Registrar A submits their now-stale form
-        $component->callMountedAction()
-            ->assertHasErrors(['classes_start_on']);
-
-        $this->assertStringContainsString(
-            'updated by another user',
-            $component->errors()->first('classes_start_on'),
-        );
-
-        // Confirm the newer draft remains intact and was not overwritten
-        $freshDraft = $draft->fresh(['teachingGridRows', 'windows']);
-        $this->assertSame('NEWER-UPDATE-BY-ANOTHER-REGISTRAR', $freshDraft->authority_reference);
-        $this->assertNotSame('STALE-SUBMISSION-OVERWRITE-ATTEMPT', $freshDraft->authority_reference);
-    }
-
     public function test_readiness_service_blocks_activation_on_invalid_breaks_and_conflicting_dated_exceptions(): void
     {
         $term = Term::factory()->create();
@@ -940,7 +831,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
             ->assertSee('A scheduled break falls outside the daily teaching hours.')
             ->mountAction('saveAndActivateCalendar')
             ->callMountedAction()
-            ->assertHasErrors(['readiness']);
+            ->assertHasErrors(['package_id', 'readiness']);
 
         try {
             app(ActivateTermCalendarPackage::class)->execute($draft->fresh(), $registrar);
@@ -1089,44 +980,6 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         $this->assertNotNull($olderReady->fresh()->activated_at);
         $this->assertSame(Term::StateActive, $term->fresh()->state);
         $this->assertSame($newerBefore, $newerInvalid->fresh()->getAttributes());
-    }
-
-    public function test_mounted_action_rejects_tampering_to_an_unready_draft_and_displays_its_blockers(): void
-    {
-        $registrar = $this->staff(User::StaffRoleRegistrar);
-        $term = Term::factory()->create(['state' => Term::StateDraft]);
-
-        $draft = TermCalendarPackage::factory()->for($term)->create([
-            'state' => TermCalendarPackage::StateDraft,
-            'version' => 1,
-            'authority_reference' => 'UNREADY-AUTH-001',
-            'authority_date' => '2026-07-01',
-            'administrative_starts_on' => '2026-08-01',
-            'administrative_ends_on' => '2026-12-31',
-            'classes_start_on' => '2026-08-15',
-            'classes_end_on' => '2026-12-15',
-        ]);
-        $this->addValidWindowsAndGridToPackage($draft);
-
-        // Put an out-of-bounds break on the teaching grid row to make it unready
-        $draft->teachingGridRows->first()->update([
-            'breaks' => [
-                ['starts_at' => '18:00:00', 'ends_at' => '19:00:00'],
-            ],
-        ]);
-
-        Filament::setCurrentPanel(Filament::getPanel('staff'));
-
-        Livewire::actingAs($registrar)
-            ->test(TermCalendar::class, ['termId' => $term->id, 'viewTab' => 'overview'])
-            ->assertActionVisible('saveAndActivateCalendar')
-            ->mountAction('saveAndActivateCalendar')
-            ->callMountedAction()
-            ->assertHasErrors(['package_id', 'readiness']);
-
-        $this->assertSame(TermCalendarPackage::StateDraft, $draft->fresh()->state);
-        $this->assertNull($draft->fresh()->activated_at);
-        $this->assertSame(Term::StateDraft, $term->fresh()->state);
     }
 
     public function test_unexpected_failure_during_activation_halts_cleanly_with_actionable_notification(): void

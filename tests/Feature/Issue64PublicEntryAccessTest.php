@@ -19,7 +19,7 @@ use Filament\Auth\Notifications\VerifyEmail;
 use Filament\Facades\Filament;
 use Filament\Notifications\Notification as FilamentNotification;
 use Illuminate\Contracts\Notifications\Dispatcher;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
@@ -34,7 +34,7 @@ use Tests\TestCase;
 
 class Issue64PublicEntryAccessTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     public function test_legacy_status_urls_recover_without_disclosure_dispatch_or_logout(): void
     {

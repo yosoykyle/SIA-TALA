@@ -8,6 +8,7 @@ use App\Models\AdmissionApplication;
 use App\Models\User;
 use App\Queries\Admissions\AdmissionQueueCounts;
 use Filament\Facades\Filament;
+use Filament\Tables\Enums\FiltersLayout;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Permission;
@@ -50,7 +51,20 @@ class AdmissionsStudentTypeTabsTest extends TestCase
         $this->assertStringNotContainsString('filters', $page->instance()->queueUrl(AdmissionQueueCounts::NeedsReview));
 
         $transfereeCount = $queues->count(AdmissionQueueCounts::NeedsReview, AdmissionApplication::PathTransferee);
-        Livewire::actingAs($this->registrar())->test(ListAdmissionApplications::class, ['activeTab' => AdmissionQueueCounts::NeedsReview])
+        $appsComponent = Livewire::actingAs($this->registrar())->test(ListAdmissionApplications::class, ['activeTab' => AdmissionQueueCounts::NeedsReview])
+            ->assertSee('Admission cycle')
+            ->assertSee('Program')
+            ->assertSee('Student type');
+        $appsComponent->instance()->bootedInteractsWithTable();
+        $table = $appsComponent->instance()->getTable();
+        $this->assertSame(FiltersLayout::Dropdown, $table->getFiltersLayout());
+        $this->assertFalse($table->hasDeferredFilters());
+        $this->assertSame(
+            ['admission_cycle_id', 'program_id', 'application_path', 'application_state'],
+            array_slice(array_keys($table->getFilters()), 0, 4),
+        );
+
+        $appsComponent
             ->filterTable('application_path', AdmissionApplication::PathTransferee)
             ->assertSee($transfereeCount === 1 ? '1 application' : $transfereeCount.' applications')
             ->assertDontSee(($before['all'] + 3).' applications');

@@ -8,14 +8,14 @@ use App\Models\AdmissionCycle;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Database\QueryException;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class TAL96D5BApplicantLifecycleHistoryTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {

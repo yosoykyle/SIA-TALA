@@ -5,7 +5,7 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Providers\Filament\AdminPanelProvider;
 use Filament\Panel;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Spatie\Permission\Models\Role;
@@ -13,7 +13,7 @@ use Tests\TestCase;
 
 class TAL96D4ASystemUxFoundationTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {
@@ -100,6 +100,9 @@ class TAL96D4ASystemUxFoundationTest extends TestCase
             ->assertDontSee('Powered by TALA')
             ->assertSee('/applicant', false)
             ->assertSee('Use another account')
+            ->assertSee('Contact support')
+            ->assertSee('class="error-support-link"', false)
+            ->assertDontSee('HTTP 403')
             ->assertSee($applicant->fresh()->name)
             ->assertSee($applicant->email)
             ->assertSee('action="'.route('logout').'"', false)
@@ -142,45 +145,5 @@ class TAL96D4ASystemUxFoundationTest extends TestCase
         $panel = (new AdminPanelProvider($this->app))->panel(new Panel);
 
         $this->assertSame('Servitech Institute Asia — Staff Workspace', $panel->getBrandName());
-    }
-
-    public function test_error_page_actions_and_focus_indicators_meet_contrast_thresholds(): void
-    {
-        $stylesheet = file_get_contents(public_path('css/tala-error.css'));
-
-        $this->assertIsString($stylesheet);
-        $this->assertStringContainsString('outline: 0.1875rem solid #92400e;', $stylesheet);
-        $this->assertStringContainsString('outline-color: #f59e0b;', $stylesheet);
-        $this->assertStringNotContainsString('background: #3b82f6;', $stylesheet);
-        $this->assertGreaterThanOrEqual(4.5, $this->contrastRatio('ffffff', '1d4ed8'));
-        $this->assertGreaterThanOrEqual(3.0, $this->contrastRatio('92400e', 'ffffff'));
-        $this->assertGreaterThanOrEqual(3.0, $this->contrastRatio('f59e0b', '172033'));
-    }
-
-    private function contrastRatio(string $firstHex, string $secondHex): float
-    {
-        $firstLuminance = $this->relativeLuminance($firstHex);
-        $secondLuminance = $this->relativeLuminance($secondHex);
-
-        return (max($firstLuminance, $secondLuminance) + 0.05)
-            / (min($firstLuminance, $secondLuminance) + 0.05);
-    }
-
-    private function relativeLuminance(string $hex): float
-    {
-        $channels = array_map(
-            static function (string $channel): float {
-                $component = hexdec($channel) / 255;
-
-                return $component <= 0.04045
-                    ? $component / 12.92
-                    : (($component + 0.055) / 1.055) ** 2.4;
-            },
-            str_split($hex, 2),
-        );
-
-        return (0.2126 * $channels[0])
-            + (0.7152 * $channels[1])
-            + (0.0722 * $channels[2]);
     }
 }

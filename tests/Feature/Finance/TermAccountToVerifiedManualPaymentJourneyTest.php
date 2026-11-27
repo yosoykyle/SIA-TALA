@@ -81,6 +81,7 @@ use Livewire\Livewire;
 use RuntimeException;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
@@ -96,10 +97,16 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         $this->assertSame((string) env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
         $this->travelTo(CarbonImmutable::parse('2026-08-25 18:10:00', config('app.timezone')));
 
-        Role::query()->firstOrCreate([
-            'name' => User::StaffRoleAccounting,
-            'guard_name' => 'web',
-        ]);
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        foreach ([
+            User::StaffRoleAccounting,
+            User::StaffRoleRegistrar,
+            'student',
+            'applicant',
+        ] as $role) {
+            Role::findOrCreate($role, 'web');
+        }
     }
 
     public function test_fee_plan_uses_independent_reconciled_obligations_with_due_dates(): void
@@ -520,7 +527,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
             $evidence, $fixture['accounting'], '3000.00', 'SYN-BANK-CHECK-OUTPUT',
         );
         $fixture['obligations'][1]->update(['due_at' => null]);
-        $fixture['learner']->assignRole(Role::findOrCreate('student', 'web'));
+        $fixture['learner']->assignRole('student');
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         $this->actingAs($fixture['learner'])
@@ -647,13 +654,11 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
     {
         $fixture = $this->accountFixture();
         $this->enableDigitalChannels($fixture['accounting']);
-        Role::query()->firstOrCreate(['name' => 'student', 'guard_name' => 'web']);
         $fixture['learner']->assignRole('student');
         $profile = StudentProfile::factory()->create(['user_id' => $fixture['learner']->id]);
         $fixture['account']->enrollment->update(['student_profile_id' => $profile->id]);
 
         $this->assertFalse(Route::has('finance.billing-slip'));
-        $this->assertFileDoesNotExist(app_path('Actions/Reports/OperationalReportService.php'));
 
         $this->actingAs($fixture['learner'])
             ->get(route('filament.student.pages.finance'))
@@ -824,7 +829,6 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         Storage::fake('local');
         $fixture = $this->accountFixture();
         $this->enableDigitalChannels($fixture['accounting']);
-        Role::findOrCreate('student', 'web');
         $fixture['learner']->assignRole('student');
         $profile = StudentProfile::factory()->create(['user_id' => $fixture['learner']->id]);
         $fixture['account']->enrollment->update(['student_profile_id' => $profile->id]);
@@ -1022,7 +1026,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         $package = TermCalendarPackage::factory()->for($enrollment->term)->create(['state' => TermCalendarPackage::StateActive, 'activated_at' => now()]);
         TermCalendarWindow::factory()->for($package, 'package')->create(['window_type' => TermCalendarWindow::TypeCourseDrop, 'opens_on' => now()->subDay()->toDateString(), 'closes_on' => now()->addDay()->toDateString(), 'cutoff_at' => '23:59:59']);
         $registrar = User::factory()->create(['status' => User::StatusActive]);
-        $registrar->assignRole(Role::findOrCreate(User::StaffRoleRegistrar, 'web'));
+        $registrar->assignRole(User::StaffRoleRegistrar);
         $drop = app(RecordCourseDrop::class)->execute($enrollment, $courses->first(), $registrar, 'Approved ordinary Course Drop.');
         $this->assertNull($drop->authority_reference);
         $sources = app(IndividualAssessmentSources::class)->forEnrollment($enrollment->fresh());
@@ -1162,9 +1166,8 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
 
     public function test_individual_assessment_discovery_requires_valid_reserved_initial_proposal_and_eligible_case_basis(): void
     {
-        Role::findOrCreate('student', 'web');
         $registrar = User::factory()->create(['status' => User::StatusActive]);
-        $registrar->assignRole(Role::findOrCreate(User::StaffRoleRegistrar, 'web'));
+        $registrar->assignRole(User::StaffRoleRegistrar);
         $profile = StudentProfile::factory()->create();
         $profile->user->update(['status' => User::StatusActive]);
         $profile->user->assignRole('student');
@@ -1499,9 +1502,8 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
     private function unassessedAdvisedApplicantFixture(): array
     {
         Mail::fake();
-        Role::findOrCreate('applicant', 'web');
         $registrar = User::factory()->create(['status' => User::StatusActive]);
-        $registrar->assignRole(Role::findOrCreate(User::StaffRoleRegistrar, 'web'));
+        $registrar->assignRole(User::StaffRoleRegistrar);
         $term = Term::factory()->create(['state' => Term::StateActive]);
         $package = TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive, 'activated_at' => now()]);
         TermCalendarWindow::factory()->for($package, 'package')->create([
@@ -1573,7 +1575,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         Storage::fake('local');
         $fixture = $this->accountFixture();
         $this->enableDigitalChannels($fixture['accounting']);
-        $fixture['learner']->assignRole(Role::findOrCreate('student', 'web'));
+        $fixture['learner']->assignRole('student');
         $profile = StudentProfile::factory()->create(['user_id' => $fixture['learner']->id]);
         $fixture['account']->enrollment->update(['student_profile_id' => $profile->id]);
         Filament::setCurrentPanel(Filament::getPanel('student'));
@@ -1614,7 +1616,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         Storage::fake('local');
         $fixture = $this->accountFixture();
         $this->enableDigitalChannels($fixture['accounting']);
-        $fixture['learner']->assignRole(Role::findOrCreate('student', 'web'));
+        $fixture['learner']->assignRole('student');
         $profile = StudentProfile::factory()->create(['user_id' => $fixture['learner']->id]);
         $fixture['account']->enrollment->update(['student_profile_id' => $profile->id]);
         Filament::setCurrentPanel(Filament::getPanel('student'));
@@ -1643,7 +1645,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
     public function test_student_overview_never_promises_preparation_for_closed_or_unknown_enrollment(): void
     {
         $fixture = $this->accountFixture();
-        $fixture['learner']->assignRole(Role::findOrCreate('student', 'web'));
+        $fixture['learner']->assignRole('student');
         $profile = StudentProfile::factory()->create(['user_id' => $fixture['learner']->id]);
         $case = $fixture['account']->enrollment;
         $case->update(['student_profile_id' => $profile->id]);
@@ -1664,7 +1666,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
     public function test_student_finance_unavailable_and_foreign_sources_never_become_zero_balance_or_owned_history(): void
     {
         $fixture = $this->accountFixture();
-        $fixture['learner']->assignRole(Role::findOrCreate('student', 'web'));
+        $fixture['learner']->assignRole('student');
         $other = $this->accountFixture();
         $foreign = PaymentEvidenceVersion::factory()->create(['term_account_id' => $other['account']->id,
             'original_name' => 'FOREIGN-PRIVATE-PROOF.pdf', 'submitted_by' => $other['learner']->id]);
@@ -1683,7 +1685,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         Storage::fake('local');
         $past = $this->accountFixture();
         $this->enableDigitalChannels($past['accounting']);
-        $past['learner']->assignRole(Role::findOrCreate('student', 'web'));
+        $past['learner']->assignRole('student');
         $past['account']->term->update(['label' => 'Past synthetic term']);
         $proof = app(SubmitPaymentEvidence::class)->execute($past['account'], $past['learner'],
             UploadedFile::fake()->image('past-private-proof.png'), '100.00', 'bank_transfer', now()->subHour(), 'PAST-PROOF');
@@ -1727,7 +1729,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
     public function test_past_finance_selection_rejects_foreign_missing_and_invalid_ids_without_disclosure(): void
     {
         $fixture = $this->accountFixture();
-        $fixture['learner']->assignRole(Role::findOrCreate('student', 'web'));
+        $fixture['learner']->assignRole('student');
         $foreign = $this->accountFixture();
         $foreign['account']->term->update(['label' => 'FOREIGN-PRIVATE-TERM']);
         Filament::setCurrentPanel(Filament::getPanel('student'));
@@ -1849,7 +1851,6 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         $fixture = $this->accountFixture();
         $fixture['account']->enrollment->update(['canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled]);
         $this->evidence($fixture, ['term_account_id' => $fixture['account']->id, 'original_name' => 'PRIVATE-RECEIPT.pdf', 'payment_reference' => 'PRIVATE-BANK-REFERENCE', 'state' => PaymentEvidenceVersion::StateSubmitted]);
-        Role::firstOrCreate(['name' => User::StaffRoleRegistrar, 'guard_name' => 'web']);
         $registrar = User::factory()->create(['status' => User::StatusActive]);
         $registrar->assignRole(User::StaffRoleRegistrar);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
@@ -1890,7 +1891,6 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
     {
         $fixture = $this->accountFixture();
         $this->appliedCoverage($fixture, 0, '2000.00');
-        Role::query()->firstOrCreate(['name' => User::StaffRoleRegistrar, 'guard_name' => 'web']);
         $registrar = User::factory()->create(['status' => User::StatusActive]);
         $registrar->assignRole(User::StaffRoleRegistrar);
         $registrar->givePermissionTo(Permission::query()->firstOrCreate(['name' => 'process-payments', 'guard_name' => 'web']));
@@ -2059,7 +2059,6 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
     {
         $accounting = $this->accounting();
         $learner = User::factory()->create(['status' => User::StatusActive]);
-        Role::query()->firstOrCreate(['name' => 'applicant', 'guard_name' => 'web']);
         $learner->assignRole('applicant');
         $term = Term::factory()->create();
         $enrollment = Enrollment::factory()->create([

@@ -20,8 +20,17 @@ class CanonicalAdmissionsRoutingTest extends TestCase
         $this->assertNotContains('App\Filament\Resources\AdmissionRequirementPolicies\AdmissionRequirementPolicyResource', $resources);
 
         $this->assertTrue(Route::has('filament.admin.resources.admission-applications.index'));
+        $this->assertTrue(Route::has('filament.admin.resources.admission-applications.view'));
         $this->assertTrue(Route::has('filament.admin.resources.admission-cycles.index'));
+        $this->assertTrue(Route::has('filament.admin.resources.admission-cycles.create'));
+        $this->assertTrue(Route::has('filament.admin.resources.admission-cycles.view'));
+        $this->assertTrue(Route::has('filament.admin.resources.admission-cycles.edit'));
         $this->assertFalse(Route::has('filament.admin.resources.applicant-intakes.index'));
+        $this->assertFalse(Route::has('filament.admin.resources.applicant-intakes.view'));
         $this->assertFalse(Route::has('filament.admin.resources.admission-requirement-policies.index'));
+        $this->assertFalse(Route::has('filament.admin.resources.admission-requirement-policies.create'));
+
+        $this->assertFileDoesNotExist(app_path('Actions/Applicants/HandOverApprovedApplicant.php'));
+        $this->assertFalse(class_exists('App\\Actions\\Applicants\\HandOverApprovedApplicant'));
     }
 }

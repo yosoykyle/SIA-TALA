@@ -5,13 +5,13 @@ namespace Tests\Feature;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Filament\Facades\Filament;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class TAL93J3cPreIntegrationGateTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {

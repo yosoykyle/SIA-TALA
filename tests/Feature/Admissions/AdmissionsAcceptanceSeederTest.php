@@ -10,13 +10,13 @@ use App\Models\User;
 use Database\Seeders\AdmissionsAcceptanceSeeder;
 use Database\Seeders\ClientAlignedAcceptanceBaselineSeeder;
 use Database\Seeders\DatabaseSeeder;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class AdmissionsAcceptanceSeederTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     public function test_coordinated_synthetic_cycle_is_complete_published_and_idempotent(): void
     {

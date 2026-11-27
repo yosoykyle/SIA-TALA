@@ -17,7 +17,7 @@ use App\Models\User;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
 use Database\Seeders\Issue57AdmissionsExplorationSeeder;
 use Filament\Facades\Filament;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
@@ -30,7 +30,7 @@ use Tests\TestCase;
 
 class Issue57AdmissionsExplorationSeederTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     public function test_narrow_exploration_seed_creates_canonical_states_without_resetting_other_records(): void
     {

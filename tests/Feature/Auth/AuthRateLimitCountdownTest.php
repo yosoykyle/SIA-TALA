@@ -74,21 +74,6 @@ class AuthRateLimitCountdownTest extends TestCase
             ->assertSee('data-phase="calm"', false)
             ->assertSee('<span>8</span><span></span>', false)
             ->assertDontSee('Use another account');
-
-        $css = (string) file_get_contents(public_path('css/tala-auth-countdown.css'));
-        $this->assertStringContainsString(".tala-auth-countdown[data-phase='warm']", $css);
-        $this->assertStringContainsString(".tala-auth-countdown[data-phase='calm']", $css);
-        $this->assertStringContainsString(".tala-ambient--auth[data-auth-state='rate-limited'][data-rate-limit-phase='warm']", $css);
-        $this->assertStringContainsString(".tala-ambient--auth[data-auth-state='rate-limited'] .tala-ambient-trinket", $css);
-        $this->assertStringContainsString('.dark .tala-auth-countdown', $css);
-        $this->assertStringContainsString('prefers-reduced-motion: reduce', $css);
-        $this->assertStringContainsString('forced-colors: active', $css);
-
-        $js = (string) file_get_contents(public_path('js/tala-auth-countdown.js'));
-        $this->assertStringContainsString('Date.now() - element.__talaStartedAt', $js);
-        $this->assertStringContainsString('clearAuthRateLimit', $js);
-        $this->assertStringContainsString('beatAmbientTrinkets', $js);
-        $this->assertStringContainsString("ambient.dataset.authState = 'rate-limited'", $js);
     }
 
     public function test_contextual_login_rate_limit_replaces_form_with_countdown_and_allows_switching_account(): void

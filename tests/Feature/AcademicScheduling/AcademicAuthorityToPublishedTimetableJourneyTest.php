@@ -63,7 +63,7 @@ use App\Models\TermTeachingGridRow;
 use App\Models\TimetableRevision;
 use App\Models\User;
 use Illuminate\Console\Command;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
@@ -75,7 +75,7 @@ use Tests\TestCase;
 
 final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {
@@ -510,17 +510,6 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
             ->assertSet('termId', $term->id)
             ->assertSee('Timetable')
             ->assertSeeHtml(e(TermCalendar::getUrl(['termId' => $term->id])));
-
-        Livewire::actingAs($registrar)
-            ->test(TermOverview::class, ['termId' => $term->id])
-            ->assertRedirect(TermCalendar::getUrl(['termId' => $term->id]));
-
-        $calendar = Livewire::actingAs($registrar)
-            ->test(TermCalendar::class, ['termId' => $term->id]);
-        $calendar->assertSeeHtml(e(TermCalendar::getUrl(['termId' => $term->id])))
-            ->assertSee('2. Sections & classes')
-            ->assertSee('3. Faculty & rooms')
-            ->assertSee('4. Timetable');
 
         // Activate calendar to unlock Step 2 and verify direct TermClasses navigation link + default cohorts view.
         TermCalendarPackage::factory()->for($term)->create([

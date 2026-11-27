@@ -17,10 +17,13 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+use PHPUnit\Framework\Attributes\Group;
 use Spatie\Permission\Models\Role;
 use Symfony\Component\Process\Process;
 use Tests\TestCase;
 
+#[Group('slow')]
+#[Group('concurrency')]
 class Issue57DiscardSubmissionConcurrencyTest extends TestCase
 {
     use DatabaseTransactions;

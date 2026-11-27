@@ -17,14 +17,14 @@ use App\Models\DocumentEvidence;
 use App\Models\IdentityMatchReview;
 use App\Models\OfficialCredentialResult;
 use App\Models\PreliminaryEvidenceReview;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use InvalidArgumentException;
 use LogicException;
 use Tests\TestCase;
 
 class ApplicationAdmissionDomainFoundationTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     public function test_canonical_applications_share_the_existing_table_without_reinterpreting_legacy_rows(): void
     {

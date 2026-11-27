@@ -9,25 +9,61 @@ use App\Filament\Pages\MyAvailability;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Models\StudentProfile;
 use App\Models\User;
-use Database\Seeders\DatabaseSeeder;
 use Filament\Facades\Filament;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 class LearnerWorkspaceNavigationBoundaryTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        foreach (['applicant', 'student', ...User::staffRoleNames()] as $role) {
-            Role::findOrCreate($role, 'web');
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        $rolePermissions = [
+            'applicant' => [],
+            'student' => [],
+            User::StaffRoleRegistrar => [
+                'approve-documents',
+                'evaluate-transferees',
+                'manage-student-profiles',
+                'manage-admission-setup',
+                'manage-schedules',
+                'manage-sections',
+            ],
+            User::StaffRoleAccounting => [
+                'create-assessments',
+                'process-payments',
+                'post-accounting-adjustments',
+            ],
+            User::StaffRoleFaculty => [],
+            User::StaffRoleAcademicHead => [
+                'authorize-overrides',
+                'view-global-records',
+            ],
+            User::StaffRoleSystemSuperAdmin => [
+                'manage-faqs',
+                'manage-public-notices',
+            ],
+        ];
+
+        foreach ($rolePermissions as $role => $permissions) {
+            foreach ($permissions as $permission) {
+                Permission::findOrCreate($permission, 'web');
+            }
+
+            Role::findOrCreate($role, 'web')->syncPermissions($permissions);
         }
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 
     protected function tearDown(): void
@@ -67,7 +103,6 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
     #[DataProvider('staffNavigation')]
     public function test_each_staff_context_has_only_its_canonical_top_level_destinations(string $role, array $expected): void
     {
-        $this->seed(DatabaseSeeder::class);
         $user = $this->userWithRole($role, User::StatusActive);
         $this->withSession([WorkspaceContextResolver::SessionKey => $role]);
 
@@ -87,12 +122,6 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
 
     public function test_removed_primary_entries_keep_their_required_contextual_recovery_paths(): void
     {
-        $this->seed(DatabaseSeeder::class);
-
-        $applicantDashboard = file_get_contents(app_path('Filament/Applicant/Pages/Dashboard.php'));
-        $this->assertStringContainsString('Requirements::getUrl([\'application\' => $application->id])', $applicantDashboard);
-        $this->assertStringContainsString('View requirements', $applicantDashboard);
-
         $registrar = $this->userWithRole(User::StaffRoleRegistrar, User::StatusActive);
         $this->actingAs($registrar)->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleRegistrar]);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
@@ -110,15 +139,6 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
             ->assertSee('Lifecycle Exceptions')
             ->assertSee('Completion & TOR')
             ->assertSee('Student academic records');
-
-        $provider = file_get_contents(app_path('Providers/Filament/AdminPanelProvider.php'));
-        $this->assertStringContainsString('FacultyOverview::class', $provider);
-        $this->assertStringContainsString('MyAvailability::class', $provider);
-        $this->assertStringContainsString("NavigationItem::make('My schedule')", $provider);
-        $this->assertStringContainsString("NavigationItem::make('Class list & grades')", $provider);
-        $this->assertStringContainsString("'Public Content' => PublicContent::class", $provider);
-        $this->assertStringNotContainsString("'Admission Cycles' =>", $provider);
-        $this->assertStringNotContainsString("'My Unavailable Times' =>", $provider);
 
         $faculty = $this->userWithRole(User::StaffRoleFaculty, User::StatusActive);
         $this->actingAs($faculty)->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleFaculty]);

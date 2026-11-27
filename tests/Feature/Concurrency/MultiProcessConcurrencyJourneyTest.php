@@ -62,12 +62,15 @@ use App\Models\TranscriptRequest;
 use App\Models\TranscriptSnapshot;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Role;
 use Symfony\Component\Process\Process;
 use Tests\InteractsWithGradeRosterDrafts;
 use Tests\TestCase;
 
+#[Group('slow')]
+#[Group('concurrency')]
 class MultiProcessConcurrencyJourneyTest extends TestCase
 {
     use InteractsWithGradeRosterDrafts;

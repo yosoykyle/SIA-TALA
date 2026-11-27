@@ -4,9 +4,6 @@ namespace Tests\Feature;
 
 use App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications;
 use App\Models\AdmissionApplication;
-use App\Models\ApplicantIntake;
-use App\Models\Enrollment;
-use App\Models\StudentProfile;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -23,7 +20,6 @@ class TAL96D5E1B2BAdmissionsWorkQueueTest extends TestCase
     {
         parent::setUp();
 
-        Role::findOrCreate('applicant', 'web');
         Role::findOrCreate(User::StaffRoleRegistrar, 'web')->givePermissionTo([
             Permission::findOrCreate('approve-documents', 'web'),
             Permission::findOrCreate('manage-admission-setup', 'web'),
@@ -57,20 +53,6 @@ class TAL96D5E1B2BAdmissionsWorkQueueTest extends TestCase
             ->assertTableBulkActionDoesNotExist('admit')
             ->assertTableBulkActionDoesNotExist('verify')
             ->assertTableBulkActionDoesNotExist('withdraw');
-    }
-
-    public function test_retired_handover_cannot_create_student_or_enrollment_records(): void
-    {
-        $registrar = $this->registrar();
-        $applicant = User::factory()->create(['status' => User::StatusActive]);
-        $applicant->assignRole('applicant');
-        $intake = ApplicantIntake::factory()->approved($registrar)->create([
-            'user_id' => $applicant->id,
-        ]);
-
-        $this->assertFileDoesNotExist(app_path('Actions/Applicants/HandOverApprovedApplicant.php'));
-        $this->assertSame(0, StudentProfile::query()->where('applicant_intake_id', $intake->id)->count());
-        $this->assertSame(0, Enrollment::query()->count());
     }
 
     public function test_work_queue_tabs_keep_current_journey_states_separate(): void

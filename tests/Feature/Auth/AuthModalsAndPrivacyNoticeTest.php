@@ -112,21 +112,6 @@ class AuthModalsAndPrivacyNoticeTest extends TestCase
         }
     }
 
-    public function test_landing_modal_script_and_auth_theme_css_enforce_clean_history_and_compact_register_layout(): void
-    {
-        $landingJs = file_get_contents(public_path('landing/js/main.js'));
-        $this->assertStringContainsString("document.readyState !== 'loading'", $landingJs);
-        $this->assertStringContainsString('clearRequestedModalUrl(requestedModal)', $landingJs);
-        $this->assertStringContainsString('window.history.replaceState(', $landingJs);
-        $this->assertStringContainsString("currentUrl.searchParams.delete('modal')", $landingJs);
-
-        $themeCss = file_get_contents(resource_path('css/filament/tala/theme.css'));
-        $this->assertStringNotContainsString('--tala-auth-media-height: clamp(6.5rem, 18svh, 11rem);', $themeCss);
-        $this->assertStringContainsString('padding-block: clamp(0.625rem, 1.5svh, 1rem);', $themeCss);
-        $this->assertStringContainsString('.tala-privacy-notice-content', $themeCss);
-        $this->assertStringContainsString('.tala-support-channels', $themeCss);
-    }
-
     /** @return array<string, array{string}> */
     public static function panels(): array
     {

@@ -37,7 +37,7 @@ use App\Policies\AdmissionApplicationPolicy;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
 use Filament\Facades\Filament;
 use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -50,7 +50,7 @@ use Tests\TestCase;
 
 class Issue64AdmissionsJourneyTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {

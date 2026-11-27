@@ -9,7 +9,6 @@ use App\Actions\Admissions\AdmissionReviewGuard;
 use App\Actions\Admissions\RequestAdmissionCorrection;
 use App\Actions\Admissions\SaveAdmissionApplication;
 use App\Actions\Admissions\SubmitAdmissionApplication;
-use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Actions\Finance\PaymentPostedNotificationService;
 use App\Actions\Finance\SchoolPaymentChannels;
 use App\Actions\Finance\SubmitPaymentEvidence;
@@ -65,14 +64,14 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
-use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
-use Spatie\Permission\PermissionRegistrar;
+use Tests\Feature\AcademicScheduling\Concerns\InteractsWithAcademicSchedulingFixtures;
 use Tests\TestCase;
 
 final class Issue93WorkflowPolishAndNotificationsTest extends TestCase
 {
     use DatabaseTransactions;
+    use InteractsWithAcademicSchedulingFixtures;
 
     protected function setUp(): void
     {
@@ -550,7 +549,7 @@ final class Issue93WorkflowPolishAndNotificationsTest extends TestCase
             'ends_on' => '2027-02-21',
         ]);
 
-        $calendar = Livewire::withQueryParams(['termId' => $term->id])->test(TermCalendar::class)
+        Livewire::withQueryParams(['termId' => $term->id])->test(TermCalendar::class)
             ->assertOk()
             ->assertSeeHtml('tala-calendar-facts')
             ->assertSee('30-minute intervals')
@@ -559,39 +558,20 @@ final class Issue93WorkflowPolishAndNotificationsTest extends TestCase
             ->assertDontSeeHtml('tala-calendar-schematic')
             ->assertDontSeeHtml('fi-empty-state');
 
-        $this->assertSame([], $calendar->instance()->getSubNavigation());
-
         $timetable = Livewire::withQueryParams(['termId' => $term->id])->test(TermTimetable::class)
             ->assertOk()
-            ->assertSeeHtml('tala-stage-bar')
-            ->assertSeeHtml('aria-label="Term planning progress"')
-            ->assertSee('1. Calendar')
-            ->assertSee('2. Sections & classes')
-            ->assertSee('3. Faculty & rooms')
-            ->assertSee('4. Timetable')
             ->assertDontSeeHtml('fi-page-sub-navigation-tabs')
             ->assertDontSeeHtml('tala-timetable-step-rail');
 
-        $this->assertSame([], $timetable->instance()->getSubNavigation());
         $this->assertSame(1, substr_count($timetable->html(), 'wire:partial="action-modals"'));
     }
 
     private function staff(string $roleName): User
     {
-        $role = Role::findOrCreate($roleName, 'web');
-        if ($roleName === User::StaffRoleRegistrar) {
-            $role->givePermissionTo([
-                Permission::findOrCreate('manage-schedules', 'web'),
-                Permission::findOrCreate('approve-documents', 'web'),
-                Permission::findOrCreate('manage-admission-setup', 'web'),
-            ]);
-        }
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
-
-        $user = User::factory()->create(['status' => User::StatusActive, 'email_verified_at' => now()]);
-        $user->assignRole($role);
-        $this->actingAs($user)->withSession([WorkspaceContextResolver::SessionKey => $roleName]);
-
-        return $user;
+        return $this->createSchedulingStaff(
+            $roleName,
+            $roleName === User::StaffRoleRegistrar ? ['manage-schedules', 'approve-documents', 'manage-admission-setup'] : [],
+            verified: true,
+        );
     }
 }

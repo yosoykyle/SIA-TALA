@@ -13,7 +13,7 @@ use App\Models\AdmissionRequirementSet;
 use App\Models\Program;
 use App\Models\Term;
 use App\Models\User;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Permission;
@@ -22,7 +22,7 @@ use Tests\TestCase;
 
 class AdmissionCycleDomainActionsTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {

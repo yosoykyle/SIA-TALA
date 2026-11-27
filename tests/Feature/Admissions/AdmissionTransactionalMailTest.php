@@ -10,7 +10,7 @@ use App\Models\ApplicationCorrectionRequest;
 use App\Models\OperationalEvent;
 use App\Models\Term;
 use App\Models\User;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
@@ -20,7 +20,7 @@ use Tests\TestCase;
 
 class AdmissionTransactionalMailTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {

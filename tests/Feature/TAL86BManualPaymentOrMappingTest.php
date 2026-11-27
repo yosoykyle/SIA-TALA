@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Actions\Finance\MapOfficialReceiptToPayment;
 use App\Actions\Finance\PaymentConfirmationService;
+use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
 use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\LedgerEntry;
@@ -11,6 +12,7 @@ use App\Models\Payment;
 use App\Models\Program;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use App\Models\TermAccount;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
@@ -19,6 +21,7 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
+use Livewire\Livewire;
 use RuntimeException;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -271,6 +274,49 @@ final class TAL86BManualPaymentOrMappingTest extends TestCase
                 ->where('direction', LedgerEntry::DirectionPayment)
                 ->count());
         }
+    }
+
+    public function test_inline_view_enrollment_action_maps_official_receipt_and_rejects_duplicate_or(): void
+    {
+        $accounting = $this->staff(User::StaffRoleAccounting);
+        $fixture = $this->activeAssessmentFixture();
+        $termAccount = TermAccount::query()->create([
+            'enrollment_id' => $fixture['enrollment']->id,
+            'credential_user_id' => $fixture['student']->id,
+            'term_id' => $fixture['term']->id,
+            'state' => TermAccount::StateOpen,
+        ]);
+        $firstPayment = $this->verifiedPostedPayment($fixture, [
+            'term_account_id' => $termAccount->id,
+            'state' => Payment::StatePosted,
+            'provider_reference' => 'MANUAL-INLINE-86B-1',
+        ]);
+        $secondPayment = $this->verifiedPostedPayment($fixture, [
+            'term_account_id' => $termAccount->id,
+            'state' => Payment::StatePosted,
+            'provider_reference' => 'MANUAL-INLINE-86B-2',
+        ]);
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $page = Livewire::actingAs($accounting)
+            ->test(ViewEnrollment::class, ['record' => $fixture['enrollment']->id]);
+
+        $page->mountAction('mapOfficialReceipt', ['payment' => $firstPayment->id])
+            ->assertActionMounted('mapOfficialReceipt')
+            ->setActionData(['payment_id' => $firstPayment->id, 'or_number' => 'OR-MAP-86B-1'])
+            ->callMountedAction()
+            ->assertHasNoActionErrors()
+            ->assertNotified('Official Receipt mapped');
+
+        $this->assertSame('OR-MAP-86B-1', $firstPayment->fresh()->or_number);
+        $this->assertSame($accounting->id, $firstPayment->fresh()->or_mapped_by);
+
+        $page->mountAction('mapOfficialReceipt', ['payment' => $secondPayment->id])
+            ->setActionData(['payment_id' => $secondPayment->id, 'or_number' => 'OR-MAP-86B-1'])
+            ->callMountedAction()
+            ->assertNotified('Official Receipt was not mapped');
+
+        $this->assertNull($secondPayment->fresh()->or_number);
     }
 
     /**

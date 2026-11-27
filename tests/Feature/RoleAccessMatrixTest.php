@@ -19,6 +19,7 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 /**
@@ -33,19 +34,14 @@ class RoleAccessMatrixTest extends TestCase
      */
     use DatabaseTransactions;
 
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->seed(DatabaseSeeder::class);
-    }
-
     /**
      * @param  list<string>  $expected
      */
     #[DataProvider('canonicalRolePermissions')]
     public function test_seeded_role_has_exactly_its_canonical_permissions(string $role, array $expected): void
     {
+        $this->seed(DatabaseSeeder::class);
+
         $roleModel = Role::findByName($role, 'web');
 
         $this->assertEqualsCanonicalizing(
@@ -61,6 +57,16 @@ class RoleAccessMatrixTest extends TestCase
     #[DataProvider('resourceAccessMatrix')]
     public function test_permission_gated_resource_access_matches_role(string $role, string $resource, bool $expected): void
     {
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        $permissions = $this->canonicalPermissionsForRole($role);
+        foreach ($permissions as $permission) {
+            Permission::findOrCreate($permission, 'web');
+        }
+
+        Role::findOrCreate($role, 'web')->syncPermissions($permissions);
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
         $user = User::factory()->create(['status' => User::StatusActive]);
         $user->assignRole($role);
 
@@ -76,6 +82,14 @@ class RoleAccessMatrixTest extends TestCase
 
     public function test_canonical_permission_set_is_complete_and_fully_assigned(): void
     {
+        $this->seed(DatabaseSeeder::class);
+
+        $this->assertSame(
+            ['academic-head', 'accounting', 'applicant', 'faculty', 'registrar', 'student', 'system-super-admin'],
+            Role::query()->where('guard_name', 'web')->orderBy('name')->pluck('name')->all(),
+            'Exactly the 7 canonical roles must be seeded.',
+        );
+
         $this->assertSame(
             13,
             Permission::query()->where('guard_name', 'web')->count(),
@@ -214,5 +228,19 @@ class RoleAccessMatrixTest extends TestCase
                 'role' => 'accounting', 'resource' => TermTimetable::class, 'expected' => false,
             ],
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function canonicalPermissionsForRole(string $role): array
+    {
+        foreach (self::canonicalRolePermissions() as $entry) {
+            if ($entry['role'] === $role) {
+                return $entry['expected'];
+            }
+        }
+
+        return [];
     }
 }

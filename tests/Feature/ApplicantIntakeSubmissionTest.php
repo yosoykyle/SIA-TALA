@@ -13,14 +13,14 @@ use App\Models\Program;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\User;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class ApplicantIntakeSubmissionTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {

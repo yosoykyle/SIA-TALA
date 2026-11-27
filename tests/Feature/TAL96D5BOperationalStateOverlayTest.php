@@ -35,12 +35,13 @@ final class TAL96D5BOperationalStateOverlayTest extends TestCase
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
         $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
-        $this->artisan('acceptance:seed-client-baseline')->assertSuccessful();
     }
 
     #[Test]
-    public function canonical_operational_overlay_is_guarded_idempotent_and_preserves_scheduling_inputs(): void
+    public function canonical_operational_overlay_is_guarded_idempotent_exposes_named_states_and_passes_coverage_matrix(): void
     {
+        $this->artisan('acceptance:seed-client-baseline')->assertSuccessful();
+
         $term = $this->presentationTerm();
         $before = $this->schedulingFingerprint($term);
         $scheduleRunCount = ScheduleGenerationRun::query()->count();
@@ -84,13 +85,8 @@ final class TAL96D5BOperationalStateOverlayTest extends TestCase
                 ->pluck('requirement_type')
                 ->all(),
         );
-    }
 
-    #[Test]
-    public function canonical_overlay_exposes_named_enrollment_finance_grade_and_lifecycle_states(): void
-    {
-        $this->artisan('acceptance:seed-tal96d5b-states')->assertSuccessful();
-
+        // Named enrollment, finance, grade, and lifecycle states.
         $this->assertEnrollmentState('DBM-2A-001', 'pending', Enrollment::SelectionIndividuallyAdvised, Enrollment::OutcomeInProgress);
         $this->assertEnrollmentState('DIT-1A-001', 'pending_payment', Enrollment::SelectionStandardCurriculum, Enrollment::OutcomeInProgress);
         $this->assertEnrollmentState('DIT-1A-002', 'pending_payment', Enrollment::SelectionStandardCurriculum, Enrollment::OutcomeInProgress);
@@ -134,13 +130,8 @@ final class TAL96D5BOperationalStateOverlayTest extends TestCase
                 'LIFECYCLE-PROGRAM-SHIFT-001',
             ])
             ->count());
-    }
 
-    #[Test]
-    public function coverage_matrix_names_every_required_role_and_state_family_without_claiming_external_proof(): void
-    {
-        $this->artisan('acceptance:seed-tal96d5b-states')->assertSuccessful();
-
+        // Coverage matrix names every required role and state family without claiming external proof.
         $report = app(TAL96D5BStateCoverageMatrix::class)->report();
 
         $this->assertSame('PASS', $report['coverage_state']);

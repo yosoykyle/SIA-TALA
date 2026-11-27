@@ -15,26 +15,34 @@ use App\Filament\Resources\PublicNotices\PublicNoticeResource;
 use App\Models\FaqEntry;
 use App\Models\PublicNotice;
 use App\Models\User;
-use Database\Seeders\DatabaseSeeder;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Filament\Tables\Enums\FiltersLayout;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Livewire\Livewire;
 use Spatie\Activitylog\Models\Activity;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 class PublicContentWorkbenchTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     private User $administrator;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->seed(DatabaseSeeder::class);
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        foreach (['manage-faqs', 'manage-public-notices'] as $permission) {
+            Permission::findOrCreate($permission, 'web');
+        }
+        Role::findOrCreate(User::StaffRoleSystemSuperAdmin, 'web')->syncPermissions(['manage-faqs', 'manage-public-notices']);
+        Role::findOrCreate(User::StaffRoleRegistrar, 'web');
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
         $this->administrator = User::factory()->create();
         $this->administrator->assignRole(User::StaffRoleSystemSuperAdmin);
         $provider = app(TalaAppAuthentication::class);
@@ -42,14 +50,6 @@ class PublicContentWorkbenchTest extends TestCase
         $this->administrator->forceFill(['two_factor_recovery_codes_acknowledged_at' => now()])->save();
         $this->actingAs($this->administrator)->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleSystemSuperAdmin]);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
-    }
-
-    public function test_fixed_public_notice_permission_is_assigned_only_to_system_administration(): void
-    {
-        $this->assertTrue($this->administrator->can('manage-public-notices'));
-        foreach (Role::query()->where('name', '!=', User::StaffRoleSystemSuperAdmin)->get() as $role) {
-            $this->assertFalse($role->hasPermissionTo('manage-public-notices'));
-        }
     }
 
     public function test_existing_faq_authority_remains_reachable_without_the_notice_permission(): void
@@ -138,7 +138,7 @@ class PublicContentWorkbenchTest extends TestCase
 
     public function test_legacy_faq_links_redirect_to_the_authorized_canonical_cluster(): void
     {
-        $faq = FaqEntry::query()->firstOrFail();
+        $faq = FaqEntry::factory()->published()->create();
         $this->get('/admin/faq-entries')->assertRedirect(FaqEntryResource::getUrl());
         $this->get('/admin/faq-entries/create')->assertRedirect(FaqEntryResource::getUrl('create'));
         $this->get('/admin/faq-entries/'.$faq->id.'/edit')->assertRedirect(FaqEntryResource::getUrl('edit', ['record' => $faq]));

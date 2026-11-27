@@ -21,7 +21,7 @@ use App\Models\Term;
 use App\Models\User;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
 use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -29,7 +29,7 @@ use Tests\TestCase;
 
 class RegistrarEnrollmentClearanceTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {

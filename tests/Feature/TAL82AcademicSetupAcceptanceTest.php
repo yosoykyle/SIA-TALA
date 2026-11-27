@@ -15,7 +15,7 @@ use App\Models\Term;
 use App\Models\User;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Role;
@@ -23,7 +23,7 @@ use Tests\TestCase;
 
 class TAL82AcademicSetupAcceptanceTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {

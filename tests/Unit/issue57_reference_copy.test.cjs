@@ -11,6 +11,7 @@ async function copyWith(clipboard) {
         closest: () => ({ querySelector: () => feedback }),
     };
     const context = {
+        window: { setTimeout: () => 1, clearTimeout: () => {} },
         document: { addEventListener: (event, listener) => { handler = listener; } },
         navigator: { clipboard },
     };

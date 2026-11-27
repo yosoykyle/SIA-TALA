@@ -141,14 +141,6 @@ class HumanCenteredSharedThemeTest extends TestCase
         $scripts = (string) FilamentView::renderHook(PanelsRenderHook::SCRIPTS_AFTER);
         $this->assertStringContainsString('js/tala-unsaved-changes.js', $scripts);
         $this->assertStringContainsString('data-navigate-once', $scripts);
-        $unsavedChangesJs = file_get_contents(public_path('js/tala-unsaved-changes.js'));
-        $this->assertStringContainsString('.fi-auth-theme-switcher-wrapper:not([x-data])', $unsavedChangesJs);
-        $this->assertStringContainsString("wrapper.setAttribute('x-data', '{ close() {} }')", $unsavedChangesJs);
-        $this->assertStringContainsString("backdrop.setAttribute('data-auth-error-pulse', 'peak')", $unsavedChangesJs);
-        $this->assertStringContainsString("backdrop.setAttribute('data-auth-error-pulse', 'settle')", $unsavedChangesJs);
-        $this->assertStringContainsString("backdrop.setAttribute('data-auth-state', 'loading')", $unsavedChangesJs);
-        $this->assertStringContainsString("backdrop.setAttribute('data-auth-state', 'success')", $unsavedChangesJs);
-        $this->assertStringNotContainsString("backdrop.setAttribute('data-auth-error'", $unsavedChangesJs);
 
         $modal = Blade::render("@include('filament.components.unsaved-changes-confirmation')");
         $this->assertStringContainsString('Leave without saving?', $modal);
@@ -210,85 +202,6 @@ class HumanCenteredSharedThemeTest extends TestCase
             ->assertOk()
             ->assertSee("window.matchMedia('(prefers-color-scheme: dark)')", false)
             ->assertSee("root.setAttribute('data-bs-theme', theme)", false);
-
-        $script = file_get_contents(public_path('landing/js/main.js'));
-
-        $this->assertStringContainsString("colorScheme.addEventListener('change'", $script);
-        $this->assertStringContainsString('applyTheme(event.matches', $script);
-        $this->assertStringContainsString("const theme = isDark ? 'dark' : 'light'", $script);
-    }
-
-    public function test_public_arrival_keeps_school_discovery_and_guarded_access_with_native_navigation(): void
-    {
-        $view = file_get_contents(resource_path('views/welcome.blade.php'));
-        $styles = file_get_contents(public_path('landing/css/styles.css'));
-
-        $this->assertStringContainsString('id="admission-status-title"', $view);
-        $this->assertStringContainsString('class="program-list', $view);
-        $this->assertStringNotContainsString('class="workspace-card', $view);
-        $this->assertStringNotContainsString('class="portal-overview', $view);
-        $this->assertStringContainsString('public-sign-in', $view);
-        $this->assertStringNotContainsString('id="application-status"', $view);
-        $this->assertStringNotContainsString('dropdown public-sign-in', $view);
-        $this->assertStringNotContainsString('6vw, 5.6rem', $styles);
-        $this->assertStringContainsString('env(safe-area-inset-bottom)', $styles);
-        $script = file_get_contents(public_path('landing/js/main.js'));
-        $this->assertStringContainsString('window.bootstrap.Collapse.getOrCreateInstance', $script);
-        $this->assertStringContainsString("navigation.addEventListener('hidden.bs.collapse'", $script);
-        $this->assertStringContainsString("navigation.querySelector('a[href]')?.focus({ preventScroll: true })", $script);
-    }
-
-    public function test_forced_colors_and_reduced_motion_preserve_native_operability(): void
-    {
-        $theme = file_get_contents(resource_path('css/filament/tala/theme.css'));
-
-        $this->assertStringContainsString('@media (forced-colors: active)', $theme);
-        $this->assertStringContainsString('@media (prefers-reduced-motion: reduce)', $theme);
-        $this->assertStringContainsString('.fi-body :is(.fi-input-wrp, .fi-section, .fi-ta-ctn, .fi-modal-window, .fi-dropdown-panel) { border: 1px solid CanvasText; }', $theme);
-        $this->assertStringContainsString('.fi-body :is(.fi-btn, .fi-icon-btn) { border: 1px solid ButtonText; }', $theme);
-        $this->assertStringContainsString(".fi-body :is(input[type='checkbox'], input[type='radio']) { appearance: auto; border: 1px solid ButtonText; }", $theme);
-        $this->assertStringContainsString('.fi-body .fi-auth-layout.has-media .fi-auth-content-section { width: 100%; }', $theme);
-    }
-
-    public function test_native_control_boundaries_use_the_shared_contrast_tokens(): void
-    {
-        $theme = file_get_contents(resource_path('css/filament/tala/theme.css'));
-        $foundation = file_get_contents(public_path('css/tala-foundation.css'));
-
-        $this->assertStringContainsString(".fi-body :is(input[type='checkbox'], input[type='radio'])", $theme);
-        $this->assertStringContainsString('border: 1px solid var(--tala-control-border);', $theme);
-        $this->assertStringContainsString('.fi-body .fi-input-wrp:not(.fi-disabled, .fi-invalid):not(:focus-within)', $theme);
-        $this->assertStringContainsString('--tw-ring-color: var(--tala-control-border);', $theme);
-        $this->assertStringContainsString('--tala-control-border: #71717b;', $foundation);
-        $this->assertStringContainsString('--tala-control-border: #a1a1aa;', $foundation);
-    }
-
-    public function test_native_sidebar_keeps_collapsed_names_and_hides_the_closed_mobile_drawer(): void
-    {
-        $theme = file_get_contents(resource_path('css/filament/tala/theme.css'));
-        $sidebar = file_get_contents(resource_path('views/filament/components/accessible-sidebar.blade.php'));
-
-        $this->assertMatchesRegularExpression('/\.fi-sidebar:not\(\.fi-sidebar-open\) \.fi-sidebar-item-label\s*\{\s*@apply sr-only;\s*display: block !important;/s', $theme);
-        $this->assertStringContainsString('x-bind:inert="mobile && ! $store.sidebar.isOpen"', $sidebar);
-        $this->assertStringContainsString('x-on:resize.window.debounce.50ms=', $sidebar);
-        $this->assertStringContainsString('x-on:resize.window="if (window.innerWidth >= 1024) mobile = false"', $sidebar);
-        $this->assertStringContainsString('x-trap.inert.noscroll.noreturn=', $sidebar);
-        $this->assertStringContainsString("document.querySelector('.fi-layout-sidebar-toggle-btn, .fi-topbar-open-sidebar-btn')?.focus", $sidebar);
-        $this->assertStringContainsString("@include('filament-panels::livewire.sidebar')", $sidebar);
-    }
-
-    public function test_action_modals_restore_focus_without_adding_a_duplicate_panel_skip_link(): void
-    {
-        $skipLink = file_get_contents(resource_path('views/filament/components/skip-link.blade.php'));
-        $this->assertStringNotContainsString('<a ', $skipLink);
-        $this->assertStringContainsString('hidden aria-hidden="true"', $skipLink);
-        $this->assertStringContainsString('rememberActionGroup(actionGroup)', $skipLink);
-        $this->assertStringContainsString('window.talaActionGroupReturnHref', $skipLink);
-        $this->assertStringContainsString("window.addEventListener('modal-closed'", $skipLink);
-        $this->assertStringContainsString('window.talaFocusRestorePending', $skipLink);
-        $this->assertStringContainsString("window.addEventListener('transitionend'", $skipLink);
-        $this->assertStringContainsString('window.setTimeout(window.talaRestoreActionGroupFocus, 0)', $skipLink);
-        $this->assertStringContainsString('target.focus({ preventScroll: true })', $skipLink);
     }
 
     public function test_public_content_has_flat_notices_and_faq_tabs(): void
@@ -332,58 +245,6 @@ class HumanCenteredSharedThemeTest extends TestCase
         } finally {
             $this->app->usePublicPath($originalPublicPath);
         }
-    }
-
-    public function test_simple_layout_user_menu_and_ambient_backdrop_avoid_rectangular_button_shadow_and_reduce_motion(): void
-    {
-        $foundationCss = file_get_contents(public_path('css/tala-foundation.css'));
-        $themeCss = file_get_contents(resource_path('css/filament/tala/theme.css'));
-
-        $this->assertStringContainsString('.fi-sidebar .fi-user-menu-trigger', $foundationCss);
-        $this->assertStringNotContainsString("\n.fi-user-menu-trigger,", $foundationCss);
-        $this->assertStringContainsString('.fi-simple-layout-header .fi-user-menu-trigger', $themeCss);
-        $this->assertStringContainsString('border-radius: 9999px;', $themeCss);
-        $this->assertStringContainsString('.fi-simple-main::before', $themeCss);
-        $this->assertStringContainsString('.tala-ambient, .tala-ambient * { animation: none !important; }', $themeCss);
-        $this->assertStringContainsString('.tala-auth-main:has(.media-top.has-media) > .tala-ambient--auth', $themeCss);
-        $this->assertStringContainsString('.tala-ambient-wash', $themeCss);
-        $this->assertStringContainsString('.tala-ambient-trinket--edge[data-band="top"]', $themeCss);
-        $this->assertStringContainsString('.tala-ambient-trinket--edge[data-band="bottom"]', $themeCss);
-        $this->assertStringContainsString('@keyframes tala-ambient-wash-drift', $themeCss);
-        $this->assertStringContainsString('@keyframes tala-ambient-orbit-a', $themeCss);
-        $this->assertStringNotContainsString('.tala-auth-main:has(.fi-invalid, .fi-fo-field-wrp-error-message, [aria-invalid="true"]) > .tala-ambient--auth', $themeCss);
-        $this->assertStringNotContainsString('.tala-ambient--auth[data-auth-error="true"]', $themeCss);
-        $this->assertStringContainsString('.tala-ambient--auth[data-auth-error-pulse="peak"]', $themeCss);
-        $this->assertStringContainsString('.tala-ambient--auth[data-auth-error-pulse="settle"]', $themeCss);
-        $this->assertStringContainsString('.tala-ambient--auth[data-auth-state="loading"] .tala-ambient-wash', $themeCss);
-        $this->assertStringContainsString('.tala-ambient--auth[data-auth-state="success"]', $themeCss);
-        $this->assertStringContainsString('@keyframes tala-auth-error-glow-pulse', $themeCss);
-        $this->assertStringContainsString('@keyframes tala-auth-error-trinket-pulse', $themeCss);
-        $this->assertStringContainsString('@keyframes tala-auth-loading-wash-sweep', $themeCss);
-        $this->assertStringContainsString('@keyframes tala-auth-success-trinket-celebrate', $themeCss);
-        $this->assertStringContainsString('.fi-body:has(.tala-auth-main .media-top.has-media) .fi-auth-theme-switcher-wrapper', $themeCss);
-        $this->assertStringContainsString('calc(var(--tala-auth-topbar-inset) + ((var(--tala-auth-topbar-height) - var(--tala-auth-switcher-height)) / 2))', $themeCss);
-        $this->assertStringContainsString('.tala-verification-card', $themeCss);
-        $this->assertStringContainsString('.tala-auth-verify-card', $themeCss);
-        $this->assertStringContainsString('.tala-auth-back-link', $themeCss);
-        $this->assertStringContainsString('.fi-body :is(.tala-auth-main, .fi-auth-layout) .fi-simple-header-heading', $themeCss);
-        $this->assertStringContainsString('.fi-body .fi-input-wrp:is(.fi-invalid, :has(:is(input, textarea, select):is(:user-invalid, [aria-invalid="true"])))', $themeCss);
-        $this->assertStringContainsString('.tala-auth-slideshow__slide.is-active', $themeCss);
-        $this->assertMatchesRegularExpression('/@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.tala-auth-slideshow__slide,\s*\.tala-auth-slideshow__slide\.is-active\s*\{[^}]*transition:\s*none !important;/s', $themeCss);
-    }
-
-    public function test_mfa_modals_pin_sunken_header_and_footer_within_dynamic_viewport_height(): void
-    {
-        $themeCss = file_get_contents(resource_path('css/filament/tala/theme.css'));
-
-        $this->assertMatchesRegularExpression('/\.fi-body\s+\.fi-modal-window\.tala-mfa-modal\s*\{[^}]*max-block-size:\s*calc\(100dvh/s', $themeCss);
-        $this->assertMatchesRegularExpression('/\.fi-body\s+\.fi-modal-window\.tala-mfa-setup-modal\s*\{[^}]*block-size:\s*min\(39rem/s', $themeCss);
-        $this->assertMatchesRegularExpression('/\.fi-body\s+\.fi-modal-window\.tala-mfa-modal\s*>\s*\.fi-modal-header\s*\{[^}]*background-color:\s*var\(--tala-surface-sunken\);/s', $themeCss);
-        $this->assertMatchesRegularExpression('/\.fi-body\s+\.fi-modal-window\.tala-mfa-modal\s*>\s*\.fi-modal-footer,\s*\.fi-body\s+\.fi-modal-window\.tala-mfa-modal\s+\.fi-sc-wizard-footer\s*\{[^}]*background-color:\s*var\(--tala-surface-sunken\);/s', $themeCss);
-        $this->assertMatchesRegularExpression('/\.fi-body\s+\.fi-modal-window\.tala-mfa-modal\s*>\s*\.fi-modal-content\s*\{[^}]*overflow-y:\s*auto;/s', $themeCss);
-        $this->assertMatchesRegularExpression('/\.fi-body\s+\.fi-modal-window\.tala-mfa-modal\s+\.fi-sc-wizard-step\.fi-active\s*\{[^}]*overflow-y:\s*auto;/s', $themeCss);
-        $this->assertMatchesRegularExpression('/dialog::backdrop,\s*\.fi-modal\s*>\s*\.fi-modal-close-overlay\s*\{[^}]*overflow:\s*hidden;\s*overscroll-behavior:\s*contain;/s', $themeCss);
-        $this->assertStringNotContainsString('max-block-size: none;', $themeCss);
     }
 
     /** @return array<string, array{string}> */

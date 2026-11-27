@@ -5,14 +5,14 @@ namespace Tests\Feature\Auth;
 use App\Models\StudentProfile;
 use App\Models\User;
 use Filament\Facades\Filament;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class PanelAccessBoundaryTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {

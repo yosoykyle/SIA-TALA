@@ -8,6 +8,7 @@ use App\Filament\Pages\FacultyGradeRoster;
 use App\Filament\Pages\GradesAndCompletion;
 use App\Filament\Resources\GradeRosters\GradeRosterResource;
 use App\Filament\Resources\GradeRosters\Pages\ListGradeRosters;
+use App\Filament\Resources\GradeRosters\Tables\GradeRostersTable;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
 use App\Models\GradeRoster;
@@ -18,7 +19,7 @@ use App\Models\TermCalendarWindow;
 use App\Models\TermOffering;
 use App\Models\User;
 use Filament\Facades\Filament;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Role;
@@ -26,7 +27,7 @@ use Tests\TestCase;
 
 class TAL72GradesFilamentTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {
@@ -79,6 +80,12 @@ class TAL72GradesFilamentTest extends TestCase
 
         Livewire::withQueryParams(['viewTab' => 'grade-review'])->test(GradesAndCompletion::class)
             ->assertCanSeeTableRecords([$roster]);
+
+        $this->assertSame('success', GradeRostersTable::stateColor(GradeRoster::StateReleased));
+        $this->assertSame('warning', GradeRostersTable::stateColor(GradeRoster::StateReturned));
+        $this->assertSame('danger', GradeRostersTable::stateColor(GradeRoster::StateLateNotSubmitted));
+        $this->assertSame('info', GradeRostersTable::stateColor(GradeRoster::StateSubmitted));
+        $this->assertSame('gray', GradeRostersTable::stateColor(GradeRoster::StateDraft));
     }
 
     #[Test]

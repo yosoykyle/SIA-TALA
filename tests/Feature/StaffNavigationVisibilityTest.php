@@ -10,6 +10,8 @@ use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 class StaffNavigationVisibilityTest extends TestCase
@@ -21,14 +23,7 @@ class StaffNavigationVisibilityTest extends TestCase
         parent::setUp();
 
         Filament::setCurrentPanel(Filament::getPanel('admin'));
-        $this->seed(DatabaseSeeder::class);
-
-        foreach (User::staffRoleNames() as $role) {
-            $user = User::factory()->create(['status' => User::StatusActive]);
-            $user->assignRole($role);
-            $user->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
-            $user->saveAppAuthenticationRecoveryCodes(['stored-code']);
-        }
+        $this->seedCanonicalStaffRolesAndPermissions();
     }
 
     /**
@@ -54,7 +49,7 @@ class StaffNavigationVisibilityTest extends TestCase
 
     public function test_system_super_admin_with_stale_operational_permissions_still_cannot_see_operational_resources(): void
     {
-        $user = User::role(User::StaffRoleSystemSuperAdmin)->firstOrFail();
+        $user = $this->staffUser(User::StaffRoleSystemSuperAdmin);
         $user->givePermissionTo([
             Permission::findOrCreate('manage-faculty-subject-eligibilities', 'web'),
             Permission::findOrCreate('review-lock-faculty-availability', 'web'),
@@ -71,7 +66,7 @@ class StaffNavigationVisibilityTest extends TestCase
 
     public function test_system_administration_baseline_is_system_super_admin_only(): void
     {
-        $systemSuperAdmin = User::role(User::StaffRoleSystemSuperAdmin)->firstOrFail();
+        $systemSuperAdmin = $this->staffUser(User::StaffRoleSystemSuperAdmin);
 
         $this->actingAs($systemSuperAdmin);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
@@ -109,7 +104,7 @@ class StaffNavigationVisibilityTest extends TestCase
     #[DataProvider('nonSystemAdministratorRoles')]
     public function test_other_staff_roles_cannot_access_system_administration(string $role): void
     {
-        $user = User::role($role)->firstOrFail();
+        $user = $this->staffUser($role);
 
         foreach ([
             '/admin/users',
@@ -130,6 +125,8 @@ class StaffNavigationVisibilityTest extends TestCase
 
     public function test_seeded_permissions_do_not_include_legacy_navigation_permissions(): void
     {
+        $this->seed(DatabaseSeeder::class);
+
         $this->assertDatabaseMissing('permissions', ['name' => 'manage-lis']);
         $this->assertDatabaseMissing('permissions', ['name' => 'view-advising-status']);
         $this->assertDatabaseMissing('permissions', ['name' => 'start-enrollment']);
@@ -199,7 +196,7 @@ class StaffNavigationVisibilityTest extends TestCase
      */
     private function navigationEntriesForRole(string $role): array
     {
-        $user = User::role($role)->firstOrFail();
+        $user = $this->staffUser($role);
 
         $this->actingAs($user);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
@@ -225,5 +222,55 @@ class StaffNavigationVisibilityTest extends TestCase
         }
 
         return $entries;
+    }
+
+    private function seedCanonicalStaffRolesAndPermissions(): void
+    {
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        $rolePermissions = [
+            User::StaffRoleRegistrar => [
+                'approve-documents',
+                'evaluate-transferees',
+                'manage-student-profiles',
+                'manage-admission-setup',
+                'manage-schedules',
+                'manage-sections',
+            ],
+            User::StaffRoleAccounting => [
+                'create-assessments',
+                'process-payments',
+                'post-accounting-adjustments',
+            ],
+            User::StaffRoleFaculty => [],
+            User::StaffRoleAcademicHead => [
+                'authorize-overrides',
+                'view-global-records',
+            ],
+            User::StaffRoleSystemSuperAdmin => [
+                'manage-faqs',
+                'manage-public-notices',
+            ],
+        ];
+
+        foreach ($rolePermissions as $role => $permissions) {
+            foreach ($permissions as $permission) {
+                Permission::findOrCreate($permission, 'web');
+            }
+
+            Role::findOrCreate($role, 'web')->syncPermissions($permissions);
+        }
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+    }
+
+    private function staffUser(string $role): User
+    {
+        $user = User::factory()->create(['status' => User::StatusActive]);
+        $user->assignRole($role);
+        $user->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+        $user->saveAppAuthenticationRecoveryCodes(['stored-code']);
+
+        return $user;
     }
 }

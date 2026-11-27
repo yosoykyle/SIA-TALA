@@ -40,10 +40,21 @@ class CanonicalCalendarConsumerTest extends TestCase
         $this->assertSame('testing', app()->environment());
         $this->assertSame(config('database.test_database'), DB::connection()->getDatabaseName());
         $term = Term::factory()->create();
-        $this->window($term, TermCalendarWindow::TypeEnrollment, '2026-08-10', '2026-08-10', '17:00:00');
         $application = AdmissionApplication::factory()->for($term)->create();
         $gates = app(CalendarPhaseGateService::class);
         $projection = app(ReadyApplicantProjectionQuery::class);
+
+        // No package and draft-only package must both fail as not configured.
+        $this->assertGateMissingWindow(fn () => $gates->assertEnrollmentWindowOpen($term->id));
+        $draftPackage = TermCalendarPackage::factory()->for($term)->create(['version' => 2, 'state' => TermCalendarPackage::StateDraft]);
+        TermCalendarWindow::factory()->for($draftPackage, 'package')->create([
+            'window_type' => TermCalendarWindow::TypeEnrollment,
+            'opens_on' => '2026-08-01',
+            'closes_on' => '2026-08-20',
+        ]);
+        $this->assertGateMissingWindow(fn () => $gates->assertEnrollmentWindowOpen($term->id));
+
+        $enrollmentWindow = $this->window($term, TermCalendarWindow::TypeEnrollment, '2026-08-10', '2026-08-10', '17:00:00');
 
         $this->travelTo(Carbon::parse('2026-08-09 15:59:59', 'UTC'));
         $this->assertSame('upcoming', $projection->enrollmentAvailability($application)['status']);
@@ -52,6 +63,7 @@ class CanonicalCalendarConsumerTest extends TestCase
         $this->travelTo(Carbon::parse('2026-08-09 16:00:00', 'UTC'));
         $this->assertTrue($projection->enrollmentAvailability($application)['available']);
         $gates->assertEnrollmentWindowOpen($term->id);
+        $this->assertTrue($gates->enrollmentWindow($term->id)->is($enrollmentWindow));
         $gates->assertEnrollmentEditWindowOpen($term->id);
         $this->assertSame('2026-08-10T17:00:00+08:00', $gates->finalEnrollmentCutoff($term->id)->toIso8601String());
         $this->assertSame('2026-08-10T09:00:00+00:00', $gates->enrollmentDeadline($term->id)->toIso8601String());
@@ -210,6 +222,16 @@ class CanonicalCalendarConsumerTest extends TestCase
             $this->fail('Expected a closed exact-Term window.');
         } catch (CalendarGateViolation $exception) {
             $this->assertTrue($exception->context['window_configured']);
+        }
+    }
+
+    private function assertGateMissingWindow(callable $action): void
+    {
+        try {
+            $action();
+            $this->fail('Expected missing window violation when no active package exists.');
+        } catch (CalendarGateViolation $exception) {
+            $this->assertStringContainsString('not configured', $exception->getMessage());
         }
     }
 }

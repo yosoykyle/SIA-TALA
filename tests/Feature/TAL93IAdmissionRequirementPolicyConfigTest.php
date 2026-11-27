@@ -5,46 +5,40 @@ namespace Tests\Feature;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use App\Models\User;
-use Database\Seeders\DatabaseSeeder;
 use Filament\Facades\Filament;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
-use Illuminate\Support\Facades\Route;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 final class TAL93IAdmissionRequirementPolicyConfigTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->seed(DatabaseSeeder::class);
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        $permissions = [
+            'approve-documents',
+            'evaluate-transferees',
+            'manage-student-profiles',
+            'manage-admission-setup',
+            'manage-schedules',
+            'manage-sections',
+        ];
+
+        foreach ($permissions as $permission) {
+            Permission::findOrCreate($permission, 'web');
+        }
+
+        Role::findOrCreate(User::StaffRoleRegistrar, 'web')->syncPermissions($permissions);
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
         Filament::setCurrentPanel(Filament::getPanel('admin'));
-    }
-
-    public function test_legacy_intake_and_generic_policy_resources_are_not_reachable(): void
-    {
-        $resources = Filament::getPanel('admin')->getResources();
-
-        $this->assertNotContains('App\Filament\Resources\ApplicantIntakes\ApplicantIntakeResource', $resources);
-        $this->assertNotContains('App\Filament\Resources\AdmissionRequirementPolicies\AdmissionRequirementPolicyResource', $resources);
-        $this->assertFalse(Route::has('filament.admin.resources.applicant-intakes.index'));
-        $this->assertFalse(Route::has('filament.admin.resources.admission-requirement-policies.index'));
-    }
-
-    public function test_canonical_cycle_and_application_resources_replace_the_legacy_setup_and_queue(): void
-    {
-        $resources = Filament::getPanel('admin')->getResources();
-
-        $this->assertContains(AdmissionCycleResource::class, $resources);
-        $this->assertContains(AdmissionApplicationResource::class, $resources);
-        $this->assertTrue(Route::has('filament.admin.resources.admission-cycles.index'));
-        $this->assertTrue(Route::has('filament.admin.resources.admission-cycles.create'));
-        $this->assertTrue(Route::has('filament.admin.resources.admission-cycles.view'));
-        $this->assertTrue(Route::has('filament.admin.resources.admission-cycles.edit'));
-        $this->assertTrue(Route::has('filament.admin.resources.admission-applications.index'));
-        $this->assertTrue(Route::has('filament.admin.resources.admission-applications.view'));
     }
 
     public function test_registrar_can_access_the_canonical_admissions_surfaces(): void

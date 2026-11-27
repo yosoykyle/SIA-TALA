@@ -22,7 +22,7 @@ use App\Models\User;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
@@ -32,7 +32,7 @@ use Tests\TestCase;
 
 final class TAL96D2BAcademicSetupHardeningTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {

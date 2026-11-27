@@ -8,14 +8,14 @@ use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use App\Models\User;
 use Filament\Facades\Filament;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class TAL96D5BAdmissionsClarityAndNotificationTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {

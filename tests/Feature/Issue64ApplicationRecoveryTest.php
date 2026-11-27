@@ -13,7 +13,7 @@ use App\Models\ApplicationSubmissionVersion;
 use App\Models\Term;
 use App\Models\User;
 use Filament\Facades\Filament;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -21,7 +21,7 @@ use Tests\TestCase;
 
 class Issue64ApplicationRecoveryTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     public function test_review_start_refuses_a_mounted_edit_without_a_false_success_or_lost_input(): void
     {

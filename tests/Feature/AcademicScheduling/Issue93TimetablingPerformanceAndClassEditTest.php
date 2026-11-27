@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\AcademicScheduling;
 
-use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Actions\Integrations\SchedulingSolver\LocalStubSchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverRequest;
 use App\Actions\Scheduling\AdjustCandidateMeeting;
@@ -36,21 +35,19 @@ use App\Models\SectionDeliveryGroup;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
-use App\Models\TermTeachingGridRow;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Livewire;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
-use Spatie\Permission\PermissionRegistrar;
+use Tests\Feature\AcademicScheduling\Concerns\InteractsWithAcademicSchedulingFixtures;
 use Tests\TestCase;
 
 final class Issue93TimetablingPerformanceAndClassEditTest extends TestCase
 {
     use DatabaseTransactions;
+    use InteractsWithAcademicSchedulingFixtures;
 
     protected function setUp(): void
     {
@@ -709,58 +706,17 @@ final class Issue93TimetablingPerformanceAndClassEditTest extends TestCase
 
     private function registrar(): User
     {
-        Role::findOrCreate(User::StaffRoleFaculty, 'web');
-        $role = Role::findOrCreate(User::StaffRoleRegistrar, 'web');
-        $role->syncPermissions([
-            Permission::findOrCreate('manage-schedules', 'web'),
-            Permission::findOrCreate('approve-documents', 'web'),
-        ]);
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
-
-        $user = User::factory()->create(['status' => User::StatusActive]);
-        $user->assignRole($role);
-        $this->actingAs($user)->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleRegistrar]);
-
-        return $user;
+        return $this->createSchedulingStaff(User::StaffRoleRegistrar, ['manage-schedules', 'approve-documents']);
     }
 
     private function faculty(): User
     {
-        Role::findOrCreate(User::StaffRoleFaculty, 'web');
-        $user = User::factory()->create(['status' => User::StatusActive]);
-        $user->assignRole(User::StaffRoleFaculty);
-
-        return $user;
+        return $this->createSchedulingStaff(User::StaffRoleFaculty, actAs: false);
     }
 
     /** @return array{Term, TermCalendarPackage, Program, CurriculumVersion} */
     private function activeTermContext(): array
     {
-        $term = Term::factory()->create([
-            'state' => Term::StateActive,
-            'default_max_units' => 24,
-        ]);
-        $package = TermCalendarPackage::factory()->for($term)->create([
-            'state' => TermCalendarPackage::StateActive,
-            'activated_at' => now(),
-        ]);
-
-        foreach ([1, 2, 3, 4, 5] as $day) {
-            TermTeachingGridRow::factory()->create([
-                'term_calendar_package_id' => $package->id,
-                'day_of_week' => $day,
-                'starts_at' => '08:00:00',
-                'ends_at' => '17:00:00',
-                'breaks' => [['starts_at' => '12:00:00', 'ends_at' => '13:00:00']],
-            ]);
-        }
-
-        $program = Program::factory()->create(['name' => 'Bachelor of Science in Information Technology']);
-        $curriculum = CurriculumVersion::factory()->for($program)->create([
-            'name' => 'BSIT Curriculum 2025',
-            'state' => CurriculumVersion::StateActive,
-        ]);
-
-        return [$term, $package, $program, $curriculum];
+        return $this->createActiveTermContext();
     }
 }

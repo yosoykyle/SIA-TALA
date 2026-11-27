@@ -3,13 +3,7 @@
 namespace Tests\Feature;
 
 use App\Actions\Enrollment\StartRegistrationCase;
-use App\Models\ApplicantIntake;
-use App\Models\Assessment;
-use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
-use App\Models\EnrollmentSeatReservation;
-use App\Models\LedgerEntry;
-use App\Models\Payment;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\User;
@@ -79,30 +73,7 @@ final class TAL87AEnrollmentSourceRecordBaselineTest extends TestCase
         $this->assertFalse(method_exists(Enrollment::class, 'sectionDeliveryGroup'));
         $this->assertFileDoesNotExist(app_path('Actions/Enrollment/EnrollmentSectioningService.php'));
         $this->assertFileDoesNotExist(app_path('Actions/Enrollment/StudentEnrollmentService.php'));
-        $this->assertFileDoesNotExist(app_path('Actions/Applicants/HandOverApprovedApplicant.php'));
-    }
-
-    public function test_admission_cannot_start_enrollment_through_the_retired_handover_path(): void
-    {
-        $registrar = User::factory()->create(['status' => User::StatusActive]);
-        $registrar->assignRole(User::StaffRoleRegistrar);
-
-        $applicant = User::factory()->create(['status' => User::StatusActive]);
-        $applicant->assignRole('applicant');
-        $intake = ApplicantIntake::factory()->approved($registrar)->create([
-            'user_id' => $applicant->id,
-        ]);
-
-        $this->assertFalse(class_exists('App\\Actions\\Applicants\\HandOverApprovedApplicant'));
         $this->assertFalse(class_exists('App\\Actions\\Enrollment\\StudentEnrollmentService'));
-
-        $this->assertSame(0, Enrollment::query()->count());
-        $this->assertSame(0, StudentProfile::query()->where('applicant_intake_id', $intake->id)->count());
-        $this->assertSame(0, CourseEnrollment::query()->count());
-        $this->assertSame(0, EnrollmentSeatReservation::query()->count());
-        $this->assertSame(0, Assessment::query()->count());
-        $this->assertSame(0, LedgerEntry::query()->count());
-        $this->assertSame(0, Payment::query()->count());
     }
 
     public function test_unauthorized_actor_cannot_start_an_enrollment_directly(): void

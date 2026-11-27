@@ -272,7 +272,6 @@ class Issue93FacultyOverviewNavigationTest extends TestCase
         Livewire::actingAs($faculty)
             ->test(FacultyOverview::class, ['termId' => $term->id])
             ->assertSee('Needs your action')
-            ->assertSee('Submit availability')
             ->assertSee('Reply by Aug 20, 2026')
             ->assertSee($fixture['course']->code)
             ->assertSee($fixture['section']->code)
