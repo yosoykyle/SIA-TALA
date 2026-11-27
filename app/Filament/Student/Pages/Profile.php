@@ -4,6 +4,9 @@ namespace App\Filament\Student\Pages;
 
 use App\Actions\Authentication\ManageUserProfilePhoto;
 use App\Actions\StudentHub\StudentStudyContext;
+use App\Filament\Resources\StudentProfiles\StudentProfileResource;
+use App\Models\AcademicYear;
+use App\Models\CurriculumVersion;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
 use App\Models\User;
@@ -91,7 +94,7 @@ class Profile extends Page
         abort_unless($user instanceof User, 403);
 
         $profile = $user->studentProfile()
-            ->with(['program', 'curriculumVersion', 'entryTerm', 'profileEvents'])
+            ->with(['program', 'curriculumVersion', 'entryAcademicYear', 'entryTerm', 'profileEvents'])
             ->active()
             ->where('lifecycle_status', '!=', StudentProfile::LifecycleArchived)
             ->firstOrFail();
@@ -133,7 +136,8 @@ class Profile extends Page
                 'secondary' => true,
                 'items' => [
                     ['label' => 'Student status', 'value' => $this->status($profile->lifecycle_status)],
-                    ['label' => 'Curriculum', 'value' => $this->value($profile->curriculumVersion?->name)],
+                    ['label' => 'Curriculum', 'value' => $this->value(StudentProfileResource::curriculumAndBatchLabel($profile))],
+                    ['label' => 'Entry batch', 'value' => $this->value($profile->entryAcademicYear instanceof AcademicYear ? 'Batch '.CurriculumVersion::formatBatchShort($profile->entryAcademicYear) : null)],
                     ['label' => 'Entry term', 'value' => $this->value($profile->entryTerm?->label)],
                     ['label' => 'Academic standing', 'value' => $this->status($profile->academic_standing)],
                 ],

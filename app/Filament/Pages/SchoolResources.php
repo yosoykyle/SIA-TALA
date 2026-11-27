@@ -198,7 +198,11 @@ final class SchoolResources extends Page implements HasTable
                 TextColumn::make('room_type')
                     ->label('Type')
                     ->badge()
-                    ->color('gray')
+                    ->color(fn (string $state): string => match ($state) {
+                        Room::TypeComputerLaboratory => 'info',
+                        Room::TypeLaboratory => 'warning',
+                        default => 'gray',
+                    })
                     ->formatStateUsing(fn (string $state): string => Room::typeOptions()[$state] ?? $state)
                     ->sortable(),
                 TextColumn::make('capacity')
@@ -263,6 +267,7 @@ final class SchoolResources extends Page implements HasTable
                         $this->flushCachedTableRecords();
                     }),
             ])
+            ->recordActionsColumnLabel('Actions')
             ->recordActions([
                 EditAction::make('editRoom')
                     ->label('Edit')
@@ -480,6 +485,7 @@ final class SchoolResources extends Page implements HasTable
             ->toolbarActions([
                 $this->assignSubjectsAction(),
             ])
+            ->recordActionsColumnLabel('Actions')
             ->recordActions([
                 Action::make('editFacultySubjects')
                     ->label('Subjects')

@@ -59,6 +59,8 @@ class ImportOngoingStudentsSpreadsheet extends Page
 
     public ?int $entryAcademicYearId = null;
 
+    public bool $entryAcademicYearExplicitlyChosen = false;
+
     public string $completedThroughKey = 'none';
 
     public mixed $uploadedFile = null;
@@ -216,6 +218,7 @@ class ImportOngoingStudentsSpreadsheet extends Page
     {
         $this->curriculumVersionId = null;
         $this->entryAcademicYearId = null;
+        $this->entryAcademicYearExplicitlyChosen = false;
         $this->completedThroughKey = 'none';
         $this->footerValidationMessage = null;
 
@@ -225,15 +228,17 @@ class ImportOngoingStudentsSpreadsheet extends Page
 
     public function updatedCurriculumVersionId(): void
     {
+        $this->entryAcademicYearExplicitlyChosen = false;
         $this->completedThroughKey = 'none';
         $this->footerValidationMessage = null;
 
-        $this->autoSelectEntryAcademicYearForRoster();
+        $this->autoSelectEntryAcademicYearForRoster($this->currentExtractedWorkbook());
         $this->resyncOverridesIfFileLoaded();
     }
 
     public function updatedEntryAcademicYearId(): void
     {
+        $this->entryAcademicYearExplicitlyChosen = $this->entryAcademicYearId !== null;
         $this->footerValidationMessage = null;
         $this->resyncOverridesIfFileLoaded();
     }
@@ -259,6 +264,7 @@ class ImportOngoingStudentsSpreadsheet extends Page
     public function startAnotherImport(): void
     {
         $this->clearUploadedFile();
+        $this->entryAcademicYearExplicitlyChosen = false;
         $this->lastImportSummary = null;
         $this->lastSkippedImportCsvPath = null;
         $this->dispatch('import-step-changed', targetId: 'ongoing-import-step-1-heading');
@@ -297,6 +303,9 @@ class ImportOngoingStudentsSpreadsheet extends Page
         }
 
         $this->columnMap = $this->stringifyColumnMap($extracted['suggested_mapping']);
+        if (! $this->entryAcademicYearExplicitlyChosen && $this->curriculumVersionId !== null) {
+            $this->autoSelectEntryAcademicYearForRoster($extracted);
+        }
         $this->syncRowOverridesFromExtracted($extracted);
 
         if ($extracted['parsed_row_count'] === 0) {
@@ -1063,7 +1072,10 @@ class ImportOngoingStudentsSpreadsheet extends Page
         $this->autoSelectEntryAcademicYearForRoster();
     }
 
-    private function autoSelectEntryAcademicYearForRoster(): void
+    /**
+     * @param  array<string, mixed>|null  $extracted
+     */
+    private function autoSelectEntryAcademicYearForRoster(?array $extracted = null): void
     {
         if ($this->curriculumVersionId === null) {
             $this->entryAcademicYearId = null;
@@ -1082,11 +1094,66 @@ class ImportOngoingStudentsSpreadsheet extends Page
             ->sortBy(fn (AcademicYear $ay): int => CurriculumVersion::extractAcademicYearStart($ay) ?? PHP_INT_MAX)
             ->values();
 
-        if ($linked->isNotEmpty()) {
-            $this->entryAcademicYearId = (int) $linked->first()->id;
-        } else {
+        if ($linked->isEmpty()) {
             $this->entryAcademicYearId = null;
+
+            return;
         }
+
+        if ($linked->count() === 1) {
+            $this->entryAcademicYearId = (int) $linked->first()->id;
+
+            return;
+        }
+
+        $inferredBatchYear = $this->resolveBatchYearFromStudentNumbers($extracted);
+        if ($inferredBatchYear !== null) {
+            $matched = $linked->first(
+                fn (AcademicYear $ay): bool => CurriculumVersion::extractAcademicYearStart($ay) === $inferredBatchYear
+            );
+
+            if ($matched instanceof AcademicYear) {
+                $this->entryAcademicYearId = (int) $matched->id;
+
+                return;
+            }
+        }
+
+        $latest = $linked->last();
+        $this->entryAcademicYearId = $latest instanceof AcademicYear ? (int) $latest->id : null;
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $extracted
+     */
+    private function resolveBatchYearFromStudentNumbers(?array $extracted): ?int
+    {
+        $rows = is_array($extracted) ? ($extracted['parsed_students'] ?? null) : null;
+        if (! is_array($rows) || $rows === []) {
+            return null;
+        }
+
+        $years = [];
+        foreach ($rows as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+
+            $studentNumber = trim((string) ($row[OngoingStudentSpreadsheetParser::FieldStudentNumber] ?? ''));
+            if ($studentNumber === '') {
+                continue;
+            }
+
+            if (preg_match('/(?:^|[^0-9])(20\d{2})(?:[^0-9]|$)/', $studentNumber, $matches) === 1) {
+                $years[(int) $matches[1]] = true;
+            }
+        }
+
+        if (count($years) !== 1) {
+            return null;
+        }
+
+        return (int) array_key_first($years);
     }
 
     private function initializeDefaultMatrixScope(): void
@@ -1303,6 +1370,9 @@ class ImportOngoingStudentsSpreadsheet extends Page
         }
 
         $this->columnMap = $this->stringifyColumnMap($extracted['suggested_mapping']);
+        if (! $this->entryAcademicYearExplicitlyChosen && $this->curriculumVersionId !== null) {
+            $this->autoSelectEntryAcademicYearForRoster($extracted);
+        }
         $this->syncRowOverridesFromExtracted($extracted);
 
         if ($extracted['parsed_row_count'] === 0) {

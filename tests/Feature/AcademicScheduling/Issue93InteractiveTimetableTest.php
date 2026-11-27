@@ -99,6 +99,62 @@ class Issue93InteractiveTimetableTest extends TestCase
     }
 
     #[Test]
+    public function stale_latest_draft_displays_sources_changed_status_and_regenerate_draft_cta_while_historical_attempts_stay_past_attempt(): void
+    {
+        $fixture = $this->createDraftTimetableFixture();
+        $staleRun = $fixture['run'];
+        $staleRun->update([
+            'candidate_state' => 'Stale',
+            'candidate_review_reason' => 'Faculty availability updated after draft generation.',
+        ]);
+
+        $staleView = Livewire::actingAs($fixture['registrar'])
+            ->test(TermTimetable::class, ['termId' => $fixture['term']->id]);
+
+        $staleView
+            ->assertSee('Sources changed · Regeneration needed')
+            ->assertSee('Regenerate draft')
+            ->assertDontSee('Past attempt · Read-only')
+            ->assertActionVisible('regenerateTimetable');
+
+        $staleContext = $staleView->viewData('interactiveContext');
+        $this->assertFalse($staleContext['editable']);
+        $this->assertTrue($staleContext['isStaleDraft']);
+        $this->assertSame('Sources changed · Regeneration needed', $staleContext['statusPillLabel']);
+        $this->assertSame('warning', $staleContext['statusPillTone']);
+
+        // Once a newer draft exists, viewing the earlier stale run must fall back to "Past attempt · Read-only".
+        $newerRun = ScheduleGenerationRun::query()->create([
+            'term_id' => $fixture['term']->id,
+            'term_calendar_package_id' => $staleRun->term_calendar_package_id,
+            'initiated_by' => $fixture['registrar']->id,
+            'status' => ScheduleGenerationRun::StatusUnderReview,
+            'candidate_state' => 'UnderReview',
+            'candidate_version' => 2,
+            'candidate_key' => 'issue93-newer-draft',
+            'input_hash' => hash('sha256', 'issue93-newer-draft'),
+            'input_snapshot' => $staleRun->input_snapshot,
+            'solver_version' => 'ortools-cp-sat-test',
+            'diagnostics' => $staleRun->diagnostics,
+        ]);
+
+        $historicalView = Livewire::actingAs($fixture['registrar'])
+            ->test(TermTimetable::class, [
+                'termId' => $fixture['term']->id,
+                'timetableState' => 'draft',
+                'selectedRunId' => $staleRun->id,
+            ]);
+
+        $historicalView
+            ->assertSee('Past attempt · Read-only')
+            ->assertDontSee('Sources changed · Regeneration needed')
+            ->assertActionHidden('regenerateTimetable');
+
+        $this->assertFalse($historicalView->viewData('interactiveContext')['isStaleDraft']);
+        $this->assertNotSame($staleRun->id, $newerRun->id);
+    }
+
+    #[Test]
     public function registrar_can_drag_move_draft_meeting_without_memo_and_conflicts_are_rejected(): void
     {
         $fixture = $this->createDraftTimetableFixture();

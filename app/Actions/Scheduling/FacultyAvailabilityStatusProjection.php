@@ -113,7 +113,10 @@ final class FacultyAvailabilityStatusProjection
             ? PublishedTimetableVersion::query()
                 ->where('term_id', $term->id)
                 ->where('state', PublishedTimetableVersion::StatePublished)
-                ->with('meetings.classOffering.courseRevision')
+                ->with([
+                    'meetings.classOffering.courseRevision',
+                    'meetings.classOffering.termOffering.curriculumEntry.courseSpecification',
+                ])
                 ->first()
             : null;
 
@@ -304,11 +307,15 @@ final class FacultyAvailabilityStatusProjection
             $override = $overrides->get($facultyId);
             $limit = $override instanceof FacultyTermLoadOverride
                 ? $override->allowedLoadUnits()
-                : ($term->default_max_units !== null ? (float) $term->default_max_units : null);
+                : ($term->default_max_units !== null ? (float) $term->default_max_units : 24.0);
 
             if ($officialVersion instanceof PublishedTimetableVersion) {
                 $loadStage = 'official';
-                $load = $officialClasses->sum(fn ($class): float => (float) ($class->courseRevision?->credit_units ?? 0));
+                $load = $officialClasses->sum(fn ($class): float => (float) (
+                    $class->courseRevision?->credit_units
+                    ?? $class->termOffering?->curriculumEntry?->courseSpecification?->credit_units
+                    ?? 0
+                ));
                 $assignedClassCount = $officialClasses->count();
             } elseif ($draftRunId !== null) {
                 $loadStage = 'draft';
@@ -371,7 +378,11 @@ final class FacultyAvailabilityStatusProjection
                     : 'Unassigned · limit '.($limit ?? 'not recorded').' units',
                 'load_source' => $override instanceof FacultyTermLoadOverride ? 'Faculty-specific approved load' : 'Term teaching-load default',
                 'course_count' => match ($loadStage) {
-                    'official' => $officialClasses->pluck('courseRevision.course_id')->unique()->count().' courses · official schedule',
+                    'official' => $officialClasses
+                        ->map(fn ($class): ?int => $class->courseRevision?->course_id ?? $class->termOffering?->curriculumEntry?->courseSpecification?->course_id)
+                        ->filter()
+                        ->unique()
+                        ->count().' courses · official schedule',
                     'draft' => $assignedClassCount.' '.str('class')->plural($assignedClassCount).' · draft timetable',
                     default => 'No official assignments yet',
                 },

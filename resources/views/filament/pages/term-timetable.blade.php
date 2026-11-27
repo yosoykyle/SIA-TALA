@@ -42,7 +42,8 @@
                     },
                 } : null);
             $isEditableDraft = (bool) ($interactiveContext['editable'] ?? false);
-            $isPastAttempt = ! $showOfficial && $activeRun && ! $pendingGeneration && ! $isEditableDraft;
+            $isStaleLatestDraft = ! $showOfficial && ! $pendingGeneration && (bool) ($isLatestStaleDraft ?? ($interactiveContext['isStaleDraft'] ?? false));
+            $isPastAttempt = ! $showOfficial && $activeRun && ! $pendingGeneration && ! $isEditableDraft && ! $isStaleLatestDraft;
             $isPostEnrollmentLocked = (bool) ($hasOfficialEnrollmentsBlockingRegen ?? false);
             $hasActiveDraft = ! empty($activeDraftOptions);
             $activeDraftOption = $hasActiveDraft ? $activeDraftOptions[0] : null;
@@ -51,6 +52,7 @@
             $hasSolverIssue = ! $showOfficial && ($solverFailure || ! empty($solverOutcome['message']) || in_array($reviewEvidence['outcome'] ?? '', ['Infeasible', 'Unknown', 'ModelInvalid', 'TechnicalFailure'], true));
             $plainFailure = $hasSolverIssue ? $this->plainSolverFailureSummary($solverFailure ?? [], $solverOutcome ?? [], $reviewEvidence) : null;
             $canPublishDraft = ! $readOnly && ! $isTermClosed && ! $isPostEnrollmentLocked && $activeRun && ! $showOfficial && $this->canPublishActiveRun();
+            $canRegenerateStaleDraft = $isStaleLatestDraft && ! $readOnly && ! $isTermClosed && ! $isPostEnrollmentLocked && $this->regenerateTimetableAction->isVisible();
             $showToolbarNewDraft = ! $readOnly && ! $isTermClosed && ($canStartNewDraftAttempt ?? false)
                 && $isPastAttempt && $scopeMeetingCount > 0;
         @endphp
@@ -134,6 +136,14 @@
                                 <x-filament::icon :icon="$draftValidated ? 'heroicon-m-check-circle' : 'heroicon-m-exclamation-triangle'" />
                                 <span>{{ $draftValidated ? 'Verified · 0 conflicts' : ($draftConflictCount > 0 ? $draftConflictCount.' '.\Illuminate\Support\Str::plural('conflict', $draftConflictCount) : 'Needs check') }}</span>
                             </button>
+                        @elseif ($isStaleLatestDraft)
+                            <span
+                                class="tala-timetable-status-pill is-check is-warn"
+                                title="Term calendar, classes, rooms, or faculty availability changed after this draft was generated. Regenerate to build a fresh draft."
+                            >
+                                <x-filament::icon icon="heroicon-m-exclamation-triangle" />
+                                <span>Sources changed · Regeneration needed</span>
+                            </span>
                         @elseif ($isPastAttempt)
                             <span class="tala-timetable-status-pill is-archived">
                                 <x-filament::icon icon="heroicon-m-clock" />
@@ -145,6 +155,8 @@
                     <div class="tala-studio-viewing">
                         @if ($canPublishDraft)
                             {{ $this->publishOfficialTimetableAction->size('sm') }}
+                        @elseif ($canRegenerateStaleDraft)
+                            {{ $this->regenerateTimetableAction->color('primary')->size('sm') }}
                         @elseif (! $readOnly && ! $isTermClosed && $activeRun && ! $showOfficial && $this->canRetryActiveRun() && $scopeMeetingCount > 0)
                             {{ $this->retrySolverRunAction->size('sm') }}
                         @elseif ($canReviseOfficial)
@@ -288,6 +300,16 @@
                         >
                             New draft
                         </x-filament::button>
+                    </section>
+                @elseif ($isStaleLatestDraft && $scopeMeetingCount > 0)
+                    <section class="tala-studio-context-strip is-warning" aria-label="Stale draft notice">
+                        <div class="tala-studio-context-strip__body">
+                            <x-filament::icon icon="heroicon-o-exclamation-triangle" aria-hidden="true" />
+                            <span>Term inputs changed after <strong>Attempt #{{ $activeRun->id }}</strong> was generated. Regenerate draft to apply the latest classes, rooms, calendar, and faculty availability.</span>
+                        </div>
+                        @if ($currentVersion)
+                            <x-filament::button color="gray" size="sm" wire:click="chooseTimetable('official:{{ $currentVersion->id }}')">View official</x-filament::button>
+                        @endif
                     </section>
                 @elseif ($isPastAttempt && $scopeMeetingCount > 0)
                     <section class="tala-studio-context-strip is-neutral" aria-label="Past attempt notice">
@@ -525,7 +547,7 @@
                     </div>
                 @elseif ($timetablePresentation && $scopeMeetingCount)
                     @php
-                        $showDockRegenerate = $isEditableDraft && ! $readOnly && ! $isTermClosed && ! $isPostEnrollmentLocked
+                        $showDockRegenerate = ($isEditableDraft || $isStaleLatestDraft) && ! $readOnly && ! $isTermClosed && ! $isPostEnrollmentLocked
                             && $this->regenerateTimetableAction->isVisible();
                         $showDraftDockActions = ! $readOnly && ! $isTermClosed && $activeRun && ! $showOfficial
                             && ($this->canUndoLastChange() || $this->canResetToSolverDraft() || $showDockRegenerate);

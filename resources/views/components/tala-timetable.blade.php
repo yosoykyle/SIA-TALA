@@ -2646,6 +2646,14 @@
                                         </x-filament::button>
                                     @endif
                                 </div>
+                            @elseif (! empty($scheduleContext['isStaleDraft']))
+                                <div class="tala-rail-locked-box">
+                                    <span class="tala-inspector-state-pill is-warning">
+                                        <x-filament::icon icon="heroicon-m-exclamation-triangle" />
+                                        <span>Sources changed · Regeneration needed</span>
+                                    </span>
+                                    <p>Term inputs changed after this draft was generated. Use <strong>Regenerate draft</strong> above to apply the latest changes before editing or publishing.</p>
+                                </div>
                             @else
                                 <div class="tala-rail-locked-box">
                                     <span class="tala-inspector-state-pill is-archived">

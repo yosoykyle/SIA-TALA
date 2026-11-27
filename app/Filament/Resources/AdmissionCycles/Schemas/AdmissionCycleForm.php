@@ -81,7 +81,8 @@ class AdmissionCycleForm
                                         modifyQueryUsing: fn (Builder $query, ?AdmissionCycle $record): Builder => $query
                                             ->with('academicYear')
                                             ->where(function (Builder $terms) use ($record): void {
-                                                $terms->where('terms.state', '!=', Term::StateClosed);
+                                                $terms->where('terms.state', '!=', Term::StateClosed)
+                                                    ->whereHas('academicYear', fn (Builder $ay): Builder => $ay->operational());
 
                                                 if ($record instanceof AdmissionCycle && $record->term_id !== null) {
                                                     $terms->orWhere('terms.id', $record->term_id);

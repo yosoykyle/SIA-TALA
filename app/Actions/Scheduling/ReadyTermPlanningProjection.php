@@ -99,7 +99,7 @@ final class ReadyTermPlanningProjection
                 ->exists()
         );
 
-        if ($hasPublishedTimetable) {
+        if ($hasPublishedTimetable && $hasOfficialEnrollments) {
             $confirmedClasses = $classes->whereNotNull('confirmed_at')->values();
             if ($confirmedClasses->isNotEmpty()) {
                 $classes = $confirmedClasses;

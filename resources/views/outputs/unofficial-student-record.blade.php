@@ -1,14 +1,18 @@
 @php
-    $student->loadMissing(['program', 'curriculumVersion.academicYears']);
+    $student->loadMissing(['program', 'curriculumVersion.academicYears', 'entryAcademicYear']);
     $curriculumVersion = $student->curriculumVersion;
-    $batchLabels = $curriculumVersion?->academicYears
-        ?->sortBy('starts_on')
-        ->pluck('label')
-        ->filter()
-        ->implode(', ');
-    $curriculumDisplay = $curriculumVersion
-        ? collect([$curriculumVersion->name ?: 'Assigned curriculum', filled($batchLabels) ? 'Batch '.$batchLabels : null])->filter()->implode(' · ')
-        : 'Not recorded';
+    if ($student->entryAcademicYear instanceof \App\Models\AcademicYear) {
+        $curriculumDisplay = \App\Filament\Resources\StudentProfiles\StudentProfileResource::curriculumAndBatchLabel($student) ?? 'Not recorded';
+    } else {
+        $batchLabels = $curriculumVersion?->academicYears
+            ?->sortBy('starts_on')
+            ->pluck('label')
+            ->filter()
+            ->implode(', ');
+        $curriculumDisplay = $curriculumVersion
+            ? collect([$curriculumVersion->name ?: 'Assigned curriculum', filled($batchLabels) ? 'Batch '.$batchLabels : null])->filter()->implode(' · ')
+            : 'Not recorded';
+    }
 @endphp
 <x-official-output-layout
     title="UNOFFICIAL STUDENT RECORD"

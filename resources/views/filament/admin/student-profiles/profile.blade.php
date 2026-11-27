@@ -24,7 +24,7 @@
             <x-filament::badge :color="$student->lifecycle_status === \App\Models\StudentProfile::LifecycleActive ? 'success' : 'gray'">{{ \App\Models\StudentProfile::lifecycleStatusLabel($student->lifecycle_status) }} student</x-filament::badge>
         </x-slot:status>
         <x-slot:supporting>
-            <p class="tala-profile-muted">{{ $student->curriculumVersion?->name ?? 'No curriculum recorded' }}</p>
+            <p class="tala-profile-muted">{{ \App\Filament\Resources\StudentProfiles\StudentProfileResource::curriculumAndBatchLabel($student) ?? 'No curriculum recorded' }}</p>
             @if ($activationStatus !== null && \App\Actions\StudentProfiles\StudentAccountActivation::canResendActivation($student))
                 <p class="tala-profile-muted">Account status: {{ $activationStatus }}</p>
             @endif

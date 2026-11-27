@@ -14,6 +14,7 @@ use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
 use App\Filament\Resources\CurriculumVersions\CurriculumVersionResource;
 use App\Filament\Resources\Sections\Schemas\SectionInfolist;
 use App\Filament\Resources\Sections\SectionResource;
+use App\Models\CandidateScheduleRow;
 use App\Models\CourseComponent;
 use App\Models\CourseEnrollment;
 use App\Models\CourseSpecification;
@@ -26,9 +27,11 @@ use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
+use App\Models\SchedulingCommitment;
 use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
+use App\Models\SectionMeeting;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermCohort;
@@ -275,7 +278,11 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                         ->orWhereRaw("REPLACE(UPPER(reference), ' ', '') LIKE ?", ['%'.strtoupper(str_replace(' ', '', $search)).'%'])
                         ->orWhereHas('program', fn (Builder $program): Builder => $program->where('name', 'like', '%'.$search.'%'))))->sortable()->weight('semibold')
                         ->formatStateUsing(fn (string $state): HtmlString => new HtmlString('<span class="inline-block whitespace-nowrap">'.e($this->formatSectionReference($state)).'</span>'))
-                        ->description(fn (TermCohort $record): string => collect([$record->program->name, $record->curriculumVersion?->batchLabel() ?? 'Curriculum not associated', $record->year_level ? 'Year '.$record->year_level : null])->filter()->implode(' · ')),
+                        ->description(fn (TermCohort $record): string => collect([
+                            $record->program->name,
+                            $this->resolvedBatchDisplayForCohort($record) ?? 'Curriculum not associated',
+                            $record->year_level ? 'Year '.$record->year_level : null,
+                        ])->filter()->implode(' · ')),
                     TextColumn::make('expected_learners')->label('Students')->state(fn (TermCohort $record): string => match (true) {
                         $record->confirmed_count !== null => $record->confirmed_count.' confirmed',
                         $record->forecast_count !== null => $record->forecast_count.' forecast',
@@ -517,7 +524,15 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                             return new HtmlString('<span class="inline-block whitespace-nowrap">'.e('Merged · '.$programs->count().' programs').'</span>');
                         }
 
-                        $batchLabel = $record->termOffering?->curriculumEntry?->curriculumVersion?->batchLabel();
+                        $cohortBatches = $record->cohorts
+                            ->map(fn (TermCohort $cohort): ?string => $this->resolvedBatchDisplayForCohort($cohort))
+                            ->filter(fn (?string $label): bool => filled($label))
+                            ->unique()
+                            ->values();
+
+                        $batchLabel = $cohortBatches->isNotEmpty()
+                            ? $cohortBatches->implode(', ')
+                            : $record->termOffering?->curriculumEntry?->curriculumVersion?->batchLabel();
 
                         return filled($batchLabel)
                             ? new HtmlString('<span class="inline-block whitespace-nowrap">'.e($batchLabel).'</span>')
@@ -2060,7 +2075,37 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
             });
     }
 
-    private function canModifyUnlinkedCohort(TermCohort $cohort): bool
+    private function cohortHasActiveLinkedClasses(TermCohort $cohort): bool
+    {
+        return $cohort->relationLoaded('classOfferings')
+            ? $cohort->classOfferings->where('state', '!=', Section::StateCancelled)->isNotEmpty()
+            : $cohort->classOfferings()->where('sections.state', '!=', Section::StateCancelled)->exists();
+    }
+
+    /**
+     * @param  list<int>  $sectionIds
+     */
+    private function cohortHasProtectedLinkedClassData(array $sectionIds): bool
+    {
+        if ($sectionIds === []) {
+            return false;
+        }
+
+        return PublishedTimetableMeeting::query()->whereIn('section_id', $sectionIds)->exists()
+            || CourseEnrollment::query()->whereIn('section_id', $sectionIds)->exists()
+            || EnrollmentSeatReservation::query()
+                ->whereIn('section_id', $sectionIds)
+                ->whereIn('status', EnrollmentSeatReservation::capacityHoldingStatuses())
+                ->exists()
+            || SectionMeeting::query()
+                ->whereHas('schedulingDemand.sectionDeliveryGroup', fn (Builder $query): Builder => $query->whereIn('section_id', $sectionIds))
+                ->exists()
+            || DB::table('registration_proposal_items')->whereIn('section_id', $sectionIds)->exists()
+            || DB::table('grade_rosters')->whereIn('section_id', $sectionIds)->exists()
+            || DB::table('class_offering_teaching_assignments')->whereIn('section_id', $sectionIds)->exists();
+    }
+
+    private function canModifyCohortPrePublish(TermCohort $cohort): bool
     {
         if (! (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar)
             || ($this->getViewData()['readOnly'] ?? false)
@@ -2069,17 +2114,31 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
             return false;
         }
 
-        $hasClasses = $cohort->relationLoaded('classOfferings')
-            ? $cohort->classOfferings->where('state', '!=', Section::StateCancelled)->isNotEmpty()
-            : $cohort->classOfferings()->where('sections.state', '!=', Section::StateCancelled)->exists();
-
         $hasEnrollments = isset($cohort->enrollments_count)
             ? (int) $cohort->enrollments_count > 0
             : ($cohort->relationLoaded('enrollments')
                 ? $cohort->enrollments->isNotEmpty()
                 : $cohort->enrollments()->exists());
 
-        return ! $hasClasses && ! $hasEnrollments;
+        if ($hasEnrollments) {
+            return false;
+        }
+
+        $activeSectionIds = $cohort->relationLoaded('classOfferings')
+            ? $cohort->classOfferings
+                ->where('state', '!=', Section::StateCancelled)
+                ->pluck('id')
+                ->map(fn (int|string $id): int => (int) $id)
+                ->values()
+                ->all()
+            : $cohort->classOfferings()
+                ->where('sections.state', '!=', Section::StateCancelled)
+                ->pluck('sections.id')
+                ->map(fn (int|string $id): int => (int) $id)
+                ->values()
+                ->all();
+
+        return ! $this->cohortHasProtectedLinkedClassData($activeSectionIds);
     }
 
     private function editCohortAction(): Action
@@ -2092,18 +2151,22 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
             ->size('sm')
             ->extraAttributes(['class' => 'whitespace-nowrap'])
             ->modalHeading(fn (TermCohort $record): string => 'Edit student section · '.$this->formatSectionReference($record->reference))
-            ->modalDescription('Update the curriculum, year level, section name, or expected student headcount while no classes are linked yet.')
+            ->modalDescription(fn (TermCohort $record): string => $this->cohortHasActiveLinkedClasses($record)
+                ? 'Update the section name or expected student headcount. Linked draft classes and solver demand update automatically.'
+                : 'Update the program, curriculum, year level, section name, or expected student headcount.')
             ->modalSubmitActionLabel('Save changes')
             ->modalCancelActionLabel('Cancel')
             ->modalWidth(Width::TwoExtraLarge)
-            ->visible(fn (TermCohort $record): bool => $this->canModifyUnlinkedCohort($record))
+            ->visible(fn (TermCohort $record): bool => $this->canModifyCohortPrePublish($record))
             ->fillForm(fn (TermCohort $record): array => [
+                'program_id' => $record->program_id,
                 'curriculum_version_id' => $record->curriculum_version_id,
                 'year_level' => $record->year_level ?? $record->resolvedYearLevel() ?? 1,
                 'reference' => $this->formatSectionReference($record->reference),
                 'confirmed_count' => $record->confirmed_count ?? $record->forecast_count,
             ])
             ->schema(function (TermCohort $record): array {
+                $hasLinkedClasses = $this->cohortHasActiveLinkedClasses($record);
                 $curricula = CurriculumVersion::query()
                     ->whereIn('state', [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded])
                     ->with(['program', 'academicYears'])
@@ -2112,45 +2175,93 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                     ->sortBy(fn (Collection $group): string => (string) ($group->first()?->program?->code ?? ''))
                     ->flatMap(fn (Collection $group): Collection => CurriculumVersion::sortByLatestBatch($group, groupByState: true))
                     ->keyBy('id');
+                $programs = $curricula
+                    ->map(fn (CurriculumVersion $curriculum): ?Program => $curriculum->program)
+                    ->filter(fn (?Program $program): bool => $program instanceof Program)
+                    ->unique('id')
+                    ->sortBy(fn (Program $program): string => strtoupper((string) ($program->name ?: $program->code)))
+                    ->keyBy('id');
 
                 return [
-                    Select::make('curriculum_version_id')
-                        ->label('Program & curriculum')
-                        ->options(fn (): array => $curricula
-                            ->mapWithKeys(fn (CurriculumVersion $curriculum): array => [
-                                $curriculum->id => $curriculum->program?->name.' · '.$curriculum->batchLabel().($curriculum->isRetired() ? ' (Retired)' : ''),
-                            ])
-                            ->all())
-                        ->required()
-                        ->searchable()
-                        ->live(),
                     Grid::make(['default' => 1, 'md' => 2])->schema([
-                        Select::make('year_level')
-                            ->label('Year level')
-                            ->options(function (Get $get) use ($curricula): array {
-                                $curriculum = $curricula->get((int) $get('curriculum_version_id'));
-                                $duration = (int) ($curriculum?->program?->duration_years ?? 4);
-                                $maxYear = max(1, min(8, $duration > 0 ? $duration : 4));
-                                $options = [];
-                                for ($year = 1; $year <= $maxYear; $year++) {
-                                    $options[$year] = "Year {$year}";
+                        Select::make('program_id')
+                            ->label('Program')
+                            ->options(fn (): array => $programs
+                                ->mapWithKeys(fn (Program $program): array => [
+                                    $program->id => collect([$program->code, $program->name])->filter()->implode(' — '),
+                                ])->all())
+                            ->disabled($hasLinkedClasses)
+                            ->dehydrated(false)
+                            ->searchable()
+                            ->live()
+                            ->afterStateUpdated(function (Set $set, Get $get, mixed $state) use ($curricula, $programs): void {
+                                $program = $programs->get((int) $state);
+                                if (! $program instanceof Program) {
+                                    $set('curriculum_version_id', null);
+
+                                    return;
                                 }
 
-                                return $options;
+                                $maxYear = $this->maxYearLevelForProgram($program);
+                                $currentYear = (int) ($get('year_level') ?? 1);
+                                $resolvedYear = ($currentYear >= 1 && $currentYear <= $maxYear) ? $currentYear : 1;
+                                $matchedCurriculum = $this->resolveExpectedCurriculumForYearLevel($this->selectedTerm(), $program, $resolvedYear)
+                                    ?? $curricula->first(fn (CurriculumVersion $curriculum): bool => (int) $curriculum->program_id === (int) $program->id);
+
+                                $set('year_level', $resolvedYear);
+                                $set('curriculum_version_id', $matchedCurriculum?->id);
+                            }),
+                        Select::make('year_level')
+                            ->label('Year level')
+                            ->options(function (Get $get) use ($curricula, $programs): array {
+                                $program = $programs->get((int) ($get('program_id') ?? 0))
+                                    ?? $curricula->get((int) ($get('curriculum_version_id') ?? 0))?->program;
+
+                                return $this->cohortYearLevelOptionsForProgram($program);
                             })
-                            ->required(),
+                            ->disabled($hasLinkedClasses)
+                            ->dehydrated()
+                            ->required()
+                            ->live(),
+                    ]),
+                    Select::make('curriculum_version_id')
+                        ->label('Curriculum')
+                        ->options(function (Get $get) use ($curricula): array {
+                            $selectedProgramId = (int) ($get('program_id') ?? 0);
+                            $scoped = $selectedProgramId > 0
+                                ? $curricula->filter(fn (CurriculumVersion $curriculum): bool => (int) $curriculum->program_id === $selectedProgramId)
+                                : $curricula;
+
+                            return $scoped
+                                ->mapWithKeys(fn (CurriculumVersion $curriculum): array => [
+                                    $curriculum->id => $this->formatCurriculumOptionLabel($curriculum, includeProgram: $selectedProgramId <= 0),
+                                ])->all();
+                        })
+                        ->disabled($hasLinkedClasses)
+                        ->dehydrated()
+                        ->helperText($hasLinkedClasses ? 'Program, curriculum, and year level are locked while draft classes are linked to this student section.' : null)
+                        ->required()
+                        ->searchable()
+                        ->live()
+                        ->afterStateUpdated(function (Set $set, mixed $state) use ($curricula): void {
+                            $curriculum = $curricula->get((int) $state);
+                            if ($curriculum instanceof CurriculumVersion) {
+                                $set('program_id', (int) $curriculum->program_id);
+                            }
+                        }),
+                    Grid::make(['default' => 1, 'md' => 2])->schema([
                         TextInput::make('reference')
                             ->label('Section name')
                             ->placeholder('e.g. BSIT 1-1')
                             ->required()
                             ->maxLength(64)
                             ->rule(Rule::unique('term_cohorts', 'reference')->where('term_id', $this->termId)->ignore($record->id)),
+                        TextInput::make('confirmed_count')
+                            ->label('Expected students')
+                            ->integer()
+                            ->minValue(1)
+                            ->required(),
                     ]),
-                    TextInput::make('confirmed_count')
-                        ->label('Expected students')
-                        ->integer()
-                        ->minValue(1)
-                        ->required(),
                 ];
             })
             ->action(function (TermCohort $record, array $data, Schema $schema): void {
@@ -2168,11 +2279,29 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
 
                         $locked = TermCohort::query()->whereKey($record->id)->lockForUpdate()->firstOrFail();
 
-                        if ($locked->classOfferings()->where('sections.state', '!=', Section::StateCancelled)->exists() || $locked->enrollments()->exists()) {
-                            throw ValidationException::withMessages(['reference' => 'This student section already has linked classes or enrollments and cannot be edited here.']);
+                        if ($locked->enrollments()->exists()) {
+                            throw ValidationException::withMessages(['reference' => 'This student section already has student enrollments and cannot be edited here.']);
                         }
 
-                        $curriculum = CurriculumVersion::query()->lockForUpdate()->findOrFail((int) $data['curriculum_version_id']);
+                        $linkedSections = $locked->classOfferings()
+                            ->where('sections.state', '!=', Section::StateCancelled)
+                            ->lockForUpdate()
+                            ->get();
+
+                        $linkedSectionIds = $linkedSections->modelKeys();
+                        if ($this->cohortHasProtectedLinkedClassData($linkedSectionIds)) {
+                            throw ValidationException::withMessages(['reference' => 'Linked classes already have published meetings or enrollments and cannot be edited here.']);
+                        }
+
+                        $hasLinkedClasses = $linkedSections->isNotEmpty();
+                        $targetCurriculumId = $hasLinkedClasses
+                            ? (int) $locked->curriculum_version_id
+                            : (int) ($data['curriculum_version_id'] ?? $locked->curriculum_version_id);
+                        $targetYearLevel = $hasLinkedClasses
+                            ? (int) ($locked->year_level ?? $locked->resolvedYearLevel() ?? 1)
+                            : (int) ($data['year_level'] ?? $locked->year_level ?? 1);
+
+                        $curriculum = CurriculumVersion::query()->lockForUpdate()->findOrFail($targetCurriculumId);
                         if (! in_array($curriculum->state, [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded], true)) {
                             throw ValidationException::withMessages(['curriculum_version_id' => 'Choose a published (Active or Retired) curriculum.']);
                         }
@@ -2188,20 +2317,89 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                             throw ValidationException::withMessages(['reference' => 'That student section name is already used in this term.']);
                         }
 
+                        $oldConfirmedCount = (int) ($locked->confirmed_count ?? $locked->forecast_count ?? 0);
+                        $newConfirmedCount = (int) $data['confirmed_count'];
+
                         $locked->update([
                             'program_id' => $curriculum->program_id,
                             'curriculum_version_id' => $curriculum->id,
-                            'year_level' => (int) $data['year_level'],
+                            'year_level' => $targetYearLevel,
                             'reference' => $reference,
-                            'confirmed_count' => (int) $data['confirmed_count'],
+                            'confirmed_count' => $newConfirmedCount,
                         ]);
+
+                        if ($hasLinkedClasses) {
+                            $delta = $newConfirmedCount - $oldConfirmedCount;
+
+                            foreach ($linkedSections as $section) {
+                                DB::table('section_term_cohort')
+                                    ->where('section_id', $section->id)
+                                    ->where('term_cohort_id', $locked->id)
+                                    ->update(['expected_count' => $newConfirmedCount, 'updated_at' => now()]);
+
+                                $cohortCount = (int) DB::table('section_term_cohort')
+                                    ->where('section_id', $section->id)
+                                    ->count();
+                                $totalExpected = max(1, (int) DB::table('section_term_cohort')
+                                    ->where('section_id', $section->id)
+                                    ->sum('expected_count'));
+
+                                $nextCapacity = $cohortCount <= 1
+                                    ? $totalExpected
+                                    : max($totalExpected, (int) $section->capacity + $delta);
+
+                                $section->forceFill(['capacity' => $nextCapacity])->save();
+
+                                $groups = $section->deliveryGroups()
+                                    ->whereNotIn('state', [SectionDeliveryGroup::StateClosed, SectionDeliveryGroup::StateCancelled])
+                                    ->get();
+
+                                if ($groups->count() === 1) {
+                                    $groups->first()->forceFill(['expected_count' => $totalExpected])->save();
+                                } elseif ($groups->count() > 1) {
+                                    foreach ($groups as $group) {
+                                        $group->forceFill(['expected_count' => min((int) $group->expected_count, $nextCapacity)])->save();
+                                    }
+                                }
+
+                                if ($section->termOffering instanceof TermOffering) {
+                                    $offeringExpected = max(
+                                        $totalExpected,
+                                        (int) DB::table('section_term_cohort')
+                                            ->join('sections', 'sections.id', '=', 'section_term_cohort.section_id')
+                                            ->where('sections.term_offering_id', $section->termOffering->id)
+                                            ->where('sections.state', '!=', Section::StateCancelled)
+                                            ->sum('section_term_cohort.expected_count'),
+                                    );
+                                    $section->termOffering->forceFill(['expected_count' => $offeringExpected])->save();
+                                }
+                            }
+
+                            ScheduleGenerationRun::query()
+                                ->where('term_id', $term->id)
+                                ->whereIn('status', [
+                                    ScheduleGenerationRun::StatusQueued,
+                                    ScheduleGenerationRun::StatusDispatching,
+                                    ScheduleGenerationRun::StatusUnderReview,
+                                ])
+                                ->update(['candidate_state' => 'Stale', 'updated_at' => now()]);
+
+                            if (TermCalendarPackage::query()->where('term_id', $term->id)->where('state', TermCalendarPackage::StateActive)->exists()) {
+                                app(GenerateSchedulingDemand::class)->forTerm($actor, $term);
+                            }
+                        }
 
                         activity()
                             ->causedBy($actor)
                             ->performedOn($locked)
                             ->event('term_cohort_updated')
-                            ->withProperties(['term_id' => $term->id, 'reference' => $reference])
-                            ->log('Updated unlinked student section');
+                            ->withProperties([
+                                'term_id' => $term->id,
+                                'reference' => $reference,
+                                'confirmed_count' => $newConfirmedCount,
+                                'linked_classes_synced' => $linkedSections->count(),
+                            ])
+                            ->log('Updated student section');
                     }, attempts: 5);
                 } catch (ValidationException $exception) {
                     $firstMessage = collect($exception->errors())->flatten()->first();
@@ -2237,10 +2435,20 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
             ->extraAttributes(['class' => 'whitespace-nowrap'])
             ->requiresConfirmation()
             ->modalHeading(fn (TermCohort $record): string => 'Delete student section '.$this->formatSectionReference($record->reference).'?')
-            ->modalDescription('This unlinked student section has no linked classes or enrollments and will be permanently removed from this term.')
+            ->modalDescription(function (TermCohort $record): string {
+                $linkedCount = $record->relationLoaded('classOfferings')
+                    ? $record->classOfferings->where('state', '!=', Section::StateCancelled)->count()
+                    : $record->classOfferings()->where('sections.state', '!=', Section::StateCancelled)->count();
+
+                if ($linkedCount === 0) {
+                    return 'This unlinked student section has no linked classes or enrollments and will be permanently removed from this term.';
+                }
+
+                return "This student section has {$linkedCount} linked unpublished ".Str::plural('class', $linkedCount).' with 0 student enrollments. Deleting it will remove draft classes owned solely by this section, detach shared classes, mark active schedule drafts stale, and permanently remove the section.';
+            })
             ->modalSubmitActionLabel('Delete section')
             ->modalCancelActionLabel('Cancel')
-            ->visible(fn (TermCohort $record): bool => $this->canModifyUnlinkedCohort($record))
+            ->visible(fn (TermCohort $record): bool => $this->canModifyCohortPrePublish($record))
             ->action(function (TermCohort $record): void {
                 $actor = auth()->user();
                 abort_unless($actor instanceof User && $actor->hasRole(User::StaffRoleRegistrar), 403);
@@ -2256,27 +2464,105 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
 
                         $locked = TermCohort::query()->whereKey($record->id)->lockForUpdate()->firstOrFail();
 
-                        if ($locked->classOfferings()->where('sections.state', '!=', Section::StateCancelled)->exists() || $locked->enrollments()->exists()) {
-                            throw ValidationException::withMessages(['cohort' => 'This student section already has linked classes or enrollments and cannot be deleted.']);
+                        if ($locked->enrollments()->exists()) {
+                            throw ValidationException::withMessages(['cohort' => 'This student section already has student enrollments and cannot be deleted.']);
                         }
 
-                        $cancelledSectionIds = $locked->classOfferings()
-                            ->where('sections.state', Section::StateCancelled)
-                            ->pluck('sections.id')
+                        $linkedSections = $locked->classOfferings()->lockForUpdate()->get();
+                        $activeLinked = $linkedSections->where('state', '!=', Section::StateCancelled);
+                        $activeLinkedIds = $activeLinked->modelKeys();
+
+                        if ($this->cohortHasProtectedLinkedClassData($activeLinkedIds)) {
+                            throw ValidationException::withMessages(['cohort' => 'Linked classes already have published meetings or enrollments and cannot be deleted here.']);
+                        }
+
+                        $cancelledSectionIds = $linkedSections
+                            ->where('state', Section::StateCancelled)
+                            ->pluck('id')
                             ->all();
                         if ($cancelledSectionIds !== []) {
                             $locked->classOfferings()->detach($cancelledSectionIds);
                         }
 
+                        $removedDraftClassesCount = 0;
+
+                        foreach ($activeLinked as $section) {
+                            $locked->classOfferings()->detach($section->id);
+
+                            $remainingCount = (int) DB::table('section_term_cohort')
+                                ->where('section_id', $section->id)
+                                ->count();
+
+                            if ($remainingCount > 0) {
+                                $totalExpected = max(1, (int) DB::table('section_term_cohort')
+                                    ->where('section_id', $section->id)
+                                    ->sum('expected_count'));
+                                $section->forceFill(['capacity' => $totalExpected])->save();
+
+                                $groups = $section->deliveryGroups()
+                                    ->whereNotIn('state', [SectionDeliveryGroup::StateClosed, SectionDeliveryGroup::StateCancelled])
+                                    ->get();
+
+                                if ($groups->count() === 1) {
+                                    $groups->first()->forceFill(['expected_count' => $totalExpected])->save();
+                                } elseif ($groups->count() > 1) {
+                                    foreach ($groups as $group) {
+                                        $group->forceFill(['expected_count' => min((int) $group->expected_count, $totalExpected)])->save();
+                                    }
+                                }
+
+                                continue;
+                            }
+
+                            SchedulingCommitment::query()->where('section_id', $section->id)->delete();
+
+                            $groupIds = $section->deliveryGroups()->pluck('id')->all();
+                            if ($groupIds !== []) {
+                                $demandIds = SchedulingDemand::query()
+                                    ->whereIn('section_delivery_group_id', $groupIds)
+                                    ->pluck('id')
+                                    ->all();
+
+                                if ($demandIds !== []) {
+                                    CandidateScheduleRow::query()->whereIn('scheduling_demand_id', $demandIds)->delete();
+                                    SchedulingDemand::query()->whereIn('id', $demandIds)->delete();
+                                }
+
+                                SectionDeliveryGroup::query()->whereIn('id', $groupIds)->delete();
+                            }
+
+                            $section->delete();
+                            $removedDraftClassesCount++;
+                        }
+
+                        ScheduleGenerationRun::query()
+                            ->where('term_id', $term->id)
+                            ->whereIn('status', [
+                                ScheduleGenerationRun::StatusQueued,
+                                ScheduleGenerationRun::StatusDispatching,
+                                ScheduleGenerationRun::StatusUnderReview,
+                            ])
+                            ->update(['candidate_state' => 'Stale', 'updated_at' => now()]);
+
                         $reference = $locked->reference;
                         $id = $locked->id;
                         $locked->delete();
 
+                        if ($activeLinked->isNotEmpty()
+                            && TermCalendarPackage::query()->where('term_id', $term->id)->where('state', TermCalendarPackage::StateActive)->exists()) {
+                            app(GenerateSchedulingDemand::class)->forTerm($actor, $term);
+                        }
+
                         activity()
                             ->causedBy($actor)
                             ->event('term_cohort_deleted')
-                            ->withProperties(['term_id' => $term->id, 'term_cohort_id' => $id, 'reference' => $reference])
-                            ->log('Deleted unlinked student section');
+                            ->withProperties([
+                                'term_id' => $term->id,
+                                'term_cohort_id' => $id,
+                                'reference' => $reference,
+                                'removed_draft_classes' => $removedDraftClassesCount,
+                            ])
+                            ->log('Deleted student section');
                     }, attempts: 5);
                 } catch (ValidationException $exception) {
                     $firstMessage = collect($exception->errors())->flatten()->first();

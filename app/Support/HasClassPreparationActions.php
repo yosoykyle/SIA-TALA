@@ -59,7 +59,7 @@ trait HasClassPreparationActions
                 && (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar)
                 && ! $this->hasPublishedTimetable()
                 && ! $this->isTermClosed())
-            ->modalDescription(fn (): string => $this->selectedTerm()->label.'. Choose the program curriculum, year level, and expected student headcount.')
+            ->modalDescription(fn (): string => $this->selectedTerm()->label.'. Choose the program and year level to resolve the cohort batch and curriculum.')
             ->schema(function (): array {
                 $term = $this->selectedTerm();
                 $term->loadMissing('academicYear');
@@ -68,7 +68,6 @@ trait HasClassPreparationActions
                     ->where('state', TermCalendarPackage::StateActive)
                     ->first();
                 $maxRoomSeats = (int) (Room::query()->where('is_active', true)->max('capacity') ?? 0);
-                $demandEvidence = app(PrepareTermClassProposal::class)->demandEvidence($term);
                 $curricula = CurriculumVersion::query()
                     ->whereIn('state', [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded])
                     ->with(['program', 'batches.academicYear', 'academicYears'])
@@ -77,21 +76,112 @@ trait HasClassPreparationActions
                     ->sortBy(fn (Collection $group): string => (string) ($group->first()?->program?->code ?? ''))
                     ->flatMap(fn (Collection $group): Collection => CurriculumVersion::sortByLatestBatch($group, groupByState: true))
                     ->keyBy('id');
+                $programs = $curricula
+                    ->map(fn (CurriculumVersion $curriculum): ?Program => $curriculum->program)
+                    ->filter(fn (?Program $program): bool => $program instanceof Program)
+                    ->unique('id')
+                    ->sortBy(fn (Program $program): string => strtoupper((string) ($program->name ?: $program->code)))
+                    ->keyBy('id');
 
                 return [
                     Hidden::make('suggested_reference')->dehydrated(false),
+                    Grid::make(['default' => 1, 'md' => 2])->schema([
+                        Select::make('program_id')
+                            ->label('Program')
+                            ->placeholder('Choose a program')
+                            ->options(fn (): array => $programs
+                                ->mapWithKeys(fn (Program $program): array => [
+                                    $program->id => collect([$program->code, $program->name])->filter()->implode(' — '),
+                                ])->all())
+                            ->dehydrated(false)
+                            ->searchable()
+                            ->live()
+                            ->afterStateUpdated(function (Set $set, Get $get, mixed $state) use ($term, $activePackage, $curricula, $programs): void {
+                                $program = $programs->get((int) $state);
+                                if (! $program instanceof Program) {
+                                    $set('curriculum_version_id', null);
+                                    $set('suggested_reference', '');
+                                    $set('auto_create_classes', false);
+
+                                    return;
+                                }
+
+                                $maxYear = $this->maxYearLevelForProgram($program);
+                                $currentYear = (int) ($get('year_level') ?? 1);
+                                $resolvedYear = ($currentYear >= 1 && $currentYear <= $maxYear) ? $currentYear : 1;
+                                $matchedCurriculum = $this->resolveExpectedCurriculumForYearLevel($term, $program, $resolvedYear)
+                                    ?? $curricula->first(fn (CurriculumVersion $curriculum): bool => (int) $curriculum->program_id === (int) $program->id);
+
+                                $set('year_level', $resolvedYear);
+                                $set('curriculum_version_id', $matchedCurriculum?->id);
+                                $this->syncSuggestedSectionReference($set, $get, $term, $matchedCurriculum, $resolvedYear);
+
+                                $hasMatching = $activePackage !== null
+                                    && $matchedCurriculum instanceof CurriculumVersion
+                                    && $this->confirmableEntriesForCohort($term, $matchedCurriculum->id, $resolvedYear)->isNotEmpty();
+                                $set('auto_create_classes', $hasMatching);
+                            }),
+                        Select::make('year_level')
+                            ->label('Year level')
+                            ->options(function (Get $get) use ($curricula, $programs): array {
+                                $program = $programs->get((int) ($get('program_id') ?? 0))
+                                    ?? $curricula->get((int) ($get('curriculum_version_id') ?? 0))?->program;
+
+                                return $this->cohortYearLevelOptionsForProgram($program);
+                            })
+                            ->default(1)
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(function (Set $set, Get $get, mixed $state) use ($term, $activePackage, $curricula, $programs): void {
+                                $curriculumId = (int) ($get('curriculum_version_id') ?? 0);
+                                $curriculum = $curricula->get($curriculumId);
+                                $program = $programs->get((int) ($get('program_id') ?? 0)) ?? $curriculum?->program;
+                                $yearLevel = max(1, (int) ($state ?? 1));
+
+                                // Auto-match the program's published curriculum for expected intake batch: termStartYear - (yearLevel - 1).
+                                $matchedCurriculum = $this->resolveExpectedCurriculumForYearLevel($term, $program, $yearLevel);
+                                if ($matchedCurriculum instanceof CurriculumVersion && $curricula->has($matchedCurriculum->id) && (int) $matchedCurriculum->id !== $curriculumId) {
+                                    $curriculumId = (int) $matchedCurriculum->id;
+                                    $curriculum = $curricula->get($curriculumId);
+                                    $set('curriculum_version_id', $curriculumId);
+                                }
+
+                                if ($curriculum instanceof CurriculumVersion && blank($get('program_id'))) {
+                                    $set('program_id', (int) $curriculum->program_id);
+                                }
+
+                                $this->syncSuggestedSectionReference($set, $get, $term, $curriculum, $yearLevel);
+
+                                $hasMatching = $activePackage !== null
+                                    && $curriculumId > 0
+                                    && $yearLevel > 0
+                                    && $this->confirmableEntriesForCohort($term, $curriculumId, $yearLevel)->isNotEmpty();
+                                $set('auto_create_classes', $hasMatching);
+                            }),
+                    ]),
                     Select::make('curriculum_version_id')
-                        ->label('Program & curriculum')
-                        ->placeholder('Choose a program curriculum')
-                        ->options(fn (): array => $curricula
-                            ->mapWithKeys(fn (CurriculumVersion $curriculum): array => [
-                                $curriculum->id => $curriculum->program?->name.' · '.$curriculum->batchLabel().($curriculum->isRetired() ? ' (Retired)' : ''),
-                            ])->all())
+                        ->label('Curriculum')
+                        ->placeholder('Choose a curriculum')
+                        ->options(function (Get $get) use ($curricula): array {
+                            $selectedProgramId = (int) ($get('program_id') ?? 0);
+                            $scoped = $selectedProgramId > 0
+                                ? $curricula->filter(fn (CurriculumVersion $curriculum): bool => (int) $curriculum->program_id === $selectedProgramId)
+                                : $curricula;
+
+                            return $scoped
+                                ->mapWithKeys(fn (CurriculumVersion $curriculum): array => [
+                                    $curriculum->id => $this->formatCurriculumOptionLabel($curriculum, includeProgram: $selectedProgramId <= 0),
+                                ])->all();
+                        })
                         ->required()
                         ->searchable()
                         ->live()
                         ->afterStateUpdated(function (Set $set, Get $get, mixed $state) use ($term, $activePackage, $curricula): void {
                             $curriculum = $curricula->get((int) $state);
+                            if ($curriculum instanceof CurriculumVersion && (int) ($get('program_id') ?? 0) !== (int) $curriculum->program_id) {
+                                $set('program_id', (int) $curriculum->program_id);
+                            }
+
                             $maxYear = $this->maxYearLevelForCurriculum($curriculum);
                             $currentYear = (int) ($get('year_level') ?? 1);
                             $resolvedYear = ($currentYear >= 1 && $currentYear <= $maxYear) ? $currentYear : 1;
@@ -102,50 +192,59 @@ trait HasClassPreparationActions
                                 && $curriculum instanceof CurriculumVersion
                                 && $this->confirmableEntriesForCohort($term, $curriculum->id, $resolvedYear)->isNotEmpty();
                             $set('auto_create_classes', $hasMatching);
+                        })
+                        ->helperText(function (Get $get) use ($term, $curricula): string {
+                            $curriculum = $curricula->get((int) ($get('curriculum_version_id') ?? 0));
+                            $yearLevel = max(1, (int) ($get('year_level') ?? 1));
+                            $intakeLabel = $this->resolveSingleIntakeBatchLabel($term, $yearLevel);
+
+                            if (! $curriculum instanceof CurriculumVersion) {
+                                return $intakeLabel !== null
+                                    ? "Select a program and year level above to auto-select the curriculum for {$intakeLabel}."
+                                    : 'Auto-selected from program and year level; change here if this section follows another published curriculum.';
+                            }
+
+                            $resolvedLabel = $this->resolvedBatchDisplay($term, $curriculum, $yearLevel);
+                            $programCount = $curricula->where('program_id', $curriculum->program_id)->count();
+                            $overrideHint = $programCount > 1 ? ' Change here only if overriding the curriculum.' : '';
+
+                            return "Resolved batch: {$resolvedLabel} (Year {$yearLevel}).{$overrideHint}";
                         }),
-                    Grid::make(['default' => 1, 'md' => 2])->schema([
-                        Select::make('year_level')
-                            ->label('Year level')
-                            ->options(fn (Get $get): array => $this->cohortYearLevelOptions($curricula->get((int) $get('curriculum_version_id'))))
-                            ->default(1)
-                            ->required()
-                            ->live()
-                            ->afterStateUpdated(function (Set $set, Get $get, mixed $state) use ($term, $activePackage, $curricula): void {
-                                $curriculumId = (int) ($get('curriculum_version_id') ?? 0);
-                                $curriculum = $curricula->get($curriculumId);
-                                $yearLevel = max(1, (int) ($state ?? 1));
+                    Placeholder::make('resolved_batch_summary')
+                        ->hiddenLabel()
+                        ->visible(fn (Get $get): bool => filled($get('curriculum_version_id')))
+                        ->content(function (Get $get) use ($term, $curricula): HtmlString {
+                            $curriculum = $curricula->get((int) ($get('curriculum_version_id') ?? 0));
+                            if (! $curriculum instanceof CurriculumVersion) {
+                                return new HtmlString('');
+                            }
 
-                                // Auto-match the program's published curriculum for expected intake batch: termStartYear - (yearLevel - 1).
-                                $matchedCurriculum = $this->resolveExpectedCurriculumForYearLevel($term, $curriculum?->program, $yearLevel);
-                                if ($matchedCurriculum instanceof CurriculumVersion && $curricula->has($matchedCurriculum->id) && (int) $matchedCurriculum->id !== $curriculumId) {
-                                    $curriculumId = (int) $matchedCurriculum->id;
-                                    $curriculum = $curricula->get($curriculumId);
-                                    $set('curriculum_version_id', $curriculumId);
-                                }
+                            $yearLevel = max(1, (int) ($get('year_level') ?? 1));
+                            $batchDisplay = $this->resolvedBatchDisplay($term, $curriculum, $yearLevel) ?? $curriculum->batchLabel();
+                            $programLabel = $curriculum->program?->code ?: $curriculum->program?->name;
+                            $curriculumTitle = filled($curriculum->name) && $curriculum->name !== $curriculum->batchLabel()
+                                ? $curriculum->name
+                                : $curriculum->batchLabel();
 
-                                $this->syncSuggestedSectionReference($set, $get, $term, $curriculum, $yearLevel);
+                            return new HtmlString(
+                                '<div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700 dark:border-white/10 dark:bg-white/5 dark:text-gray-200">'
+                                .'<strong>'.e($batchDisplay).'</strong> · '.e($programLabel).' · Year '.e((string) $yearLevel).' · '.e($curriculumTitle)
+                                .'</div>'
+                            );
+                        }),
+                    TextInput::make('reference')
+                        ->label('Section name')
+                        ->placeholder('e.g. BSIT 1-1')
+                        ->live(debounce: 250)
+                        ->helperText(function (Get $get) use ($curricula): string {
+                            $yearLevel = max(1, (int) ($get('year_level') ?? 1));
+                            $curriculum = $curricula->get((int) ($get('curriculum_version_id') ?? 0));
+                            $programCode = Str::upper(trim((string) ($curriculum?->program?->code ?? 'BSIT'))) ?: 'BSIT';
 
-                                $hasMatching = $activePackage !== null
-                                    && $curriculumId > 0
-                                    && $yearLevel > 0
-                                    && $this->confirmableEntriesForCohort($term, $curriculumId, $yearLevel)->isNotEmpty();
-                                $set('auto_create_classes', $hasMatching);
-                            })
-                            ->helperText('Recorded on the student section for curriculum matching. Auto-matches the program batch curriculum for this year level when available.'),
-                        TextInput::make('reference')
-                            ->label('Section name')
-                            ->placeholder('e.g. BSIT 1-1')
-                            ->live(debounce: 250)
-                            ->helperText(function (Get $get) use ($curricula): string {
-                                $yearLevel = max(1, (int) ($get('year_level') ?? 1));
-                                $curriculum = $curricula->get((int) ($get('curriculum_version_id') ?? 0));
-                                $programCode = Str::upper(trim((string) ($curriculum?->program?->code ?? 'BSIT'))) ?: 'BSIT';
-
-                                return "Example: {$programCode} {$yearLevel}-1 (Year {$yearLevel}, Section 1)";
-                            })
-                            ->required()
-                            ->maxLength(64),
-                    ]),
+                            return "Example: {$programCode} {$yearLevel}-1 (Year {$yearLevel}, Section 1)";
+                        })
+                        ->required()
+                        ->maxLength(64),
                     Placeholder::make('batch_year_mismatch_warning')
                         ->hiddenLabel()
                         ->visible(function (Get $get) use ($term, $curricula): bool {
@@ -216,7 +315,13 @@ trait HasClassPreparationActions
                         TextInput::make('confirmed_count')
                             ->label('Expected students')
                             ->placeholder('e.g., 35')
-                            ->helperText(fn (Get $get): string => $this->expectedStudentsHelperText($demandEvidence, $maxRoomSeats, (int) ($get('year_level') ?? 1)))
+                            ->helperText(fn (Get $get): string => $this->scopedExpectedStudentsHelperText(
+                                $term,
+                                $maxRoomSeats,
+                                $curricula->get((int) ($get('curriculum_version_id') ?? 0)),
+                                filled($get('program_id')) ? (int) $get('program_id') : null,
+                                (int) ($get('year_level') ?? 1),
+                            ))
                             ->required()
                             ->integer()
                             ->minValue(1),
@@ -563,6 +668,7 @@ trait HasClassPreparationActions
             ->orderBy('code')
             ->get();
 
+        $matchingAyIdsByYear = [];
         $suggestions = [];
 
         foreach ($activePrograms as $program) {
@@ -581,14 +687,24 @@ trait HasClassPreparationActions
                     continue;
                 }
 
+                $curriculum->loadMissing('academicYears');
+                $matchingAyIds = $matchingAyIdsByYear[$intakeYear]
+                    ??= PrepareTermClassProposal::matchingAcademicYearIdsForStartYear($intakeYear);
+                $earliestBatchStart = $curriculum->academicYears
+                    ->map(fn (AcademicYear $year): ?int => CurriculumVersion::extractAcademicYearStart($year))
+                    ->filter(fn (?int $start): bool => $start !== null)
+                    ->min();
+                $isPrimaryBatch = $curriculum->academicYears->count() <= 1 || $earliestBatchStart === $intakeYear;
+
                 $batchShort = $intakeYear.'–'.substr((string) ($intakeYear + 1), -2);
-                $activeStudents = StudentProfile::query()
+                $activeStudentsQuery = StudentProfile::query()
                     ->where('program_id', $program->id)
                     ->where('curriculum_version_id', $curriculum->id)
                     ->where('lifecycle_status', StudentProfile::LifecycleActive)
                     ->whereNull('archived_at')
-                    ->whereNull('merged_into_id')
-                    ->count();
+                    ->whereNull('merged_into_id');
+                PrepareTermClassProposal::applyIntakeBatchScope($activeStudentsQuery, $matchingAyIds, $isPrimaryBatch);
+                $activeStudents = $activeStudentsQuery->count();
 
                 $reference = $this->suggestSectionReference($term, $curriculum, $yearLevel);
                 $suggestedCount = $activeStudents > 0 ? $activeStudents : 30;
@@ -612,7 +728,7 @@ trait HasClassPreparationActions
                     'active_students' => $activeStudents,
                     'label' => "{$reference} · {$program->code} Year {$yearLevel} (Batch {$batchShort} → {$curriculum->batchLabel()}{$retiredTag})",
                     'description' => $activeStudents > 0
-                        ? "{$activeStudents} active continuing ".Str::plural('student', $activeStudents)." on {$curriculum->batchLabel()} · Suggested capacity: {$suggestedCount}"
+                        ? "{$activeStudents} active continuing ".Str::plural('student', $activeStudents)." in Batch {$batchShort} · Suggested capacity: {$suggestedCount}"
                         : "Planned section for Batch {$batchShort} ({$program->duration_years}-yr program) · Default expected count: {$suggestedCount}",
                 ];
             }
@@ -638,13 +754,17 @@ trait HasClassPreparationActions
                         continue;
                     }
 
-                    $activeStudents = StudentProfile::query()
+                    $olderMatchingAyIds = $matchingAyIdsByYear[$olderIntake]
+                        ??= PrepareTermClassProposal::matchingAcademicYearIdsForStartYear($olderIntake);
+                    $olderIsSingleBatch = $olderCurriculum->academicYears->count() <= 1;
+                    $activeStudentsQuery = StudentProfile::query()
                         ->where('program_id', $program->id)
                         ->where('curriculum_version_id', $olderCurriculum->id)
                         ->where('lifecycle_status', StudentProfile::LifecycleActive)
                         ->whereNull('archived_at')
-                        ->whereNull('merged_into_id')
-                        ->count();
+                        ->whereNull('merged_into_id');
+                    PrepareTermClassProposal::applyIntakeBatchScope($activeStudentsQuery, $olderMatchingAyIds, $olderIsSingleBatch);
+                    $activeStudents = $activeStudentsQuery->count();
 
                     $reference = "{$program->code} {$maxYear}-OB{$olderIntake}";
                     $suggestedCount = $activeStudents > 0 ? $activeStudents : 15;
@@ -848,17 +968,22 @@ trait HasClassPreparationActions
             });
     }
 
-    private function maxYearLevelForCurriculum(?CurriculumVersion $curriculum): int
+    protected function maxYearLevelForProgram(?Program $program): int
     {
-        $duration = (int) ($curriculum?->program?->duration_years ?? 4);
+        $duration = (int) ($program?->duration_years ?? 4);
 
         return max(1, min(8, $duration > 0 ? $duration : 4));
     }
 
-    /** @return array<int, string> */
-    private function cohortYearLevelOptions(?CurriculumVersion $curriculum): array
+    protected function maxYearLevelForCurriculum(?CurriculumVersion $curriculum): int
     {
-        $maxYear = $this->maxYearLevelForCurriculum($curriculum);
+        return $this->maxYearLevelForProgram($curriculum?->program);
+    }
+
+    /** @return array<int, string> */
+    protected function cohortYearLevelOptionsForProgram(?Program $program): array
+    {
+        $maxYear = $this->maxYearLevelForProgram($program);
         $options = [];
         for ($year = 1; $year <= $maxYear; $year++) {
             $options[$year] = "Year {$year}";
@@ -867,10 +992,119 @@ trait HasClassPreparationActions
         return $options;
     }
 
+    /** @return array<int, string> */
+    protected function cohortYearLevelOptions(?CurriculumVersion $curriculum): array
+    {
+        return $this->cohortYearLevelOptionsForProgram($curriculum?->program);
+    }
+
+    protected function formatCurriculumOptionLabel(CurriculumVersion $curriculum, bool $includeProgram = false): string
+    {
+        $batch = $curriculum->batchLabel();
+        $name = trim((string) ($curriculum->name ?? ''));
+        $core = ($name !== '' && $name !== $batch) ? "{$name} ({$batch})" : $batch;
+        $retired = $curriculum->isRetired() ? ' (Retired)' : '';
+
+        return ($includeProgram && $curriculum->program !== null ? $curriculum->program->name.' · ' : '').$core.$retired;
+    }
+
+    protected function resolveSingleIntakeBatchLabel(Term $term, int $yearLevel): ?string
+    {
+        if ($yearLevel <= 0) {
+            return null;
+        }
+
+        $term->loadMissing('academicYear');
+        if (! $term->academicYear instanceof AcademicYear) {
+            return null;
+        }
+
+        $termStartYear = CurriculumVersion::extractAcademicYearStart($term->academicYear);
+        if ($termStartYear === null) {
+            return null;
+        }
+
+        $intakeStartYear = $termStartYear - ($yearLevel - 1);
+
+        return 'Batch '.$intakeStartYear.'–'.substr((string) ($intakeStartYear + 1), -2);
+    }
+
+    protected function resolvedBatchDisplay(Term $term, ?CurriculumVersion $curriculum, ?int $yearLevel): ?string
+    {
+        if (! $curriculum instanceof CurriculumVersion) {
+            return null;
+        }
+
+        $term->loadMissing('academicYear');
+        $curriculum->loadMissing('academicYears');
+
+        if ($term->academicYear instanceof AcademicYear && $yearLevel !== null && $yearLevel > 0) {
+            $termStartYear = CurriculumVersion::extractAcademicYearStart($term->academicYear);
+            if ($termStartYear !== null) {
+                $intakeStartYear = $termStartYear - ($yearLevel - 1);
+                if ($curriculum->coversAcademicYearStart($intakeStartYear)) {
+                    return 'Batch '.$intakeStartYear.'–'.substr((string) ($intakeStartYear + 1), -2);
+                }
+            }
+        }
+
+        return $curriculum->batchLabel();
+    }
+
+    protected function resolvedBatchDisplayForCohort(TermCohort $cohort, ?Term $term = null): ?string
+    {
+        return $this->resolvedBatchDisplay(
+            $term ?? $this->selectedTerm(),
+            $cohort->curriculumVersion,
+            $cohort->year_level ?? $cohort->resolvedYearLevel(),
+        );
+    }
+
+    private function scopedExpectedStudentsHelperText(
+        Term $term,
+        int $maxRoomSeats,
+        ?CurriculumVersion $curriculum,
+        ?int $programId,
+        int $yearLevel,
+    ): string {
+        $resolvedProgramId = $programId ?: ($curriculum?->program_id !== null ? (int) $curriculum->program_id : null);
+        $resolvedCurriculumId = $curriculum?->id !== null ? (int) $curriculum->id : null;
+        $seatHint = $maxRoomSeats > 0
+            ? "Largest active room holds {$maxRoomSeats} seats."
+            : 'Estimated or confirmed headcount used to check room seating capacity.';
+
+        if ($resolvedProgramId === null && $resolvedCurriculumId === null) {
+            return 'Choose a program and year level to see matching batch demand. '.$seatHint;
+        }
+
+        $term->loadMissing('academicYear');
+        $intakeStartYear = null;
+        if ($term->academicYear instanceof AcademicYear && $yearLevel > 0) {
+            $termStartYear = CurriculumVersion::extractAcademicYearStart($term->academicYear);
+            if ($termStartYear !== null) {
+                $intakeStartYear = $termStartYear - ($yearLevel - 1);
+            }
+        }
+
+        $demandEvidence = app(PrepareTermClassProposal::class)->demandEvidence(
+            $term,
+            $resolvedProgramId,
+            $resolvedCurriculumId,
+            intakeStartYear: $intakeStartYear,
+        );
+
+        return $this->expectedStudentsHelperText(
+            $demandEvidence,
+            $maxRoomSeats,
+            $yearLevel,
+            $this->resolveSingleIntakeBatchLabel($term, $yearLevel),
+        );
+    }
+
     /**
      * @param  array{ready_applicants: int, continuing_profiles: int, unmet: list<array<string, mixed>>}  $demandEvidence
      */
-    private function expectedStudentsHelperText(array $demandEvidence, int $maxRoomSeats, int $yearLevel): string
+    private function expectedStudentsHelperText(array $demandEvidence, int $maxRoomSeats, int $yearLevel, ?string $batchLabel = null): string
     {
         $readyApplicants = (int) ($demandEvidence['ready_applicants'] ?? 0);
         $continuingProfiles = (int) ($demandEvidence['continuing_profiles'] ?? 0);
@@ -879,11 +1113,12 @@ trait HasClassPreparationActions
         if ($readyApplicants > 0 && $yearLevel <= 1) {
             $demandHints[] = "{$readyApplicants} ready ".Str::plural('applicant', $readyApplicants);
         } elseif ($readyApplicants > 0) {
-            $demandHints[] = "{$readyApplicants} ready ".Str::plural('applicant', $readyApplicants).' term-wide';
+            $demandHints[] = "{$readyApplicants} ready ".Str::plural('applicant', $readyApplicants).' in program';
         }
 
         if ($continuingProfiles > 0) {
-            $demandHints[] = "{$continuingProfiles} continuing ".Str::plural('student', $continuingProfiles);
+            $batchSuffix = $batchLabel !== null ? " ({$batchLabel})" : '';
+            $demandHints[] = "{$continuingProfiles} continuing ".Str::plural('student', $continuingProfiles).$batchSuffix;
         }
 
         $demandPrefix = $demandHints !== [] ? 'Live demand: '.implode(' · ', $demandHints).'. ' : '';

@@ -3,12 +3,14 @@
 namespace App\Actions\Scheduling;
 
 use App\Models\CourseComponent;
+use App\Models\CourseSpecification;
 use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\FacultyQualification;
 use App\Models\FacultyTermLoadOverride;
 use App\Models\Room;
 use App\Models\SchedulingDemand;
 use App\Models\Section;
+use App\Models\SectionDeliveryGroup;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermCohort;
@@ -45,10 +47,6 @@ final class TermCapacityHeadroomProjection
 
         $cohorts = TermCohort::query()->where('term_id', $term->id)->get();
         $cohortSizes = $cohorts->map(fn (TermCohort $cohort): int => (int) ($cohort->confirmed_count ?? $cohort->forecast_count ?? 0));
-        $largestSectionSeats = (int) ($cohortSizes->max() ?? 0);
-        $overCapacitySections = $largestRoomSeats > 0
-            ? $cohortSizes->filter(fn (int $size): bool => $size > $largestRoomSeats)->count()
-            : ($largestSectionSeats > 0 ? $cohorts->count() : 0);
 
         $weeklyTeachingHoursPerRoom = $this->weeklyTeachingHours($activePackage);
         $availableRoomHours = round($activeRoomCount * $weeklyTeachingHoursPerRoom, 1);
@@ -68,6 +66,7 @@ final class TermCapacityHeadroomProjection
         $demandedRoomHours = 0.0;
         $demandedFacultyUnits = 0.0;
         $demandedCourseIds = [];
+        $faceToFaceSectionSeats = [];
 
         foreach ($sections as $section) {
             $spec = $section->courseRevision ?? $section->termOffering?->curriculumEntry?->courseSpecification;
@@ -75,6 +74,43 @@ final class TermCapacityHeadroomProjection
                 $demandedFacultyUnits += (float) $spec->credit_units;
                 if ($spec->course_id !== null) {
                     $demandedCourseIds[(int) $spec->course_id] = true;
+                }
+            }
+
+            $isExternallyArranged = $spec instanceof CourseSpecification
+                && $spec->scheduling_treatment === CourseSpecification::SchedulingExternallyArranged;
+
+            $activeGroups = $section->deliveryGroups
+                ->whereNotIn('state', [SectionDeliveryGroup::StateClosed, SectionDeliveryGroup::StateCancelled]);
+
+            if (! $isExternallyArranged) {
+                $sectionFaceToFaceSeats = 0;
+                $hasFaceToFaceGroup = false;
+
+                if ($activeGroups->isNotEmpty()) {
+                    foreach ($activeGroups as $group) {
+                        $resolvedModality = filled($group->modality)
+                            ? (string) $group->modality
+                            : (string) ($section->termOffering?->modality ?? $section->delivery_mode);
+
+                        if ($resolvedModality === TermOffering::ModalityOnline) {
+                            continue;
+                        }
+
+                        $hasFaceToFaceGroup = true;
+                        $groupSeats = (int) ($group->expected_count ?? 0);
+                        $sectionFaceToFaceSeats = max($sectionFaceToFaceSeats, $groupSeats > 0 ? $groupSeats : (int) ($section->capacity ?? 0));
+                    }
+                } else {
+                    $resolvedModality = (string) ($section->delivery_mode ?? $section->termOffering?->modality);
+                    if ($resolvedModality !== TermOffering::ModalityOnline) {
+                        $hasFaceToFaceGroup = true;
+                        $sectionFaceToFaceSeats = (int) ($section->capacity ?? 0);
+                    }
+                }
+
+                if ($hasFaceToFaceGroup) {
+                    $faceToFaceSectionSeats[] = $sectionFaceToFaceSeats;
                 }
             }
 
@@ -96,6 +132,18 @@ final class TermCapacityHeadroomProjection
                     $demandedRoomHours += max(0.0, (float) $component->weekly_contact_hours);
                 }
             }
+        }
+
+        if ($sections->isNotEmpty()) {
+            $largestSectionSeats = $faceToFaceSectionSeats !== [] ? max($faceToFaceSectionSeats) : 0;
+            $overCapacitySections = $largestRoomSeats > 0
+                ? count(array_filter($faceToFaceSectionSeats, static fn (int $seats): bool => $seats > $largestRoomSeats))
+                : ($largestSectionSeats > 0 ? count($faceToFaceSectionSeats) : 0);
+        } else {
+            $largestSectionSeats = (int) ($cohortSizes->max() ?? 0);
+            $overCapacitySections = $largestRoomSeats > 0
+                ? $cohortSizes->filter(fn (int $size): bool => $size > $largestRoomSeats)->count()
+                : ($largestSectionSeats > 0 ? $cohorts->count() : 0);
         }
 
         $demandedRoomHours = round($demandedRoomHours, 1);

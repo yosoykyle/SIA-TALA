@@ -25,7 +25,7 @@ class RecordStudentProfileCorrection
         Gate::forUser($actor)->authorize('update', $studentProfile);
         $allowed = [
             'first_name', 'middle_name', 'last_name', 'birth_date', 'prior_identifier',
-            'email', 'phone', 'address', 'entry_term_id',
+            'email', 'phone', 'address', 'entry_term_id', 'entry_academic_year_id',
         ];
 
         if (array_diff(array_keys($facts), $allowed) !== []) {
@@ -44,6 +44,7 @@ class RecordStudentProfileCorrection
             'phone' => ['sometimes', 'nullable', 'string', 'max:255'],
             'address' => ['sometimes', 'nullable', 'string', 'max:2000'],
             'entry_term_id' => ['sometimes', 'nullable', 'integer', 'exists:terms,id'],
+            'entry_academic_year_id' => ['sometimes', 'nullable', 'integer', 'exists:academic_years,id'],
         ])->validate();
 
         if ($validated === [] || blank($reason)) {

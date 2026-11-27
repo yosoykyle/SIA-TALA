@@ -961,8 +961,8 @@ final class PublishedScheduleRevisionForm
         }
 
         $term = $run->term;
-        $defaultLimit = ($term instanceof Term && $term->default_max_units !== null)
-            ? round((float) $term->default_max_units, 2)
+        $defaultLimit = $term instanceof Term
+            ? round((float) ($term->default_max_units ?? 24.0), 2)
             : null;
 
         $overrides = $term instanceof Term

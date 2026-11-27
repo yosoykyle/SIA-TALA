@@ -17,6 +17,7 @@ use App\Models\RegistrationProposalVersion;
 use App\Models\Section;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use App\Models\TermCohort;
 use App\Models\TermOffering;
 use App\Models\User;
 use Illuminate\Support\Collection;
@@ -174,6 +175,36 @@ class PrepareStandardRegistration
             $this->unavailable('Registrar must publish the exact-Term classes before enrollment can be prepared.');
         }
         $publishedSections = PublishedTimetableMeeting::query()->where('published_timetable_version_id', $timetable->id)->pluck('section_id');
+        $targetYearLevel = TermCohort::parseYearLevelValue($entries->first()?->year_level);
+        $curriculumEntriesExistCache = [];
+        $matchesCohortScope = function (TermCohort $cohort) use ($enrollment, $curriculum, $targetYearLevel, &$curriculumEntriesExistCache): bool {
+            if ((int) $cohort->term_id !== (int) $enrollment->term_id
+                || (int) $cohort->program_id !== (int) $curriculum->program_id) {
+                return false;
+            }
+
+            if ($targetYearLevel !== null
+                && $cohort->year_level !== null
+                && (int) $cohort->year_level !== $targetYearLevel) {
+                return false;
+            }
+
+            $cohortCurriculumId = (int) $cohort->curriculum_version_id;
+            if ($cohortCurriculumId === (int) $curriculum->id) {
+                return true;
+            }
+
+            if (! array_key_exists($cohortCurriculumId, $curriculumEntriesExistCache)) {
+                $curriculumEntriesExistCache[$cohortCurriculumId] = CurriculumEntry::query()
+                    ->where('curriculum_version_id', $cohortCurriculumId)
+                    ->where('term_type', $enrollment->term?->type)
+                    ->exists();
+            }
+
+            // Preserve compatibility with legacy/test cohorts whose placeholder curriculum has no entries.
+            return ! $curriculumEntriesExistCache[$cohortCurriculumId];
+        };
+
         $sections = Section::query()->with([
             'cohorts',
             'courseRevision',
@@ -183,7 +214,7 @@ class PrepareStandardRegistration
             ->whereHas('termOffering', fn ($query) => $query->where('term_id', $enrollment->term_id)
                 ->where('state', TermOffering::StateScheduled))
             ->get()
-            ->filter(function (Section $section) use ($publishedSections, $entries, $enrollment, $curriculum): bool {
+            ->filter(function (Section $section) use ($publishedSections, $entries, $matchesCohortScope): bool {
                 $hasSchedule = $publishedSections->contains($section->id)
                     || $section->termOffering?->curriculumEntry?->courseSpecification?->scheduling_treatment === CourseSpecification::SchedulingExternallyArranged;
                 if (! $hasSchedule) {
@@ -195,20 +226,25 @@ class PrepareStandardRegistration
                 }
 
                 return $section->cohorts->isEmpty()
-                    || $section->cohorts->contains(fn ($cohort): bool => (int) $cohort->term_id === (int) $enrollment->term_id
-                        && (int) $cohort->program_id === (int) $curriculum->program_id);
+                    || $section->cohorts->contains(fn (TermCohort $cohort): bool => $matchesCohortScope($cohort));
             })
             ->values();
         $expected = $entries->pluck('id')->sort()->values()->all();
-        $blocks = collect([$sections]);
+        $exactBlocks = collect();
+        $fallbackBlocks = collect([$sections]);
         foreach ($sections->pluck('cohorts')->flatten()->unique('id') as $cohort) {
-            if ((int) $cohort->term_id === (int) $enrollment->term_id
-                && (int) $cohort->program_id === (int) $curriculum->program_id
-                && $cohort->state === 'Confirmed') {
-                $blocks->push($sections->filter(fn (Section $section): bool => $section->cohorts->contains('id', $cohort->id)));
+            if ($cohort instanceof TermCohort
+                && $cohort->state === 'Confirmed'
+                && $matchesCohortScope($cohort)) {
+                $cohortSections = $sections->filter(fn (Section $section): bool => $section->cohorts->contains('id', $cohort->id));
+                if ((int) $cohort->curriculum_version_id === (int) $curriculum->id) {
+                    $exactBlocks->push($cohortSections);
+                } else {
+                    $fallbackBlocks->push($cohortSections);
+                }
             }
         }
-        $blocks = $blocks->filter(function (Collection $block) use ($entries, $expected): bool {
+        $blocks = $exactBlocks->concat($fallbackBlocks)->filter(function (Collection $block) use ($entries, $expected): bool {
             if ($block->count() !== count($expected)) {
                 return false;
             }

@@ -22,6 +22,7 @@ use App\Filament\Resources\StudentProfiles\RelationManagers\HoldsRelationManager
 use App\Models\AcademicDecision;
 use App\Models\AcademicYear;
 use App\Models\Assessment;
+use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
 use App\Models\Hold;
 use App\Models\Program;
@@ -106,7 +107,8 @@ class StudentProfileResource extends Resource
                     TextEntry::make('student_number')->label('Student Number'),
                     TextEntry::make('full_name')->label('Student Name')->state(fn (StudentProfile $record): string => collect([$record->first_name, $record->middle_name, $record->last_name])->filter()->implode(' ')),
                     TextEntry::make('program.name')->label('Program'),
-                    TextEntry::make('curriculumVersion.name')->label('Curriculum Version'),
+                    TextEntry::make('curriculumVersion.name')->label('Curriculum Version')
+                        ->state(fn (StudentProfile $record): ?string => self::curriculumAndBatchLabel($record)),
                     TextEntry::make('lifecycle_status')
                         ->label('Student Lifecycle Status')
                         ->badge()
@@ -408,6 +410,7 @@ class StudentProfileResource extends Resource
                 'user',
                 'program',
                 'curriculumVersion',
+                'entryAcademicYear',
                 'enrollments' => function (Relation $relation): void {
                     $relation->getQuery()
                         ->whereHas('term', fn (Builder $termQuery): Builder => $termQuery->where('state', Term::StateActive))
@@ -416,6 +419,7 @@ class StudentProfileResource extends Resource
                             'studentSection',
                             'studentProfile.program',
                             'studentProfile.curriculumVersion',
+                            'studentProfile.entryAcademicYear',
                             'courseEnrollments.termOffering.curriculumEntry',
                             'courseEnrollments.section.deliveryGroups',
                             'currentProposalVersion.items.section.deliveryGroups',
@@ -431,7 +435,7 @@ class StudentProfileResource extends Resource
                 TextColumn::make('program.code')
                     ->label('Program & Curriculum')
                     ->weight('semibold')
-                    ->description(fn (StudentProfile $record): ?string => $record->curriculumVersion?->name ?? $record->program?->name)
+                    ->description(fn (StudentProfile $record): ?string => self::curriculumAndBatchLabel($record) ?? $record->program?->name)
                     ->tooltip(fn (StudentProfile $record): ?string => $record->program?->name)
                     ->searchable(query: fn (Builder $query, string $search): Builder => $query->whereHas(
                         'program',
@@ -617,6 +621,32 @@ class StudentProfileResource extends Resource
     public static function academicProgramLabel(Program $program): string
     {
         return collect([$program->code, $program->name])->filter()->implode(' · ');
+    }
+
+    public static function curriculumAndBatchLabel(StudentProfile $record): ?string
+    {
+        $record->loadMissing(['curriculumVersion', 'entryAcademicYear']);
+        $curriculum = $record->curriculumVersion;
+        $entryYear = $record->entryAcademicYear;
+        $curriculumName = $curriculum?->name;
+
+        if ($entryYear instanceof AcademicYear) {
+            $batchLabel = 'Batch '.CurriculumVersion::formatBatchShort($entryYear);
+            $cleanName = filled($curriculumName)
+                ? trim((string) preg_replace('/\s*·\s*Batch\s+.*$/iu', '', (string) $curriculumName))
+                : null;
+
+            return collect([
+                filled($cleanName) ? $cleanName : null,
+                $batchLabel,
+            ])->filter()->implode(' · ');
+        }
+
+        if (filled($curriculumName)) {
+            return (string) $curriculumName;
+        }
+
+        return $curriculum?->batchLabel();
     }
 
     /** @return list<Filter|SelectFilter> */

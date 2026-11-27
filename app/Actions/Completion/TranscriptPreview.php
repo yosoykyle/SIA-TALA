@@ -4,6 +4,7 @@ namespace App\Actions\Completion;
 
 use App\Actions\Academics\OfficialCourseResultProjection;
 use App\Actions\StudentLifecycle\HoldEvaluationService;
+use App\Filament\Resources\StudentProfiles\StudentProfileResource;
 use App\Models\AcademicYear;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
@@ -29,7 +30,7 @@ class TranscriptPreview
     /** @return array{request: TranscriptRequest, student: array<string, mixed>, institution: array<string, mixed>, academic_years: array<string, list<array<string, mixed>>>, conferral: array<string, mixed>, certification: array<string, mixed>, source_fingerprint: string, status: string} */
     public function forRequest(TranscriptRequest $request, string $status = 'Preview'): array
     {
-        $request->loadMissing(['studentProfile.program', 'studentProfile.curriculumVersion', 'studentProfile.applicantIntake', 'conferral']);
+        $request->loadMissing(['studentProfile.program', 'studentProfile.curriculumVersion', 'studentProfile.entryAcademicYear', 'studentProfile.applicantIntake', 'conferral']);
         $student = $request->studentProfile;
         $signatory = app(TranscriptSignatory::class)->forRequest($request);
         if (! $student instanceof StudentProfile) {
@@ -49,7 +50,7 @@ class TranscriptPreview
             'Student legal identity' => filled($student->first_name) && filled($student->last_name),
             'Student number' => filled($student->student_number),
             'Program' => filled($student->program?->name),
-            'Curriculum Version' => filled($student->curriculumVersion?->version_code),
+            'Curriculum Version' => filled($student->curriculumVersion?->name) || filled($student->curriculumVersion?->version_code),
             'External request' => filled($request->external_request_reference),
             'TALA Standard TOR version' => in_array($request->template_version, [TranscriptRequest::TemplateServitechV1, TranscriptRequest::TemplateServitechV2], true),
             'name and title printed on the TOR' => filled($signatory['name']) && filled($signatory['title']),
@@ -258,7 +259,9 @@ class TranscriptPreview
                 'legal_name' => collect([$student->first_name, $student->middle_name, $student->last_name])->filter()->implode(' '),
                 'student_number' => $student->student_number,
                 'program' => $student->program->name,
-                'curriculum_version' => $student->curriculumVersion->version_code,
+                'curriculum_version' => StudentProfileResource::curriculumAndBatchLabel($student)
+                    ?? $student->curriculumVersion?->name
+                    ?? $student->curriculumVersion?->version_code,
                 'admission_basis' => $student->applicant_intake_id ? 'Servitech admission record' : 'Prior institutional record',
                 'admission_date' => $request->template_version === TranscriptRequest::TemplateServitechV2 ? null : $student->applicantIntake?->created_at?->toDateString(),
                 'prior_school_or_credit' => $request->template_version === TranscriptRequest::TemplateServitechV2 ? null : $student->prior_identifier,

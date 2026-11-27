@@ -33,6 +33,7 @@ use BackedEnum;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
+use Filament\Actions\BulkAction;
 use Filament\Actions\CreateAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\CheckboxList;
@@ -61,6 +62,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\HtmlString;
 use Illuminate\Validation\ValidationException;
@@ -1134,6 +1136,48 @@ class TermResources extends TermPlanningWorkbench implements HasTable
         return false;
     }
 
+    /**
+     * @param  array<string, mixed>|null  $filters
+     * @return array<string, array<string, mixed>>
+     */
+    private function filteredFacultyPlanningRecords(?array $filters): array
+    {
+        $data = $this->getViewData();
+        $records = [];
+        $scope = $filters['faculty_scope']['value'] ?? 'all';
+        $statusFilter = $filters['availability_status']['value'] ?? 'all';
+        $hasTermFaculty = collect($data['facultyPlanningRows'])->contains(
+            fn (array $row): bool => (bool) ($row['in_term'] ?? false),
+        );
+        $effectiveScope = ($scope === 'term' && ! $hasTermFaculty && $data['facultyPlanningRows'] !== [])
+            ? 'all'
+            : $scope;
+
+        foreach ($data['facultyPlanningRows'] as $row) {
+            if ($effectiveScope !== 'all' && ! $row['in_term']) {
+                continue;
+            }
+
+            $matchesStatus = match ($statusFilter) {
+                'official_impact' => ! empty($row['has_official_impact']),
+                'replied' => $row['declaration'] !== null,
+                'no_response' => $row['declaration'] === null && empty($row['registrar_not_teaching']),
+                'cannot_teach' => ! empty($row['registrar_not_teaching'])
+                    || $row['effective_mode'] === FacultyAvailabilityDeclaration::ModeCannotTeach,
+                'needs_review' => ! empty($row['needs_review'])
+                    || ! empty($row['needs_grid_review'])
+                    || ! empty($row['needs_hours_review']),
+                default => true,
+            };
+
+            if ($matchesStatus) {
+                $records['faculty-'.$row['faculty_id']] = $row;
+            }
+        }
+
+        return $records;
+    }
+
     private function facultyTable(Table $table): Table
     {
         $publishedMeetingFacultyIds = $this->termId !== null
@@ -1149,40 +1193,17 @@ class TermResources extends TermPlanningWorkbench implements HasTable
             : [];
 
         return $table->records(function (?string $search, ?string $sortColumn, ?string $sortDirection, int $page, int $recordsPerPage, ?array $filters): LengthAwarePaginator {
-            $data = $this->getViewData();
-            $records = [];
-            $scope = $filters['faculty_scope']['value'] ?? 'all';
-            $statusFilter = $filters['availability_status']['value'] ?? 'all';
-            $hasTermFaculty = collect($data['facultyPlanningRows'])->contains(
-                fn (array $row): bool => (bool) ($row['in_term'] ?? false),
-            );
-            $effectiveScope = ($scope === 'term' && ! $hasTermFaculty && $data['facultyPlanningRows'] !== [])
-                ? 'all'
-                : $scope;
-
-            foreach ($data['facultyPlanningRows'] as $row) {
-                if ($effectiveScope !== 'all' && ! $row['in_term']) {
-                    continue;
-                }
-
-                $matchesStatus = match ($statusFilter) {
-                    'official_impact' => ! empty($row['has_official_impact']),
-                    'replied' => $row['declaration'] !== null,
-                    'no_response' => $row['declaration'] === null && empty($row['registrar_not_teaching']),
-                    'cannot_teach' => ! empty($row['registrar_not_teaching'])
-                        || $row['effective_mode'] === FacultyAvailabilityDeclaration::ModeCannotTeach,
-                    'needs_review' => ! empty($row['needs_review'])
-                        || ! empty($row['needs_grid_review'])
-                        || ! empty($row['needs_hours_review']),
-                    default => true,
-                };
-
-                if ($matchesStatus) {
-                    $records['faculty-'.$row['faculty_id']] = $row;
-                }
-            }
+            $records = $this->filteredFacultyPlanningRecords($filters);
 
             return PlanningTableRecords::paginate($records, ['name', 'detail', 'eligible_courses_summary', 'evidence', 'status', 'availability', 'reminder_status'], $search, $sortColumn === 'eligible_courses' ? 'detail' : $sortColumn, $sortDirection, $page, $recordsPerPage);
+        })->resolveSelectedRecordsUsing(function (array $keys, array $deselectedKeys, bool $isTrackingDeselectedKeys): Collection {
+            $records = collect($this->filteredFacultyPlanningRecords($this->tableFilters));
+
+            if ($isTrackingDeselectedKeys) {
+                return $records->except($deselectedKeys);
+            }
+
+            return $records->only($keys);
         })->columns([
             TextColumn::make('name')->label('Faculty')->weight('bold')->sortable()
                 ->extraCellAttributes(['class' => 'whitespace-nowrap'])
@@ -1288,6 +1309,132 @@ class TermResources extends TermPlanningWorkbench implements HasTable
             ->searchable()->defaultSort('name')
             ->toolbarActions([
                 $this->assignSubjectsAction(),
+                BulkAction::make('setAnyApprovedAvailability')
+                    ->label('Set any approved hours')
+                    ->icon(Heroicon::OutlinedClock)
+                    ->color('gray')
+                    ->size('sm')
+                    ->deselectRecordsAfterCompletion()
+                    ->modalHeading('Set available any approved hours')
+                    ->modalDescription('Applies Available any approved school hours to selected faculty who currently have No response. Teachers who already submitted or are marked Not teaching are skipped.')
+                    ->modalWidth(Width::Large)
+                    ->stickyModalHeader()
+                    ->stickyModalFooter()
+                    ->modalSubmitActionLabel('Apply to selected')
+                    ->modalCancelActionLabel('Cancel')
+                    ->visible(fn (): bool => (bool) auth()->user()?->hasRole(User::StaffRoleRegistrar)
+                        && ! ($this->getViewData()['readOnly'] ?? false)
+                        && ! $this->isTermClosed()
+                        && ! ($this->hasPublishedTimetable() && $this->hasOfficialStudentEnrollments()))
+                    ->schema([
+                        Textarea::make('correction_reason')
+                            ->label('Reason')
+                            ->default('Confirmed available during approved school hours by Registrar')
+                            ->helperText('Recorded in the audit log and shared with updated teachers.')
+                            ->rows(3)
+                            ->maxLength(1000)
+                            ->required(),
+                    ])
+                    ->action(function (Collection $records, array $data): void {
+                        $actor = auth()->user();
+                        abort_unless($actor instanceof User && $actor->hasRole(User::StaffRoleRegistrar), 403);
+                        abort_if($this->isTermClosed() || ($this->hasPublishedTimetable() && $this->hasOfficialStudentEnrollments()), 403);
+
+                        $term = $this->selectedTerm();
+                        $reason = trim((string) ($data['correction_reason'] ?? ''));
+                        $facultyIds = $records
+                            ->map(fn (mixed $row): int => is_array($row) ? (int) ($row['faculty_user_id'] ?? $row['faculty_id'] ?? 0) : 0)
+                            ->filter(fn (int $id): bool => $id > 0)
+                            ->unique()
+                            ->values()
+                            ->all();
+
+                        $existingDeclarations = $facultyIds === []
+                            ? collect()
+                            : FacultyAvailabilityDeclaration::query()
+                                ->where('term_id', $term->id)
+                                ->whereIn('faculty_user_id', $facultyIds)
+                                ->pluck('faculty_user_id')
+                                ->flip();
+                        $excludedIds = $facultyIds === []
+                            ? collect()
+                            : FacultyTermLoadOverride::query()
+                                ->where('term_id', $term->id)
+                                ->where('is_active', true)
+                                ->whereIn('faculty_user_id', $facultyIds)
+                                ->get()
+                                ->filter(fn (FacultyTermLoadOverride $override): bool => $override->allowedLoadUnits() <= 0.0)
+                                ->pluck('faculty_user_id')
+                                ->flip();
+                        $facultyUsers = $facultyIds === []
+                            ? collect()
+                            : User::query()->whereIn('id', $facultyIds)->get()->keyBy('id');
+
+                        $updatedCount = 0;
+                        $skippedCount = 0;
+
+                        foreach ($records as $row) {
+                            $facultyId = is_array($row) ? (int) ($row['faculty_user_id'] ?? $row['faculty_id'] ?? 0) : 0;
+                            if ($facultyId <= 0) {
+                                $skippedCount++;
+
+                                continue;
+                            }
+
+                            $hasDeclaration = (is_array($row) && ($row['declaration'] ?? null) !== null)
+                                || $existingDeclarations->has($facultyId);
+                            $isExcluded = (is_array($row) && ! empty($row['registrar_not_teaching']))
+                                || $excludedIds->has($facultyId);
+
+                            if ($hasDeclaration || $isExcluded) {
+                                $skippedCount++;
+
+                                continue;
+                            }
+
+                            $faculty = $facultyUsers->get($facultyId);
+                            if (! $faculty instanceof User) {
+                                $skippedCount++;
+
+                                continue;
+                            }
+
+                            app(RecordFacultyAvailabilityDeclaration::class)->execute(
+                                term: $term,
+                                faculty: $faculty,
+                                actor: $actor,
+                                correctionReason: $reason,
+                                availabilityMode: FacultyAvailabilityDeclaration::ModeAnyApproved,
+                            );
+
+                            $updatedCount++;
+                        }
+
+                        if ($updatedCount > 0) {
+                            $this->refreshSchedulingAfterAvailabilityChange($actor, $term);
+                            $this->resetResourceCaches();
+                        }
+
+                        if ($updatedCount > 0 && $skippedCount > 0) {
+                            Notification::make()
+                                ->title("Availability updated for {$updatedCount} ".str('teacher')->plural($updatedCount))
+                                ->body("{$skippedCount} ".str('teacher')->plural($skippedCount).' skipped (already responded or marked not teaching).')
+                                ->success()
+                                ->send();
+                        } elseif ($updatedCount > 0) {
+                            Notification::make()
+                                ->title("Availability updated for {$updatedCount} ".str('teacher')->plural($updatedCount))
+                                ->body('Recorded as Available any approved school hours. Updated teachers were notified.')
+                                ->success()
+                                ->send();
+                        } else {
+                            Notification::make()
+                                ->title('No teachers updated')
+                                ->body("All {$skippedCount} selected ".str('teacher')->plural($skippedCount).' already have a response or are marked not teaching.')
+                                ->warning()
+                                ->send();
+                        }
+                    }),
             ])
             ->recordActionsColumnLabel('Actions')
             ->recordActions([

@@ -30,6 +30,7 @@ use App\Filament\Resources\StudentProfiles\StudentAcademicActions;
 use App\Filament\Resources\StudentProfiles\StudentOnboardingActions;
 use App\Filament\Resources\StudentProfiles\StudentProfileResource;
 use App\Filament\Support\AdmissionPaperFields;
+use App\Models\AcademicYear;
 use App\Models\AdmissionApplication;
 use App\Models\Assessment;
 use App\Models\CourseEnrollment;
@@ -239,6 +240,11 @@ class ViewStudentProfile extends ViewRecord
                         ->label('Entry Term')
                         ->options(fn (): array => Term::query()->orderByDesc('starts_on')->pluck('label', 'id')->all())
                         ->default(fn (): ?int => $this->studentProfile()->entry_term_id)
+                        ->searchable(),
+                    Select::make('entry_academic_year_id')
+                        ->label('Entry Academic Year (Batch)')
+                        ->options(fn (): array => AcademicYear::query()->orderByDesc('starts_on')->orderByDesc('id')->pluck('label', 'id')->all())
+                        ->default(fn (): ?int => $this->studentProfile()->entry_academic_year_id)
                         ->searchable(),
                     TextInput::make('email')->default(fn (): ?string => $this->studentProfile()->email)->email()->maxLength(255),
                     TextInput::make('phone')->default(fn (): ?string => $this->studentProfile()->phone)->maxLength(255),
@@ -1066,7 +1072,7 @@ class ViewStudentProfile extends ViewRecord
     {
         /** @var StudentProfile $student */
         $student = $this->getRecord();
-        $student->loadMissing(['user', 'program', 'curriculumVersion']);
+        $student->loadMissing(['user', 'program', 'curriculumVersion', 'entryAcademicYear']);
         $resolver = app(EnrollmentAcademicContextResolver::class);
         $enrollment = $resolver->currentEnrollmentForProfile($student);
         $context = $enrollment ? $resolver->forEnrollment($enrollment) : null;
@@ -1736,14 +1742,56 @@ class ViewStudentProfile extends ViewRecord
                     ->options(function (Get $get): array {
                         $enrollmentId = $this->viewTab === 'academic-progress'
                             ? $this->enrollmentProfile['selected']?->id : $get('enrollment_id');
-                        $enrollment = $this->record->enrollments()->with('currentProposalVersion.curriculumVersion')->find($enrollmentId);
+                        $enrollment = $this->record->enrollments()
+                            ->with([
+                                'currentProposalVersion.curriculumVersion',
+                                'currentProposalVersion.items.termOffering.curriculumEntry',
+                                'courseEnrollments.termOffering.curriculumEntry',
+                                'studentProfile',
+                            ])
+                            ->find($enrollmentId);
                         if (! $enrollment instanceof Enrollment) {
                             return [];
                         }
 
-                        return TermCohort::query()->where('term_id', $enrollment->term_id)
-                            ->where('program_id', $enrollment->currentProposalVersion?->curriculumVersion?->program_id)
-                            ->where('state', 'Confirmed')->orderBy('reference')->pluck('reference', 'id')->all();
+                        $programId = $enrollment->currentProposalVersion?->curriculumVersion?->program_id
+                            ?? $this->record->program_id;
+                        $curriculumVersionId = $enrollment->currentProposalVersion?->curriculum_version_id
+                            ?? $this->record->curriculum_version_id;
+                        $yearLevels = $enrollment->courseEnrollments
+                            ->where('is_current', true)
+                            ->map(fn (CourseEnrollment $courseEnrollment): ?string => $courseEnrollment->termOffering?->curriculumEntry?->year_level !== null
+                                ? (string) $courseEnrollment->termOffering->curriculumEntry->year_level
+                                : null)
+                            ->filter()
+                            ->unique()
+                            ->values();
+                        if ($yearLevels->isEmpty() && $enrollment->currentProposalVersion !== null) {
+                            $yearLevels = $enrollment->currentProposalVersion->items
+                                ->map(fn ($item): ?string => $item->termOffering?->curriculumEntry?->year_level !== null
+                                    ? (string) $item->termOffering->curriculumEntry->year_level
+                                    : null)
+                                ->filter()
+                                ->unique()
+                                ->values();
+                        }
+                        $singleYearLevel = $yearLevels->count() === 1 && ctype_digit((string) $yearLevels->first())
+                            ? (int) $yearLevels->first()
+                            : null;
+
+                        return TermCohort::query()
+                            ->where('term_id', $enrollment->term_id)
+                            ->where('program_id', $programId)
+                            ->where('state', 'Confirmed')
+                            ->when($curriculumVersionId !== null, fn ($query) => $query->where(fn ($nested) => $nested
+                                ->where('curriculum_version_id', $curriculumVersionId)
+                                ->orWhereNull('curriculum_version_id')))
+                            ->when($singleYearLevel !== null && $singleYearLevel > 0, fn ($query) => $query->where(fn ($nested) => $nested
+                                ->where('year_level', $singleYearLevel)
+                                ->orWhereNull('year_level')))
+                            ->orderBy('reference')
+                            ->pluck('reference', 'id')
+                            ->all();
                     })
                     ->helperText('Leave unassigned when no student section has been recorded. Class attendance does not determine this group.'),
                 Hidden::make('expected_lock_version'),

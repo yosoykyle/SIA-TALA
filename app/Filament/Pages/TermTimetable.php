@@ -53,6 +53,7 @@ use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
 use Illuminate\Contracts\View\View;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\HtmlString;
@@ -650,6 +651,8 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         }
 
         $attemptSelectorOptions = [...$activeDraftOptions, ...$visiblePastAttempts];
+        $isLatestStaleDraft = ! $official
+            && $this->isLatestStaleDraftRun($activeRun, $term, $nonPublishedRuns, $activeDraftOptions !== []);
 
         return [
             'term' => $term,
@@ -659,6 +662,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
             'attemptSelectorOptions' => $attemptSelectorOptions,
             'activeDraftOptions' => $activeDraftOptions,
             'pastAttemptOptions' => $visiblePastAttempts,
+            'isLatestStaleDraft' => $isLatestStaleDraft,
             'canStartNewDraftAttempt' => $this->canStartNewDraftAttempt($term, $activeRun, $activeDraftOptions !== []),
             'hasOfficialEnrollmentsBlockingRegen' => $this->hasOfficialStudentEnrollments($term),
             'activeManualEditCount' => $activeRun instanceof ScheduleGenerationRun
@@ -1331,7 +1335,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                     && ! $this->isTermClosed()
                     && ! ($this->hasPublishedTimetable() && $this->hasOfficialStudentEnrollments())
                     && $this->timetableState !== 'official'
-                    && $this->canReviewActiveRun();
+                    && ($this->canReviewActiveRun() || $this->canRegenerateStaleActiveRun());
             })
             ->action(function (): void {
                 $actor = auth()->user();
@@ -2415,9 +2419,11 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
             && $selectedVersion->state !== PublishedTimetableVersion::StatePublished;
         $activeDraftOptions = is_array($data['activeDraftOptions'] ?? null) ? $data['activeDraftOptions'] : [];
         $activeDraftFirst = $activeDraftOptions[0] ?? null;
+        $isLatestStaleDraft = ! $official && (bool) ($data['isLatestStaleDraft'] ?? false);
 
         return [
             'editable' => $editable,
+            'isStaleDraft' => $isLatestStaleDraft,
             'isOfficial' => $official,
             'readOnly' => $readOnly,
             'isTermClosed' => $isTermClosed,
@@ -2428,8 +2434,12 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
             'activeDraftLabel' => is_array($activeDraftFirst) && isset($activeDraftFirst['label']) ? (string) $activeDraftFirst['label'] : null,
             'statusPillLabel' => $official
                 ? ($isTermClosed ? 'Official · Archived' : ($isSupersededVersion ? 'Historical · Read-only' : 'Official · Live'))
-                : ($editable ? 'Draft · Editable' : null),
-            'statusPillTone' => $official ? ($isTermClosed || $isSupersededVersion ? 'neutral' : 'official') : ($editable ? 'draft' : 'neutral'),
+                : ($editable
+                    ? 'Draft · Editable'
+                    : ($isLatestStaleDraft ? 'Sources changed · Regeneration needed' : null)),
+            'statusPillTone' => $official
+                ? ($isTermClosed || $isSupersededVersion ? 'neutral' : 'official')
+                : ($editable ? 'draft' : ($isLatestStaleDraft ? 'warning' : 'neutral')),
             'canReviseOfficial' => $canReviseOfficial,
             'reviseOfficialUrl' => $reviseOfficialUrl,
             'teachingGrid' => $teachingGrid,
@@ -2485,6 +2495,66 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         }
 
         return ScheduleGenerationRun::statusOptions()[$run->status] ?? $run->status;
+    }
+
+    private function canRegenerateStaleActiveRun(): bool
+    {
+        if ($this->termId === null || $this->timetableState === 'official') {
+            return false;
+        }
+
+        $term = Term::query()->find($this->termId);
+        $run = $this->activeScheduleRun();
+
+        if (! $term instanceof Term || ! $run instanceof ScheduleGenerationRun) {
+            return false;
+        }
+
+        if ($this->isTermClosed($term) || ($this->hasPublishedTimetable($term) && $this->hasOfficialStudentEnrollments($term))) {
+            return false;
+        }
+
+        if ($run->candidate_state !== 'Stale' || in_array($run->status, [
+            ScheduleGenerationRun::StatusQueued,
+            ScheduleGenerationRun::StatusDispatching,
+            ScheduleGenerationRun::StatusPublished,
+        ], true)) {
+            return false;
+        }
+
+        return ! ScheduleGenerationRun::query()
+            ->where('term_id', $term->id)
+            ->where('status', '!=', ScheduleGenerationRun::StatusPublished)
+            ->where('id', '>', $run->id)
+            ->exists();
+    }
+
+    /**
+     * @param  Collection<int, ScheduleGenerationRun>  $nonPublishedRuns
+     */
+    private function isLatestStaleDraftRun(
+        ?ScheduleGenerationRun $run,
+        ?Term $term,
+        Collection $nonPublishedRuns,
+        bool $hasActiveDraft,
+    ): bool {
+        if (! $run instanceof ScheduleGenerationRun || ! $term instanceof Term || $hasActiveDraft) {
+            return false;
+        }
+
+        if ($this->isTermClosed($term) || ($this->hasPublishedTimetable($term) && $this->hasOfficialStudentEnrollments($term))) {
+            return false;
+        }
+
+        if ($run->candidate_state !== 'Stale' || in_array($run->status, [
+            ScheduleGenerationRun::StatusQueued,
+            ScheduleGenerationRun::StatusDispatching,
+            ScheduleGenerationRun::StatusPublished,
+        ], true)) {
+            return false;
+        }
+
+        return $nonPublishedRuns->first()?->id === $run->id;
     }
 
     private function canStartNewDraftAttempt(Term $term, ?ScheduleGenerationRun $activeRun, bool $hasActiveDraft = false): bool

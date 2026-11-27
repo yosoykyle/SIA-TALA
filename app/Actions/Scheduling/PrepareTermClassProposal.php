@@ -3,6 +3,7 @@
 namespace App\Actions\Scheduling;
 
 use App\Actions\Enrollment\RegistrationShortageProjection;
+use App\Models\AcademicYear;
 use App\Models\AdmissionApplication;
 use App\Models\CourseComponent;
 use App\Models\CourseEnrollment;
@@ -23,6 +24,7 @@ use App\Models\TermCohort;
 use App\Models\TermOffering;
 use App\Models\User;
 use App\Queries\Admissions\ReadyApplicantProjectionQuery;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
@@ -98,17 +100,130 @@ final class PrepareTermClassProposal
     }
 
     /** @return array{ready_applicants:int,continuing_profiles:int,unmet:list<array<string,mixed>>} */
-    public function demandEvidence(Term $term): array
-    {
-        $ready = AdmissionApplication::query()->where('term_id', $term->id)->where('application_state', AdmissionApplication::StateAdmitted)->get()
-            ->filter(fn (AdmissionApplication $application): bool => app(ReadyApplicantProjectionQuery::class)->forApplication($application)['ready'])->count();
+    public function demandEvidence(
+        Term $term,
+        ?int $programId = null,
+        ?int $curriculumVersionId = null,
+        ?int $entryAcademicYearId = null,
+        ?int $intakeStartYear = null,
+    ): array {
+        if ($programId === null && $curriculumVersionId !== null) {
+            $programId = CurriculumVersion::query()->whereKey($curriculumVersionId)->value('program_id');
+            $programId = $programId !== null ? (int) $programId : null;
+        }
+
+        $readyQuery = AdmissionApplication::query()
+            ->where('term_id', $term->id)
+            ->where('application_state', AdmissionApplication::StateAdmitted);
+
+        if ($programId !== null) {
+            $readyQuery->where('program_id', $programId);
+        }
+
+        $ready = $readyQuery->get()
+            ->filter(fn (AdmissionApplication $application): bool => app(ReadyApplicantProjectionQuery::class)->forApplication($application)['ready'])
+            ->count();
         $unmet = Enrollment::query()->where('term_id', $term->id)->where('canonical_outcome', Enrollment::OutcomeInProgress)
             ->whereNotNull('current_proposal_version_id')->get()->flatMap(fn (Enrollment $case): array => app(RegistrationShortageProjection::class)->for($case))->all();
 
-        return ['ready_applicants' => $ready, 'continuing_profiles' => StudentProfile::query()->where('lifecycle_status', StudentProfile::LifecycleActive)
-            ->whereNull('archived_at')->whereNull('merged_into_id')
-            ->where(fn ($query) => $query->whereNull('entry_term_id')->orWhere('entry_term_id', '!=', $term->id))
-            ->count(), 'unmet' => $unmet];
+        $continuingQuery = StudentProfile::query()
+            ->where('lifecycle_status', StudentProfile::LifecycleActive)
+            ->whereNull('archived_at')
+            ->whereNull('merged_into_id')
+            ->where(fn (Builder $query): Builder => $query->whereNull('entry_term_id')->orWhere('entry_term_id', '!=', $term->id));
+
+        if ($programId !== null) {
+            $continuingQuery->where('program_id', $programId);
+        }
+
+        if ($curriculumVersionId !== null) {
+            $continuingQuery->where('curriculum_version_id', $curriculumVersionId);
+        }
+
+        $resolvedStartYear = $intakeStartYear;
+        if ($resolvedStartYear === null && $entryAcademicYearId !== null) {
+            $entryAy = AcademicYear::query()->find($entryAcademicYearId);
+            if ($entryAy instanceof AcademicYear) {
+                $resolvedStartYear = CurriculumVersion::extractAcademicYearStart($entryAy);
+            }
+        }
+
+        if ($resolvedStartYear !== null || $entryAcademicYearId !== null) {
+            $matchingAyIds = $resolvedStartYear !== null
+                ? self::matchingAcademicYearIdsForStartYear($resolvedStartYear)
+                : [$entryAcademicYearId];
+
+            if ($entryAcademicYearId !== null && ! in_array($entryAcademicYearId, $matchingAyIds, true)) {
+                $matchingAyIds[] = $entryAcademicYearId;
+            }
+
+            $includeUndatedLegacy = false;
+            if ($curriculumVersionId !== null && $resolvedStartYear !== null) {
+                $curriculum = CurriculumVersion::query()->with('academicYears')->find($curriculumVersionId);
+                if ($curriculum instanceof CurriculumVersion) {
+                    $earliestBatch = $curriculum->academicYears
+                        ->sortBy(fn (AcademicYear $year): int => CurriculumVersion::extractAcademicYearStart($year) ?? PHP_INT_MAX)
+                        ->first();
+                    $earliestStart = $earliestBatch instanceof AcademicYear
+                        ? CurriculumVersion::extractAcademicYearStart($earliestBatch)
+                        : null;
+                    $includeUndatedLegacy = $curriculum->academicYears->count() <= 1 || $earliestStart === $resolvedStartYear;
+                }
+            }
+
+            self::applyIntakeBatchScope($continuingQuery, $matchingAyIds, $includeUndatedLegacy);
+        }
+
+        return [
+            'ready_applicants' => $ready,
+            'continuing_profiles' => $continuingQuery->count(),
+            'unmet' => $unmet,
+        ];
+    }
+
+    /**
+     * @return list<int>
+     */
+    public static function matchingAcademicYearIdsForStartYear(int $startYear): array
+    {
+        return AcademicYear::query()
+            ->get()
+            ->filter(fn (AcademicYear $year): bool => CurriculumVersion::extractAcademicYearStart($year) === $startYear)
+            ->pluck('id')
+            ->map(fn (int|string $id): int => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  Builder<StudentProfile>  $query
+     * @param  list<int>  $matchingAyIds
+     */
+    public static function applyIntakeBatchScope(Builder $query, array $matchingAyIds, bool $includeUndatedLegacyFallback): void
+    {
+        if ($matchingAyIds === []) {
+            if ($includeUndatedLegacyFallback) {
+                $query->whereNull('entry_academic_year_id')->whereNull('entry_term_id');
+            } else {
+                $query->whereRaw('1 = 0');
+            }
+
+            return;
+        }
+
+        $query->where(function (Builder $batchQuery) use ($matchingAyIds, $includeUndatedLegacyFallback): void {
+            $batchQuery->whereIn('entry_academic_year_id', $matchingAyIds)
+                ->orWhere(function (Builder $termFallback) use ($matchingAyIds, $includeUndatedLegacyFallback): void {
+                    $termFallback->whereNull('entry_academic_year_id')
+                        ->where(function (Builder $inner) use ($matchingAyIds, $includeUndatedLegacyFallback): void {
+                            $inner->whereHas('entryTerm', fn (Builder $termQuery): Builder => $termQuery->whereIn('academic_year_id', $matchingAyIds));
+
+                            if ($includeUndatedLegacyFallback) {
+                                $inner->orWhereNull('entry_term_id');
+                            }
+                        });
+                });
+        });
     }
 
     /** @param list<array<string,mixed>> $rows
