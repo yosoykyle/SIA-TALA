@@ -83,6 +83,9 @@
                                 @endif
                             </p>
                         @endif
+                        @if (($scheduleSummary['examPeriodLabel'] ?? null) !== null)
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5 tabular-nums">Exam period: {{ $scheduleSummary['examPeriodLabel'] }}</p>
+                        @endif
                     </div>
                     <div class="flex flex-wrap items-center gap-3">
                         <x-filament::link

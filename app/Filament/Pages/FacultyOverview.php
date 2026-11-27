@@ -18,6 +18,7 @@ use App\Models\PublishedTimetableVersion;
 use App\Models\Section;
 use App\Models\SectionMeeting;
 use App\Models\Term;
+use App\Models\TermCalendarWindow;
 use App\Models\TermOffering;
 use App\Models\User;
 use App\Support\FacultyActiveTermResolver;
@@ -266,6 +267,11 @@ class FacultyOverview extends Page
         $gradesNote = collect($gradesNoteParts)->filter()->implode(' · ') ?: 'View class masterlists, export CSV, or enter grades.';
 
         $totalClassCount = $scheduleClassCount + $externallyArrangedCount;
+        $activePackage = $availabilityStatus['active_calendar_package'] ?? null;
+        $activePackage?->loadMissing('windows');
+        $examinationPeriod = $activePackage?->windows->first(
+            fn (TermCalendarWindow $window): bool => $window->window_type === TermCalendarWindow::TypeExaminationPeriod,
+        );
 
         return [
             'term' => $term,
@@ -280,6 +286,10 @@ class FacultyOverview extends Page
                 'meetingCount' => $scheduleMeetingCount,
                 'externallyArrangedCount' => $externallyArrangedCount,
                 'affectedCount' => $affectedMeetingsCount,
+                // Kept on Overview at a glance; the full term dates are on Academic calendar.
+                'examPeriodLabel' => $examinationPeriod
+                    ? $examinationPeriod->opens_on->format('M j').'–'.$examinationPeriod->closes_on->format('M j, Y')
+                    : null,
                 'url' => FacultySchedule::getUrl(),
                 'academicCalendarUrl' => FacultyAcademicCalendar::getUrl(),
             ],
