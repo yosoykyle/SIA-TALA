@@ -362,9 +362,9 @@ final class Issue93PrintOutputsStandardsTest extends TestCase
             ->assertOk()
             ->assertSee('2026-77889')
             ->assertSee('BS Information Technology')
+            ->assertSee('Manual Cashier Verification')
             ->assertDontSee('TERM-ACCOUNT-'.$account->id)
-            ->assertDontSee('INTERNAL-PROV-REF-555')
-            ->assertDontSee('Verification basis');
+            ->assertDontSee('INTERNAL-PROV-REF-555');
 
         $this->actingAs($accounting)
             ->get(route('finance.payments.acknowledgement', $payment))

@@ -649,10 +649,12 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
     public function test_term_planning_resolves_default_term_directly_and_rejects_invalid_term_id(): void
     {
         $registrar = $this->registrar();
+        $today = now();
         $first = Term::factory()->create([
             'label' => 'First Term',
             'state' => Term::StateActive,
-            'starts_on' => '2026-08-01',
+            'starts_on' => $today->copy()->subMonths(6)->toDateString(),
+            'ends_on' => $today->copy()->subDays(10)->toDateString(),
         ]);
         TermCalendarPackage::factory()->create([
             'term_id' => $first->id,
@@ -675,7 +677,8 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
         $second = Term::factory()->create([
             'label' => 'Second Term',
             'state' => Term::StateActive,
-            'starts_on' => '2027-01-10',
+            'starts_on' => $today->copy()->subDays(5)->toDateString(),
+            'ends_on' => $today->copy()->addMonths(4)->toDateString(),
         ]);
         TermCalendarPackage::factory()->create([
             'term_id' => $second->id,
@@ -761,6 +764,22 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
             'candidate_state' => 'UnderReview',
         ]);
 
+        $otherFaculty = User::factory()->create(['status' => User::StatusActive]);
+        $otherFaculty->assignRole(User::StaffRoleFaculty);
+
+        try {
+            app(RecordFacultyAvailabilityDeclaration::class)->execute(
+                $term,
+                $faculty,
+                $otherFaculty,
+                'Available',
+                [],
+            );
+            $this->fail('A different Faculty user impersonated another Faculty availability declaration.');
+        } catch (HttpException $exception) {
+            $this->assertSame(403, $exception->getStatusCode());
+        }
+
         try {
             app(RecordFacultyAvailabilityDeclaration::class)->execute(
                 $term,
@@ -769,9 +788,9 @@ final class AcademicAuthorityToPublishedTimetableJourneyTest extends TestCase
                 'Available',
                 [],
             );
-            $this->fail('The Registrar impersonated a Faculty availability declaration.');
-        } catch (HttpException $exception) {
-            $this->assertSame(403, $exception->getStatusCode());
+            $this->fail('Registrar availability edit without correction_reason was accepted.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('correction_reason', $exception->errors());
         }
 
         app(RecordFacultyAvailabilityDeclaration::class)->execute(

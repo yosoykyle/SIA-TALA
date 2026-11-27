@@ -123,6 +123,53 @@ class Term extends Model
         ];
     }
 
+    /**
+     * Return term types not yet used in the given Academic Year (ignoring an optional Term record on edit).
+     *
+     * @return array<string, string>
+     */
+    public static function availableTypeOptionsForAcademicYear(?int $academicYearId, ?int $ignoreTermId = null): array
+    {
+        $options = self::typeOptions();
+
+        if ($academicYearId === null || $academicYearId <= 0) {
+            return $options;
+        }
+
+        $usedTypes = self::query()
+            ->where('academic_year_id', $academicYearId)
+            ->when($ignoreTermId !== null, fn ($query) => $query->whereKeyNot($ignoreTermId))
+            ->pluck('type')
+            ->filter(fn (mixed $type): bool => is_string($type) && $type !== '')
+            ->unique()
+            ->all();
+
+        return array_diff_key($options, array_flip($usedTypes));
+    }
+
+    public static function duplicateTypeError(int $academicYearId, string $type, ?int $ignoreTermId = null): ?string
+    {
+        if ($academicYearId <= 0 || trim($type) === '') {
+            return null;
+        }
+
+        $existing = self::query()
+            ->where('academic_year_id', $academicYearId)
+            ->where('type', $type)
+            ->when($ignoreTermId !== null, fn ($query) => $query->whereKeyNot($ignoreTermId))
+            ->first(['id', 'label']);
+
+        if (! $existing instanceof self) {
+            return null;
+        }
+
+        return sprintf(
+            'This academic year already has a %s (%s). Switch to the existing term or choose a different one.',
+            self::typeOptions()[$type] ?? $type,
+            $existing->label,
+        );
+    }
+
     public function typeLabel(): string
     {
         return self::typeOptions()[$this->type] ?? $this->label;

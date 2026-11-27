@@ -13,6 +13,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -46,6 +47,13 @@ class TermForm
                         ->preload()
                         ->live()
                         ->default(fn (): ?int => Term::query()->find(request()->integer('termId'))?->academic_year_id)
+                        ->afterStateUpdated(function (?Term $record, Get $get, Set $set, mixed $state): void {
+                            $available = Term::availableTypeOptionsForAcademicYear(filled($state) ? (int) $state : null, $record?->id);
+                            $currentType = (string) ($get('type') ?? '');
+                            if ($currentType !== '' && ! array_key_exists($currentType, $available)) {
+                                $set('type', array_key_first($available));
+                            }
+                        })
                         ->createOptionAction(fn (Action $action): Action => $action->label('Add academic year')->modalHeading('Add academic year')->modalSubmitActionLabel('Create academic year'))
                         ->createOptionForm([
                             TextInput::make('label')
@@ -121,7 +129,22 @@ class TermForm
                         ->required(),
                     Select::make('type')
                         ->label('Term')
-                        ->options(Term::typeOptions())
+                        ->options(fn (Get $get, ?Term $record): array => Term::availableTypeOptionsForAcademicYear(
+                            filled($get('academic_year_id')) ? (int) $get('academic_year_id') : null,
+                            $record?->id,
+                        ))
+                        ->placeholder(fn (Get $get, ?Term $record): string => filled($get('academic_year_id'))
+                            && Term::availableTypeOptionsForAcademicYear((int) $get('academic_year_id'), $record?->id) === []
+                            ? 'All 3 term types already exist for this academic year'
+                            : 'Select an option')
+                        ->helperText(fn (Get $get, ?Term $record): ?string => ! ($record?->hasActivatedCalendar() ?? false)
+                            && filled($get('academic_year_id'))
+                            && Term::availableTypeOptionsForAcademicYear((int) $get('academic_year_id'), $record?->id) === []
+                            ? 'This academic year already has First Semester, Second Semester, and Special Term. Open an existing term or choose another academic year.'
+                            : null)
+                        ->disabled(fn (Get $get, ?Term $record): bool => ($record?->hasActivatedCalendar() ?? false)
+                            || (filled($get('academic_year_id')) && Term::availableTypeOptionsForAcademicYear((int) $get('academic_year_id'), $record?->id) === []))
+                        ->in(array_keys(Term::typeOptions()))
                         ->required()
                         ->unique(
                             table: Term::class,
@@ -132,7 +155,6 @@ class TermForm
                         ->validationMessages([
                             'unique' => 'This academic year already has that Term. Open the existing Term or choose a different one.',
                         ])
-                        ->disabled(fn (?Term $record): bool => $record?->hasActivatedCalendar() ?? false)
                         ->validatedWhenNotDehydrated(false),
                     Grid::make(['default' => 1, 'sm' => 2])
                         ->columnSpanFull()

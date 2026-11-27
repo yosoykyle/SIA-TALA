@@ -1228,7 +1228,7 @@
     overscroll-behavior: contain;
 }
 .fi-body .tala-timetable-studio .tala-timetable {
-    --timetable-slot-height: 2.75rem;
+    --timetable-slot-height: 3.1rem;
 }
 .fi-body .tala-timetable-studio .tala-studio-canvas.is-week :is(.tala-timetable-day, .tala-timetable-axis) {
     padding-block-end: .5rem;
@@ -1285,8 +1285,8 @@
     white-space: nowrap;
 }
 .fi-body .tala-timetable-studio .tala-timetable-meeting {
-    padding: .325rem .425rem;
-    gap: .15rem;
+    padding: .375rem .475rem;
+    gap: .2rem;
 }
 .fi-body .tala-timetable-studio .tala-timetable-meeting .tala-timetable-tile-header {
     padding: 0;

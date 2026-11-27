@@ -6,10 +6,12 @@ use App\Actions\AcademicSetup\AcademicReadinessService;
 use App\Actions\AcademicSetup\CurriculumWorkbenchService;
 use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Filament\Pages\SchoolResources;
+use App\Filament\Pages\TermCalendar;
 use App\Filament\Pages\TermClasses;
 use App\Filament\Pages\TermOverview;
 use App\Filament\Resources\CurriculumVersions\Pages\ReviewCurriculumVersion;
 use App\Filament\Resources\Programs\Pages\ViewProgram;
+use App\Filament\Resources\Terms\Pages\CreateTerm;
 use App\Models\AcademicYear;
 use App\Models\Course;
 use App\Models\CourseComponent;
@@ -445,6 +447,112 @@ final class Issue93AcademicYearBatchAndMultiCurriculumTest extends TestCase
             'curriculum_version_id' => $draftB->id,
             'course_specification_id' => $spec->id,
         ]);
+    }
+
+    public function test_academic_year_enforces_unique_term_types_across_ui_and_backend(): void
+    {
+        $this->actingAsRegistrar();
+
+        $ay = AcademicYear::factory()->create([
+            'label' => 'AY 2096-2097',
+            'starts_on' => '2096-08-01',
+            'ends_on' => '2097-07-31',
+            'state' => AcademicYear::StateActive,
+            'is_operational' => true,
+        ]);
+
+        $firstTerm = Term::factory()->for($ay)->create([
+            'type' => Term::TypeFirstSemester,
+            'label' => 'First Semester',
+            'starts_on' => '2096-08-10',
+            'ends_on' => '2096-12-10',
+            'state' => Term::StateDraft,
+        ]);
+
+        // Dropdown filtering hides already-created term type while preserving remaining types.
+        $this->assertSame(
+            [Term::TypeSecondSemester => 'Second Semester', Term::TypeSpecialTerm => 'Special Term'],
+            Term::availableTypeOptionsForAcademicYear($ay->id),
+        );
+        $this->assertSame(Term::typeOptions(), Term::availableTypeOptionsForAcademicYear($ay->id, $firstTerm->id));
+
+        // Direct server-side guard rejects duplicate (academic_year_id, type) even on non-overlapping dates.
+        Livewire::withQueryParams(['academicYearId' => $ay->id])
+            ->test(TermOverview::class)
+            ->callAction(TestAction::make('createTerm')->table(), data: [
+                'academic_year_id' => $ay->id,
+                'type' => Term::TypeFirstSemester,
+                'starts_on' => '2097-01-10',
+                'ends_on' => '2097-05-15',
+            ])
+            ->assertHasActionErrors(['type']);
+
+        // Creating a distinct term type succeeds.
+        Livewire::withQueryParams(['academicYearId' => $ay->id])
+            ->test(TermOverview::class)
+            ->callAction(TestAction::make('createTerm')->table(), data: [
+                'academic_year_id' => $ay->id,
+                'type' => Term::TypeSecondSemester,
+                'starts_on' => '2097-01-10',
+                'ends_on' => '2097-05-15',
+            ])
+            ->assertHasNoActionErrors();
+
+        $secondTerm = Term::query()
+            ->where('academic_year_id', $ay->id)
+            ->where('type', Term::TypeSecondSemester)
+            ->sole();
+
+        // Term Settings must reject changing Second Semester to First Semester on the same AY.
+        Livewire::withQueryParams(['termId' => $secondTerm->id])
+            ->test(TermCalendar::class)
+            ->callAction('termSettings', data: [
+                'academic_year_id' => $ay->id,
+                'type' => Term::TypeFirstSemester,
+                'starts_on' => '2097-01-10',
+                'ends_on' => '2097-05-15',
+                'default_max_units' => 24,
+            ])
+            ->assertHasActionErrors(['type']);
+
+        // CreateTerm resource page must reject duplicate type and accept the remaining Special Term.
+        Livewire::test(CreateTerm::class)
+            ->fillForm([
+                'academic_year_id' => $ay->id,
+                'type' => Term::TypeSecondSemester,
+                'starts_on' => '2097-06-01',
+                'ends_on' => '2097-07-15',
+            ])
+            ->call('create')
+            ->assertHasFormErrors(['type']);
+
+        Livewire::test(CreateTerm::class)
+            ->fillForm([
+                'academic_year_id' => $ay->id,
+                'type' => Term::TypeSpecialTerm,
+                'starts_on' => '2097-06-01',
+                'ends_on' => '2097-07-15',
+            ])
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        // Once all 3 term types exist, availableTypeOptionsForAcademicYear returns empty and TermOverview shows helper hint.
+        $this->assertSame([], Term::availableTypeOptionsForAcademicYear($ay->id));
+        $this->assertNotNull(Term::duplicateTypeError($ay->id, Term::TypeFirstSemester));
+
+        Livewire::withQueryParams(['academicYearId' => $ay->id])
+            ->test(TermOverview::class)
+            ->mountAction(TestAction::make('createTerm')->table())
+            ->assertFormFieldDisabled('type')
+            ->assertFormFieldExists('type', checkFieldUsing: fn ($field): bool => $field->getOptions() === []
+                && $field->getPlaceholder() === 'All 3 term types already exist for this academic year');
+
+        Livewire::test(CreateTerm::class)
+            ->fillForm(['academic_year_id' => $ay->id])
+            ->assertFormFieldDisabled('type')
+            ->assertFormFieldExists('type', checkFieldUsing: fn ($field): bool => $field->getOptions() === []
+                && $field->getPlaceholder() === 'All 3 term types already exist for this academic year')
+            ->assertSee('This academic year already has First Semester, Second Semester, and Special Term.');
     }
 
     private function createSubjectInCurriculum(
