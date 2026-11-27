@@ -18,7 +18,6 @@ use App\Actions\Enrollment\StartRegistrationCase;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
-use App\Filament\Resources\Enrollments\Tables\EnrollmentsTable;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionApplicationEvent;
 use App\Models\AdmissionCycle;
@@ -128,7 +127,7 @@ class ViewAdmissionApplication extends ViewRecord
     }
 
     /** Actions the Process evaluation steps open; the page header does not repeat them. */
-    private const StepActionNames = ['startReview', 'reviewApplication', 'recordEnrollmentClearance', 'startEnrollment', 'openEnrollment', 'reviewReadiness'];
+    private const StepActionNames = ['startReview', 'reviewApplication', 'recordEnrollmentClearance', 'updateFollowedPapers', 'startEnrollment', 'openEnrollment', 'reviewReadiness'];
 
     /**
      * Every admission action on this page, flat, before header placement.
@@ -483,6 +482,11 @@ class ViewAdmissionApplication extends ViewRecord
     public function recordEnrollmentClearanceAction(): Action
     {
         return $this->admissionAction('recordEnrollmentClearance');
+    }
+
+    public function updateFollowedPapersAction(): Action
+    {
+        return $this->admissionAction('updateFollowedPapers');
     }
 
     public function startEnrollmentAction(): Action
@@ -1210,6 +1214,8 @@ class ViewAdmissionApplication extends ViewRecord
             ->groupBy(fn (AdmissionApplicationEvent $event): string => match ($step = (string) ($event->payload['step'] ?? '')) {
                 // Copy review and screening are one step since #99 Scope 10; earlier copy-review remarks show under it.
                 SendAdmissionProcessRemark::StepEvidence, SendAdmissionProcessRemark::StepReview => SendAdmissionProcessRemark::StepScreening,
+                // The Ready for enrollment step was retired (#103); its earlier remarks show under clearance.
+                SendAdmissionProcessRemark::StepReadiness => SendAdmissionProcessRemark::StepClearance,
                 default => $step,
             });
 
@@ -1248,30 +1254,21 @@ class ViewAdmissionApplication extends ViewRecord
                 'summary' => ($clearance
                     ? str($clearance->result)->headline().' by '.($clearance->recorder?->getFilamentName() ?? 'Registrar').' · '.$format($clearance->recorded_at)
                     : 'Check the papers passed on-site against the requirement list.')
-                    .($clearance?->result === RegistrarEnrollmentClearance::ResultCleared && $this->followedPapers() !== [] ? ' · To be followed: '.implode(', ', $this->followedPapers()) : ''),
+                    .($clearance?->result === RegistrarEnrollmentClearance::ResultCleared && $this->followedPapers() !== [] ? ' · To be followed: '.implode(', ', $this->followedPapers()) : '')
+                    .($projection['ready'] && $enrollment === null && ! $this->canStartEnrollment() ? ' · Enrollment can start once the enrollment period for this term is open.' : ''),
                 'blocker' => $clearance?->result === RegistrarEnrollmentClearance::ResultActionNeeded && filled($clearance->safe_instruction)
                     ? 'Applicant was told: '.$clearance->safe_instruction
                     : null,
-                'action' => $projection['clearance_result'] === RegistrarEnrollmentClearance::ResultCleared ? 'updateFollowedPapers' : 'recordEnrollmentClearance',
-                'button' => $projection['clearance_result'] === RegistrarEnrollmentClearance::ResultCleared ? 'Update papers' : 'Check papers',
-                'persistent_action' => $projection['clearance_result'] === RegistrarEnrollmentClearance::ResultCleared && $this->followedPapers() !== [],
-            ],
-            [
-                'key' => SendAdmissionProcessRemark::StepReadiness,
-                // Done once the enrollment exists: Start enrollment here moves the process on to Payment verified.
-                'done' => (bool) $projection['ready'] && $enrollment !== null,
-                'stopped' => false,
-                'summary' => match (true) {
-                    (bool) $projection['ready'] && $enrollment !== null => 'Admissions checks are complete and enrollment has started · '.EnrollmentsTable::stage($enrollment).'.',
-                    (bool) $projection['ready'] => 'Admissions checks are complete. Start enrollment to move on to payment.',
-                    default => 'Becomes ready once admission, identity review and clearance are complete.',
-                },
-                'blocker' => (bool) $projection['ready'] && $enrollment === null && ! $this->canStartEnrollment()
-                    ? 'Enrollment can start once the enrollment period for this term is open.'
-                    : null,
-                'action' => $enrollment === null ? 'startEnrollment' : 'openEnrollment',
-                'button' => $enrollment === null ? 'Start enrollment' : 'Open enrollment',
-                'persistent_action' => $enrollment !== null,
+                'action' => $projection['clearance_result'] === RegistrarEnrollmentClearance::ResultCleared ? null : 'recordEnrollmentClearance',
+                'button' => $projection['clearance_result'] === RegistrarEnrollmentClearance::ResultCleared ? null : 'Check papers',
+                // Once cleared, enrollment can start even while papers are To be followed (#103): both actions sit on this step.
+                'choices' => $projection['clearance_result'] === RegistrarEnrollmentClearance::ResultCleared ? [
+                    $enrollment === null
+                        ? ['action' => 'startEnrollment', 'label' => 'Start enrollment', 'color' => 'primary', 'icon' => 'heroicon-m-user-plus']
+                        : ['action' => 'openEnrollment', 'label' => 'Open enrollment', 'color' => 'gray', 'icon' => 'heroicon-m-arrow-top-right-on-square'],
+                    ['action' => 'updateFollowedPapers', 'label' => 'Update papers', 'color' => 'gray', 'icon' => 'heroicon-m-clipboard-document-check'],
+                ] : [],
+                'persistent_action' => $projection['clearance_result'] === RegistrarEnrollmentClearance::ResultCleared,
             ],
             [
                 'key' => SendAdmissionProcessRemark::StepPayment,
@@ -1332,12 +1329,17 @@ class ViewAdmissionApplication extends ViewRecord
             $actionIsAvailable = $action instanceof Action && $action->isVisible();
             $isClosed = $state === 'stopped' && $deadline['status'] === AdmissionDeadlineStatus::Closed;
             // Screening is a choice, not a remark: Admit or For correction replace the remark box (#99 Scope 10).
-            $choices = $state === 'current' && $step['key'] === SendAdmissionProcessRemark::StepScreening
-                ? collect([
+            $candidates = match (true) {
+                $state === 'current' && $step['key'] === SendAdmissionProcessRemark::StepScreening => [
                     ['action' => 'admitApplication', 'label' => 'Admit', 'color' => 'success', 'icon' => 'heroicon-m-check-circle'],
                     ['action' => 'requestCorrection', 'label' => 'For correction', 'color' => 'warning', 'icon' => 'heroicon-m-pencil-square'],
-                ])->filter(fn (array $choice): bool => ($candidate = $this->getAction($choice['action'])) instanceof Action && $candidate->isVisible())->values()->all()
-                : [];
+                ],
+                (bool) ($step['persistent_action'] ?? false) => $step['choices'] ?? [],
+                default => [],
+            };
+            $choices = collect($candidates)
+                ->filter(fn (array $choice): bool => ($candidate = $this->getAction($choice['action'])) instanceof Action && $candidate->isVisible())
+                ->values()->all();
 
             return [
                 'key' => $step['key'],

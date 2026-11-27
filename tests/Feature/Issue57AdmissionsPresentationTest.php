@@ -414,7 +414,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
             expectedSubmissionVersionId: $application->current_submission_version_id,
         );
         $ready = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id]);
-        // A cleared Applicant's next step is enrollment, which the Registrar can start at the desk; readiness stays reachable.
+        // A cleared Applicant's next step is enrollment, started from the cleared Enrollment clearance step (#103 retired Ready for enrollment).
         $this->assertNotContains('startEnrollment', collect($ready->instance()->getCachedHeaderActions())->map->getName()->all());
         $ready->assertActionVisible('startEnrollment');
         $ready->mountAction('reviewReadiness')->assertActionMounted('reviewReadiness');
@@ -1901,13 +1901,13 @@ class Issue57AdmissionsPresentationTest extends TestCase
         $page = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $fresh->id])
             ->assertSee('Process evaluation');
         $steps = collect($page->instance()->processEvaluation())->pluck('state', 'key')->all();
-        $this->assertSame(['screening' => 'current', 'clearance' => 'upcoming', 'readiness' => 'upcoming', 'payment' => 'upcoming', 'enrolled' => 'upcoming'], $steps);
+        $this->assertSame(['screening' => 'current', 'clearance' => 'upcoming', 'payment' => 'upcoming', 'enrolled' => 'upcoming'], $steps);
         $this->assertSame('startReview', $page->instance()->processEvaluation()[0]['action']);
 
         [$admitted] = $this->admittedApplication($registrar);
         $evaluation = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $admitted->id])
             ->instance()->processEvaluation();
-        $this->assertSame(['done', 'current', 'upcoming', 'upcoming', 'upcoming'], array_column($evaluation, 'state'));
+        $this->assertSame(['done', 'current', 'upcoming', 'upcoming'], array_column($evaluation, 'state'));
         $this->assertSame('recordEnrollmentClearance', $evaluation[1]['action']);
         $this->assertSame('Application screening', $evaluation[0]['label']);
     }
@@ -1921,7 +1921,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
 
         $evaluation = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
             ->instance()->processEvaluation();
-        $this->assertSame(['current', 'upcoming', 'upcoming', 'upcoming', 'upcoming'], array_column($evaluation, 'state'));
+        $this->assertSame(['current', 'upcoming', 'upcoming', 'upcoming'], array_column($evaluation, 'state'));
         $this->assertSame('Application screening', $evaluation[0]['label']);
         $this->assertSame('reviewApplication', $evaluation[0]['action']);
         $this->assertSame([['label' => 'School review copy', 'status' => 'Awaiting review', 'color' => 'warning']], $evaluation[0]['documents']);
@@ -1934,7 +1934,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
         ]);
         $evaluation = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
             ->instance()->processEvaluation();
-        $this->assertSame(['current', 'upcoming', 'upcoming', 'upcoming', 'upcoming'], array_column($evaluation, 'state'));
+        $this->assertSame(['current', 'upcoming', 'upcoming', 'upcoming'], array_column($evaluation, 'state'));
         $this->assertSame('All 1 submitted copies accepted · Decision pending.', $evaluation[0]['summary']);
     }
 
@@ -1987,6 +1987,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
         $this->assertSame('To be followed', collect(app(Requirements::class)->onSiteItems($application->fresh()))->keyBy('label')['School review copy']['state']);
         $page = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id]);
         $this->assertStringContainsString('To be followed: School review copy', $page->instance()->processEvaluation()[1]['summary']);
+        $this->assertContains('updateFollowedPapers', array_column($page->instance()->processEvaluation()[1]['choices'], 'action'), 'Update papers sits on the cleared clearance step.');
 
         $page->assertActionVisible('updateFollowedPapers')
             ->callAction('updateFollowedPapers', ['checklist_InPerson' => [$requirement->id]])

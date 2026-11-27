@@ -47,7 +47,7 @@
                         <p class="tala-process-blocker">{{ $step['blocker'] }}</p>
                     @endif
 
-                    @if ($isActive && ($step['choices'] ?? []) !== [])
+                    @if (($isActive || $step['persistent_action']) && ($step['choices'] ?? []) !== [])
                         <div class="tala-process-actions">
                             @foreach ($step['choices'] as $choice)
                                 <x-filament::button size="sm" :color="$choice['color']" :icon="$choice['icon']" wire:click="mountAction('{{ $choice['action'] }}')">
