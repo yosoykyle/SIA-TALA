@@ -57,6 +57,7 @@ final class TermCapacityHeadroomProjection
                 ->where('state', '!=', TermOffering::StateCancelled))
             ->whereNotIn('state', [Section::StateCancelled, Section::StateClosed])
             ->with([
+                'cohorts:id',
                 'courseRevision.components',
                 'termOffering.curriculumEntry.courseSpecification.components',
                 'deliveryGroups.schedulingDemands',
@@ -67,8 +68,13 @@ final class TermCapacityHeadroomProjection
         $demandedFacultyUnits = 0.0;
         $demandedCourseIds = [];
         $faceToFaceSectionSeats = [];
+        $linkedCohortIds = [];
 
         foreach ($sections as $section) {
+            foreach ($section->cohorts as $linkedCohort) {
+                $linkedCohortIds[(int) $linkedCohort->id] = true;
+            }
+
             $spec = $section->courseRevision ?? $section->termOffering?->curriculumEntry?->courseSpecification;
             if ($spec !== null) {
                 $demandedFacultyUnits += (float) $spec->credit_units;
@@ -134,17 +140,20 @@ final class TermCapacityHeadroomProjection
             }
         }
 
-        if ($sections->isNotEmpty()) {
-            $largestSectionSeats = $faceToFaceSectionSeats !== [] ? max($faceToFaceSectionSeats) : 0;
-            $overCapacitySections = $largestRoomSeats > 0
-                ? count(array_filter($faceToFaceSectionSeats, static fn (int $seats): bool => $seats > $largestRoomSeats))
-                : ($largestSectionSeats > 0 ? count($faceToFaceSectionSeats) : 0);
-        } else {
-            $largestSectionSeats = (int) ($cohortSizes->max() ?? 0);
-            $overCapacitySections = $largestRoomSeats > 0
-                ? $cohortSizes->filter(fn (int $size): bool => $size > $largestRoomSeats)->count()
-                : ($largestSectionSeats > 0 ? $cohorts->count() : 0);
-        }
+        $unlinkedCohortSizes = $cohorts
+            ->reject(fn (TermCohort $cohort): bool => isset($linkedCohortIds[(int) $cohort->id]))
+            ->map(fn (TermCohort $cohort): int => (int) ($cohort->confirmed_count ?? $cohort->forecast_count ?? 0))
+            ->values()
+            ->all();
+
+        $seatDemands = $sections->isNotEmpty()
+            ? [...$faceToFaceSectionSeats, ...$unlinkedCohortSizes]
+            : $cohortSizes->all();
+
+        $largestSectionSeats = $seatDemands !== [] ? max($seatDemands) : 0;
+        $overCapacitySections = $largestRoomSeats > 0
+            ? count(array_filter($seatDemands, static fn (int $seats): bool => $seats > $largestRoomSeats))
+            : ($largestSectionSeats > 0 ? count($seatDemands) : 0);
 
         $demandedRoomHours = round($demandedRoomHours, 1);
         $demandedFacultyUnits = round($demandedFacultyUnits, 1);
