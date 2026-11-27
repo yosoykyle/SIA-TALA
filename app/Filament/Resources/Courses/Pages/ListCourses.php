@@ -32,7 +32,7 @@ class ListCourses extends ListRecords
 
     public function getTitle(): string
     {
-        return 'Subjects';
+        return 'Subject catalog';
     }
 
     public function getSubheading(): string
@@ -46,7 +46,7 @@ class ListCourses extends ListRecords
             CatalogCurriculaWorkbench::getUrl(array_filter([
                 'oversightTermId' => $this->oversightTermId,
             ], fn (mixed $value): bool => $value !== null)) => 'Programs & Curricula',
-            'Subjects',
+            'Subject catalog',
         ];
     }
 
@@ -82,7 +82,6 @@ class ListCourses extends ListRecords
                 ->color('gray')
                 ->button()
                 ->visible(fn (): bool => auth()->user()?->can('viewAny', Course::class) ?? false),
-            CourseResource::createSubjectAction(),
         ];
     }
 

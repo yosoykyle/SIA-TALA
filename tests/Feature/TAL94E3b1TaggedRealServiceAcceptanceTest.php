@@ -46,9 +46,9 @@ use Tests\TestCase;
 
 final class TAL94E3b1TaggedRealServiceAcceptanceTest extends TestCase
 {
-    private const CanonicalContract = 'tal94-demand-v2';
+    private const CanonicalContract = ScheduleGenerationRun::ContractVersion;
 
-    private const SolverVersion = 'cloud-cp-sat-tal94-demand-v2-staged-search-v1';
+    private const SolverVersion = ScheduleGenerationRun::SolverVersion;
 
     public function test_tagged_real_service_completes_the_queued_schedule_workflow_and_rejects_a_bad_audience(): void
     {

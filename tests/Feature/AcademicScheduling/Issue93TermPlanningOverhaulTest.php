@@ -17,6 +17,7 @@ use App\Models\CourseComponent;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
+use App\Models\Enrollment;
 use App\Models\FacultyQualification;
 use App\Models\Program;
 use App\Models\PublishedTimetableVersion;
@@ -78,7 +79,7 @@ final class Issue93TermPlanningOverhaulTest extends TestCase
         Livewire::withQueryParams(['tab' => 'rooms'])->test(SchoolResources::class)
             ->assertOk()
             ->assertSee('Rooms')
-            ->assertSee('Qualified faculty')
+            ->assertSee('Faculty')
             ->assertActionVisible(TestAction::make('addRoom')->table())
             ->assertTableActionVisible('editRoom', $room);
 
@@ -228,11 +229,13 @@ final class Issue93TermPlanningOverhaulTest extends TestCase
             'state' => PublishedTimetableVersion::StatePublished,
         ]);
 
+        // With 0 official student enrollments, teaching calendar remains editable (unlocked).
         Livewire::withQueryParams(['termId' => $term->id])->test(TermCalendar::class)
-            ->assertActionHidden('saveAndActivateCalendar')
-            ->assertSee('Official timetable is published');
+            ->assertActionVisible('saveAndActivateCalendar')
+            ->assertActionEnabled('saveAndActivateCalendar')
+            ->assertSee('Published timetable has 0 active student enrollments.');
 
-        Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
+        Livewire::withQueryParams(['termId' => $term->id, 'classesView' => 'classes'])->test(TermClasses::class)
             ->assertActionHidden('recordCohort')
             ->assertActionHidden('loadCurriculumSubjects')
             ->assertActionHidden('addClass')
@@ -244,6 +247,16 @@ final class Issue93TermPlanningOverhaulTest extends TestCase
 
         Livewire::withQueryParams(['termId' => $term->id, 'resourceView' => 'rooms'])->test(TermResources::class)
             ->assertTableActionHidden('roomClosures', $room);
+
+        // Once an official student enrollment exists, teaching calendar locks immediately.
+        Enrollment::factory()->for($term)->create([
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+            'officially_enrolled_at' => now(),
+        ]);
+
+        Livewire::withQueryParams(['termId' => $term->id])->test(TermCalendar::class)
+            ->assertActionHidden('saveAndActivateCalendar')
+            ->assertSee('Teaching hours and daily breaks are locked because 1 student is enrolled');
 
         // 3. Close term via TermPlanningWorkbench locks everything including Timetable revisions and Calendar activation.
         Livewire::withQueryParams(['termId' => $term->id])->test(TermCalendar::class)
@@ -339,7 +352,7 @@ final class Issue93TermPlanningOverhaulTest extends TestCase
         $this->assertSame(32, $createdSection->capacity);
 
         // Class details redesigned 3xl modal omits Record history dropdown and renders inline metadata.
-        Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
+        Livewire::withQueryParams(['termId' => $term->id, 'classesView' => 'classes'])->test(TermClasses::class)
             ->mountTableAction('viewClass', $createdSection)
             ->assertMountedActionModalSee('Student sections served')
             ->assertMountedActionModalSee('Meeting requirements')
@@ -355,7 +368,7 @@ final class Issue93TermPlanningOverhaulTest extends TestCase
             'confirmed_by' => $registrar->id,
         ]);
 
-        $editModal = Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
+        $editModal = Livewire::withQueryParams(['termId' => $term->id, 'classesView' => 'classes'])->test(TermClasses::class)
             ->mountTableAction('editClass', $createdSection)
             ->assertMountedActionModalSee('tala-cohort-repeater')
             ->assertMountedActionModalSee('BSIT-2A');

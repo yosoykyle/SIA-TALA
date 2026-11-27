@@ -97,14 +97,24 @@ final class RequestTimetableRepair
                 reason: $reason,
                 authority: $authority,
             );
-            $previous = ScheduleGenerationRun::query()
+            // Resolve matching IDs first so MySQL never sorts rows containing large JSON blobs.
+            $previousIds = ScheduleGenerationRun::query()
                 ->where('term_id', $term->id)
                 ->whereKeyNot($repairRun->id)
                 ->where('input_snapshot->operation->kind', 'repair')
                 ->where('input_snapshot->operation->source_candidate->run_id', $sourceRun->id)
-                ->latest('id')
-                ->get()
-                ->first(fn (ScheduleGenerationRun $previous): bool => data_get($previous->input_snapshot, 'operation.requested_assignment') == $snapshot['operation']['requested_assignment']);
+                ->orderByDesc('id')
+                ->pluck('id');
+
+            $previous = null;
+            foreach ($previousIds as $previousId) {
+                $candidate = ScheduleGenerationRun::query()->find($previousId);
+                if ($candidate instanceof ScheduleGenerationRun
+                    && data_get($candidate->input_snapshot, 'operation.requested_assignment') == $snapshot['operation']['requested_assignment']) {
+                    $previous = $candidate;
+                    break;
+                }
+            }
 
             if ($recoverySource && ((int) $previous?->id !== (int) $recoverySource->id
                 || data_get($recoverySource->input_snapshot, 'operation') != $snapshot['operation'])) {

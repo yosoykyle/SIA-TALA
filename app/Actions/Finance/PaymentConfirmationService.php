@@ -2,6 +2,8 @@
 
 namespace App\Actions\Finance;
 
+use App\Actions\Enrollment\AttemptAutoOfficialEnrollment;
+use App\Actions\Enrollment\AutoFinalizationTrigger;
 use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\LedgerEntry;
@@ -223,7 +225,30 @@ class PaymentConfirmationService
             $enrollment = $enrollment->fresh();
             $this->recordPaymentAudit($enrollment, $payment, $primaryLedgerEntry, $financeCleared, $actor, $timestamp);
 
-            DB::afterCommit(fn () => $this->notificationService->record($payment));
+            $enrollmentIdForTrigger = (int) $enrollment->id;
+            $triggerReference = $normalizedOrNumber ?? $normalizedReference;
+            $paymentSummary = sprintf(
+                'Verified payment of PHP %s (%s) applied.',
+                number_format((float) $normalizedAmount, 2),
+                $triggerReference,
+            );
+
+            DB::afterCommit(function () use ($payment, $enrollmentIdForTrigger, $actor, $triggerReference, $paymentSummary): void {
+                $result = app(AttemptAutoOfficialEnrollment::class)->attempt(
+                    $enrollmentIdForTrigger,
+                    new AutoFinalizationTrigger(
+                        triggerType: AutoFinalizationTrigger::TypeManualPaymentConfirmed,
+                        triggerReference: $triggerReference,
+                        clearedByUserId: $actor->id,
+                        paymentId: $payment->id,
+                        paymentSummary: $paymentSummary,
+                    ),
+                );
+
+                if (! $result->wasFinalized()) {
+                    $this->notificationService->record($payment, suppressRegistrarAlert: $result->alertedRegistrars());
+                }
+            });
 
             return [
                 'payment_id' => $payment->id,

@@ -3,7 +3,15 @@
 
 Hello {{ $recipientName }},
 
+@if ($autoFinalized)
+Your enrollment for **{{ $termLabel }}** is now official. Your Student workspace is active on the same account, and your current class schedule and immutable Certificate of Registration are available in TALA.
+@else
 The Registrar finalized your enrollment for **{{ $termLabel }}**. Your Student workspace is active on the same account, and your current class schedule and immutable Certificate of Registration are available in TALA.
+@endif
+
+@if (filled($paymentSummary))
+**Payment clearance:** {{ $paymentSummary }}
+@endif
 
 <x-mail::button :url="$corUrl">
 View Current COR

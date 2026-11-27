@@ -1,20 +1,50 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-11T00:40:28.7961583Z",
+  "generatedAt": "2026-11-26T00:54:00+08:00",
   "title": "Design System: Servitech Institute Asia — TALA",
   "extensions": {
-    "cardGap": { "token": "--tala-card-gap", "value": "0.75rem", "purpose": "Spacing between related raised cards." },
+    "cardGap": {
+      "token": "--tala-card-gap",
+      "value": "0.75rem",
+      "purpose": "Spacing between related raised cards and inset sub-cards."
+    },
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "Servitech Green",
+        "canonical": "#2f7d3b",
+        "tonalRamp": ["#132a17", "#17351c", "#1f5f2c", "#256331", "#2f7d3b", "#4ca35a", "#6acb7c", "#eaf3ec"]
+      },
+      "focus": {
+        "role": "warning-accent",
+        "displayName": "Warm Institutional Gold",
+        "canonical": "#a16207",
+        "tonalRamp": ["#3a2508", "#4b3d26", "#765311", "#a16207", "#ca8a04", "#eab308", "#facc15", "#f4e7c9"]
+      },
+      "danger": {
+        "role": "danger",
+        "displayName": "Institutional Crimson",
+        "canonical": "#b91c1c",
+        "tonalRamp": ["#450a0a", "#7f1d1d", "#991b1b", "#b91c1c", "#dc2626", "#ef4444", "#fca5a5", "#fef2f2"]
+      },
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Pure Neutral Zinc",
+        "canonical": "#f4f4f5",
+        "tonalRamp": ["#151619", "#1e2024", "#27282c", "#35373d", "#52525c", "#71717b", "#ececee", "#f4f4f5"]
+      }
+    },
     "sharedDarkAppearance": {
       "source": "DESIGN.md",
-      "updated": "2026-10-23",
-      "roles": "Charcoal canvas, separate chrome, graphite task surface, lighter overlay; paired brand tint and foreground, standalone brand foreground, readable enabled neutral-control icons.",
+      "updated": "2026-11-25",
+      "roles": "Pure neutral Zinc charcoal canvas (#151619), separate chrome (#1e2024), graphite task surface (#27282c), raised nested surface (#303237), lighter overlay (#35373d), sunken trough (#1b1c20); zero blue shades; Servitech green primary/links (#6acb7c / #8de698), warm gold focus/warning (#facc15), institutional crimson destructive states.",
       "preserve": "School identity, native states, layout, light appearance, Light/Dark/System selection, print and forced colors."
     },
     "shadows": [
       {
         "name": "shadow-surface-light",
         "value": "0 1px 2px rgb(9 9 11 / 4%), 0 3px 8px -4px rgb(9 9 11 / 7%)",
-        "purpose": "Extracted shared light material depth."
+        "purpose": "Shared light material depth for task surfaces."
       },
       {
         "name": "shadow-detail-light",
@@ -24,84 +54,84 @@
       {
         "name": "shadow-overlay-light",
         "value": "0 2px 4px rgb(9 9 11 / 6%), 0 12px 28px -6px rgb(9 9 11 / 16%), 0 24px 56px -16px rgb(9 9 11 / 18%)",
-        "purpose": "Extracted shared light material depth."
+        "purpose": "Opaque floating menus, modals, and search panels in light appearance."
       },
       {
         "name": "shadow-seated-light",
         "value": "0 0 #0000",
-        "purpose": "Extracted shared light material depth."
+        "purpose": "Seated flat state for selected controls."
       },
       {
         "name": "inset-well-light",
         "value": "inset 0 1px 2px rgb(9 9 11 / 7%)",
-        "purpose": "Extracted shared light material depth."
+        "purpose": "Inset trough depth for editable inputs and tab tracks in light appearance."
       },
       {
         "name": "rim-inset-light",
         "value": "inset 0 1px 0 var(--tala-rim)",
-        "purpose": "Extracted shared light material depth."
+        "purpose": "Subtle top rim highlight on raised surfaces."
       },
       {
         "name": "shadow-surface-dark",
         "value": "0 1px 2px rgb(0 0 0 / 25%), 0 8px 20px -10px rgb(0 0 0 / 30%)",
-        "purpose": "Extracted shared dark material depth."
+        "purpose": "Shared dark material depth for task surfaces."
       },
       {
         "name": "shadow-detail-dark",
         "value": "0 1px 2px rgb(0 0 0 / 15%)",
-        "purpose": "Shared shallow depth for nested groups and explanations."
+        "purpose": "Shared shallow depth for nested groups in dark appearance."
       },
       {
         "name": "shadow-overlay-dark",
         "value": "0 2px 6px rgb(0 0 0 / 40%), 0 20px 48px -12px rgb(0 0 0 / 70%)",
-        "purpose": "Extracted shared dark material depth."
+        "purpose": "Opaque floating menus and dialogs in dark appearance."
       },
       {
         "name": "shadow-seated-dark",
         "value": "0 0 #0000",
-        "purpose": "Extracted shared dark material depth."
+        "purpose": "Seated flat state in dark appearance."
       },
       {
         "name": "inset-well-dark",
         "value": "inset 0 1px 2px rgb(0 0 0 / 35%)",
-        "purpose": "Extracted shared dark material depth."
+        "purpose": "Inset trough depth for editable inputs and tab tracks in dark appearance."
       },
       {
         "name": "rim-inset-dark",
         "value": "inset 0 1px 0 var(--tala-rim)",
-        "purpose": "Extracted shared dark material depth."
+        "purpose": "Top rim definition on dark raised surfaces."
       },
       {
         "name": "navigation-depth-light",
         "value": "inset 0 1px 0 rgb(255 255 255 / 28%), inset 0 -1px 0 rgb(0 0 0 / 8%), 0 1px 2px rgb(0 0 0 / 6%)",
-        "purpose": "Extracted shallow skeuomorphic Aqua-like buttons navigation depth."
+        "purpose": "Shallow skeuomorphic Aqua-like navigation depth in light appearance."
       },
       {
         "name": "navigation-depth-dark",
         "value": "inset 0 1px 0 rgb(255 255 255 / 16%), inset 0 -1px 0 rgb(0 0 0 / 22%), 0 1px 2px rgb(0 0 0 / 20%)",
-        "purpose": "Extracted shallow skeuomorphic Aqua-like buttons navigation depth."
+        "purpose": "Shallow skeuomorphic Aqua-like navigation depth in dark appearance."
       },
       {
         "name": "control-depth-light",
         "value": "inset 0 1px 0 rgb(255 255 255 / 55%), inset 0 -1px 0 rgb(0 0 0 / 7%), 0 1px 1px rgb(0 0 0 / 4.5%)",
-        "purpose": "Shared shallow tactile control; retain native focus and semantic states."
+        "purpose": "Shared shallow tactile action control in light appearance."
       },
       {
         "name": "control-depth-dark",
         "value": "inset 0 1px 0 rgb(255 255 255 / 18%), inset 0 -1px 0 rgb(0 0 0 / 16%), 0 1px 2px rgb(0 0 0 / 14%)",
-        "purpose": "Shared shallow tactile control; retain native focus and semantic states."
+        "purpose": "Shared shallow tactile action control in dark appearance."
       },
       {
         "name": "control-pressed",
         "value": "inset 0 1px 2px rgb(0 0 0 / 14%)",
-        "purpose": "Shared shallow tactile control; retain native focus and semantic states."
+        "purpose": "Depressed press/active state for tactile controls."
       }
     ],
     "motion": [
       {
         "name": "account-material-transition",
         "value": "background-color 120ms, box-shadow 120ms",
-        "purpose": "Existing shared account hover transition; reduced motion retains instant feedback."
+        "purpose": "Shared account hover transition; reduced motion retains instant feedback."
       }
     ],
     "breakpoints": [
@@ -110,12 +140,22 @@
         "value": "640px"
       },
       {
+        "name": "record-split",
+        "value": "768px"
+      },
+      {
         "name": "desktop-sidebar",
         "value": "1024px"
+      },
+      {
+        "name": "wide-table",
+        "value": "1280px"
       }
     ],
     "sourceFiles": [
       "public/css/tala-foundation.css",
+      "public/css/tala-filament.css",
+      "public/css/tala-catalog.css",
       "resources/css/filament/tala/theme.css",
       "public/landing/css/styles.css",
       "resources/views/components/tala-navigation.blade.php",
@@ -124,9 +164,25 @@
       "resources/css/tala-term-planning.css"
     ],
     "typographyMeta": {
+      "title": {
+        "displayName": "Page Title",
+        "purpose": "Primary page and record headings (Inter 700, clamp 24–30px)."
+      },
       "section": {
-        "displayName": "Native section heading",
-        "purpose": "Existing native 18px section headings are a documented shared type step; Inter and the approved identity remain."
+        "displayName": "Native Section Heading",
+        "purpose": "Supporting section headings (Inter 600, 18px) subordinate to the page title."
+      },
+      "body": {
+        "displayName": "Body Copy",
+        "purpose": "Primary institutional prose and table values (Inter 400, 14–16px)."
+      },
+      "label": {
+        "displayName": "Control & Field Label",
+        "purpose": "Form labels, badges, and metadata (Inter 500, 14px)."
+      },
+      "caption": {
+        "displayName": "Caption & Metadata",
+        "purpose": "Secondary timestamps, codes, and helper copy (Inter 400, 12px)."
       }
     }
   },
@@ -135,9 +191,9 @@
       "name": "Skeuomorphic Aqua-like action button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "Full skeuomorphic Aqua-like buttons variant; native semantic color, state and focus remain authoritative.",
+      "description": "Primary Servitech green tactile button; native semantic color, state and focus remain authoritative.",
       "html": "<button class=\"ds-action\">Save changes</button>",
-      "css": ".ds-action{background:var(--tala-brand-strong);color:var(--tala-on-brand);background-image:var(--tala-control-gloss);border:1px solid transparent;border-radius:8px;padding:8px 16px;min-height:44px;font:600 14px var(--tala-font-body);box-shadow:var(--tala-control-depth)}.ds-action:hover{background-color:var(--tala-brand-strong)}.ds-action:active{background-image:none;box-shadow:var(--tala-control-pressed)}.ds-action:focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px}"
+      "css": ".ds-action{background:var(--tala-brand-strong);color:var(--tala-on-brand);background-image:var(--tala-control-gloss);border:1px solid transparent;border-radius:8px;padding:8px 16px;min-height:40px;font:600 14px var(--tala-font-body);box-shadow:var(--tala-control-depth)}.ds-action:hover{background-color:var(--tala-brand-strong)}.ds-action:active{background-image:none;box-shadow:var(--tala-control-pressed)}.ds-action:focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px}"
     },
     {
       "name": "Editable field",
@@ -145,85 +201,102 @@
       "refersTo": "input",
       "description": "Inset editable field; native validation rings take priority.",
       "html": "<label class=\"ds-field\">Name<input placeholder=\"Enter name\"></label>",
-      "css": ".ds-field{display:grid;gap:6px;color:var(--tala-text);font:14px var(--tala-font-body)}.ds-field input{background:var(--tala-surface);color:var(--tala-text);border:1px solid var(--tala-control-border);border-radius:8px;padding:8px 12px;box-shadow:var(--tala-inset-well);font:inherit;min-height:28px}.ds-field input:focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px}"
+      "css": ".ds-field{display:grid;gap:6px;color:var(--tala-text);font:14px var(--tala-font-body)}.ds-field input{background:var(--tala-surface);color:var(--tala-text);border:1px solid var(--tala-control-border);border-radius:8px;padding:8px 12px;box-shadow:var(--tala-inset-well);font:inherit;min-height:36px}.ds-field input:focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px}"
     },
     {
       "name": "Content surface",
       "kind": "card",
       "refersTo": "card",
-      "description": "Solid readable content with one elevation per stack.",
+      "description": "Solid neutral Zinc content surface with restrained elevation and fine border.",
       "html": "<section class=\"ds-surface\"><strong>Application review</strong><p>Review the next action for this application.</p></section>",
-      "css": ".ds-surface{background:var(--tala-surface);color:var(--tala-text);border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);padding:24px;box-shadow:var(--tala-material-raised);font:14px/1.5 var(--tala-font-body)}.ds-surface p{color:var(--tala-muted);margin-bottom:0}"
+      "css": ".ds-surface{background:var(--tala-surface);color:var(--tala-text);border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);padding:20px;box-shadow:var(--tala-material-raised);font:14px/1.5 var(--tala-font-body)}.ds-surface p{color:var(--tala-muted);margin-bottom:0}"
     },
     {
       "name": "Current location",
       "kind": "nav",
-      "description": "Shallow skeuomorphic Aqua-like buttons navigation variant; current location is depressed/seated.",
-      "html": "<nav class=\"ds-nav\"><a href=\"#\" aria-current=\"page\">Admissions</a><a href=\"#\">Term Planning</a></nav>",
-      "css": ".ds-nav{display:grid;gap:4px;background:var(--tala-chrome);padding:12px;border-radius:12px;font:14px var(--tala-font-body)}.ds-nav a{color:var(--tala-text);padding:10px;border-radius:8px;text-decoration:none;background-image:var(--tala-control-gloss);box-shadow:var(--tala-navigation-depth)}.ds-nav a[aria-current]{background:color-mix(in srgb,var(--tala-brand) 14%,var(--tala-surface));box-shadow:inset 0 0 0 1px var(--tala-selected-edge),var(--tala-control-pressed);font-weight:600}.ds-nav a:hover{background:var(--tala-surface-sunken)}.ds-nav a:focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px}"
+      "description": "Sidebar navigation with Servitech green tinted active destination and neutral zinc chrome.",
+      "html": "<nav class=\"ds-nav\"><a href=\"#\" aria-current=\"page\">Users &amp; Access</a><a href=\"#\">System Health</a></nav>",
+      "css": ".ds-nav{display:grid;gap:4px;background:var(--tala-chrome);padding:12px;border-radius:12px;font:14px var(--tala-font-body)}.ds-nav a{color:var(--tala-text);padding:10px;border-radius:8px;text-decoration:none;background-image:var(--tala-control-gloss);box-shadow:var(--tala-navigation-depth)}.ds-nav a[aria-current]{background:var(--tala-brand-tint);color:var(--tala-on-brand-tint);box-shadow:inset 0 0 0 1px var(--tala-selected-edge),var(--tala-control-pressed);font-weight:600}.ds-nav a:hover{background:var(--tala-surface-sunken)}.ds-nav a:focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px}"
     },
     {
       "name": "Tab selection",
       "kind": "nav",
-      "description": "Shared native navigation with shallow skeuomorphic Aqua-like buttons and depressed current selection; callers own state and URLs.",
-      "html": "<nav class=\"ds-tabs\"><a href=\"#\" aria-current=\"page\">Application queue</a><a href=\"#\">Admission cycles</a></nav>",
-      "css": ".ds-tabs{display:flex;gap:4px;flex-wrap:wrap;background:var(--tala-surface-sunken);padding:8px;border:1px solid var(--tala-edge);border-radius:12px;box-shadow:var(--tala-inset-well);font:14px var(--tala-font-body)}.ds-tabs a{padding:8px 12px;border-radius:8px;color:var(--tala-muted);text-decoration:none;background:var(--tala-surface);background-image:var(--tala-control-gloss);box-shadow:var(--tala-navigation-depth)}.ds-tabs a[aria-current]{background:var(--tala-surface);color:var(--tala-text);font-weight:600;box-shadow:inset 0 0 0 1px var(--tala-selected-edge),var(--tala-control-pressed)}.ds-tabs a:hover{color:var(--tala-text)}.ds-tabs a:focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px}"
+      "description": "Shared single-line navigation tabs with Servitech green selected edge.",
+      "html": "<nav class=\"ds-tabs\"><a href=\"#\" aria-current=\"page\">Institutional changes</a><a href=\"#\">System events</a></nav>",
+      "css": ".ds-tabs{display:flex;gap:4px;flex-wrap:wrap;background:var(--tala-surface-sunken);padding:6px;border:1px solid var(--tala-edge);border-radius:12px;box-shadow:var(--tala-inset-well);font:14px var(--tala-font-body)}.ds-tabs a{padding:8px 12px;border-radius:8px;color:var(--tala-muted);text-decoration:none;background:var(--tala-surface);background-image:var(--tala-control-gloss);box-shadow:var(--tala-navigation-depth)}.ds-tabs a[aria-current]{background:var(--tala-surface);color:var(--tala-link);font-weight:600;box-shadow:inset 0 0 0 1px var(--tala-selected-edge),var(--tala-control-pressed)}.ds-tabs a:hover{color:var(--tala-text)}.ds-tabs a:focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px}"
     },
     {
       "name": "Quiet record link",
       "kind": "nav",
-      "description": "Ordinary record/source navigation retains text-link semantics and visible focus.",
-      "html": "<a class=\"ds-link\" href=\"#source\">Inspect calendar source</a>",
-      "css": ".ds-link{color:var(--tala-link);font:14px var(--tala-font-body);text-decoration:underline;text-underline-offset:.2em}.ds-link:hover{ text-decoration-thickness:2px}.ds-link:focus-visible{outline:2px solid var(--tala-focus);outline-offset:3px}"
+      "description": "Servitech green interactive link with underline and high-visibility warm gold focus.",
+      "html": "<a class=\"ds-link\" href=\"#source\">View full activity log</a>",
+      "css": ".ds-link{color:var(--tala-link);font:14px var(--tala-font-body);text-decoration:underline;text-underline-offset:.2em}.ds-link:hover{text-decoration-thickness:2px}.ds-link:focus-visible{outline:2px solid var(--tala-focus);outline-offset:3px}"
     },
     {
       "name": "Source status",
       "kind": "chip",
-      "description": "Text identifies source state; color alone never establishes official publication or readiness.",
-      "html": "<span class=\"ds-status\">Official v1</span>",
+      "description": "Text-backed semantic status badge using neutral Zinc, Servitech green, warm gold, or crimson (zero blue).",
+      "html": "<span class=\"ds-status\">Available</span>",
       "css": ".ds-status{display:inline-block;padding:4px 8px;color:var(--tala-text);background:var(--tala-surface-sunken);border:1px solid var(--tala-edge);border-radius:6px;font:12px var(--tala-font-body)}"
     },
     {
       "name": "Opaque choice menu",
       "kind": "custom",
-      "description": "Native menus retain their keyboard lifecycle; this specimen demonstrates shared solid material and name-first identity.",
-      "html": "<section class=\"ds-menu\"><button>Hospitality management <small>HR</small></button><button>Mathematics <small>Math</small></button></section>",
-      "css": ".ds-menu{background:var(--tala-overlay);color:var(--tala-text);border-radius:12px;padding:8px;box-shadow:var(--tala-shadow-overlay);font:14px var(--tala-font-body)}.ds-menu button{display:block;width:100%;text-align:start;padding:10px;border:0;border-radius:6px;background:transparent;color:inherit;font:inherit}.ds-menu small{color:var(--tala-muted)}.ds-menu button:hover{background:var(--tala-surface-sunken)}.ds-menu button:focus-visible{outline:2px solid var(--tala-focus);outline-offset:1px}"
+      "description": "Solid opaque overlay menu with name-first identity and keyboard focus.",
+      "html": "<section class=\"ds-menu\"><button>Edit role &amp; details</button><button>Send password reset link</button></section>",
+      "css": ".ds-menu{background:var(--tala-overlay);color:var(--tala-text);border-radius:12px;padding:8px;box-shadow:var(--tala-shadow-overlay);font:14px var(--tala-font-body)}.ds-menu button{display:block;width:100%;text-align:start;padding:10px;border:0;border-radius:6px;background:transparent;color:inherit;font:inherit}.ds-menu button:hover{background:var(--tala-surface-sunken)}.ds-menu button:focus-visible{outline:2px solid var(--tala-focus);outline-offset:1px}"
     },
     {
       "name": "Working records",
       "kind": "custom",
-      "description": "Human identity leads; comparable quantities align with tabular numerals and structural dividers.",
-      "html": "<table class=\"ds-records\"><tr><th>Course</th><th>Weekly meetings</th></tr><tr><td>Mathematics<br><small>Class reference</small></td><td>2</td></tr></table>",
+      "description": "Zero-overflow institutional data table with tabular numerals and structural dividers.",
+      "html": "<table class=\"ds-records\"><tr><th>Account</th><th>Status</th></tr><tr><td>Maribel Dizon<br><small>registrar.demo@example.test</small></td><td>Active</td></tr></table>",
       "css": ".ds-records{width:100%;border-collapse:collapse;text-align:start;color:var(--tala-text);font:14px/1.5 var(--tala-font-body);font-variant-numeric:tabular-nums}.ds-records th,.ds-records td{padding:12px;border-bottom:1px solid var(--tala-edge)}.ds-records th,.ds-records small{color:var(--tala-muted)}"
-    },
-    {
-      "name": "Meeting inspection",
-      "kind": "button",
-      "description": "Course/time/location-first command opens a native bounded details dialog; it is not a toggle.",
-      "html": "<button class=\"ds-meeting\"><strong>Mathematics</strong><span>Monday 8:00–9:00 AM</span><span>Room 1</span></button>",
-      "css": ".ds-meeting{display:grid;gap:4px;width:100%;text-align:start;background:var(--tala-surface-sunken);color:var(--tala-text);padding:12px;border:1px solid var(--tala-edge);border-radius:8px;font:14px var(--tala-font-body)}.ds-meeting span{color:var(--tala-muted)}.ds-meeting:hover{border-color:var(--tala-control-border)}.ds-meeting:focus-visible{outline:3px solid var(--tala-focus);outline-offset:3px}"
     }
   ],
   "narrative": {
     "northStar": "Clear Institutional Operations",
-    "overview": "Neutral light/dark surfaces, green-led actions, supporting TALA blue, Inter typography and restrained tactile controls. Preserve institutional artwork. DESIGN owns shared visuals; Blueprint owns role/page outcomes.",
+    "overview": "Neutral Zinc light/dark surfaces, Servitech green-led actions and interactive links, warm gold focus/warning accents, institutional crimson destructive actions (a 4-role institutional palette with zero blue shades), Inter typography and restrained tactile controls form the shared visual identity.",
     "keyCharacteristics": [
-      "Neutral surfaces, green-led actions, supporting TALA blue, restrained gold/yellow cues, and full-color institutional artwork.",
+      "4-role institutional palette with zero blue shades: pure neutral Zinc layers, Servitech green primary/links/selection, warm gold focus/warnings, and institutional crimson destructive states.",
       "Clear hierarchy and task-oriented language across public, Applicant, Student, Faculty, and Staff experiences.",
-      "Operational layouts suited to the information being used, not a universal dense-table or card pattern.",
-      "Formal, version-bound, monochrome-capable official outputs with the school as issuer."
+      "Forms collect only facts the task actually needs, without generic paperwork boxes lacking an SIA source-document purpose.",
+      "Formal, version-bound, monochrome-capable official outputs with Servitech Institute Asia Inc. as issuer."
     ],
     "rules": [
-      "TALA uses one material grammar across Filament and Bootstrap. Call the existing control family **skeuomorphic Aqua-like buttons** consistently. Action buttons, eligible icon actions (including the collapsed-sidebar “Find a workspace page” shortcut), the account trigger, public menu trigger and action-style links use its full highlight, lower edge, modest elevation and depressed press state. Frequently used sidebar navigation, native tabs/task selectors, theme selection and pagination use a shallower member of the same family; the current choice stays depressed/seated and distinguishable from an action. These priorities follow task structure, not measured usage telemetry. Editable fields and standalone navigation tracks use inset depth. Surfaces hold content: solid, softly elevated and hairline-edged, with a top rim in dark appearance. Floating menus and search results use solid opaque overlays with no backdrop blur. Reuse the explicit foundation selector whitelist; ordinary text links, menu rows, record expansion, input-affix icons, notification close, section toggles, sort headers, wizard steps and reorder handles retain quiet native presentation. Preserve native semantic palettes, focus, loading/disabled meaning and forced-colors behavior. Busy indicators reflect real pending work without hiding existing results; ordinary relationship tables and widgets follow the Loading Rule below.",
-      "**The Control Meaning Rule.** Native Filament actions and Bootstrap buttons consume the existing full skeuomorphic Aqua-like action material; task navigation, Week/Meeting list and pagination consume its shallower seated selection material. Primary commands use native green; destructive commands retain native danger meaning. Supporting blue identifies appropriate ordinary links and information. Text links stay quiet, with underline and visible keyboard focus; menu rows, sort/disclosure/notification-close controls and input-affix icons keep the native quiet whitelist. Heroicons use native sizing and currentColor rather than a second icon family. Dropdowns and dialogs are solid opaque overlays. Searchable choices show human names first with codes as supporting identity; searching and clearing scope preserve the exact Term and source version. Preserve the Applicant identity exception from Issue #59; every authenticated role omits Powered by TALA attribution.",
-      "The shared ladder is canvas → neutral chrome → solid content surface → floating overlay. Preserve the owner's approved light palette and existing action finish. Dark appearance uses explicit lightness separation, stronger rim/edge definition and soft shadow; more shadow alone cannot separate near-black layers. Its canvas/chrome/content/overlay values are `#111114`/`#1B1B20`/`#242429`/`#303036`, with sunken fields/tracks `#16161A`. Keep one visible elevation per nested content stack. Navigation chrome stays opaque and neutral. Skeuomorphic Aqua-like buttons use full action and shallow navigation variants, with seated current states; inset fields communicate editing. Native validation and focus rings remain authoritative. Check text across the brightest gloss stop as well as the base fill; native inactive/selected navigation labels in dark mode use readable shared muted/primary-300 values.",
-      "**The Loading Rule.** Ordinary record and relationship content loads with its owning page. Remove decorative skeleton/deferred-placeholder surfaces for the current shared interface. Keep visible results, native busy/disabled feedback, accessible status and truthful progress for saving or asynchronous generation; never hide loading with a blanket CSS rule.",
-      "All native Filament and Bootstrap modal X controls use utility Aqua-like depth/gloss while retaining names, Escape, focus and cancellation.",
-      "The selected background uses soft state-aware color blooms and a brief arrival behind readable content. Complete the decorative animation within five seconds of page arrival, then retain the settled background throughout that page visit. Respect reduced motion with an immediate static composition; omit decoration in forced colors and print. Suspend active decoration while hidden or offscreen and preserve the original completion deadline when the page returns. Recovery actions stay immediately available, content stays stationary, and focus remains visible. Verify contrast throughout the effect in both appearances and on narrow screens. This finite treatment follows [WCAG 2.2 Pause, Stop, Hide](https://www.w3.org/WAI/WCAG22/Understanding/pause-stop-hide.html)."
+      {
+        "name": "The 4-Role Zero-Blue Palette Rule",
+        "body": "TALA uses pure neutral Zinc layers (Filament gray and info mapped to Color::Zinc), Servitech green for primary actions, interactive links, and selection tints, warm gold/amber for keyboard focus rings and warning states, and institutional crimson for destructive actions — zero blue shades.",
+        "section": "colors"
+      },
+      {
+        "name": "The Control Meaning Rule",
+        "body": "Primary commands and affirmative submissions use native green; Cancel or Close that exits without applying work uses neutral gray. A destructive cancellation uses native danger meaning because of its effect, rather than its label. Servitech green (--tala-link: #1f5f2c light / #8de698 dark) identifies interactive links, while neutral Zinc (Filament 'info' => Color::Zinc) identifies informational badges, icons, and alerts — zero blue shades.",
+        "section": "components"
+      },
+      {
+        "name": "Alternating neutral surface tiers and card surface rule",
+        "body": "Outer cards—including filter/scope cards such as x-record-scope-bar and x-record-collection-controls—keep a continuous raised --tala-surface body with hairline dividers (border-block-start: 1px solid var(--tala-edge)), never --tala-surface-sunken edge-to-edge on --tala-canvas. Reserve --tala-surface-sunken for two-tone header/footer bands and recessed inset troughs inside a raised card.",
+        "section": "components"
+      },
+      {
+        "name": "The Loading Rule",
+        "body": "Keep real content visible while a request refreshes it. Page navigation uses Filament/Livewire's native delayed top progress bar; partial content reads use the shared content-progress bar targeted with wire:loading.delay.short. Remove content skeletons and content-hiding loading classes.",
+        "section": "components"
+      },
+      {
+        "name": "The Minimal Form Evidence Rule",
+        "body": "Forms collect facts the task actually needs. Derive the authenticated actor, recorded time, and known record context; omit generic Approving authority or Evidence reference boxes unless an SIA source-document purpose requires them.",
+        "section": "components"
+      },
+      {
+        "name": "The Shared Elevation Ladder Rule",
+        "body": "Canvas -> neutral chrome -> solid task surface -> raised detail surface -> opaque floating overlay. Dark appearance uses explicit Zinc lightness separation (#151619 / #1e2024 / #27282c / #303237 / #35373d) with sunken troughs (#1b1c20) and restrained rims.",
+        "section": "elevation"
+      }
     ],
     "dos": [
-      "Lead visible school services and official documents with Servitech Institute Asia Inc.; omit “Powered by TALA” from all authenticated pages. Public and anonymous non-Applicant account-entry attribution remains secondary; Applicant account-entry pages continue to omit it. Preserve official-output “Generated through TALA” attribution.",
+      "Lead visible school services and official documents with Servitech Institute Asia Inc. and the outlined Servitech crest (public/images/brand/servitech-crest-outlined-192.webp) across web shells and favicons; omit “Powered by TALA” and talalogo.png across all web UI surfaces (public gateway, access entry, error recovery, and authenticated panels). Preserve School-issued email HTML mail branding and official-output “Generated through TALA” attribution.",
       "Apply the shared school-first visual direction while refining terminology, workflow, hierarchy and components where evidence warrants it.",
       "Preserve native Light/Dark/System behavior, readable contrast, visible focus, and meaning that does not depend on color alone.",
       "Choose a component for the user's task; use focused custom UI within Laravel/Filament when native presentation is inadequate."

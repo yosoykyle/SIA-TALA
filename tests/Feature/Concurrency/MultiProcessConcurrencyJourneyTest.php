@@ -1172,6 +1172,7 @@ class MultiProcessConcurrencyJourneyTest extends TestCase
             DB::table('assessment_obligations')->whereIn('assessment_id', $assessmentIds)->delete();
             DB::table('assessments')->whereIn('id', $assessmentIds)->delete();
             DB::table('term_accounts')->whereIn('id', $accountIds)->delete();
+            DB::table('registration_case_events')->whereIn('enrollment_id', $enrollmentIds)->delete();
             DB::table('enrollments')->whereIn('id', $enrollmentIds)->delete();
         });
         $results = $this->runConcurrentWorkers('manual_payment',

@@ -37,6 +37,10 @@ class ResetUserPassword implements ResetsUserPasswords
 
     public function completeRecovery(User $user): void
     {
+        if ($user->email_verified_at === null && $user->hasRole('student') && ! $user->isStaffCapable()) {
+            $user->forceFill(['email_verified_at' => now()])->save();
+        }
+
         $this->sessions->revokeAll($user);
 
         activity()

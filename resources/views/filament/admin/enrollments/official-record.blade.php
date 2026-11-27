@@ -1,15 +1,42 @@
 @assets
     <link rel="stylesheet" href="{{ asset('css/tala-enrollment.css').'?v='.filemtime(public_path('css/tala-enrollment.css')) }}">
 @endassets
-@php($certificateAvailable = $case->currentCorVersion !== null)
+@php
+    $certificateAvailable = $case->currentCorVersion !== null;
+    $isAutoFinalized = ($provenance['is_automatic'] ?? ($case->finalization_mode === \App\Models\Enrollment::FinalizationModeAutomatic));
+    $provenanceParts = $isAutoFinalized
+        ? array_filter([
+            filled($provenance['load_approved_by'] ?? null) ? 'Load approved by '.$provenance['load_approved_by'].' (Registrar)' : null,
+            filled($provenance['fee_cleared_by'] ?? null) ? 'Fee cleared by '.$provenance['fee_cleared_by'].' (Accounting)' : null,
+            filled($provenance['cor_reference'] ?? null) ? $provenance['cor_reference'] : null,
+        ])
+        : array_filter([
+            filled($provenance['finalized_by'] ?? null) ? 'Finalized by '.$provenance['finalized_by'].' (Registrar)' : null,
+            filled($provenance['cor_reference'] ?? null) ? $provenance['cor_reference'] : null,
+        ]);
+@endphp
 <div class="registrar-case tala-enrollment-record">
     @include('filament.admin.enrollments.record-header')
     <section class="tala-enrollment-ledger tala-task-surface" aria-labelledby="subjects-heading">
         <header class="tala-enrollment-ledger-heading">
             <div>
                 <h2 id="subjects-heading">{{ $subjects->count() }} registered {{ \Illuminate\Support\Str::plural('subject', $subjects->count()) }} · {{ (float) $subjects->sum('units_snapshot') }} units</h2>
-                <x-filament::badge color="success" icon="heroicon-o-check-badge">Officially enrolled</x-filament::badge>
-                <p class="registrar-case-meta">{{ $case->officially_enrolled_at ? 'Enrolled on '.$case->officially_enrolled_at->timezone(config('app.display_timezone'))->format('M j, Y').'.' : 'Enrollment date not recorded.' }}</p>
+                <div class="flex flex-wrap items-center gap-2">
+                    <x-filament::badge color="success" icon="heroicon-o-check-badge">Officially enrolled</x-filament::badge>
+                    @if ($isAutoFinalized)
+                        <x-filament::badge color="info" icon="heroicon-o-bolt">Auto-finalized</x-filament::badge>
+                    @endif
+                </div>
+                <p class="registrar-case-meta">
+                    @if ($case->officially_enrolled_at)
+                        {{ $isAutoFinalized ? 'Officially enrolled automatically on ' : 'Enrolled on ' }}{{ $case->officially_enrolled_at->timezone(config('app.display_timezone'))->format('M j, Y') }}.
+                    @else
+                        Enrollment date not recorded.
+                    @endif
+                </p>
+                @if ($provenanceParts !== [])
+                    <p class="registrar-case-meta">{{ implode(' · ', $provenanceParts) }}</p>
+                @endif
             </div>
             @if ($certificateAvailable)
                 <div class="tala-enrollment-ledger-actions">

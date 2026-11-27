@@ -104,7 +104,7 @@ class SolverServerTest(unittest.TestCase):
         ):
             solve.return_value = {"solver_status": "optimal", "assignments": []}
 
-            response = self.client.post("/solve", json={"contract_version": "tal94-demand-v2"})
+            response = self.client.post("/solve", json={"contract_version": "tala-timetable-v2"})
 
         self.assertEqual(200, response.status_code)
         context = solve.call_args.kwargs["request_context"]
@@ -117,7 +117,7 @@ class SolverServerTest(unittest.TestCase):
         ):
             solve.return_value = {"solver_status": "optimal", "assignments": []}
 
-            response = self.client.post("/solve", json={"contract_version": "tal94-demand-v2"})
+            response = self.client.post("/solve", json={"contract_version": "tala-timetable-v2"})
 
         self.assertEqual(200, response.status_code)
         context = solve.call_args.kwargs["request_context"]
@@ -197,7 +197,7 @@ class SolverServerTest(unittest.TestCase):
             self.assertLogs("tala_solver.server", level="ERROR") as captured,
             redirect_stdout(output),
         ):
-            response = self.client.post("/solve", json={"contract_version": "tal94-demand-v2"})
+            response = self.client.post("/solve", json={"contract_version": "tala-timetable-v2"})
 
         payload = response.get_json()
         self.assertEqual(500, response.status_code)

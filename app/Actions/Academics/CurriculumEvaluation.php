@@ -6,6 +6,7 @@ use App\Actions\Enrollment\RegistrationAcademicEligibilityQuery;
 use App\Models\CourseEnrollment;
 use App\Models\CourseRequirement;
 use App\Models\CurriculumEntry;
+use App\Models\PriorAcademicCredit;
 use App\Models\ProgramShiftCreditEntry;
 use App\Models\RegistrationCreditEvaluation;
 use App\Models\RegistrationCreditLine;
@@ -57,10 +58,15 @@ class CurriculumEvaluation
                 );
                 $credited = $acceptedCredits->has($entry->id) || in_array((int) $entry->id, $transferCredits, true);
                 $inProgress = $entryAttempts->contains(fn (array $attempt): bool => $attempt['event'] === null
+                    && $attempt['course_enrollment'] instanceof CourseEnrollment
                     && $attempt['course_enrollment']->is_current
                     && $attempt['course_enrollment']->status === CourseEnrollment::StatusActive);
 
-                $latestUnpassed = $passed || $credited ? null : $entryAttempts->filter(fn (array $attempt): bool => $attempt['event'] !== null || in_array($attempt['result'] ?? null, ['DRP', 'W'], true))->last();
+                $latestUnpassed = $passed || $credited
+                    ? null
+                    : $entryAttempts->filter(fn (array $attempt): bool => $attempt['event'] !== null
+                        || ($attempt['prior_credit'] ?? null) instanceof PriorAcademicCredit
+                        || in_array($attempt['result'] ?? null, ['DRP', 'W'], true))->last();
                 $latestResult = $latestUnpassed['result'] ?? null;
 
                 return [

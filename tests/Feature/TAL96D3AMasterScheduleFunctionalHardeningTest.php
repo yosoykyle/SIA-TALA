@@ -476,7 +476,7 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
             'term_id' => Term::factory()->create()->id,
             'status' => ScheduleGenerationRun::StatusUnderReview,
             'requested_by' => $registrar->id,
-            'input_snapshot' => ['contract_version' => 'tal94-demand-v2'],
+            'input_snapshot' => ['contract_version' => ScheduleGenerationRun::ContractVersion],
             'input_hash' => hash('sha256', 'tal-96d3a-'.uniqid()),
             'solver_version' => 'tal-96d3a-test',
             'runtime_ms' => 8750,

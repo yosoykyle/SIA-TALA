@@ -662,7 +662,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
         $reviewed->assertActionVisible('reviewApplication');
         $reviewed->assertSee('All 1 submitted copies accepted · Decision pending.');
         Livewire::actingAs($registrar)->test(ListAdmissionApplications::class)
-            ->assertTableColumnStateSet('owner_next_action', 'Registrar — Record the admission decision using the current reviewed evidence.', $application);
+            ->assertTableColumnStateSet('owner_next_action', 'Record the admission decision using the current reviewed evidence.', $application);
         IdentityMatchReview::factory()->create(['admission_application_id' => $application->id]);
         $identity = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id]);
         $this->assertSame('resolveIdentity', $identity->instance()->getCachedHeaderActions()[0]->getName());

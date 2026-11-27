@@ -60,11 +60,17 @@ class SchedulePublishService
                 ]);
             }
 
-            $termRuns = ScheduleGenerationRun::query()
+            $termRunIds = ScheduleGenerationRun::query()
                 ->where('term_id', $run->term_id)
                 ->orderBy('id')
-                ->lockForUpdate()
-                ->get();
+                ->pluck('id');
+
+            $termRuns = $termRunIds->isEmpty()
+                ? collect()
+                : ScheduleGenerationRun::query()
+                    ->whereKey($termRunIds)
+                    ->lockForUpdate()
+                    ->get();
 
             $lockedRun = $termRuns->firstWhere('id', $run->getKey());
 

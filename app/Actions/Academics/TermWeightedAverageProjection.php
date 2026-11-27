@@ -24,17 +24,25 @@ class TermWeightedAverageProjection
      */
     public function forResults(Collection $results, Term $term): array
     {
-        $results = $results->where('term.id', $term->id);
-        $state = $this->readiness->forResults($results);
+        return $this->forPeriodResults($results->where('term.id', $term->id), (string) $term->label);
+    }
+
+    /**
+     * @param  Collection<int, array<string, mixed>>  $periodResults
+     * @return array{state: string, value: ?string, label: string, reason: ?string, through: ?string, as_of: string, exclusions: list<string>}
+     */
+    public function forPeriodResults(Collection $periodResults, string $periodLabel): array
+    {
+        $state = $this->readiness->forResults($periodResults);
 
         return [
             'state' => $state,
-            'value' => $state === AcademicAverageReadiness::Available ? $this->readiness->average($results) : null,
+            'value' => $state === AcademicAverageReadiness::Available ? $this->readiness->average($periodResults) : null,
             'label' => 'Term weighted average',
             'reason' => $state === AcademicAverageReadiness::Available ? null : $this->reasonFor($state),
-            'through' => $state === AcademicAverageReadiness::Available ? $term->label : null,
+            'through' => $state === AcademicAverageReadiness::Available ? $periodLabel : null,
             'as_of' => now('Asia/Manila')->toIso8601String(),
-            'exclusions' => $results->pluck('average_exclusion')->filter()->unique()->values()->all(),
+            'exclusions' => $periodResults->pluck('average_exclusion')->filter()->unique()->values()->all(),
         ];
     }
 

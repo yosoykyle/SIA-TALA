@@ -55,7 +55,7 @@
                                 </x-filament::button>
                             @endforeach
                         </div>
-                    @elseif ($isActive && $step['action'])
+                    @elseif (($isActive || $step['persistent_action']) && $step['action'])
                         <div class="tala-process-actions">
                             <x-filament::button size="sm" wire:click="mountAction('{{ $step['action'] }}')">
                                 {{ $step['action_label'] }}

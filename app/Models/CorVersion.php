@@ -59,6 +59,12 @@ class CorVersion extends Model
         return $this->belongsTo(PublishedTimetableVersion::class, 'published_timetable_version_id');
     }
 
+    /** @return BelongsTo<User, $this> */
+    public function issuer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'issued_by');
+    }
+
     protected static function booted(): void
     {
         static::updating(fn (): never => throw new LogicException('COR versions are immutable.'));

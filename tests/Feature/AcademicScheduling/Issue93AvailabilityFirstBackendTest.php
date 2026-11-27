@@ -142,15 +142,13 @@ final class Issue93AvailabilityFirstBackendTest extends TestCase
                 ['starts_at' => '12:00:00', 'ends_at' => '13:00:00'],
             ],
         ]);
-        // Shrink Day 1 upper end? Let's also remove Day 3 and verify stored windows remain untouched while Day 1 widened bounds stay blocked.
+        // Remove Day 3 and verify stored windows remain untouched while Day 1 widened bounds stay blocked.
+        // Window 09:00-12:00 spans the 10:00-11:00 break (leaving 09:00-10:00 and 11:00-12:00 usable), so it is NOT flagged.
         $calendar->teachingGridRows()->where('day_of_week', 3)->delete();
         $calendar->unsetRelation('teachingGridRows');
 
-        $this->assertTrue($declaration->needsGridReview($calendar));
-        $outside = $declaration->windowsOutsideGrid($calendar);
-        $this->assertCount(1, $outside);
-        $this->assertSame('09:00', $outside[0]['start_time']);
-        $this->assertSame('12:00', $outside[0]['end_time']);
+        $this->assertFalse($declaration->needsGridReview($calendar));
+        $this->assertSame([], $declaration->windowsOutsideGrid($calendar));
         $this->assertSame([
             ['day_of_week' => 1, 'start_time' => '09:00', 'end_time' => '12:00'],
             ['day_of_week' => 1, 'start_time' => '13:00', 'end_time' => '15:00'],
@@ -161,6 +159,26 @@ final class Issue93AvailabilityFirstBackendTest extends TestCase
             ['day_of_week' => 1, 'starts_at' => '12:00:00', 'ends_at' => '13:00:00'],
             ['day_of_week' => 1, 'starts_at' => '15:00:00', 'ends_at' => '20:00:00'],
         ], $declaration->compileUnavailableBlocks($calendar));
+
+        // A window wholly inside the 10:00-11:00 break leaves zero usable minutes and IS flagged.
+        $otherFaculty = $this->staff(User::StaffRoleFaculty);
+        $breakOnlyDeclaration = FacultyAvailabilityDeclaration::factory()->create([
+            'term_id' => $term->id,
+            'faculty_user_id' => $otherFaculty->id,
+            'version' => 1,
+            'declaration' => FacultyAvailabilityDeclaration::DeclarationAvailable,
+            'availability_mode' => FacultyAvailabilityDeclaration::ModeWindows,
+            'teaching_windows' => [
+                ['day_of_week' => 1, 'start_time' => '10:00', 'end_time' => '11:00'],
+            ],
+            'hard_unavailability' => [],
+        ]);
+
+        $this->assertTrue($breakOnlyDeclaration->needsGridReview($calendar));
+        $outsideBreakOnly = $breakOnlyDeclaration->windowsOutsideGrid($calendar);
+        $this->assertCount(1, $outsideBreakOnly);
+        $this->assertSame('10:00', $outsideBreakOnly[0]['start_time']);
+        $this->assertSame('11:00', $outsideBreakOnly[0]['end_time']);
     }
 
     public function test_record_declaration_validates_windows_requires_faculty_actor_and_stales_runs_on_first_response(): void

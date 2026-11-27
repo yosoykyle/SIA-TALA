@@ -84,8 +84,8 @@ class TAL96D5E1B2AAcademicReadinessTest extends TestCase
         $this->assertNotNull($catalogItem);
         $this->assertSame([
             'Programs',
-            'Subject catalog',
             'Curricula',
+            'Subject catalog',
         ], collect($catalogItem->getChildItems())->map(fn ($child): string => $child->getLabel())->values()->all());
 
         $this->resolveCurrentCatalogPage(ListPrograms::class);
@@ -100,8 +100,8 @@ class TAL96D5E1B2AAcademicReadinessTest extends TestCase
 
         $this->assertSame([
             'Programs',
-            'Subject catalog',
             'Curricula',
+            'Subject catalog',
         ], $childLabels);
 
         foreach (['Academic Years', 'Terms', 'Programs', 'Subject catalog', 'Course Specifications', 'Curriculum Versions', 'Import Batches'] as $sourceRecordLabel) {
@@ -263,7 +263,7 @@ class TAL96D5E1B2AAcademicReadinessTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         $component = Livewire::test(ListCurriculumVersions::class)
-            ->callAction('create', data: [
+            ->callAction(TestAction::make('create')->table(), data: [
                 'program_id' => $program->id,
                 'name' => 'Manual Curriculum Draft',
                 'effective_entry_term_id' => null,
@@ -778,7 +778,7 @@ class TAL96D5E1B2AAcademicReadinessTest extends TestCase
         $this->actingAs($academicHead)
             ->get(CourseResource::getUrl('view', ['record' => $course]))
             ->assertOk()
-            ->assertSee('Subjects');
+            ->assertSee('Subject catalog');
     }
 
     #[Test]
@@ -817,8 +817,8 @@ class TAL96D5E1B2AAcademicReadinessTest extends TestCase
         $this->assertTrue($overviewCatalogItem->isActive());
         $this->assertSame([
             'Programs',
-            'Subject catalog',
             'Curricula',
+            'Subject catalog',
         ], collect($overviewCatalogItem->getChildItems())->map(fn (NavigationItem $child): string => $child->getLabel())->values()->all());
 
         $registrarChecks = [
@@ -840,8 +840,8 @@ class TAL96D5E1B2AAcademicReadinessTest extends TestCase
             $children = collect($catalogItem->getChildItems());
             $this->assertSame([
                 'Programs',
-                'Subject catalog',
                 'Curricula',
+                'Subject catalog',
             ], $children->map(fn (NavigationItem $child): string => $child->getLabel())->values()->all());
 
             $byLabel = $children->keyBy(fn (NavigationItem $child): string => $child->getLabel());
@@ -867,10 +867,10 @@ class TAL96D5E1B2AAcademicReadinessTest extends TestCase
             ->first(fn (NavigationItem $item): bool => $item->getLabel() === 'Academic Oversight');
         $this->assertNotNull($oversightOnApprovals);
         $this->assertSame([
-            'Calendar',
-            'Classes & sections',
-            'Faculty & rooms',
-            'Timetable',
+            '1. Calendar',
+            '2. Sections & classes',
+            '3. Faculty & rooms',
+            '4. Timetable',
         ], collect($oversightOnApprovals->getChildItems())->map(fn (NavigationItem $child): string => $child->getLabel())->values()->all());
 
         $this->resolveCurrentCatalogPage(CatalogCurriculaWorkbench::class, ['oversightTermId' => $term->id]);
@@ -900,8 +900,8 @@ class TAL96D5E1B2AAcademicReadinessTest extends TestCase
             $children = collect($oversight->getChildItems());
             $this->assertSame([
                 'Programs',
-                'Subject catalog',
                 'Curricula',
+                'Subject catalog',
             ], $children->map(fn (NavigationItem $child): string => $child->getLabel())->values()->all());
 
             foreach ($children as $child) {
@@ -948,7 +948,7 @@ class TAL96D5E1B2AAcademicReadinessTest extends TestCase
             ->assertActionVisible('returnToOversight');
         Livewire::test(ListPrograms::class, ['oversightTermId' => $term->id])
             ->assertActionVisible('returnToOversight')
-            ->assertActionHidden('create');
+            ->assertActionHidden(TestAction::make('create')->table());
     }
 
     #[Test]
@@ -1127,11 +1127,11 @@ class TAL96D5E1B2AAcademicReadinessTest extends TestCase
         ], Livewire::test(ViewProgram::class, ['record' => $program->getRouteKey()])->instance()->getBreadcrumbs());
         $this->assertSame([
             CatalogCurriculaWorkbench::getUrl() => 'Programs & Curricula',
-            'Subjects',
+            'Subject catalog',
         ], Livewire::test(ListCourses::class)->instance()->getBreadcrumbs());
         $this->assertSame([
             CatalogCurriculaWorkbench::getUrl() => 'Programs & Curricula',
-            CourseResource::getUrl('index') => 'Subjects',
+            CourseResource::getUrl('index') => 'Subject catalog',
             $firstSpec->course->code,
         ], Livewire::test(ViewCourse::class, ['record' => $firstSpec->course->getRouteKey()])->instance()->getBreadcrumbs());
         $this->assertSame([

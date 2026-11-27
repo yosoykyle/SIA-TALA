@@ -2,13 +2,16 @@
 
 namespace App\Filament\Pages;
 
+use App\Actions\Enrollment\RegistrationAcademicEligibilityQuery;
 use App\Actions\Scheduling\ConfirmClassOffering;
 use App\Actions\Scheduling\GenerateSchedulingDemand;
 use App\Actions\Scheduling\PrepareClassOffering;
 use App\Actions\Scheduling\PrepareTermClassProposal;
+use App\Actions\Scheduling\RecordTermCohort;
 use App\Actions\Scheduling\TermCapacityHeadroomProjection;
 use App\Actions\Scheduling\TermCoverageProjection;
 use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
+use App\Filament\Resources\CurriculumVersions\CurriculumVersionResource;
 use App\Filament\Resources\Sections\Schemas\SectionInfolist;
 use App\Filament\Resources\Sections\SectionResource;
 use App\Models\CourseComponent;
@@ -17,6 +20,7 @@ use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\EnrollmentSeatReservation;
+use App\Models\FacultyQualification;
 use App\Models\Program;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
@@ -33,6 +37,7 @@ use App\Models\User;
 use App\Support\SafeUserNotification;
 use BackedEnum;
 use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkAction;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\CheckboxList;
@@ -88,7 +93,13 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
     public ?string $yearLevel = null;
 
     #[Url]
-    public string $classesView = 'classes';
+    public string $classesView = 'cohorts';
+
+    #[Url]
+    public string $sectionTriage = 'all';
+
+    #[Url]
+    public string $classTriage = 'all';
 
     /** @var array<int|string, string|null> */
     #[Locked]
@@ -98,10 +109,39 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
     {
         abort_unless(in_array($view, ['classes', 'cohorts'], true), 404);
         $this->classesView = $view;
+        $this->sectionTriage = 'all';
+        $this->classTriage = 'all';
         $this->resetTableSearch();
         $this->resetTableColumnSearches();
         $this->resetTableFiltersForm();
         $this->resetTable();
+    }
+
+    public function setSectionTriage(string $triage): void
+    {
+        if (! in_array($triage, ['all', 'no_classes', 'no_subjects'], true)) {
+            $triage = 'all';
+        }
+
+        $this->sectionTriage = $triage;
+        $this->resetPage();
+    }
+
+    public function setClassTriage(string $triage): void
+    {
+        if (! in_array($triage, ['all', 'needs_preparation', 'no_teacher', 'cancelled'], true)) {
+            $triage = 'all';
+        }
+
+        $this->classTriage = $triage;
+
+        if ($triage === 'cancelled') {
+            $this->tableFilters['lifecycle_status']['value'] = 'cancelled';
+        } elseif (($this->tableFilters['lifecycle_status']['value'] ?? 'active') === 'cancelled') {
+            $this->tableFilters['lifecycle_status']['value'] = 'active';
+        }
+
+        $this->resetPage();
     }
 
     private ?array $classViewData = null;
@@ -111,13 +151,22 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
     /** @var array<string, mixed>|null */
     private ?array $curriculumPreview = null;
 
+    /** @var array<string, array<int, int>> */
+    private array $qualifiedFacultyCountsCache = [];
+
+    /** @var array{by_year: array<string, int>, by_curriculum: array<int, int>}|null */
+    private ?array $confirmableCountsByCurriculumAndYear = null;
+
+    /** @var list<array{curriculum_id: int, label: string, configured: ?string, url: string, is_locked: bool}>|null */
+    private ?array $curriculumReadinessGapsCache = null;
+
     protected static ?string $cluster = TermPlanningCluster::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleGroup;
 
-    protected static ?string $navigationLabel = 'Classes & sections';
+    protected static ?string $navigationLabel = 'Sections & classes';
 
-    protected static ?string $title = 'Classes & sections';
+    protected static ?string $title = 'Sections & classes';
 
     protected static ?string $slug = 'classes';
 
@@ -136,9 +185,29 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
         if ($this->classViewData === null) {
             $this->classViewData = parent::getViewData();
             $this->classViewData['cohorts']->loadMissing(['program', 'curriculumVersion.academicYears', 'classOfferings.courseRevision', 'classOfferings.termOffering.curriculumEntry.courseSpecification']);
-            $this->classViewData['capacityHeadroom'] = $this->classViewData['term'] instanceof Term
-                ? app(TermCapacityHeadroomProjection::class)->forTerm($this->classViewData['term'])
+            $term = $this->classViewData['term'] ?? null;
+            $this->classViewData['capacityHeadroom'] = $term instanceof Term
+                ? app(TermCapacityHeadroomProjection::class)->forTerm($term)
                 : null;
+            $readOnly = (bool) ($this->classViewData['readOnly'] ?? false);
+            $isLiveOrClosed = $term instanceof Term && ($this->hasPublishedTimetable($term) || $this->isTermClosed($term));
+            $this->classViewData['curriculumReadinessGaps'] = ($term instanceof Term
+                && ! $readOnly
+                && ! $isLiveOrClosed
+                && ($this->classViewData['sourceClasses']?->isEmpty() ?? true))
+                ? $this->curriculumReadinessGapsForTerm($term, $this->classViewData['cohorts'])
+                : [];
+            $this->classViewData['allCohortsHaveZeroCurriculumSubjects'] = $term instanceof Term
+                && $this->classViewData['cohorts']->isNotEmpty()
+                && $this->classViewData['cohorts']->every(fn (TermCohort $cohort): bool => $this->confirmableSubjectCountForCohort($cohort) === 0);
+            $this->classViewData['hasOfficialEnrollments'] = $term instanceof Term && $this->hasOfficialStudentEnrollments($term);
+            $this->classViewData['sectionTriageCounts'] = $this->computeSectionTriageCounts($this->classViewData['cohorts']);
+            $this->classViewData['classTriageCounts'] = $this->computeClassTriageCounts(
+                $term,
+                $this->classViewData['sourceClasses'],
+                $this->classViewData['contextClasses'],
+                $this->classViewData['facultyRecords'],
+            );
         }
 
         return $this->classViewData;
@@ -148,8 +217,17 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
     {
         parent::mount();
         abort_unless(in_array($this->classesView, ['classes', 'cohorts'], true), 404);
+        if (! in_array($this->sectionTriage, ['all', 'no_classes', 'no_subjects'], true)) {
+            $this->sectionTriage = 'all';
+        }
+        if (! in_array($this->classTriage, ['all', 'needs_preparation', 'no_teacher', 'cancelled'], true)) {
+            $this->classTriage = 'all';
+        }
         if ($this->tableFilters === null && ($this->programId || $this->yearLevel)) {
             $this->tableFilters = ['program' => ['value' => $this->programId], 'year' => ['value' => $this->yearLevel]];
+        }
+        if ($this->classTriage === 'cancelled') {
+            $this->tableFilters['lifecycle_status']['value'] = 'cancelled';
         }
         $this->autoSyncSchedulingDemands();
     }
@@ -157,43 +235,83 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
     public function table(Table $table): Table
     {
         if ($this->classesView === 'cohorts') {
-            return $table->query(
-                TermCohort::query()
-                    ->where('term_id', $this->termId)
-                    ->with([
-                        'program',
-                        'curriculumVersion.academicYears',
-                        'classOfferings' => fn (BelongsToMany $query): BelongsToMany => $query
-                            ->where('sections.state', '!=', Section::StateCancelled)
-                            ->with(['courseRevision', 'termOffering.curriculumEntry.courseSpecification']),
-                    ])
-                    ->withCount([
-                        'classOfferings as active_class_offerings_count' => fn (Builder $query): Builder => $query
-                            ->where('sections.state', '!=', Section::StateCancelled),
-                        'enrollments',
-                    ])
-            )
+            $cohortsQuery = TermCohort::query()
+                ->where('term_id', $this->termId)
+                ->with([
+                    'program',
+                    'curriculumVersion.academicYears',
+                    'classOfferings' => fn (BelongsToMany $query): BelongsToMany => $query
+                        ->where('sections.state', '!=', Section::StateCancelled)
+                        ->with(['courseRevision', 'termOffering.curriculumEntry.courseSpecification']),
+                ])
+                ->withCount([
+                    'classOfferings as active_class_offerings_count' => fn (Builder $query): Builder => $query
+                        ->where('sections.state', '!=', Section::StateCancelled),
+                    'enrollments',
+                ]);
+
+            if ($this->sectionTriage === 'no_classes') {
+                $cohortsQuery->whereDoesntHave(
+                    'classOfferings',
+                    fn (Builder $query): Builder => $query->where('sections.state', '!=', Section::StateCancelled),
+                );
+            } elseif ($this->sectionTriage === 'no_subjects') {
+                $zeroSubjectCohortIds = $this->getViewData()['cohorts']
+                    ->filter(fn (TermCohort $cohort): bool => $this->confirmableSubjectCountForCohort($cohort) === 0)
+                    ->pluck('id')
+                    ->all();
+
+                if ($zeroSubjectCohortIds === []) {
+                    $cohortsQuery->whereRaw('1 = 0');
+                } else {
+                    $cohortsQuery->whereIn('term_cohorts.id', $zeroSubjectCohortIds);
+                }
+            }
+
+            return $table->query($cohortsQuery)
                 ->columns([
                     TextColumn::make('reference')->label('Student section')->searchable(query: fn (Builder $query, string $search): Builder => $query->where(fn (Builder $identity): Builder => $identity
                         ->where('reference', 'like', '%'.$search.'%')
+                        ->orWhereRaw("REPLACE(UPPER(reference), ' ', '') LIKE ?", ['%'.strtoupper(str_replace(' ', '', $search)).'%'])
                         ->orWhereHas('program', fn (Builder $program): Builder => $program->where('name', 'like', '%'.$search.'%'))))->sortable()->weight('semibold')
-                        ->formatStateUsing(fn (string $state): HtmlString => new HtmlString('<span class="inline-block whitespace-nowrap">'.e($state).'</span>'))
+                        ->formatStateUsing(fn (string $state): HtmlString => new HtmlString('<span class="inline-block whitespace-nowrap">'.e($this->formatSectionReference($state)).'</span>'))
                         ->description(fn (TermCohort $record): string => collect([$record->program->name, $record->curriculumVersion?->batchLabel() ?? 'Curriculum not associated', $record->year_level ? 'Year '.$record->year_level : null])->filter()->implode(' · ')),
                     TextColumn::make('expected_learners')->label('Students')->state(fn (TermCohort $record): string => match (true) {
                         $record->confirmed_count !== null => $record->confirmed_count.' confirmed',
                         $record->forecast_count !== null => $record->forecast_count.' forecast',
                         default => 'No count recorded',
-                    }),
-                    TextColumn::make('classOfferings.code')->label('Linked classes')->listWithLineBreaks()->placeholder('No classes linked')
+                    })
+                        ->formatStateUsing(fn (string $state): HtmlString => new HtmlString('<span class="inline-block whitespace-nowrap">'.e($state).'</span>'))
+                        ->extraCellAttributes(['class' => 'tabular-nums whitespace-nowrap']),
+                    TextColumn::make('classOfferings.code')->label('Linked classes')->listWithLineBreaks()
+                        ->placeholder(function (TermCohort $record): string {
+                            if ($this->confirmableSubjectCountForCohort($record) === 0) {
+                                return '0 '.$this->selectedTerm()->typeLabel().' subjects in curriculum';
+                            }
+
+                            return 'No classes linked';
+                        })
+                        ->extraCellAttributes(['class' => 'tabular-nums'])
                         ->description(function (TermCohort $record): string {
                             $activeCount = $record->relationLoaded('classOfferings')
                                 ? $record->classOfferings->where('state', '!=', Section::StateCancelled)->count()
                                 : (int) ($record->active_class_offerings_count ?? $record->classOfferings()->where('sections.state', '!=', Section::StateCancelled)->count());
 
                             if ($activeCount === 0) {
-                                return ($this->hasPublishedTimetable() || $this->isTermClosed() || ($this->getViewData()['readOnly'] ?? false))
-                                    ? 'No classes linked'
-                                    : 'Use Load subjects to add classes for this student section.';
+                                if ($this->hasPublishedTimetable() || $this->isTermClosed() || ($this->getViewData()['readOnly'] ?? false)) {
+                                    return 'No classes linked';
+                                }
+
+                                if ($this->confirmableSubjectCountForCohort($record) === 0) {
+                                    $termTypeLabel = $this->selectedTerm()->typeLabel();
+                                    if ($record->curriculumVersion instanceof CurriculumVersion && ! $record->curriculumVersion->isEditableDraft()) {
+                                        return "Published curricula are locked; copy the curriculum to add {$termTypeLabel} subjects, or use + Add class.";
+                                    }
+
+                                    return "Open curriculum to add {$termTypeLabel} subjects, or use + Add class.";
+                                }
+
+                                return 'Use Load subjects to add classes for this student section.';
                             }
 
                             return $activeCount.' '.Str::plural('linked class', $activeCount);
@@ -225,10 +343,44 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                             && ! $this->isTermClosed()
                             && $record->confirmed_at !== null
                             && $this->getViewData()['activePackage'] !== null
-                            && (bool) auth()->user()?->can('create', TermOffering::class))
-                        ->action(fn (TermCohort $record) => $this->mountAction('loadCurriculumSubjects', ['cohortId' => $record->id])),
-                    $this->editCohortAction(),
-                    $this->deleteCohortAction(),
+                            && (bool) auth()->user()?->can('create', TermOffering::class)
+                            && $this->confirmableSubjectCountForCohort($record) > 0)
+                        ->action(fn (TermCohort $record) => $this->replaceMountedAction('loadCurriculumSubjects', ['cohortId' => $record->id])),
+                    Action::make('openCohortCurriculum')
+                        ->label(fn (TermCohort $record): string => $record->curriculumVersion instanceof CurriculumVersion && ! $record->curriculumVersion->isEditableDraft()
+                            ? 'Open curriculum (copy to edit)'
+                            : 'Open curriculum')
+                        ->icon(Heroicon::OutlinedBookOpen)
+                        ->button()
+                        ->color('gray')
+                        ->size('sm')
+                        ->extraAttributes(['class' => 'whitespace-nowrap'])
+                        ->visible(fn (TermCohort $record): bool => ! ($this->getViewData()['readOnly'] ?? false)
+                            && ! $this->hasPublishedTimetable()
+                            && ! $this->isTermClosed()
+                            && $record->curriculum_version_id !== null
+                            && $this->confirmableSubjectCountForCohort($record) === 0)
+                        ->url(fn (TermCohort $record): string => CurriculumVersionResource::getUrl('review', ['record' => $record->curriculum_version_id])),
+                    ActionGroup::make([
+                        Action::make('addCohortClass')
+                            ->label('Add class')
+                            ->icon(Heroicon::OutlinedPlus)
+                            ->visible(fn (TermCohort $record): bool => ! ($this->getViewData()['readOnly'] ?? false)
+                                && ! $this->hasPublishedTimetable()
+                                && ! $this->isTermClosed()
+                                && $record->confirmed_at !== null
+                                && $this->getViewData()['activePackage'] !== null
+                                && (bool) auth()->user()?->can('create', TermOffering::class)
+                                && $this->confirmableSubjectCountForCohort($record) === 0)
+                            ->action(fn (TermCohort $record) => $this->replaceMountedAction('addClass', ['cohortId' => $record->id])),
+                        $this->editCohortAction(),
+                        $this->deleteCohortAction(),
+                    ])
+                        ->icon(Heroicon::OutlinedEllipsisVertical)
+                        ->iconButton()
+                        ->size('sm')
+                        ->color('gray')
+                        ->tooltip('More actions'),
                     Action::make('linkedClasses')
                         ->label('View classes')
                         ->icon(Heroicon::OutlinedEye)
@@ -238,7 +390,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                         ->extraAttributes(['class' => 'whitespace-nowrap'])
                         ->unsavedChangesAlert(false)
                         ->visible(fn (TermCohort $record): bool => $record->classOfferings->isNotEmpty())
-                        ->modalHeading(fn (TermCohort $record): string => $record->reference.' · linked classes')
+                        ->modalHeading(fn (TermCohort $record): string => $this->formatSectionReference($record->reference).' · linked classes')
                         ->modalWidth(Width::TwoExtraLarge)
                         ->stickyModalHeader()
                         ->stickyModalFooter()
@@ -255,13 +407,34 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                         && ! $this->isTermClosed()),
                 ])
                 ->emptyState(view('filament.partials.collection-empty-state'))
-                ->emptyStateHeading(fn (): string => filled($this->getTableSearch()) || $this->getTable()->getActiveFiltersCount() ? 'No matching student sections' : 'No student sections added for this term')
-                ->emptyStateDescription(fn (): string => filled($this->getTableSearch()) || $this->getTable()->getActiveFiltersCount()
+                ->emptyStateHeading(fn (): string => filled($this->getTableSearch()) || $this->getTable()->getActiveFiltersCount() || $this->sectionTriage !== 'all' ? 'No matching student sections' : 'No student sections added for this term')
+                ->emptyStateDescription(fn (): string => filled($this->getTableSearch()) || $this->getTable()->getActiveFiltersCount() || $this->sectionTriage !== 'all'
                     ? 'Try another name or clear the search and filters.'
                     : (auth()->user()?->hasRole(User::StaffRoleAcademicHead) ? 'The Registrar adds student sections before linking classes.' : 'Add a student section before linking classes.'))->stackedOnMobile();
         }
 
-        return $table->query($this->classesQuery())
+        $classesQuery = $this->classesQuery();
+        if ($this->classTriage === 'needs_preparation') {
+            $classesQuery
+                ->whereNotIn('state', [Section::StateClosed, Section::StateCancelled])
+                ->where(fn (Builder $query) => $query->whereNull('confirmed_at')
+                    ->orWhereNotIn('id', $this->getViewData()['contextClasses']->pluck('id'))
+                    ->orWhereDoesntHave('cohorts')->orWhereDoesntHave('deliveryGroups.schedulingDemands')
+                    ->orWhereHas('deliveryGroups.schedulingDemands', fn (Builder $demands) => $demands->where('validation_state', SchedulingDemand::ValidationActionRequired)));
+        } elseif ($this->classTriage === 'no_teacher') {
+            $noTeacherIds = $this->classIdsWithoutQualifiedTeacher(
+                $this->getViewData()['sourceClasses'],
+                $this->getViewData()['facultyRecords'],
+            );
+
+            if ($noTeacherIds === []) {
+                $classesQuery->whereRaw('1 = 0');
+            } else {
+                $classesQuery->whereIn('sections.id', $noTeacherIds);
+            }
+        }
+
+        return $table->query($classesQuery)
             ->columns([
                 TextColumn::make('code')->label('Subject')->searchable(query: fn (Builder $query, string $search): Builder => $query->where(fn (Builder $identity): Builder => $identity
                     ->where('code', 'like', '%'.$search.'%')
@@ -273,17 +446,60 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                 TextColumn::make('source_code')->label('Class code')->state(fn (Section $record): string => $record->code)->wrap()->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('termOffering.curriculumEntry.curriculumVersion.program.code')
                     ->label('Program')
-                    ->placeholder('—')
-                    ->description(fn (Section $record): ?string => $record->termOffering?->curriculumEntry?->curriculumVersion?->batchLabel())
-                    ->sortable()
-                    ->wrap(),
+                    ->state(function (Section $record): ?string {
+                        $codes = $this->linkedProgramsForClass($record)
+                            ->pluck('code')
+                            ->filter(fn (mixed $code): bool => filled($code))
+                            ->values();
+
+                        return $codes->isNotEmpty() ? $codes->implode(' · ') : null;
+                    })
+                    ->placeholder('Not linked')
+                    ->description(function (Section $record): ?HtmlString {
+                        $programs = $this->linkedProgramsForClass($record);
+                        if ($programs->count() > 1) {
+                            return new HtmlString('<span class="inline-block whitespace-nowrap">'.e('Merged · '.$programs->count().' programs').'</span>');
+                        }
+
+                        $batchLabel = $record->termOffering?->curriculumEntry?->curriculumVersion?->batchLabel();
+
+                        return filled($batchLabel)
+                            ? new HtmlString('<span class="inline-block whitespace-nowrap">'.e($batchLabel).'</span>')
+                            : null;
+                    })
+                    ->tooltip(function (Section $record): ?string {
+                        $programs = $this->linkedProgramsForClass($record);
+                        if ($programs->count() <= 1) {
+                            return null;
+                        }
+
+                        return $programs
+                            ->map(fn (Program $program): string => collect([$program->code, $program->name])->filter(fn (mixed $value): bool => filled($value))->implode(' — '))
+                            ->implode(' | ');
+                    })
+                    ->extraCellAttributes(['class' => 'whitespace-nowrap'])
+                    ->sortable(),
                 TextColumn::make('cohorts.reference')->label('Student sections')->listWithLineBreaks()->placeholder('No sections linked')
-                    ->formatStateUsing(fn (string $state): HtmlString => new HtmlString('<span class="inline-block whitespace-nowrap">'.e($state).'</span>'))
-                    ->description(fn (Section $record): string => collect([$record->termOffering?->curriculumEntry?->year_level, $record->cohorts->isEmpty() ? null : $record->cohorts->sum(fn ($cohort): int => (int) $cohort->pivot->expected_count).' students'])->filter()->implode(' · ')),
+                    ->formatStateUsing(fn (string $state): HtmlString => new HtmlString('<span class="inline-block whitespace-nowrap">'.e($this->formatSectionReference($state)).'</span>'))
+                    ->description(function (Section $record): ?HtmlString {
+                        $sectionCount = $record->cohorts->count();
+                        if ($sectionCount === 0) {
+                            return null;
+                        }
+
+                        $totalStudents = $record->cohorts->sum(fn ($cohort): int => (int) $cohort->pivot->expected_count);
+                        $studentCopy = $totalStudents.' '.Str::plural('student', $totalStudents);
+                        $summary = $sectionCount > 1
+                            ? $sectionCount.' sections · '.$studentCopy
+                            : $studentCopy;
+
+                        return new HtmlString('<span class="inline-block whitespace-nowrap tabular-nums">'.e($summary).'</span>');
+                    })
+                    ->extraCellAttributes(['class' => 'whitespace-nowrap tabular-nums']),
                 TextColumn::make('weekly_meetings')->label('Weekly meetings')
                     ->state(fn (Section $record): int => (int) $this->demands($record)->sum('meeting_count'))
                     ->description(fn (Section $record): string => $this->demands($record)->map(fn (SchedulingDemand $demand): string => $demand->meeting_count.' × '.$demand->required_duration_minutes.' min')->unique()->implode(' · '))->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('teacher_options')->label('Teacher options')
+                TextColumn::make('teacher_options')->label('Qualified faculty')
                     ->state(function (Section $record): string {
                         $course = $record->courseRevision?->course?->code ?? $record->termOffering?->curriculumEntry?->courseSpecification?->course?->code;
                         if (! $course) {
@@ -292,7 +508,18 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                         $count = $this->getViewData()['facultyRecords']->filter(fn (array $faculty): bool => in_array($course, $faculty['courses'], true))->count();
 
                         return $count ? $count.' qualified' : 'No qualified teacher';
-                    })->tooltip('Generation chooses among eligible teachers using availability and load checks. Grading assignment is separate.')->toggleable(isToggledHiddenByDefault: true)->wrap(),
+                    })
+                    ->formatStateUsing(function (string $state): HtmlString {
+                        if ($state === 'No qualified teacher') {
+                            return new HtmlString('<span class="tala-qualified-pill is-warning">'.e($state).'</span>');
+                        }
+                        if ($state === 'Subject not recorded') {
+                            return new HtmlString('<span class="tala-qualified-pill is-muted">'.e($state).'</span>');
+                        }
+
+                        return new HtmlString('<span class="tala-qualified-pill">'.e($state).'</span>');
+                    })
+                    ->extraCellAttributes(['class' => 'whitespace-nowrap tabular-nums']),
                 TextColumn::make('state')->label('Class lifecycle')->badge()
                     ->formatStateUsing(fn (string $state): string => Section::stateOptions()[$state] ?? $state)
                     ->color(fn (string $state): string => match ($state) {
@@ -315,7 +542,8 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                         default => 'warning',
                     })
                     ->description(fn (Section $record): ?string => $this->inlineFindingsDescription($record))
-                    ->wrap(),
+                    ->extraCellAttributes(fn (Section $record): array => $this->inlineFindingsDescription($record) === null ? ['class' => 'whitespace-nowrap'] : [])
+                    ->wrap(fn (Section $record): bool => $this->inlineFindingsDescription($record) !== null),
             ])
             ->filters([
                 SelectFilter::make('program')->label('Program')->searchable()->options(fn (): array => Program::query()->orderBy('name')->get()->mapWithKeys(fn (Program $program): array => [$program->id => $program->name.' ('.$program->code.')'])->all())
@@ -338,7 +566,11 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                     ->default('active')
                     ->selectablePlaceholder(false)
                     ->query(function (Builder $query, array $data): Builder {
-                        return match ($data['value'] ?? 'active') {
+                        $effective = $this->classTriage === 'cancelled'
+                            ? 'cancelled'
+                            : ($data['value'] ?? 'active');
+
+                        return match ($effective) {
                             'cancelled' => $query->where('state', Section::StateCancelled),
                             'all' => $query,
                             default => $query->where('state', '!=', Section::StateCancelled),
@@ -434,25 +666,20 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                                         throw ValidationException::withMessages(['classes' => 'A selected student section has changed. Close this review and reopen it with the latest student section details.']);
                                     }
                                 }
-                                $items = collect($data['classes'])->map(function (array $row) use ($records, $actor, $term): array {
+                                $items = collect($data['classes'])->map(function (array $row) use ($records, $actor, $term, $calendar): array {
                                     abort_unless($records->contains('id', (int) $row['section_id']), 403);
                                     $section = Section::query()->whereKey((int) $row['section_id'])->lockForUpdate()->firstOrFail();
-                                    $section->load(['cohorts', 'termOffering.curriculumEntry']);
+                                    $section->load(['calendarPackage', 'cohorts', 'termOffering.curriculumEntry']);
                                     if (($this->classConfirmationSources[$section->id] ?? null) !== $this->classConfirmationSource($section)) {
                                         throw ValidationException::withMessages(['classes' => 'A selected class has changed. Close this review and reopen it with the latest class details.']);
                                     }
-                                    if ($section->confirmed_at === null && ($section->term_calendar_package_id === null || $section->course_specification_id === null)) {
-                                        $source = $section->source;
-                                        if (blank($source) && $section->termOffering?->category === TermOffering::CategoryRegular) {
-                                            $source = Section::SourceRegular;
-                                        }
-                                        $section = app(PrepareClassOffering::class)->execute($term, $section, $actor, [
-                                            'class_reference' => $section->class_reference ?: $section->code,
-                                            'source' => $source,
-                                            'delivery_mode' => $section->delivery_mode ?: $section->termOffering?->modality,
-                                            'authority_reference' => $row['authority_reference'] ?? $section->authority_reference,
-                                        ]);
-                                    }
+                                    $section = $this->ensureSectionBoundToActiveCalendar(
+                                        $term,
+                                        $section,
+                                        $calendar,
+                                        $actor,
+                                        $row['authority_reference'] ?? null,
+                                    );
 
                                     return ['section' => $section, 'cohort_counts' => collect($row['cohorts'])->mapWithKeys(fn (array $cohort): array => [(int) $cohort['term_cohort_id'] => (int) $cohort['expected_count']])->all(), 'authority_reference' => $row['authority_reference'] ?? null];
                                 })->all();
@@ -496,6 +723,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
             ->modalHeading('Load classes from curriculum')
             ->modalDescription('Pick a student section, review its curriculum subjects for this term, and create and confirm those classes in one step.')
             ->modalSubmitActionLabel('Create & confirm classes')
+            ->modalSubmitAction(fn (Action $action): Action => $action->disabled(fn (): bool => $this->isLoadCurriculumSubmitDisabled()))
             ->modalCancelActionLabel('Cancel')
             ->modalWidth(Width::ThreeExtraLarge)
             ->stickyModalHeader()
@@ -505,18 +733,14 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                 && ! $this->hasPublishedTimetable()
                 && ! $this->isTermClosed()
                 && (bool) auth()->user()?->can('create', TermOffering::class))
-            ->disabled(fn (): bool => $this->getViewData()['activePackage'] === null
-                || $this->currentCurriculumPreview()['cohorts']->whereNotNull('confirmed_at')->isEmpty())
-            ->tooltip(function (): ?string {
-                if ($this->getViewData()['activePackage'] === null) {
-                    return 'Activate the teaching calendar before loading classes.';
-                }
-                if ($this->currentCurriculumPreview()['cohorts']->whereNotNull('confirmed_at')->isEmpty()) {
-                    return 'Add a student section in the Student sections tab first.';
-                }
-
-                return null;
-            })
+            ->extraAttributes(fn (): array => $this->hasClassCreationPrerequisites()
+                ? []
+                : [
+                    'aria-disabled' => 'true',
+                    'aria-describedby' => 'term-classes-prereq-notice',
+                    'class' => 'tala-action-disabled',
+                ])
+            ->modal(fn (): bool => $this->hasClassCreationPrerequisites())
             ->fillForm(function (array $arguments): array {
                 $preview = $this->currentCurriculumPreview();
                 $cohorts = $preview['cohorts']->whereNotNull('confirmed_at');
@@ -556,30 +780,14 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                 $cohortOptions = $cohorts->mapWithKeys(function (TermCohort $cohort): array {
                     $program = $cohort->program?->code ?: ($cohort->program?->name ?? 'Program');
                     $curriculum = $cohort->curriculumVersion?->batchLabel() ?? 'Curriculum';
+                    $reference = $this->formatSectionReference($cohort->reference);
 
                     return [
-                        $cohort->id => "{$cohort->reference} · {$program} · {$curriculum} ({$cohort->confirmed_count} students)",
+                        $cohort->id => "{$reference} · {$program} · {$curriculum} ({$cohort->confirmed_count} students)",
                     ];
                 })->all();
 
-                $availableYearLevels = function (Get $get) use ($cohorts, $preview, $termType): array {
-                    $cohort = $cohorts->firstWhere('id', (int) $get('term_cohort_id'));
-                    if (! $cohort instanceof TermCohort) {
-                        return [];
-                    }
-
-                    $lockedEntryIds = $this->lockedCurriculumEntryIdsForTerm();
-
-                    return collect($preview['catalog'])
-                        ->where('curriculum_id', $cohort->curriculum_version_id)
-                        ->where('term_type', $termType)
-                        ->reject(fn (array $course): bool => isset($lockedEntryIds[(int) $course['id']]))
-                        ->groupBy('year_level')
-                        ->mapWithKeys(fn ($items, string $year): array => [
-                            $year => (is_numeric($year) ? 'Year '.$year : $year).' ('.$items->count().' '.Str::plural('subject', $items->count()).')',
-                        ])
-                        ->all();
-                };
+                $availableYearLevels = fn (Get $get): array => $this->availableYearLevelsForCohortId((int) ($get('term_cohort_id') ?? 0));
 
                 return [
                     Select::make('term_cohort_id')
@@ -605,41 +813,102 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                                 ? $this->defaultSelectedEntryIdsForCohort($cohort, $resolvedYear, $preview)
                                 : []);
                         }),
-                    Grid::make(['default' => 1, 'md' => 2])->schema([
-                        Select::make('year_level')
-                            ->label('Curriculum year level')
-                            ->required()
-                            ->live()
-                            ->disabled(fn (Get $get): bool => blank($get('term_cohort_id')))
-                            ->visible(fn (Get $get): bool => blank($get('term_cohort_id')) || $availableYearLevels($get) !== [])
-                            ->options($availableYearLevels)
-                            ->afterStateUpdated(function (Set $set, Get $get, mixed $state) use ($cohorts, $preview): void {
-                                $cohort = $cohorts->firstWhere('id', (int) $get('term_cohort_id'));
-                                if (! $cohort instanceof TermCohort || blank($state)) {
-                                    $set('entry_ids', []);
+                    Placeholder::make('no_curriculum_subjects_notice')
+                        ->hiddenLabel()
+                        ->visible(fn (Get $get): bool => filled($get('term_cohort_id')) && $availableYearLevels($get) === [])
+                        ->content(function (Get $get) use ($cohorts, $preview, $termType): HtmlString {
+                            $cohort = $cohorts->firstWhere('id', (int) $get('term_cohort_id'));
+                            if (! $cohort instanceof TermCohort) {
+                                return new HtmlString('<div class="tala-inline-prereq"><div class="tala-inline-prereq__body"><p class="tala-inline-prereq__text">No curriculum subjects are available for this student section.</p></div></div>');
+                            }
 
-                                    return;
-                                }
+                            $termTypeLabel = e($this->selectedTerm()->typeLabel());
+                            $programCode = e($cohort->program?->code ?: ($cohort->program?->name ?? 'Program'));
+                            $batchLabel = e($cohort->curriculumVersion?->batchLabel() ?? 'Selected curriculum');
+                            $curriculumId = (int) ($cohort->curriculum_version_id ?? 0);
+                            $curriculumUrl = $curriculumId > 0
+                                ? e(CurriculumVersionResource::getUrl('review', ['record' => $curriculumId]))
+                                : null;
 
-                                $set('entry_ids', $this->defaultSelectedEntryIdsForCohort($cohort, (string) $state, $preview));
-                            })
-                            ->helperText('Only subjects scheduled for this term period in the section’s active curriculum are listed.'),
-                        Placeholder::make('no_available_year_levels')
-                            ->label('Curriculum year level')
-                            ->visible(fn (Get $get): bool => filled($get('term_cohort_id')) && $availableYearLevels($get) === [])
-                            ->content('All curriculum subjects for this student section’s program and term period have already been loaded.'),
-                        TextInput::make('default_capacity')
-                            ->label('Approved capacity per class')
-                            ->integer()
-                            ->minValue(1)
-                            ->required()
-                            ->helperText($maxRoomSeats > 0
-                                ? "Defaults to the section’s expected students. Largest active room holds {$maxRoomSeats} seats."
-                                : 'Defaults to the section’s expected students.'),
-                    ]),
+                            $matchingCatalogCount = collect($preview['catalog'])
+                                ->where('curriculum_id', $cohort->curriculum_version_id)
+                                ->where('term_type', $termType)
+                                ->count();
+
+                            if ($matchingCatalogCount > 0) {
+                                $openLink = $curriculumUrl !== null
+                                    ? " or <a href=\"{$curriculumUrl}\" class=\"fi-link font-medium\">Open curriculum</a>"
+                                    : '';
+
+                                return new HtmlString(
+                                    '<div class="tala-inline-prereq">'
+                                    .'<div class="tala-inline-prereq__body">'
+                                    ."<p class=\"tala-inline-prereq__title\">All {$termTypeLabel} subjects for {$programCode} · {$batchLabel} are already loaded or locked.</p>"
+                                    ."<p class=\"tala-inline-prereq__text\">Close this dialog and use <strong>Add class</strong> for an additional or off-curriculum class{$openLink}.</p>"
+                                    .'</div>'
+                                    .'</div>'
+                                );
+                            }
+
+                            $periods = $curriculumId > 0
+                                ? ($this->configuredSubjectPeriodsByCurriculum([$curriculumId])[$curriculumId] ?? [])
+                                : [];
+                            $configuredSummary = $this->formatConfiguredPeriods(
+                                $periods,
+                                style: 'paren',
+                                skipTermType: $termType,
+                            );
+
+                            $existingSentence = $configuredSummary !== null
+                                ? 'Subjects currently exist for: '.e($configuredSummary).'.'
+                                : 'No subjects are configured in this curriculum yet.';
+
+                            $actionSentence = $curriculumUrl !== null
+                                ? "<a href=\"{$curriculumUrl}\" class=\"fi-link font-medium\">Open curriculum</a> to add {$termTypeLabel} subjects, or close this dialog and use <strong>Add class</strong> for an additional or off-curriculum class."
+                                : 'Close this dialog and use <strong>Add class</strong> for an additional or off-curriculum class.';
+
+                            return new HtmlString(
+                                '<div class="tala-inline-prereq">'
+                                .'<div class="tala-inline-prereq__body">'
+                                ."<p class=\"tala-inline-prereq__title\">{$programCode} · {$batchLabel} has 0 subjects for {$termTypeLabel}.</p>"
+                                ."<p class=\"tala-inline-prereq__text\">{$existingSentence} {$actionSentence}</p>"
+                                .'</div>'
+                                .'</div>'
+                            );
+                        }),
+                    Grid::make(['default' => 1, 'md' => 2])
+                        ->visible(fn (Get $get): bool => blank($get('term_cohort_id')) || $availableYearLevels($get) !== [])
+                        ->schema([
+                            Select::make('year_level')
+                                ->label('Curriculum year level')
+                                ->required()
+                                ->live()
+                                ->disabled(fn (Get $get): bool => blank($get('term_cohort_id')))
+                                ->options($availableYearLevels)
+                                ->afterStateUpdated(function (Set $set, Get $get, mixed $state) use ($cohorts, $preview): void {
+                                    $cohort = $cohorts->firstWhere('id', (int) $get('term_cohort_id'));
+                                    if (! $cohort instanceof TermCohort || blank($state)) {
+                                        $set('entry_ids', []);
+
+                                        return;
+                                    }
+
+                                    $set('entry_ids', $this->defaultSelectedEntryIdsForCohort($cohort, (string) $state, $preview));
+                                })
+                                ->helperText('Only subjects scheduled for this term period in the section’s active curriculum are listed.'),
+                            TextInput::make('default_capacity')
+                                ->label('Approved capacity per class')
+                                ->integer()
+                                ->minValue(1)
+                                ->required()
+                                ->helperText($maxRoomSeats > 0
+                                    ? "Defaults to the section’s expected students. Largest active room holds {$maxRoomSeats} seats."
+                                    : 'Defaults to the section’s expected students.'),
+                        ]),
                     Select::make('default_modality')
                         ->label('Preferred delivery mode (when multiple are allowed)')
                         ->options(TermOffering::modalityOptions())
+                        ->visible(fn (Get $get): bool => blank($get('term_cohort_id')) || $availableYearLevels($get) !== [])
                         ->placeholder('Use each subject’s first approved mode'),
                     CheckboxList::make('entry_ids')
                         ->label('Curriculum subjects to create & confirm')
@@ -680,15 +949,28 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                             }
 
                             $lockedEntryIds = $this->lockedCurriculumEntryIdsForTerm();
-
-                            return collect($preview['catalog'])
+                            $displayedCourses = collect($preview['catalog'])
                                 ->where('curriculum_id', $cohort->curriculum_version_id)
                                 ->where('term_type', $termType)
                                 ->where('year_level', $yearLevel)
-                                ->reject(fn (array $course): bool => isset($lockedEntryIds[(int) $course['id']]))
-                                ->mapWithKeys(fn (array $course): array => [
-                                    (string) $course['id'] => ($course['meetings'] ?: 'Meeting pattern needs attention'),
-                                ])
+                                ->reject(fn (array $course): bool => isset($lockedEntryIds[(int) $course['id']]));
+
+                            $qualifiedCounts = $this->qualifiedFacultyCountsByCourse(
+                                $displayedCourses->pluck('course_id')->all(),
+                            );
+
+                            return $displayedCourses
+                                ->mapWithKeys(function (array $course) use ($qualifiedCounts): array {
+                                    $meetings = $course['meetings'] ?: 'Meeting pattern needs attention';
+                                    $count = $qualifiedCounts[(int) ($course['course_id'] ?? 0)] ?? 0;
+                                    $teacherHint = $count >= 1
+                                        ? "{$count} qualified ".Str::plural('teacher', $count)
+                                        : 'No qualified teacher yet (assign in 3. Faculty & rooms)';
+
+                                    return [
+                                        (string) $course['id'] => $meetings.' · '.$teacherHint,
+                                    ];
+                                })
                                 ->all();
                         })
                         ->helperText('Uncheck any subject you do not want to offer for this student section right now.'),
@@ -698,18 +980,29 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                         ->content('Choose a student section and curriculum year level above to select subjects.'),
                 ];
             })
-            ->action(function (array $data, Schema $schema): void {
+            ->action(function (array $data, ?Schema $schema = null): void {
                 $actor = auth()->user();
                 abort_unless($actor instanceof User, 403);
+                $statePath = $schema instanceof Schema ? $schema->getStatePath().'.' : '';
                 if ($this->hasPublishedTimetable() || $this->isTermClosed()) {
-                    throw ValidationException::withMessages([$schema->getStatePath().'.entry_ids' => 'Classes cannot be loaded after the official timetable is published or when the term is closed.']);
+                    throw ValidationException::withMessages([$statePath.'entry_ids' => 'Classes cannot be loaded after the official timetable is published or when the term is closed.']);
+                }
+                $prerequisiteWarning = $this->classCreationPrerequisiteWarning();
+                if ($prerequisiteWarning !== null) {
+                    Notification::make()
+                        ->title($prerequisiteWarning['title'])
+                        ->body($prerequisiteWarning['body'])
+                        ->warning()
+                        ->send();
+
+                    return;
                 }
                 $term = $this->selectedTerm();
                 $preview = app(PrepareTermClassProposal::class)->preview($term);
                 $cohort = $preview['cohorts']->firstWhere('id', (int) ($data['term_cohort_id'] ?? 0));
 
                 if (! $cohort instanceof TermCohort || $cohort->confirmed_at === null) {
-                    throw ValidationException::withMessages([$schema->getStatePath().'.term_cohort_id' => 'Choose a confirmed student section for this term.']);
+                    throw ValidationException::withMessages([$statePath.'term_cohort_id' => 'Choose a confirmed student section for this term.']);
                 }
 
                 $selectedIds = collect($data['entry_ids'] ?? [])
@@ -719,7 +1012,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                     ->values();
 
                 if ($selectedIds->isEmpty()) {
-                    throw ValidationException::withMessages([$schema->getStatePath().'.entry_ids' => 'Select at least one curriculum subject to create.']);
+                    throw ValidationException::withMessages([$statePath.'entry_ids' => 'Select at least one curriculum subject to create.']);
                 }
 
                 $catalog = collect($preview['catalog'])->keyBy('id');
@@ -768,7 +1061,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                         ->send();
 
                     throw ValidationException::withMessages(
-                        collect($exception->errors())->mapWithKeys(fn (array $messages, string $field): array => [$schema->getStatePath().'.entry_ids' => $messages])->all(),
+                        collect($exception->errors())->mapWithKeys(fn (array $messages, string $field): array => [$statePath.'entry_ids' => $messages])->all(),
                     );
                 }
 
@@ -777,7 +1070,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
 
                 Notification::make()
                     ->title($result['confirmed'].' '.Str::plural('class', $result['confirmed']).' added and confirmed')
-                    ->body("Linked to {$cohort->reference} ({$cohort->confirmed_count} students) and ready for timetable generation.")
+                    ->body('Linked to '.$this->formatSectionReference($cohort->reference)." ({$cohort->confirmed_count} students) and ready for timetable generation.")
                     ->success()
                     ->send();
             });
@@ -801,17 +1094,32 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                 && ! $this->hasPublishedTimetable()
                 && ! $this->isTermClosed()
                 && (bool) auth()->user()?->can('create', TermOffering::class))
-            ->disabled(fn (): bool => $this->getViewData()['activePackage'] === null
-                || $this->currentCurriculumPreview()['cohorts']->whereNotNull('confirmed_at')->isEmpty())
-            ->tooltip(function (): ?string {
-                if ($this->getViewData()['activePackage'] === null) {
-                    return 'Activate the teaching calendar before adding classes.';
-                }
-                if ($this->currentCurriculumPreview()['cohorts']->whereNotNull('confirmed_at')->isEmpty()) {
-                    return 'Add a student section in the Student sections tab first.';
+            ->extraAttributes(fn (): array => $this->hasClassCreationPrerequisites()
+                ? []
+                : [
+                    'aria-disabled' => 'true',
+                    'aria-describedby' => 'term-classes-prereq-notice',
+                    'class' => 'tala-action-disabled',
+                ])
+            ->modal(fn (): bool => $this->hasClassCreationPrerequisites())
+            ->fillForm(function (array $arguments): array {
+                $cohortId = isset($arguments['cohortId']) ? (int) $arguments['cohortId'] : null;
+                if ($cohortId === null || $cohortId <= 0) {
+                    return [
+                        'cohorts' => [
+                            ['id' => null, 'count' => null],
+                        ],
+                    ];
                 }
 
-                return null;
+                $count = $this->cohortHeadcountsById()[$cohortId] ?? null;
+
+                return [
+                    'capacity' => $count,
+                    'cohorts' => [
+                        ['id' => $cohortId, 'count' => $count],
+                    ],
+                ];
             })
             ->schema(function (): array {
                 $preview = $this->currentCurriculumPreview();
@@ -829,7 +1137,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
 
                 $confirmedCohorts = $preview['cohorts']->whereNotNull('confirmed_at');
                 $cohortOptions = $confirmedCohorts
-                    ->mapWithKeys(fn (TermCohort $cohort): array => [$cohort->id => $cohort->reference.' · '.$cohort->confirmed_count.' students'])
+                    ->mapWithKeys(fn (TermCohort $cohort): array => [$cohort->id => $this->formatSectionReference($cohort->reference).' · '.$cohort->confirmed_count.' students'])
                     ->all();
                 $cohortCountsById = $confirmedCohorts->pluck('confirmed_count', 'id')->all();
 
@@ -896,6 +1204,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                                 ->label('Student section')
                                 ->options($cohortOptions)
                                 ->searchable()
+                                ->position('top')
                                 ->required()
                                 ->distinct()
                                 ->live()
@@ -915,11 +1224,22 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                         ]),
                 ];
             })
-            ->action(function (array $data, Schema $schema): void {
+            ->action(function (array $data, ?Schema $schema = null): void {
                 $actor = auth()->user();
                 abort_unless($actor instanceof User, 403);
+                $statePath = $schema instanceof Schema ? $schema->getStatePath().'.' : '';
                 if ($this->hasPublishedTimetable() || $this->isTermClosed()) {
-                    throw ValidationException::withMessages([$schema->getStatePath().'.entry_id' => 'Classes cannot be added after the official timetable is published or when the term is closed.']);
+                    throw ValidationException::withMessages([$statePath.'entry_id' => 'Classes cannot be added after the official timetable is published or when the term is closed.']);
+                }
+                $prerequisiteWarning = $this->classCreationPrerequisiteWarning();
+                if ($prerequisiteWarning !== null) {
+                    Notification::make()
+                        ->title($prerequisiteWarning['title'])
+                        ->body($prerequisiteWarning['body'])
+                        ->warning()
+                        ->send();
+
+                    return;
                 }
                 $term = $this->selectedTerm();
                 $preview = app(PrepareTermClassProposal::class)->preview($term);
@@ -951,7 +1271,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                         ->send();
 
                     throw ValidationException::withMessages(
-                        collect($exception->errors())->mapWithKeys(fn (array $messages, string $field): array => [$schema->getStatePath().'.'.($field === 'classes' ? 'entry_id' : $field) => $messages])->all(),
+                        collect($exception->errors())->mapWithKeys(fn (array $messages, string $field): array => [$statePath.($field === 'classes' ? 'entry_id' : $field) => $messages])->all(),
                     );
                 }
 
@@ -1002,12 +1322,35 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                 $counts = collect($data['cohorts'])->mapWithKeys(fn (array $row): array => [(int) $row['term_cohort_id'] => (int) $row['expected_count']])->all();
 
                 try {
-                    app(ConfirmClassOffering::class)->execute(
-                        Section::query()->whereHas('calendarPackage', fn ($query) => $query->where('term_id', $this->termId))->findOrFail((int) $data['section_id']),
-                        $actor,
-                        $counts,
-                        $data['additional_authority_reference'] ?? null,
-                    );
+                    DB::transaction(function () use ($actor, $data, $counts): void {
+                        $term = Term::query()->whereKey($this->termId)->lockForUpdate()->firstOrFail();
+                        $calendar = TermCalendarPackage::query()
+                            ->where('term_id', $term->id)
+                            ->where('state', TermCalendarPackage::StateActive)
+                            ->lockForUpdate()
+                            ->first();
+                        $section = Section::query()
+                            ->where(fn (Builder $query) => $query
+                                ->whereHas('calendarPackage', fn (Builder $package) => $package->where('term_id', $term->id))
+                                ->orWhere(fn (Builder $legacy) => $legacy->whereNull('term_calendar_package_id')->whereHas('termOffering', fn (Builder $offering) => $offering->where('term_id', $term->id))))
+                            ->lockForUpdate()
+                            ->findOrFail((int) $data['section_id']);
+
+                        $section = $this->ensureSectionBoundToActiveCalendar(
+                            $term,
+                            $section,
+                            $calendar,
+                            $actor,
+                            $data['additional_authority_reference'] ?? null,
+                        );
+
+                        app(ConfirmClassOffering::class)->execute(
+                            $section,
+                            $actor,
+                            $counts,
+                            $data['additional_authority_reference'] ?? null,
+                        );
+                    }, attempts: 5);
                 } catch (ValidationException $exception) {
                     $firstMessage = collect($exception->errors())->flatten()->first();
                     Notification::make()
@@ -1123,6 +1466,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                             ->label('Student section')
                             ->options(fn (): array => $this->cohortSelectOptions())
                             ->searchable()
+                            ->position('top')
                             ->required()
                             ->distinct()
                             ->live()
@@ -1167,7 +1511,15 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                         }
 
                         $section = Section::query()
-                            ->with(['termOffering.curriculumEntry.curriculumVersion', 'termOffering.curriculumEntry.courseSpecification.components', 'courseRevision.components', 'cohorts', 'deliveryGroups'])
+                            ->with([
+                                'termOffering.curriculumEntry.curriculumVersion',
+                                'termOffering.curriculumEntry.courseSpecification.components',
+                                'termOffering.curriculumEntry.courseSpecification.course',
+                                'courseRevision.components',
+                                'courseRevision.course',
+                                'cohorts',
+                                'deliveryGroups',
+                            ])
                             ->lockForUpdate()
                             ->findOrFail($record->id);
 
@@ -1177,7 +1529,11 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                         }
 
                         $offering = TermOffering::query()
-                            ->with(['curriculumEntry.curriculumVersion', 'curriculumEntry.courseSpecification.components'])
+                            ->with([
+                                'curriculumEntry.curriculumVersion',
+                                'curriculumEntry.courseSpecification.components',
+                                'curriculumEntry.courseSpecification.course',
+                            ])
                             ->lockForUpdate()
                             ->findOrFail($section->term_offering_id);
 
@@ -1208,6 +1564,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
 
                         if ($cohortCounts !== []) {
                             $cohorts = TermCohort::query()
+                                ->with(['curriculumVersion.entries.courseSpecification'])
                                 ->where('term_id', $term->id)
                                 ->whereKey(array_keys($cohortCounts))
                                 ->lockForUpdate()
@@ -1218,11 +1575,50 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                                 throw ValidationException::withMessages(['cohorts' => 'Every linked student section must belong to this exact term.']);
                             }
 
+                            $courseRevision = $section->courseRevision ?? $offering->curriculumEntry?->courseSpecification;
+                            if (! $courseRevision instanceof CourseSpecification) {
+                                $classLabel = $section->class_reference ?: $section->code;
+                                throw ValidationException::withMessages(['cohorts' => "Cannot link student sections because {$classLabel} has no recorded subject revision."]);
+                            }
+
+                            $equivalentCourseIds = $courseRevision->course_id !== null
+                                ? app(RegistrationAcademicEligibilityQuery::class)->expandWithEquivalentCourseIds(collect([(int) $courseRevision->course_id]))
+                                : collect();
+                            $courseCode = $courseRevision->course?->code
+                                ?? $offering->curriculumEntry?->courseSpecification?->course?->code
+                                ?? ($section->class_reference ?: $section->code);
+
                             foreach ($cohortCounts as $cohortId => $count) {
                                 $cohort = $cohorts->get($cohortId);
 
                                 if ($cohort instanceof TermCohort && $cohort->confirmed_count !== null && $count > (int) $cohort->confirmed_count) {
-                                    throw ValidationException::withMessages(['cohorts' => "Student count for {$cohort->reference} ({$count}) exceeds its confirmed count ({$cohort->confirmed_count})."]);
+                                    $cohortLabel = $this->formatSectionReference($cohort->reference);
+                                    throw ValidationException::withMessages(['cohorts' => "Student count for {$cohortLabel} ({$count}) exceeds its confirmed count ({$cohort->confirmed_count})."]);
+                                }
+
+                                if ($cohort instanceof TermCohort) {
+                                    $cohortLabel = $this->formatSectionReference($cohort->reference);
+                                    $curriculum = $cohort->curriculumVersion;
+                                    $hasConsistentProgram = $curriculum instanceof CurriculumVersion
+                                        && (int) $curriculum->program_id === (int) $cohort->program_id;
+                                    $isPublishedCurriculum = $curriculum instanceof CurriculumVersion
+                                        && in_array($curriculum->state, [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded], true);
+                                    $containsCourse = $curriculum instanceof CurriculumVersion
+                                        && $curriculum->entries->contains(function (CurriculumEntry $entry) use ($courseRevision, $equivalentCourseIds): bool {
+                                            $entrySpecification = $entry->courseSpecification;
+
+                                            return (int) $entry->course_specification_id === (int) $courseRevision->id
+                                                || ($entrySpecification instanceof CourseSpecification
+                                                    && $courseRevision->course_id !== null
+                                                    && ((int) $entrySpecification->course_id === (int) $courseRevision->course_id
+                                                        || $equivalentCourseIds->contains((int) $entrySpecification->course_id)));
+                                        });
+
+                                    if (! $hasConsistentProgram || ! $isPublishedCurriculum || ! $containsCourse) {
+                                        throw ValidationException::withMessages([
+                                            'cohorts' => "{$cohortLabel} cannot be linked because its curriculum does not contain {$courseCode} (or an approved equivalent).",
+                                        ]);
+                                    }
                                 }
                             }
 
@@ -1639,18 +2035,16 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
             ->color('gray')
             ->size('sm')
             ->extraAttributes(['class' => 'whitespace-nowrap'])
-            ->modalHeading(fn (TermCohort $record): string => 'Edit student section · '.$record->reference)
+            ->modalHeading(fn (TermCohort $record): string => 'Edit student section · '.$this->formatSectionReference($record->reference))
             ->modalDescription('Update the curriculum, year level, section name, or expected student headcount while no classes are linked yet.')
             ->modalSubmitActionLabel('Save changes')
             ->modalCancelActionLabel('Cancel')
             ->modalWidth(Width::TwoExtraLarge)
-            ->stickyModalHeader()
-            ->stickyModalFooter()
             ->visible(fn (TermCohort $record): bool => $this->canModifyUnlinkedCohort($record))
             ->fillForm(fn (TermCohort $record): array => [
                 'curriculum_version_id' => $record->curriculum_version_id,
                 'year_level' => $record->year_level ?? $record->resolvedYearLevel() ?? 1,
-                'reference' => $record->reference,
+                'reference' => $this->formatSectionReference($record->reference),
                 'confirmed_count' => $record->confirmed_count ?? $record->forecast_count,
             ])
             ->schema(function (TermCohort $record): array {
@@ -1688,6 +2082,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                             ->required(),
                         TextInput::make('reference')
                             ->label('Section name')
+                            ->placeholder('e.g. BSIT 1-1')
                             ->required()
                             ->maxLength(64)
                             ->rule(Rule::unique('term_cohorts', 'reference')->where('term_id', $this->termId)->ignore($record->id)),
@@ -1723,7 +2118,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                             throw ValidationException::withMessages(['curriculum_version_id' => 'Choose a published (Active or Retired) curriculum.']);
                         }
 
-                        $reference = trim((string) ($data['reference'] ?? ''));
+                        $reference = RecordTermCohort::normalizeReference((string) ($data['reference'] ?? ''));
                         $duplicate = TermCohort::query()
                             ->where('term_id', $term->id)
                             ->where('reference', $reference)
@@ -1782,7 +2177,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
             ->size('sm')
             ->extraAttributes(['class' => 'whitespace-nowrap'])
             ->requiresConfirmation()
-            ->modalHeading(fn (TermCohort $record): string => 'Delete student section '.$record->reference.'?')
+            ->modalHeading(fn (TermCohort $record): string => 'Delete student section '.$this->formatSectionReference($record->reference).'?')
             ->modalDescription('This unlinked student section has no linked classes or enrollments and will be permanently removed from this term.')
             ->modalSubmitActionLabel('Delete section')
             ->modalCancelActionLabel('Cancel')
@@ -1873,11 +2268,29 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                 'termOffering.curriculumEntry.courseSpecification.components',
                 'courseRevision.course',
                 'courseRevision.components',
-                'cohorts',
+                'cohorts.program',
+                'cohorts.curriculumVersion.academicYears',
                 'deliveryGroups.schedulingDemands.courseComponent',
                 'calendarPackage.teachingGridRows',
                 'calendarPackage.datedExceptions',
             ]);
+    }
+
+    /** @return Collection<int, Program> */
+    private function linkedProgramsForClass(Section $record): Collection
+    {
+        $hostProgram = $record->termOffering?->curriculumEntry?->curriculumVersion?->program;
+        $cohortPrograms = $record->cohorts
+            ->pluck('program')
+            ->filter(fn (mixed $program): bool => $program instanceof Program)
+            ->sortBy(fn (Program $program): string => strtoupper((string) ($program->code ?: $program->name)))
+            ->values();
+
+        return collect([$hostProgram])
+            ->filter(fn (mixed $program): bool => $program instanceof Program)
+            ->merge($cohortPrograms)
+            ->unique('id')
+            ->values();
     }
 
     private function canEditClass(Section $class): bool
@@ -2233,6 +2646,9 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
         $this->classViewData = null;
         $this->coverageScope = null;
         $this->curriculumPreview = null;
+        $this->qualifiedFacultyCountsCache = [];
+        $this->confirmableCountsByCurriculumAndYear = null;
+        $this->curriculumReadinessGapsCache = null;
     }
 
     private function autoSyncSchedulingDemands(bool $force = false): void
@@ -2277,6 +2693,33 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
         }
 
         app(GenerateSchedulingDemand::class)->forTerm($actor, $term);
+    }
+
+    /**
+     * @return array{title: string, body: string}|null
+     */
+    private function classCreationPrerequisiteWarning(): ?array
+    {
+        if ($this->getViewData()['activePackage'] === null) {
+            return [
+                'title' => 'Activate teaching calendar first',
+                'body' => 'Activate the teaching calendar in 1. Calendar before loading or adding classes.',
+            ];
+        }
+
+        if ($this->currentCurriculumPreview()['cohorts']->whereNotNull('confirmed_at')->isEmpty()) {
+            return [
+                'title' => 'Add a student section first',
+                'body' => 'Add at least one student section in the Student sections tab before loading or adding classes.',
+            ];
+        }
+
+        return null;
+    }
+
+    private function hasClassCreationPrerequisites(): bool
+    {
+        return $this->classCreationPrerequisiteWarning() === null;
     }
 
     /** @return array<string, mixed> */
@@ -2360,12 +2803,61 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
             ->get()
             ->mapWithKeys(function (TermCohort $cohort): array {
                 $count = $cohort->confirmed_count ?? $cohort->forecast_count;
+                $reference = $this->formatSectionReference($cohort->reference);
 
                 return [
-                    $cohort->id => $count !== null ? "{$cohort->reference} · {$count} students" : $cohort->reference,
+                    $cohort->id => $count !== null ? "{$reference} · {$count} students" : $reference,
                 ];
             })
             ->all();
+    }
+
+    private function formatSectionReference(string $reference): string
+    {
+        return RecordTermCohort::normalizeReference($reference);
+    }
+
+    private function ensureSectionBoundToActiveCalendar(
+        Term $term,
+        Section $section,
+        ?TermCalendarPackage $calendar,
+        User $actor,
+        ?string $authorityReference = null,
+    ): Section {
+        if (! $calendar instanceof TermCalendarPackage || ! $calendar->isActivatedCoreSource()) {
+            return $section;
+        }
+
+        if ($section->confirmed_at === null && ($section->term_calendar_package_id === null || $section->course_specification_id === null)) {
+            $source = $section->source;
+            if (blank($source) && $section->termOffering?->category === TermOffering::CategoryRegular) {
+                $source = Section::SourceRegular;
+            }
+
+            return app(PrepareClassOffering::class)->execute($term, $section, $actor, [
+                'class_reference' => $section->class_reference ?: $section->code,
+                'source' => $source,
+                'delivery_mode' => $section->delivery_mode ?: $section->termOffering?->modality,
+                'authority_reference' => $authorityReference ?? $section->authority_reference,
+            ]);
+        }
+
+        $section->loadMissing(['calendarPackage', 'termOffering']);
+        $belongsToTerm = ($section->termOffering === null || (int) $section->termOffering->term_id === (int) $term->id)
+            && ($section->calendarPackage === null || (int) $section->calendarPackage->term_id === (int) $term->id)
+            && ($section->termOffering !== null || $section->calendarPackage !== null);
+
+        if ($belongsToTerm
+            && $term->state !== Term::StateClosed
+            && ! in_array($section->state, [Section::StateClosed, Section::StateCancelled], true)
+            && (int) $section->term_calendar_package_id !== (int) $calendar->id) {
+            $section->term_calendar_package_id = $calendar->id;
+            $section->save();
+            $section->refresh();
+            $section->load(['calendarPackage', 'cohorts', 'termOffering.curriculumEntry']);
+        }
+
+        return $section;
     }
 
     /** @return array<int, int> */
@@ -2403,6 +2895,41 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
         }
     }
 
+    /**
+     * @param  list<mixed>  $courseIds
+     * @return array<int, int>
+     */
+    private function qualifiedFacultyCountsByCourse(array $courseIds): array
+    {
+        $normalizedIds = array_values(array_unique(array_filter(
+            array_map(static fn (mixed $id): int => (int) $id, $courseIds),
+            static fn (int $id): bool => $id > 0,
+        )));
+
+        if ($normalizedIds === []) {
+            return [];
+        }
+
+        sort($normalizedIds);
+        $cacheKey = implode(',', $normalizedIds);
+
+        if (isset($this->qualifiedFacultyCountsCache[$cacheKey])) {
+            return $this->qualifiedFacultyCountsCache[$cacheKey];
+        }
+
+        return $this->qualifiedFacultyCountsCache[$cacheKey] = FacultyQualification::query()
+            ->active()
+            ->whereIn('course_id', $normalizedIds)
+            ->whereHas('faculty', fn (Builder $query): Builder => $query
+                ->where('status', User::StatusActive)
+                ->whereHas('roles', fn (Builder $roles): Builder => $roles->where('name', User::StaffRoleFaculty)))
+            ->selectRaw('course_id, COUNT(DISTINCT faculty_user_id) as qualified_count')
+            ->groupBy('course_id')
+            ->pluck('qualified_count', 'course_id')
+            ->mapWithKeys(static fn (mixed $count, mixed $courseId): array => [(int) $courseId => (int) $count])
+            ->all();
+    }
+
     /** @return array<int, true> */
     private function existingCohortEntryIds(int $cohortId): array
     {
@@ -2420,7 +2947,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
 
     private function hasActiveClassesFilterOrSearch(): bool
     {
-        if (filled($this->getTableSearch())) {
+        if (filled($this->getTableSearch()) || $this->classTriage !== 'all') {
             return true;
         }
 
@@ -2432,6 +2959,300 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
         }
 
         return $activeFilters > 0;
+    }
+
+    /**
+     * @param  Collection<int, TermCohort>  $cohorts
+     * @return array{all: int, no_classes: int, no_subjects: int}
+     */
+    private function computeSectionTriageCounts(Collection $cohorts): array
+    {
+        return [
+            'all' => $cohorts->count(),
+            'no_classes' => $cohorts
+                ->filter(fn (TermCohort $cohort): bool => $cohort->classOfferings->where('state', '!=', Section::StateCancelled)->isEmpty())
+                ->count(),
+            'no_subjects' => $cohorts
+                ->filter(fn (TermCohort $cohort): bool => $this->confirmableSubjectCountForCohort($cohort) === 0)
+                ->count(),
+        ];
+    }
+
+    /**
+     * @param  Collection<int, Section>  $sourceClasses
+     * @param  Collection<int, Section>  $contextClasses
+     * @param  Collection<int, array<string, mixed>>  $facultyRecords
+     * @return array{all: int, needs_preparation: int, no_teacher: int, cancelled: int}
+     */
+    private function computeClassTriageCounts(?Term $term, Collection $sourceClasses, Collection $contextClasses, Collection $facultyRecords): array
+    {
+        $contextIds = $contextClasses->pluck('id')->flip()->all();
+
+        $needsPreparationCount = $sourceClasses
+            ->filter(function (Section $section) use ($contextIds): bool {
+                if ($section->confirmed_at === null || ! isset($contextIds[$section->id]) || $section->cohorts->isEmpty()) {
+                    return true;
+                }
+
+                $demands = $section->deliveryGroups->flatMap->schedulingDemands;
+
+                return $demands->isEmpty()
+                    || $demands->contains('validation_state', SchedulingDemand::ValidationActionRequired);
+            })
+            ->count();
+
+        $noTeacherCount = count($this->classIdsWithoutQualifiedTeacher($sourceClasses, $facultyRecords));
+
+        $cancelledCount = $term instanceof Term
+            ? Section::query()
+                ->whereHas('termOffering', fn (Builder $query): Builder => $query->where('term_id', $term->id))
+                ->where('state', Section::StateCancelled)
+                ->count()
+            : 0;
+
+        return [
+            'all' => $sourceClasses->count(),
+            'needs_preparation' => $needsPreparationCount,
+            'no_teacher' => $noTeacherCount,
+            'cancelled' => $cancelledCount,
+        ];
+    }
+
+    /**
+     * @param  Collection<int, Section>  $sourceClasses
+     * @param  Collection<int, array<string, mixed>>  $facultyRecords
+     * @return list<int>
+     */
+    private function classIdsWithoutQualifiedTeacher(Collection $sourceClasses, Collection $facultyRecords): array
+    {
+        $qualifiedCourses = $facultyRecords
+            ->flatMap(fn (array $faculty): array => is_array($faculty['courses'] ?? null) ? $faculty['courses'] : [])
+            ->filter()
+            ->unique()
+            ->flip()
+            ->all();
+
+        return $sourceClasses
+            ->filter(function (Section $section) use ($qualifiedCourses): bool {
+                $courseCode = $section->courseRevision?->course?->code
+                    ?? $section->termOffering?->curriculumEntry?->courseSpecification?->course?->code;
+
+                return $courseCode !== null && ! isset($qualifiedCourses[$courseCode]);
+            })
+            ->pluck('id')
+            ->map(static fn (mixed $id): int => (int) $id)
+            ->values()
+            ->all();
+    }
+
+    private function confirmableSubjectCountForCohort(TermCohort $cohort): int
+    {
+        $curriculumId = (int) ($cohort->curriculum_version_id ?? 0);
+        if ($curriculumId <= 0) {
+            return 0;
+        }
+
+        $map = $this->confirmableCountsMapForTerm();
+        if ($cohort->year_level !== null && (int) $cohort->year_level > 0) {
+            return $map['by_year'][$curriculumId.':'.(int) $cohort->year_level] ?? 0;
+        }
+
+        $resolvedYear = $cohort->resolvedYearLevel();
+        if ($resolvedYear !== null && isset($map['by_year'][$curriculumId.':'.$resolvedYear])) {
+            return $map['by_year'][$curriculumId.':'.$resolvedYear];
+        }
+
+        return $map['by_curriculum'][$curriculumId] ?? 0;
+    }
+
+    /** @return array{by_year: array<string, int>, by_curriculum: array<int, int>} */
+    private function confirmableCountsMapForTerm(): array
+    {
+        if ($this->confirmableCountsByCurriculumAndYear !== null) {
+            return $this->confirmableCountsByCurriculumAndYear;
+        }
+
+        if ($this->termId === null) {
+            return $this->confirmableCountsByCurriculumAndYear = ['by_year' => [], 'by_curriculum' => []];
+        }
+
+        $term = $this->selectedTerm();
+        $cohorts = TermCohort::query()
+            ->where('term_id', $term->id)
+            ->get(['id', 'curriculum_version_id']);
+
+        $curriculumIds = $cohorts
+            ->pluck('curriculum_version_id')
+            ->filter()
+            ->map(static fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($curriculumIds === []) {
+            return $this->confirmableCountsByCurriculumAndYear = ['by_year' => [], 'by_curriculum' => []];
+        }
+
+        $lockedEntryIds = $this->lockedCurriculumEntryIdsForTerm();
+        $entries = CurriculumEntry::query()
+            ->whereIn('curriculum_version_id', $curriculumIds)
+            ->where('term_type', $term->type)
+            ->with(['courseSpecification.components'])
+            ->orderBy('sequence')
+            ->get();
+
+        $seenCoursesByBucket = [];
+        $seenCoursesByCurriculum = [];
+        foreach ($entries as $entry) {
+            if (! $this->isConfirmableCurriculumEntry($entry, $lockedEntryIds)) {
+                continue;
+            }
+
+            $yearLevel = TermCohort::parseYearLevelValue($entry->year_level);
+            if ($yearLevel === null) {
+                continue;
+            }
+
+            $curriculumId = (int) $entry->curriculum_version_id;
+            $bucket = $curriculumId.':'.$yearLevel;
+            $courseKey = (int) ($entry->courseSpecification?->course_id ?? $entry->id);
+            $seenCoursesByBucket[$bucket][$courseKey] = true;
+            $seenCoursesByCurriculum[$curriculumId][$courseKey] = true;
+        }
+
+        return $this->confirmableCountsByCurriculumAndYear = [
+            'by_year' => collect($seenCoursesByBucket)
+                ->map(static fn (array $courses): int => count($courses))
+                ->all(),
+            'by_curriculum' => collect($seenCoursesByCurriculum)
+                ->map(static fn (array $courses): int => count($courses))
+                ->all(),
+        ];
+    }
+
+    /** @return array<string, string> */
+    private function availableYearLevelsForCohortId(int $cohortId): array
+    {
+        if ($cohortId <= 0) {
+            return [];
+        }
+
+        $preview = $this->currentCurriculumPreview();
+        $cohort = $preview['cohorts']->whereNotNull('confirmed_at')->firstWhere('id', $cohortId);
+        if (! $cohort instanceof TermCohort) {
+            return [];
+        }
+
+        $termType = $this->selectedTerm()->type;
+        $lockedEntryIds = $this->lockedCurriculumEntryIdsForTerm();
+
+        return collect($preview['catalog'])
+            ->where('curriculum_id', $cohort->curriculum_version_id)
+            ->where('term_type', $termType)
+            ->reject(fn (array $course): bool => isset($lockedEntryIds[(int) $course['id']]))
+            ->groupBy('year_level')
+            ->mapWithKeys(fn ($items, string $year): array => [
+                $year => (is_numeric($year) ? 'Year '.$year : $year).' ('.$items->count().' '.Str::plural('subject', $items->count()).')',
+            ])
+            ->all();
+    }
+
+    private function isLoadCurriculumSubmitDisabled(): bool
+    {
+        $mounted = $this->mountedActions[0] ?? null;
+        if (! is_array($mounted) || ($mounted['name'] ?? null) !== 'loadCurriculumSubjects') {
+            return false;
+        }
+
+        $data = is_array($mounted['data'] ?? null) ? $mounted['data'] : [];
+        $cohortId = (int) ($data['term_cohort_id'] ?? $mounted['arguments']['cohortId'] ?? 0);
+        if ($cohortId <= 0) {
+            return false;
+        }
+
+        return $this->availableYearLevelsForCohortId($cohortId) === [];
+    }
+
+    /**
+     * @param  Collection<int, TermCohort>  $cohorts
+     * @return list<array{curriculum_id: int, label: string, configured: ?string, url: string, is_locked: bool}>
+     */
+    private function curriculumReadinessGapsForTerm(Term $term, Collection $cohorts): array
+    {
+        if ($this->curriculumReadinessGapsCache !== null) {
+            return $this->curriculumReadinessGapsCache;
+        }
+
+        $cohortCurriculumIds = $cohorts
+            ->pluck('curriculum_version_id')
+            ->filter()
+            ->map(static fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values();
+
+        $curriculaQuery = CurriculumVersion::query()
+            ->with(['program', 'academicYears'])
+            ->where(function (Builder $query) use ($term, $cohortCurriculumIds): void {
+                $hasCondition = false;
+                if ($term->academic_year_id !== null) {
+                    $query->where(function (Builder $activeBatch) use ($term): void {
+                        $activeBatch->where('state', CurriculumVersion::StateActive)
+                            ->whereHas('academicYears', fn (Builder $years) => $years->where('academic_years.id', $term->academic_year_id));
+                    });
+                    $hasCondition = true;
+                }
+
+                if ($cohortCurriculumIds->isNotEmpty()) {
+                    $method = $hasCondition ? 'orWhereIn' : 'whereIn';
+                    $query->{$method}('id', $cohortCurriculumIds->all());
+                } elseif (! $hasCondition) {
+                    $query->whereRaw('1 = 0');
+                }
+            });
+
+        $curricula = $curriculaQuery->get()->sortBy(fn (CurriculumVersion $cv): string => (string) ($cv->program?->code ?? ''))->values();
+        if ($curricula->isEmpty()) {
+            return $this->curriculumReadinessGapsCache = [];
+        }
+
+        $curriculumIds = $curricula->modelKeys();
+        $lockedEntryIds = $this->lockedCurriculumEntryIdsForTerm();
+        $entries = CurriculumEntry::query()
+            ->whereIn('curriculum_version_id', $curriculumIds)
+            ->with(['courseSpecification.components'])
+            ->get()
+            ->groupBy('curriculum_version_id');
+
+        $periodsByCurriculum = $this->configuredSubjectPeriodsByCurriculum($curriculumIds);
+        $gaps = [];
+
+        foreach ($curricula as $curriculum) {
+            $hasTermEntry = ($entries->get($curriculum->id) ?? collect())
+                ->where('term_type', $term->type)
+                ->contains(fn (CurriculumEntry $entry): bool => $this->isConfirmableCurriculumEntry($entry, $lockedEntryIds));
+
+            if ($hasTermEntry) {
+                continue;
+            }
+
+            $programCode = (string) ($curriculum->program?->code ?: ($curriculum->program?->name ?? 'Program'));
+            $batchLabel = $curriculum->batchLabel();
+            $configured = $this->formatConfiguredPeriods(
+                $periodsByCurriculum[$curriculum->id] ?? [],
+                style: 'dot',
+                skipTermType: $term->type,
+            );
+
+            $gaps[] = [
+                'curriculum_id' => (int) $curriculum->id,
+                'label' => "{$programCode} · {$batchLabel}",
+                'configured' => $configured,
+                'url' => CurriculumVersionResource::getUrl('review', ['record' => $curriculum->id]),
+                'is_locked' => ! $curriculum->isEditableDraft(),
+            ];
+        }
+
+        return $this->curriculumReadinessGapsCache = $gaps;
     }
 
     private function yearLevelLabel(?int $yearLevel): ?string

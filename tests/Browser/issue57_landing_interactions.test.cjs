@@ -1210,3 +1210,445 @@ test('interactive sheet handle supports RAF-coalesced 1:1 pointer drag up/down w
     flushSnap();
     assert.equal(window.scrollY, 0);
 });
+
+test('program catalog filters update cards, summary, status announcement, clear action, and URL without page reload', () => {
+    const formHandlers = new Map();
+    const clearHandlers = new Map();
+    const replacedUrls = [];
+    let viewTransitionCalls = 0;
+    let formSubmitCount = 0;
+
+    const makeRadio = (name, value, checked = false) => ({
+        name,
+        value,
+        checked,
+        matches: (selector) => selector === 'input[type="radio"]',
+    });
+
+    const durationRadios = [
+        makeRadio('duration', '', true),
+        makeRadio('duration', '2', false),
+        makeRadio('duration', '3', false),
+    ];
+    const availabilityRadios = [
+        makeRadio('availability', '', true),
+        makeRadio('availability', 'open', false),
+        makeRadio('availability', 'enquire', false),
+    ];
+
+    const makeCard = (id, duration, availability) => {
+        const readMoreAttrs = new Map();
+        const readMore = {
+            setAttribute: (name, value) => readMoreAttrs.set(name, value),
+            getAttribute: (name) => readMoreAttrs.get(name),
+        };
+        return {
+            hidden: false,
+            dataset: { programId: String(id), duration: String(duration), availability },
+            querySelector: (selector) => (selector === '[data-program-read-more]' ? readMore : null),
+            readMoreHref: () => readMoreAttrs.get('href'),
+        };
+    };
+
+    const cards = [
+        makeCard(10, 2, 'open'),
+        makeCard(11, 3, 'open'),
+        makeCard(12, 3, 'enquire'),
+    ];
+
+    const summary = { textContent: '' };
+    const statusRegion = { textContent: '' };
+    const emptyItem = { hidden: true };
+    const filterClearButton = {
+        hidden: true,
+        closest: (selector) => (selector === '[data-program-filters]' ? filterForm : null),
+        addEventListener: (event, listener) => clearHandlers.set(`toolbar:${event}`, listener),
+    };
+    const emptyClearButton = {
+        hidden: false,
+        closest: () => null,
+        addEventListener: (event, listener) => clearHandlers.set(`empty:${event}`, listener),
+    };
+    const modalBackLinkAttrs = new Map();
+    const modalBackLink = {
+        setAttribute: (name, value) => modalBackLinkAttrs.set(name, value),
+    };
+
+    const filterForm = {
+        addEventListener: (event, listener) => formHandlers.set(event, listener),
+        submit: () => { formSubmitCount += 1; },
+        querySelector: (selector) => {
+            if (selector === 'input[name="duration"]:checked') {
+                return durationRadios.find((r) => r.checked) ?? null;
+            }
+            if (selector === 'input[name="availability"]:checked') {
+                return availabilityRadios.find((r) => r.checked) ?? null;
+            }
+            if (selector === 'input[name="duration"][value=""]') {
+                return durationRadios[0];
+            }
+            if (selector === 'input[name="availability"][value=""]') {
+                return availabilityRadios[0];
+            }
+            return null;
+        },
+    };
+
+    const programList = {
+        querySelector: (selector) => (selector === '[data-program-empty]' ? emptyItem : null),
+        querySelectorAll: (selector) => (selector === '[data-program-card]' ? cards : []),
+    };
+
+    const catalog = {
+        dataset: {
+            catalogComplete: 'true',
+            catalogTotal: '3',
+            catalogOpenTotal: '2',
+            catalogBaseUrl: '/',
+        },
+        querySelector: (selector) => ({
+            '[data-program-filters]': filterForm,
+            '[data-program-list]': programList,
+            '[data-program-summary]': summary,
+            '[data-program-filter-status]': statusRegion,
+        }[selector] ?? null),
+        querySelectorAll: (selector) => (selector === '[data-program-filter-clear]' ? [filterClearButton, emptyClearButton] : []),
+    };
+
+    const documentElement = makeDocumentElement();
+    const window = {
+        location: { href: 'http://127.0.0.1:8194/#programs', pathname: '/', search: '', hash: '#programs' },
+        history: {
+            state: null,
+            replaceState: (_state, _title, url) => {
+                replacedUrls.push(url);
+                const parsed = new URL(url, 'http://127.0.0.1:8194');
+                window.location.href = parsed.href;
+                window.location.search = parsed.search;
+                window.location.hash = parsed.hash;
+            },
+        },
+        matchMedia: () => ({ matches: false, addEventListener: () => {} }),
+        addEventListener: () => {},
+    };
+    const document = {
+        readyState: 'loading',
+        documentElement,
+        startViewTransition: (cb) => {
+            viewTransitionCalls += 1;
+            cb();
+        },
+        addEventListener: (event, listener) => { if (event === 'DOMContentLoaded') { listener(); } },
+        querySelector: (selector) => (selector === '[data-program-catalog]' ? catalog : null),
+        querySelectorAll: (selector) => (selector === '[data-program-modal-back]' ? [modalBackLink] : []),
+        getElementById: () => null,
+    };
+
+    vm.runInNewContext(fs.readFileSync('public/landing/js/main.js', 'utf8'), { window, document, URL, URLSearchParams });
+
+    assert.equal(documentElement.classList.contains('has-program-filter-js'), true);
+
+    // 1. Select "Not currently open" (availability=enquire) -> only card 12 visible
+    availabilityRadios[0].checked = false;
+    availabilityRadios[2].checked = true;
+    formHandlers.get('change')({ target: availabilityRadios[2] });
+
+    assert.equal(viewTransitionCalls, 1);
+    assert.equal(formSubmitCount, 0);
+    assert.deepEqual(cards.map((c) => c.hidden), [true, true, false]);
+    assert.equal(emptyItem.hidden, true);
+    assert.equal(filterClearButton.hidden, false);
+    assert.equal(summary.textContent, 'Showing 1 of 3 programs');
+    assert.equal(statusRegion.textContent, 'Showing 1 of 3 programs.');
+    assert.equal(replacedUrls.at(-1), '/?availability=enquire#programs');
+    assert.equal(cards[2].readMoreHref(), '/?availability=enquire&program=12#programs');
+    assert.equal(modalBackLinkAttrs.get('href'), '/?availability=enquire#programs');
+
+    // 2. Also select "2 years" -> 0 matches, empty state appears
+    durationRadios[0].checked = false;
+    durationRadios[1].checked = true;
+    formHandlers.get('change')({ target: durationRadios[1] });
+
+    assert.deepEqual(cards.map((c) => c.hidden), [true, true, true]);
+    assert.equal(emptyItem.hidden, false);
+    assert.equal(summary.textContent, 'Showing 0 of 3 programs');
+    assert.equal(statusRegion.textContent, 'No programs match the selected filters.');
+    assert.equal(replacedUrls.at(-1), '/?duration=2&availability=enquire#programs');
+
+    // 3. Click "Clear filters" -> resets both groups without page reload
+    let prevented = false;
+    clearHandlers.get('empty:click')({ preventDefault: () => { prevented = true; } });
+
+    assert.equal(prevented, true);
+    assert.equal(durationRadios[0].checked, true);
+    assert.equal(availabilityRadios[0].checked, true);
+    assert.deepEqual(cards.map((c) => c.hidden), [false, false, false]);
+    assert.equal(emptyItem.hidden, true);
+    assert.equal(filterClearButton.hidden, true);
+    assert.equal(summary.textContent, '3 programs · 2 accepting applications');
+    assert.equal(replacedUrls.at(-1), '/#programs');
+});
+
+test('choreographed ambient trinket regeneration morphs shapes calmly in wave order and disables under reduced motion', () => {
+    const runScenario = ({ reduced = false } = {}) => {
+        let intervalFn = null;
+        const timers = [];
+        const makeTrinket = (shape) => {
+            const classList = makeClassList();
+            const styles = new Map();
+            const glyph = { innerHTML: `<svg>${shape}</svg>` };
+            return {
+                dataset: { shape },
+                classList,
+                styles,
+                glyph,
+                style: { setProperty: (name, value) => styles.set(name, value) },
+                querySelector: (selector) => (selector === '[data-trinket-glyph]' ? glyph : null),
+            };
+        };
+
+        const trinkets = [makeTrinket('spark'), makeTrinket('ring'), makeTrinket('plus'), makeTrinket('arc')];
+        const container = {
+            querySelectorAll: (selector) => (selector === '.landing-fg-trinket' ? trinkets : []),
+        };
+        const window = {
+            location: { hash: '', search: '' },
+            matchMedia: (query) => ({ matches: query.includes('reduce') ? reduced : false, addEventListener: () => {} }),
+            setInterval: (fn) => { intervalFn = fn; return 1; },
+            clearInterval: () => { intervalFn = null; },
+            setTimeout: (fn) => { timers.push(fn); return timers.length; },
+            clearTimeout: () => {},
+            addEventListener: () => {},
+        };
+        const document = {
+            readyState: 'loading',
+            hidden: false,
+            documentElement: makeDocumentElement(),
+            addEventListener: (event, listener) => { if (event === 'DOMContentLoaded') { listener(); } },
+            querySelector: (selector) => (selector === '[data-trinkets-fg]' ? container : null),
+            querySelectorAll: () => [],
+            getElementById: () => null,
+        };
+
+        vm.runInNewContext(fs.readFileSync('public/landing/js/main.js', 'utf8'), { window, document, URLSearchParams });
+
+        return {
+            hasInterval: () => intervalFn !== null,
+            tick: () => {
+                intervalFn?.();
+                while (timers.length) { timers.shift()(); }
+            },
+            trinkets,
+        };
+    };
+
+    const reduced = runScenario({ reduced: true });
+    assert.equal(reduced.hasInterval(), false);
+
+    const active = runScenario({ reduced: false });
+    assert.equal(active.hasInterval(), true);
+
+    // Wave order alternates left (0) then right (2)
+    active.tick();
+    assert.equal(active.trinkets[0].dataset.shape, 'star');
+    assert.equal(active.trinkets[0].classList.contains('is-morphing'), false);
+    assert.ok(active.trinkets[0].styles.has('--fmorph-scale'));
+
+    active.tick();
+    assert.equal(active.trinkets[2].dataset.shape, 'arc');
+});
+
+test('footer rising trinket stream recycles shape, tone, size, and lane on animationiteration and pauses off-screen', () => {
+    const streamHandlers = new Map();
+    const streamClasses = makeClassList();
+    let observerCallback = null;
+
+    const styles = new Map();
+    const trinket = {
+        dataset: { shape: 'spark', tone: 'green' },
+        innerHTML: '',
+        style: { setProperty: (name, value) => styles.set(name, value) },
+        closest: (selector) => (selector === '[data-footer-trinket]' ? trinket : null),
+    };
+    const stream = {
+        classList: streamClasses,
+        closest: () => null,
+        addEventListener: (event, listener) => streamHandlers.set(event, listener),
+    };
+
+    const window = {
+        location: { hash: '', search: '' },
+        matchMedia: () => ({ matches: false, addEventListener: () => {} }),
+        IntersectionObserver: class {
+            constructor(cb) { observerCallback = cb; }
+            observe() {}
+        },
+        addEventListener: () => {},
+    };
+    const document = {
+        readyState: 'loading',
+        hidden: false,
+        documentElement: makeDocumentElement(),
+        addEventListener: (event, listener) => { if (event === 'DOMContentLoaded') { listener(); } },
+        querySelector: (selector) => (selector === '[data-footer-trinket-stream]' ? stream : null),
+        querySelectorAll: () => [],
+        getElementById: () => null,
+    };
+
+    vm.runInNewContext(fs.readFileSync('public/landing/js/main.js', 'utf8'), { window, document, URLSearchParams });
+
+    assert.equal(streamClasses.contains('is-paused'), false);
+    observerCallback([{ isIntersecting: false }]);
+    assert.equal(streamClasses.contains('is-paused'), true);
+    observerCallback([{ isIntersecting: true }]);
+    assert.equal(streamClasses.contains('is-paused'), false);
+
+    streamHandlers.get('animationiteration')({ target: trinket });
+    assert.equal(trinket.dataset.shape, 'star');
+    assert.equal(trinket.dataset.tone, 'gold');
+    assert.ok(trinket.innerHTML.includes('<svg'));
+    assert.ok(styles.has('--fx'));
+    assert.ok(styles.has('--fsize'));
+    assert.ok(styles.has('--fdrift'));
+});
+
+test('hero press-and-hold gravity gathers trinkets, fires fireworks burst on release, springs back home, and ignores buttons or reduced motion', () => {
+    const runHeroGravity = ({ reduced = false } = {}) => {
+        const heroHandlers = new Map();
+        const windowHandlers = new Map();
+        const heroClasses = makeClassList();
+        const fgClasses = makeClassList();
+        const timers = [];
+        const frames = [];
+        let now = 1000;
+
+        const makeTrinket = (left, top) => {
+            const props = new Map();
+            return {
+                props,
+                getBoundingClientRect: () => ({ left, top, width: 20, height: 20 }),
+                style: {
+                    setProperty: (k, v) => props.set(k, v),
+                    removeProperty: (k) => props.delete(k),
+                },
+                querySelector: () => null,
+            };
+        };
+
+        const trinketA = makeTrinket(80, 120);
+        const trinketB = makeTrinket(920, 480);
+        const auroraBlob = makeTrinket(100, 80);
+        const ring = { style: { opacity: '0', transform: '' } };
+        const spark = { style: { opacity: '0', transform: '' } };
+        const fgContainer = {
+            classList: fgClasses,
+            querySelectorAll: (selector) => (selector === '.landing-fg-trinket' ? [trinketA, trinketB] : []),
+        };
+        const heroSection = {
+            classList: heroClasses,
+            addEventListener: (e, fn) => heroHandlers.set(e, fn),
+        };
+
+        const window = {
+            scrollY: 0,
+            innerWidth: 1280,
+            innerHeight: 800,
+            location: { hash: '', search: '' },
+            performance: { now: () => now },
+            matchMedia: (query) => ({ matches: query.includes('reduce') ? reduced : false, addEventListener: () => {} }),
+            setTimeout: (fn) => { timers.push(fn); return timers.length; },
+            clearTimeout: () => { timers.length = 0; },
+            requestAnimationFrame: (fn) => { frames.push(fn); return frames.length; },
+            cancelAnimationFrame: () => { frames.length = 0; },
+            addEventListener: (e, fn) => {
+                if (!windowHandlers.has(e)) { windowHandlers.set(e, []); }
+                windowHandlers.get(e).push(fn);
+            },
+        };
+        const document = {
+            readyState: 'loading',
+            hidden: false,
+            documentElement: makeDocumentElement(),
+            addEventListener: (event, listener) => { if (event === 'DOMContentLoaded') { listener(); } },
+            querySelector: (selector) => ({
+                '.hero-section': heroSection,
+                '[data-trinkets-fg]': fgContainer,
+                '[data-hero-gravity-ring]': ring,
+            }[selector] ?? null),
+            querySelectorAll: (selector) => ({
+                '[data-hero-burst-spark]': [spark],
+                '.landing-ambient .tala-ambient-glow, .landing-aurora-blob': [auroraBlob],
+            }[selector] ?? []),
+            getElementById: () => null,
+        };
+
+        vm.runInNewContext(fs.readFileSync('public/landing/js/main.js', 'utf8'), { window, document, URLSearchParams });
+
+        const stepFrames = (count, stepMs = 32) => {
+            for (let i = 0; i < count; i += 1) {
+                const fn = frames.shift();
+                if (!fn) { break; }
+                now += stepMs;
+                fn(now);
+            }
+        };
+
+        return {
+            heroHandlers,
+            windowHandlers,
+            heroClasses,
+            fgClasses,
+            timers,
+            trinketA,
+            trinketB,
+            auroraBlob,
+            ring,
+            spark,
+            stepFrames,
+            flushHoldTimer: () => { while (timers.length) { timers.shift()(); } },
+            advanceNow: (ms) => { now += ms; },
+        };
+    };
+
+    // 1. Reduced motion: press-and-hold never engages
+    const reducedCtx = runHeroGravity({ reduced: true });
+    reducedCtx.heroHandlers.get('pointerdown')({ pointerId: 1, button: 0, clientX: 640, clientY: 360, target: { closest: () => null } });
+    assert.equal(reducedCtx.timers.length, 0);
+
+    // 2. Interactive button target inside hero: ignored
+    const ctx = runHeroGravity({ reduced: false });
+    ctx.heroHandlers.get('pointerdown')({ pointerId: 1, button: 0, clientX: 640, clientY: 360, target: { closest: () => ({}) } });
+    assert.equal(ctx.timers.length, 0);
+
+    // 3. Press-and-hold on empty hero space engages gathering, pulls trinkets + aurora glow toward pointer, bursts + sparks on release, and settles home
+    ctx.heroHandlers.get('pointerdown')({ pointerId: 2, button: 0, clientX: 640, clientY: 360, target: { closest: () => null } });
+    assert.equal(ctx.timers.length, 1);
+    ctx.advanceNow(160);
+    ctx.flushHoldTimer();
+    assert.equal(ctx.heroClasses.contains('is-gravity-holding'), true);
+    assert.equal(ctx.fgClasses.contains('is-gravity-active'), true);
+
+    ctx.stepFrames(12, 40);
+    const gatheredGx = parseFloat(ctx.trinketA.props.get('--gx'));
+    const auroraGx = parseFloat(ctx.auroraBlob.props.get('--gx'));
+    const auroraScale = parseFloat(ctx.auroraBlob.props.get('--gscale'));
+    assert.ok(Number.isFinite(gatheredGx) && gatheredGx > 40); // pulled rightward from x=80 toward 640
+    assert.ok(Number.isFinite(auroraGx) && auroraGx > 25); // aurora glow also pulled toward pointer
+    assert.ok(Number.isFinite(auroraScale) && auroraScale < 0.99); // aurora condenses while charging
+    assert.ok(parseFloat(ctx.ring.style.opacity) > 0.2);
+
+    // Release -> fireworks burst + mini-sparks + aurora expansion
+    ctx.windowHandlers.get('pointerup').forEach((fn) => fn({ pointerId: 2 }));
+    assert.equal(ctx.heroClasses.contains('is-gravity-holding'), false);
+    ctx.stepFrames(6, 32);
+    assert.ok(parseFloat(ctx.spark.style.opacity) > 0);
+    assert.ok(parseFloat(ctx.auroraBlob.props.get('--gscale')) > auroraScale);
+
+    // Continue stepping through smooth burst -> gentle glide return -> clean idle reset
+    ctx.stepFrames(260, 32);
+    assert.equal(ctx.fgClasses.contains('is-gravity-active'), false);
+    assert.equal(ctx.trinketA.props.has('--gx'), false);
+    assert.equal(ctx.auroraBlob.props.has('--gx'), false);
+    assert.equal(ctx.auroraBlob.props.has('--gscale'), false);
+    assert.equal(ctx.ring.style.opacity, '0');
+});

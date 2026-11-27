@@ -64,6 +64,35 @@
         @endif
     </x-servitech-empty-state>
 @else
+    @php
+        $unbatchedCurricula = array_values(array_filter(
+            $curriculaRows,
+            fn (array $curriculumRow): bool => $curriculumRow['batches_count'] === 0
+                && in_array($curriculumRow['state'], [\App\Models\CurriculumVersion::StateDraft, \App\Models\CurriculumVersion::StateActive], true),
+        ));
+    @endphp
+
+    @if ($unbatchedCurricula !== [])
+        <div class="mb-4">
+            <x-tala-access-alert variant="warning" title="No starting batch assigned yet">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <p class="m-0">No starting batch assigned yet. This curriculum will not appear in Admissions until a batch is assigned.</p>
+                    @if ($canManage && count($unbatchedCurricula) === 1)
+                        <x-filament::button
+                            type="button"
+                            size="sm"
+                            color="warning"
+                            icon="heroicon-o-plus"
+                            wire:click="mountAction('{{ $program->is_active ? 'addBatchToCurriculum' : 'activateBeforeAddBatch' }}', { curriculumId: {{ $unbatchedCurricula[0]['id'] }} })"
+                        >
+                            Assign batch
+                        </x-filament::button>
+                    @endif
+                </div>
+            </x-tala-access-alert>
+        </div>
+    @endif
+
     <x-data-table label="Curricula for {{ $program->code }}" class="tala-program-panel__table">
         <thead>
             <tr>
@@ -80,15 +109,19 @@
                 @php
                     $isDraft = $row['state'] === \App\Models\CurriculumVersion::StateDraft;
                     $isActive = $row['state'] === \App\Models\CurriculumVersion::StateActive;
+                    $needsBatch = $row['batches_count'] === 0 && ($isDraft || $isActive);
+                    $assignBatchAction = $program->is_active ? 'addBatchToCurriculum' : 'activateBeforeAddBatch';
                     $activeSecondaryActions = [];
 
                     if ($isActive && $canManage) {
-                        $activeSecondaryActions[] = [
-                            'label' => 'Add batch',
-                            'icon' => 'heroicon-m-plus',
-                            'action' => $program->is_active ? 'addBatchToCurriculum' : 'activateBeforeAddBatch',
-                            'args' => "{ curriculumId: {$row['id']} }",
-                        ];
+                        if (! $needsBatch) {
+                            $activeSecondaryActions[] = [
+                                'label' => 'Add batch',
+                                'icon' => 'heroicon-m-plus',
+                                'action' => $assignBatchAction,
+                                'args' => "{ curriculumId: {$row['id']} }",
+                            ];
+                        }
 
                         if ($canCreateCurriculum) {
                             $activeSecondaryActions[] = [
@@ -120,7 +153,10 @@
                     </td>
 
                     <td class="whitespace-nowrap">
-                        @if ($row['batches_count'] === 0)
+                        @if ($needsBatch)
+                            <x-filament::badge color="warning" size="sm">No batch assigned</x-filament::badge>
+                            <div class="tala-data-table-secondary">Not in Admissions</div>
+                        @elseif ($row['batches_count'] === 0)
                             <span class="tala-program-table__muted">Not assigned</span>
                         @else
                             <div class="tala-program-table__primary tabular-nums">
@@ -155,6 +191,17 @@
                     <td class="whitespace-nowrap text-end tala-program-table__actions-col">
                         <div class="tala-program-table__actions">
                             @if ($isDraft)
+                                @if ($needsBatch && $canManage)
+                                    <x-filament::button
+                                        color="warning"
+                                        size="sm"
+                                        icon="heroicon-o-plus"
+                                        wire:click="mountAction('{{ $assignBatchAction }}', { curriculumId: {{ $row['id'] }} })"
+                                    >
+                                        Assign batch
+                                    </x-filament::button>
+                                @endif
+
                                 @if ($row['continue_requires_activation'])
                                     <x-filament::button
                                         color="primary"
@@ -190,6 +237,17 @@
                                     </x-filament::button>
                                 @endif
                             @elseif ($isActive)
+                                @if ($needsBatch && $canManage)
+                                    <x-filament::button
+                                        color="warning"
+                                        size="sm"
+                                        icon="heroicon-o-plus"
+                                        wire:click="mountAction('{{ $assignBatchAction }}', { curriculumId: {{ $row['id'] }} })"
+                                    >
+                                        Assign batch
+                                    </x-filament::button>
+                                @endif
+
                                 <x-filament::button
                                     tag="a"
                                     :href="$row['review_url']"

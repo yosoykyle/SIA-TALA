@@ -16,6 +16,7 @@
         @php
             $attentionItems = collect([
                 ['tab' => 'payment_proof', 'key' => 'proof', 'label' => 'Review receipts', 'icon' => 'heroicon-o-document-magnifying-glass'],
+                ['tab' => 'awaiting_payment', 'key' => 'payment', 'label' => 'Waiting for payment', 'icon' => 'heroicon-o-banknotes'],
                 ['tab' => 'student_changes', 'key' => 'student_changes', 'label' => 'Student status changes', 'icon' => 'heroicon-o-clipboard-document-check'],
                 ['tab' => 'assessment_required', 'key' => 'assessment', 'label' => 'Assessment reviews', 'icon' => 'heroicon-o-document-currency-dollar'],
             ])

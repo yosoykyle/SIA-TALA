@@ -113,7 +113,7 @@ final class Issue93RegistrarTermPlanningUiTest extends TestCase
         ]);
 
         $demandA = $classA->deliveryGroups()->firstOrFail()->schedulingDemands()->firstOrFail();
-        SectionMeeting::query()->create([
+        $lateMeeting = SectionMeeting::query()->create([
             'schedule_run_id' => $run->id,
             'published_timetable_version_id' => $officialVersion->id,
             'scheduling_demand_id' => $demandA->id,
@@ -144,6 +144,10 @@ final class Issue93RegistrarTermPlanningUiTest extends TestCase
             'termId' => $term->id,
             'timetableState' => 'official',
             'selectedVersionId' => $officialVersion->id,
+            'action' => 'revisePublishedSchedule',
+            'meetingIds' => (string) $lateMeeting->id,
+            'timetableView' => 'faculty',
+            'viewFilter' => 'Maria Santos',
         ]);
 
         Livewire::withQueryParams(['termId' => $term->id])->test(TermOverview::class)
@@ -155,6 +159,8 @@ final class Issue93RegistrarTermPlanningUiTest extends TestCase
             ->assertSee('IT 312')
             ->assertSee('Start timetable revision')
             ->assertSeeHtml('href="'.e($officialRevisionUrl).'"')
+            ->assertSeeHtml('action=revisePublishedSchedule')
+            ->assertSeeHtml('meetingIds='.$lateMeeting->id)
             ->assertSee('Review needed: 2 teachers chose times outside the updated teaching hours.')
             ->assertSee('2 of 4')
             ->assertSee('faculty replied');
@@ -235,6 +241,11 @@ final class Issue93RegistrarTermPlanningUiTest extends TestCase
 
         Livewire::test(TermOverview::class)
             ->assertOk()
+            ->assertSee($year->label)
+            ->assertSeeHtml('href="'.e(TermOverview::getUrl(['academicYearId' => $year->id])).'"');
+
+        Livewire::withQueryParams(['academicYearId' => $year->id])->test(TermOverview::class)
+            ->assertOk()
             ->assertSee('First Semester Draft 2032')
             ->assertSee('Second Semester Active 2032')
             ->assertSeeHtml('href="'.e(TermCalendar::getUrl(['termId' => $draftTerm->id])).'"');
@@ -274,7 +285,11 @@ final class Issue93RegistrarTermPlanningUiTest extends TestCase
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $term = Term::factory()->create(['state' => Term::StateActive]);
         $calendar = $this->activeCalendar($term);
-        [$course] = $this->courseAndCohort($term, 'CC 101', 'Computing 1', 'BSIT 1-A');
+        [$course, $offering] = $this->courseAndCohort($term, 'CC 101', 'Computing 1', 'BSIT 1-A');
+        Section::factory()->for($offering, 'termOffering')->create([
+            'term_calendar_package_id' => $calendar->id,
+            'confirmed_at' => now(),
+        ]);
 
         $windowsFaculty = $this->faculty('Clara Windows');
         $anyFaculty = $this->faculty('Bram Any');
@@ -334,10 +349,10 @@ final class Issue93RegistrarTermPlanningUiTest extends TestCase
             ->assertSee('Reply by:')
             ->assertSee('No due date set')
             ->assertSee('Load limit:')
-            ->assertSee('Choose teaching times')
+            ->assertSee('Specific hours set')
             ->assertSee('Mon 8:00 AM–12:00 PM')
             ->assertSee('Any approved teaching time')
-            ->assertSee('Cannot teach this Term')
+            ->assertSee('Cannot teach this term')
             ->assertSee('Review needed')
             ->assertSee('No response')
             ->assertSee('Reminder sent')
@@ -388,8 +403,8 @@ final class Issue93RegistrarTermPlanningUiTest extends TestCase
         $navLabels = collect(TermPlanningCluster::workspaceNavigation($term->id, 'classes'))
             ->map(fn ($item): string => $item->getLabel())
             ->all();
-        $this->assertContains('Classes & sections', $navLabels);
-        $this->assertNotContains('Sections & classes', $navLabels);
+        $this->assertContains('2. Sections & classes', $navLabels);
+        $this->assertNotContains('Classes & sections', $navLabels);
 
         $resourceList = Livewire::withQueryParams([
             'termId' => $term->id,

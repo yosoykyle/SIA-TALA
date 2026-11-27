@@ -848,12 +848,15 @@ class SolveSnapshotTest(unittest.TestCase):
         self.assertEqual(0, result["assigned_count"])
 
     def test_unsupported_contract_is_model_invalid(self) -> None:
-        snapshot = self.snapshot()
-        snapshot["contract_version"] = "unknown"
+        for contract_version in ("unknown", "tal94-demand-v2"):
+            with self.subTest(contract_version=contract_version):
+                snapshot = self.snapshot()
+                snapshot["contract_version"] = contract_version
 
-        result = solve_snapshot(snapshot, timeout_seconds=10)
+                result = solve_snapshot(snapshot, timeout_seconds=10)
 
-        self.assertEqual("model_invalid", result["solver_status"])
+                self.assertEqual("model_invalid", result["solver_status"])
+                self.assertEqual("unsupported_contract_version", result["infeasible_reasons"][0]["type"])
 
     def test_tampered_profile_is_model_invalid(self) -> None:
         snapshot = self.snapshot()

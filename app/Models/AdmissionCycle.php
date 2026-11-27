@@ -58,7 +58,7 @@ class AdmissionCycle extends Model
     public static function studentTypeColor(?string $path): string|array
     {
         return match ($path) {
-            self::PathFirstYear => Color::Sky,
+            self::PathFirstYear => Color::Emerald,
             self::PathTransferee => Color::Amber,
             default => 'gray',
         };

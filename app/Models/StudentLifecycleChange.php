@@ -136,7 +136,8 @@ class StudentLifecycleChange extends Model
     public function applicationAudit(): MorphOne
     {
         return $this->morphOne(Activity::class, 'subject')
-            ->where('log_name', 'student_lifecycle')->where('event', 'student_lifecycle_change_applied');
+            ->where('log_name', 'student_lifecycle')
+            ->whereIn('event', ['student_lifecycle_change_applied', 'program_shift_applied']);
     }
 
     public function statusLabel(): string

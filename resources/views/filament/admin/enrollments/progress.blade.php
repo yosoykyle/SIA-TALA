@@ -9,10 +9,18 @@
     </div>
     <section class="registrar-case-progress-task" aria-labelledby="progress-heading">
         <div>
+            @if ($progressView === 'placement-recovery' && ($requirement['state'] ?? null) === 'Cleared')
+                <div class="mb-2">
+                    <x-filament::badge color="warning" icon="heroicon-o-exclamation-triangle">Paid · Auto-enrollment blocked</x-filament::badge>
+                </div>
+            @endif
             <h2 id="progress-heading">{{ $taskTitle }}</h2>
             @if ($progressView === 'assessment-recovery')
                 <p>Accounting must resolve the current assessment for these reserved subjects.@if ($proposal->confirmation === null) The student can confirm when the charges are available.@else Student confirmation remains recorded.@endif</p>
             @elseif ($progressView === 'placement-recovery')
+                @if (($requirement['state'] ?? null) === 'Cleared')
+                    <p>Enrollment payment is already cleared (no repayment needed), but automatic enrollment could not finish because class placement needs attention.</p>
+                @endif
                 <p>{{ $canReserve ? 'Check current capacity and schedule before reserving these classes again.' : 'Prepare updated subjects using the current timetable, eligibility and available classes.' }}</p>
                 @if ($proposal->confirmation !== null)<p class="registrar-case-meta">Student confirmation remains recorded. A changed subject selection requires a new confirmation.</p>@endif
                 @if ($readiness['shortages'] !== [])
@@ -24,7 +32,7 @@
                 @endif
                 @if ($canReserve){{ $this->getAction('prepareProposal', isMounting: false)->link()->color('gray') }}@endif
             @else
-                <p>{{ $paymentReview ? 'Submitted receipt needs Accounting review. The enrollment requirement remains open until Accounting records a verified payment or approved coverage.' : 'The student confirmed these subjects. Enrollment clears once Accounting verifies a submitted receipt, Campus Cashier/Accounting records an onsite payment, or approved coverage meets the requirement; Registrar then finalizes enrollment.' }}</p>
+                <p>{{ $paymentReview ? 'Submitted receipt needs Accounting review. Official enrollment completes automatically once Accounting verifies the payment or approved coverage.' : 'The student confirmed these subjects. Once Accounting verifies a submitted receipt, Campus Cashier/Accounting records an onsite payment, or approved coverage meets the requirement, official enrollment and the COR complete automatically.' }}</p>
             @endif
             @if ($reservationDeadline)
                 <p class="registrar-case-meta">Seats held until {{ \App\Support\DisplayDateTime::format($reservationDeadline) }} · {{ config('app.display_timezone') }}</p>
@@ -32,7 +40,7 @@
             @if ($progressView === 'assessment-recovery')
                 <x-workflow-handoff current-owner="Accounting" current-task="Review charges" next-owner="Registrar" next-task="Continue enrollment review" current-icon="heroicon-o-banknotes" next-icon="heroicon-o-clipboard-document-check" />
             @elseif ($progressView !== 'placement-recovery' && $paymentReview)
-                <x-workflow-handoff current-owner="Accounting" current-task="Review payment" next-owner="Registrar" next-task="Finalize enrollment" current-icon="heroicon-o-banknotes" next-icon="heroicon-o-clipboard-document-check" />
+                <x-workflow-handoff current-owner="Accounting" current-task="Review payment" next-owner="System" next-task="Auto-finalize & issue COR" current-icon="heroicon-o-banknotes" next-icon="heroicon-o-check-badge" />
             @endif
         </div>
         @if ($progressView === 'placement-recovery')
@@ -63,7 +71,7 @@
                     @if ((float) $requirement['payment_applied'] > 0)<div><dt>Verified payment applied</dt><dd>PHP {{ number_format((float) $requirement['payment_applied'], 2) }}</dd></div>@endif
                     @if ((float) $requirement['coverage_applied'] > 0)<div><dt>Approved coverage applied</dt><dd>PHP {{ number_format((float) $requirement['coverage_applied'], 2) }}</dd></div>@endif
                 </dl>
-                <p class="registrar-case-meta">Accounting verifies submitted receipts and Cashier/Accounting records onsite payments; Registrar finalizes enrollment once cleared.@if ($requirement['later_obligation']) Later term payments remain separate.@endif</p>
+                <p class="registrar-case-meta">Accounting verifies submitted receipts and Cashier/Accounting records onsite payments; official enrollment completes automatically once cleared.@if ($requirement['later_obligation']) Later term payments remain separate.@endif</p>
             @endif
         </section>
     </div>

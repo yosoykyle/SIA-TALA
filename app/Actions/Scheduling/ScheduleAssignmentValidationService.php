@@ -12,7 +12,7 @@ use Illuminate\Validation\Rule;
 final class ScheduleAssignmentValidationService
 {
     /** @var list<string> */
-    private const ContractVersions = ['tal94-demand-v2', ScheduleGenerationRun::ContractVersion];
+    private const ContractVersions = [ScheduleGenerationRun::ContractVersion];
 
     /** @var list<string> */
     private const NativeStatuses = ['optimal', 'feasible', 'infeasible', 'model_invalid', 'unknown'];
@@ -179,22 +179,20 @@ final class ScheduleAssignmentValidationService
             );
         }
 
-        if (($snapshot['contract_version'] ?? null) === ScheduleGenerationRun::ContractVersion) {
-            $solverVersion = (string) ($solverResult['solver_version'] ?? '');
-            $driver = (string) config('tala_integrations.scheduling_solver.driver');
-            $solverIdentityMatches = $driver === 'local_stub'
-                ? str_starts_with($solverVersion, 'local-stub-')
-                : $solverVersion === ScheduleGenerationRun::SolverVersion;
+        $solverVersion = (string) ($solverResult['solver_version'] ?? '');
+        $driver = (string) config('tala_integrations.scheduling_solver.driver');
+        $solverIdentityMatches = $driver === 'local_stub'
+            ? str_starts_with($solverVersion, 'local-stub-')
+            : $solverVersion === ScheduleGenerationRun::SolverVersion;
 
-            if (! $solverIdentityMatches) {
-                $findings[] = $this->finding(
-                    run: $run,
-                    code: 'solver_version_mismatch',
-                    constraint: 'solver_response_contract',
-                    message: 'The solver identity does not match the configured timetable driver and contract family.',
-                    sourceField: 'solver_version',
-                );
-            }
+        if (! $solverIdentityMatches) {
+            $findings[] = $this->finding(
+                run: $run,
+                code: 'solver_version_mismatch',
+                constraint: 'solver_response_contract',
+                message: 'The solver identity does not match the configured timetable driver and contract family.',
+                sourceField: 'solver_version',
+            );
         }
 
         $findings = [...$findings, ...$this->counterFindings($run, $solverResult, $assignments)];
@@ -377,7 +375,7 @@ final class ScheduleAssignmentValidationService
             'response.solver_statistics.result_source' => [
                 'required',
                 'string',
-                Rule::in(['none', 'feasibility_fallback', 'optimization', 'lexicographic']),
+                Rule::in(['none', 'feasibility_fallback', 'lexicographic']),
             ],
             'response.solver_statistics.search_stages' => [
                 'required',
@@ -503,195 +501,97 @@ final class ScheduleAssignmentValidationService
     private function objectiveFindings(ScheduleGenerationRun $run, array $snapshot, array $solverResult): array
     {
         $details = $this->arrayValue($solverResult['objective_details']);
-        $terms = $this->arrayValue($details['terms'] ?? null);
         $profile = $this->arrayValue($snapshot['constraint_profile'] ?? null);
-        $expectedWeights = $this->arrayValue($profile['soft_weights'] ?? null);
         $findings = [];
 
-        if (($details['profile_key'] ?? null) !== ($profile['key'] ?? null)
+        if (($profile['key'] ?? null) !== 'lexicographic_v1'
+            || ($details['profile_key'] ?? null) !== 'lexicographic_v1'
             || $this->integerValue($details['profile_version'] ?? null) !== $this->integerValue($profile['version'] ?? null)) {
             $findings[] = $this->finding(
                 run: $run,
                 code: 'objective_profile_mismatch',
                 constraint: 'solver_response_contract',
-                message: 'Objective details do not identify the captured constraint profile.',
+                message: 'Objective details do not identify the captured lexicographic_v1 constraint profile.',
                 sourceField: 'objective_details',
             );
-        }
-
-        if (($profile['key'] ?? null) === 'lexicographic_v1') {
-            $expectedHierarchy = $this->listValue($profile['objective_hierarchy'] ?? null);
-            $reportedHierarchy = $this->listValue($details['objective_hierarchy'] ?? null);
-            $values = $this->arrayValue($details['values'] ?? null);
-            $reportedValueKeys = array_keys($values);
-
-            if ($reportedHierarchy !== $expectedHierarchy
-                || array_diff($reportedValueKeys, $expectedHierarchy) !== []
-                || array_diff($expectedHierarchy, $reportedValueKeys) !== []
-                || array_key_exists('terms', $details)
-                || array_key_exists('total', $details)
-                || ($details['scalar_score'] ?? null) !== null
-                || ($solverResult['objective_score'] ?? null) !== null) {
-                $findings[] = $this->finding(
-                    run: $run,
-                    code: 'lexicographic_evidence_mismatch',
-                    constraint: 'solver_response_contract',
-                    message: 'Objective evidence must preserve the fixed six-level hierarchy without weights or a scalar accuracy score.',
-                    sourceField: 'objective_details',
-                );
-            }
-
-            foreach ($values as $name => $value) {
-                if ($value !== null && ! is_numeric($value)) {
-                    $findings[] = $this->finding(
-                        run: $run,
-                        code: 'quality_measure_unavailable',
-                        constraint: 'solver_response_contract',
-                        message: 'A reported quality measure must be numeric or explicitly unavailable.',
-                        sourceField: 'objective_details.values.'.$name,
-                    );
-                }
-            }
-
-            if (is_numeric($values['faculty_load_imbalance'] ?? null)) {
-                $demands = collect($this->listValue($snapshot['scheduling_demands'] ?? null))->keyBy('scheduling_demand_id');
-                $loads = [];
-
-                foreach ($this->listValue($snapshot['faculty'] ?? null) as $faculty) {
-                    if (is_array($faculty) && isset($faculty['faculty_id'])) {
-                        $loads[(int) $faculty['faculty_id']] = [];
-                    }
-                }
-
-                foreach ($this->listValue($solverResult['assignments'] ?? null) as $assignment) {
-                    if (! is_array($assignment)) {
-                        continue;
-                    }
-
-                    $demand = $demands->get($assignment['scheduling_demand_id'] ?? null);
-                    $facultyId = (int) ($assignment['faculty_user_id'] ?? $assignment['faculty_id'] ?? 0);
-
-                    if (is_array($demand) && isset($loads[$facultyId])) {
-                        $loads[$facultyId][$demand['term_offering_id'].':'.$demand['section_delivery_group_id']] = (int) round((float) ($demand['load_units'] ?? 0) * 100);
-                    }
-                }
-
-                $totals = array_values(array_map(array_sum(...), $loads));
-                $imbalance = 0;
-
-                foreach ($totals as $index => $total) {
-                    foreach (array_slice($totals, $index + 1) as $other) {
-                        $imbalance += abs($total - $other);
-                    }
-                }
-
-                if (! $this->numbersMatch((float) $imbalance, (float) $values['faculty_load_imbalance'])) {
-                    $findings[] = $this->finding(
-                        run: $run,
-                        code: 'faculty_imbalance_evidence_mismatch',
-                        constraint: 'solver_response_contract',
-                        message: 'Faculty imbalance must include every eligible Faculty member and use hundredths of load units.',
-                        sourceField: 'objective_details.values.faculty_load_imbalance',
-                    );
-                }
-            }
 
             return $findings;
         }
 
-        foreach ($expectedWeights as $name => $expectedWeight) {
-            if (! array_key_exists($name, $terms)) {
-                $findings[] = $this->finding(
-                    run: $run,
-                    code: 'objective_term_missing',
-                    constraint: 'solver_response_contract',
-                    message: "Objective term {$name} is missing from the captured profile.",
-                    sourceField: 'objective_details.terms.'.$name,
-                );
+        $expectedHierarchy = $this->listValue($profile['objective_hierarchy'] ?? null);
+        $reportedHierarchy = $this->listValue($details['objective_hierarchy'] ?? null);
+        $values = $this->arrayValue($details['values'] ?? null);
+        $reportedValueKeys = array_keys($values);
 
-                continue;
-            }
-
-            $term = $terms[$name];
-
-            if (is_array($term)
-                && is_numeric($expectedWeight)
-                && is_numeric($term['weight'] ?? null)
-                && ! $this->numbersMatch((float) $expectedWeight, (float) $term['weight'])) {
-                $findings[] = $this->finding(
-                    run: $run,
-                    code: 'objective_weight_mismatch',
-                    constraint: 'solver_response_contract',
-                    message: "Objective term {$name} does not use the captured profile weight.",
-                    sourceField: 'objective_details.terms.'.$name.'.weight',
-                );
-            }
-        }
-
-        foreach (array_diff_key($terms, $expectedWeights) as $name => $term) {
+        if ($reportedHierarchy !== $expectedHierarchy
+            || array_diff($reportedValueKeys, $expectedHierarchy) !== []
+            || array_diff($expectedHierarchy, $reportedValueKeys) !== []
+            || array_key_exists('terms', $details)
+            || array_key_exists('total', $details)
+            || ($details['scalar_score'] ?? null) !== null
+            || ($solverResult['objective_score'] ?? null) !== null) {
             $findings[] = $this->finding(
                 run: $run,
-                code: 'objective_term_unexpected',
+                code: 'lexicographic_evidence_mismatch',
                 constraint: 'solver_response_contract',
-                message: "Objective term {$name} is not part of the captured profile.",
-                sourceField: 'objective_details.terms.'.$name,
+                message: 'Objective evidence must preserve the fixed six-level hierarchy without weights or a scalar accuracy score.',
+                sourceField: 'objective_details',
             );
         }
 
-        $weightedTotal = 0.0;
-
-        foreach ($terms as $name => $term) {
-            if (! is_array($term)
-                || ! is_numeric($term['raw'] ?? null)
-                || ! is_numeric($term['weight'] ?? null)
-                || ! is_numeric($term['weighted'] ?? null)) {
+        foreach ($values as $name => $value) {
+            if ($value !== null && ! is_numeric($value)) {
                 $findings[] = $this->finding(
                     run: $run,
-                    code: 'objective_term_invalid',
+                    code: 'quality_measure_unavailable',
                     constraint: 'solver_response_contract',
-                    message: "Objective term {$name} is incomplete.",
-                    sourceField: 'objective_details.terms.'.$name,
+                    message: 'A reported quality measure must be numeric or explicitly unavailable.',
+                    sourceField: 'objective_details.values.'.$name,
                 );
+            }
+        }
 
-                continue;
+        if (is_numeric($values['faculty_load_imbalance'] ?? null)) {
+            $demands = collect($this->listValue($snapshot['scheduling_demands'] ?? null))->keyBy('scheduling_demand_id');
+            $loads = [];
+
+            foreach ($this->listValue($snapshot['faculty'] ?? null) as $faculty) {
+                if (is_array($faculty) && isset($faculty['faculty_id'])) {
+                    $loads[(int) $faculty['faculty_id']] = [];
+                }
             }
 
-            $expectedWeighted = (float) $term['raw'] * (float) $term['weight'];
+            foreach ($this->listValue($solverResult['assignments'] ?? null) as $assignment) {
+                if (! is_array($assignment)) {
+                    continue;
+                }
 
-            if (! $this->numbersMatch($expectedWeighted, (float) $term['weighted'])) {
+                $demand = $demands->get($assignment['scheduling_demand_id'] ?? null);
+                $facultyId = (int) ($assignment['faculty_user_id'] ?? $assignment['faculty_id'] ?? 0);
+
+                if (is_array($demand) && isset($loads[$facultyId])) {
+                    $loads[$facultyId][$demand['term_offering_id'].':'.$demand['section_delivery_group_id']] = (int) round((float) ($demand['load_units'] ?? 0) * 100);
+                }
+            }
+
+            $totals = array_values(array_map(array_sum(...), $loads));
+            $imbalance = 0;
+
+            foreach ($totals as $index => $total) {
+                foreach (array_slice($totals, $index + 1) as $other) {
+                    $imbalance += abs($total - $other);
+                }
+            }
+
+            if (! $this->numbersMatch((float) $imbalance, (float) $values['faculty_load_imbalance'])) {
                 $findings[] = $this->finding(
                     run: $run,
-                    code: 'objective_term_mismatch',
+                    code: 'faculty_imbalance_evidence_mismatch',
                     constraint: 'solver_response_contract',
-                    message: "Objective term {$name} does not match raw multiplied by weight.",
-                    sourceField: 'objective_details.terms.'.$name.'.weighted',
+                    message: 'Faculty imbalance must include every eligible Faculty member and use hundredths of load units.',
+                    sourceField: 'objective_details.values.faculty_load_imbalance',
                 );
             }
-
-            $weightedTotal += (float) $term['weighted'];
-        }
-
-        if (! is_numeric($details['total'] ?? null)
-            || ! $this->numbersMatch($weightedTotal, (float) $details['total'])) {
-            $findings[] = $this->finding(
-                run: $run,
-                code: 'objective_total_mismatch',
-                constraint: 'solver_response_contract',
-                message: 'The objective detail total does not equal its weighted terms.',
-                sourceField: 'objective_details.total',
-            );
-        }
-
-        if (! is_numeric($solverResult['objective_score'])
-            || ! is_numeric($details['total'] ?? null)
-            || ! $this->numbersMatch((float) $solverResult['objective_score'], (float) $details['total'])) {
-            $findings[] = $this->finding(
-                run: $run,
-                code: 'objective_score_mismatch',
-                constraint: 'solver_response_contract',
-                message: 'The objective score does not equal the objective detail total.',
-                sourceField: 'objective_score',
-            );
         }
 
         return $findings;

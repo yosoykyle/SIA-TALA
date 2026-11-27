@@ -46,6 +46,7 @@ use App\Models\TermOffering;
 use App\Models\TimetableRevision;
 use App\Models\User;
 use App\Support\HasClassPreparationActions;
+use App\Support\TermPlanningStepState;
 use App\Support\TimetablePresentation;
 use BackedEnum;
 use Carbon\CarbonImmutable;
@@ -324,6 +325,27 @@ class TermPlanningWorkbench extends Page
             ->all();
     }
 
+    protected function defaultCreateTermAcademicYearId(): ?int
+    {
+        if ($this->termId !== null) {
+            $currentAyId = Term::query()->whereKey($this->termId)->value('academic_year_id');
+            if ($currentAyId !== null
+                && AcademicYear::query()
+                    ->whereKey($currentAyId)
+                    ->whereNotIn('state', [AcademicYear::StateClosed, AcademicYear::StateArchived])
+                    ->exists()) {
+                return (int) $currentAyId;
+            }
+        }
+
+        $fallback = AcademicYear::query()
+            ->whereNotIn('state', [AcademicYear::StateClosed, AcademicYear::StateArchived])
+            ->latest('starts_on')
+            ->value('id');
+
+        return $fallback !== null ? (int) $fallback : null;
+    }
+
     public function createTermAction(): Action
     {
         return Action::make('createTerm')
@@ -334,14 +356,12 @@ class TermPlanningWorkbench extends Page
             ->modalDescription('Choose the academic year, term, and dates. New terms start in Draft.')
             ->modalSubmitActionLabel('Create term')
             ->modalWidth(Width::Large)
-            ->stickyModalHeader()
-            ->stickyModalFooter()
             ->visible(fn (): bool => (bool) auth()->user()?->can('create', Term::class))
             ->schema([
                 Select::make('academic_year_id')
                     ->label('Academic year')
                     ->options(fn (): array => AcademicYear::query()
-                        ->where('state', '!=', AcademicYear::StateClosed)
+                        ->whereNotIn('state', [AcademicYear::StateClosed, AcademicYear::StateArchived])
                         ->orderByDesc('starts_on')
                         ->get()
                         ->mapWithKeys(fn (AcademicYear $record): array => [$record->id => $record->state === AcademicYear::StateActive ? (string) $record->label : $record->displayLabel()])
@@ -349,43 +369,26 @@ class TermPlanningWorkbench extends Page
                     ->searchable()
                     ->preload()
                     ->live()
-                    ->default(function (): ?int {
-                        if ($this->termId !== null) {
-                            $currentAyId = Term::query()->whereKey($this->termId)->value('academic_year_id');
-                            if ($currentAyId !== null && AcademicYear::query()->whereKey($currentAyId)->where('state', '!=', AcademicYear::StateClosed)->exists()) {
-                                return (int) $currentAyId;
-                            }
-                        }
-
-                        $fallback = AcademicYear::query()
-                            ->where('state', '!=', AcademicYear::StateClosed)
-                            ->latest('starts_on')
-                            ->value('id');
-
-                        return $fallback !== null ? (int) $fallback : null;
-                    })
+                    ->default(fn (): ?int => $this->defaultCreateTermAcademicYearId())
                     ->createOptionAction(fn (Action $action): Action => $action->label('Add academic year')->modalHeading('Add academic year')->modalSubmitActionLabel('Create academic year'))
                     ->createOptionForm([
-                        TextInput::make('label')->label('Academic year')->required()->maxLength(255)->unique('academic_years', 'label'),
+                        TextInput::make('label')->label('Academic year')->required()->maxLength(255)->unique('academic_years', 'label', ignoreRecord: false),
                         Grid::make(['default' => 1, 'sm' => 2])
                             ->schema([
                                 DatePicker::make('starts_on')
                                     ->label('Academic year start')
-                                    ->native(false)
-                                    ->displayFormat('M j, Y')
-                                    ->suffixIcon(Heroicon::OutlinedCalendar)
                                     ->required(),
                                 DatePicker::make('ends_on')
                                     ->label('Academic year end')
-                                    ->native(false)
-                                    ->displayFormat('M j, Y')
-                                    ->suffixIcon(Heroicon::OutlinedCalendar)
                                     ->required()
-                                    ->after('starts_on'),
+                                    ->after('starts_on')
+                                    ->rules([$this->academicYearNoOverlapRule()]),
                             ]),
                     ])
                     ->createOptionUsing(function (array $data): int {
                         Gate::authorize('create', AcademicYear::class);
+
+                        $this->assertNoOverlappingAcademicYear((string) $data['starts_on'], (string) $data['ends_on']);
 
                         return (int) AcademicYear::query()->create([...$data, 'state' => AcademicYear::StateDraft])->id;
                     })
@@ -394,6 +397,7 @@ class TermPlanningWorkbench extends Page
                     ->label('Term')
                     ->options(Term::typeOptions())
                     ->required()
+                    ->live()
                     ->unique(
                         table: Term::class,
                         column: 'type',
@@ -406,9 +410,6 @@ class TermPlanningWorkbench extends Page
                     ->schema([
                         DatePicker::make('starts_on')
                             ->label('Start date')
-                            ->native(false)
-                            ->displayFormat('M j, Y')
-                            ->suffixIcon(Heroicon::OutlinedCalendar)
                             ->minDate(fn (Get $get): ?string => $this->academicYearDateBound($get('academic_year_id'), 'start'))
                             ->maxDate(fn (Get $get): ?string => $this->academicYearDateBound($get('academic_year_id'), 'end'))
                             ->helperText(fn (Get $get): ?string => $this->academicYearBoundsHelperText($get('academic_year_id')))
@@ -416,21 +417,29 @@ class TermPlanningWorkbench extends Page
                             ->rules([$this->academicYearBoundRule('start')]),
                         DatePicker::make('ends_on')
                             ->label('End date')
-                            ->native(false)
-                            ->displayFormat('M j, Y')
-                            ->suffixIcon(Heroicon::OutlinedCalendar)
                             ->minDate(fn (Get $get): ?string => $this->academicYearDateBound($get('academic_year_id'), 'start'))
                             ->maxDate(fn (Get $get): ?string => $this->academicYearDateBound($get('academic_year_id'), 'end'))
-                            ->helperText('Must be on or after the term start date.')
+                            ->helperText('Must be after start date.')
                             ->required()
                             ->after('starts_on')
-                            ->rules([$this->academicYearBoundRule('end')]),
+                            ->rules([
+                                $this->academicYearBoundRule('end'),
+                                $this->termMinimumDurationRule(),
+                                $this->termSiblingOverlapRule(),
+                            ]),
                     ]),
             ])
             ->action(function (array $data): void {
                 $actor = auth()->user();
                 abort_unless($actor instanceof User, 403);
                 Gate::forUser($actor)->authorize('create', Term::class);
+
+                $this->assertTermDateGuards(
+                    (int) $data['academic_year_id'],
+                    (string) $data['type'],
+                    (string) $data['starts_on'],
+                    (string) $data['ends_on'],
+                );
 
                 $term = Term::query()->create([
                     'academic_year_id' => $data['academic_year_id'],
@@ -478,6 +487,48 @@ class TermPlanningWorkbench extends Page
             ->exists();
     }
 
+    public function isReadOnlyOversight(): bool
+    {
+        $user = auth()->user();
+
+        if (! $user instanceof User) {
+            return true;
+        }
+
+        return $user->hasRole(User::StaffRoleAcademicHead) || ! $user->hasRole(User::StaffRoleRegistrar);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $preloaded
+     * @return array{
+     *   lifecycle_mode: string,
+     *   is_live_or_closed: bool,
+     *   calendar_done: bool,
+     *   classes_done: bool,
+     *   resources_done: bool,
+     *   timetable_done: bool,
+     *   has_confirmed_class: bool,
+     *   steps: array<string, array{
+     *     number: int,
+     *     key: string,
+     *     nav_key: string,
+     *     label: string,
+     *     done: bool,
+     *     unlocked: bool,
+     *     locked: bool,
+     *     locked_reason: ?string,
+     *     required_step_key: ?string,
+     *     required_step_number: ?int,
+     *     required_step_label: ?string,
+     *     required_step_url: ?string,
+     *   }>
+     * }
+     */
+    protected function stepState(Term $term, ?array $preloaded = null): array
+    {
+        return TermPlanningStepState::evaluate($term, $this->isReadOnlyOversight(), $preloaded);
+    }
+
     public function termLifecycleMode(?Term $term = null): string
     {
         $resolved = $term ?? ($this->termId !== null ? Term::query()->find($this->termId) : null);
@@ -523,6 +574,24 @@ class TermPlanningWorkbench extends Page
                 ->where('term_id', $resolved->id)
                 ->where('canonical_outcome', Enrollment::OutcomeOfficiallyEnrolled)
                 ->exists();
+    }
+
+    public function officialStudentEnrollmentCount(?Term $term = null): int
+    {
+        $resolved = $term ?? ($this->termId !== null ? Term::query()->find($this->termId) : null);
+        if (! $resolved instanceof Term) {
+            return 0;
+        }
+
+        return Enrollment::query()
+            ->where('term_id', $resolved->id)
+            ->where(function ($query): void {
+                $query->where('canonical_outcome', Enrollment::OutcomeOfficiallyEnrolled)
+                    ->orWhereHas('courseEnrollments', fn ($ce) => $ce
+                        ->where('status', CourseEnrollment::StatusActive)
+                        ->where('is_current', true));
+            })
+            ->count();
     }
 
     public function canDeleteDraftTerm(?Term $term = null): bool
@@ -668,8 +737,6 @@ class TermPlanningWorkbench extends Page
             ->modalSubmitActionLabel('Save changes')
             ->modalCancelActionLabel(fn (): string => auth()->user()?->hasRole(User::StaffRoleAcademicHead) || $this->isTermClosed() ? 'Close' : 'Cancel')
             ->modalWidth(Width::Large)
-            ->stickyModalHeader()
-            ->stickyModalFooter()
             ->visible(fn (): bool => $this->termId !== null)
             ->fillForm(function (): array {
                 $term = $this->selectedTerm();
@@ -731,6 +798,10 @@ class TermPlanningWorkbench extends Page
                             Select::make('academic_year_id')
                                 ->label('Academic year')
                                 ->options(fn (): array => AcademicYear::query()
+                                    ->where(function ($query) use ($term): void {
+                                        $query->whereNotIn('state', [AcademicYear::StateClosed, AcademicYear::StateArchived])
+                                            ->orWhere('id', $term->academic_year_id);
+                                    })
                                     ->orderByDesc('starts_on')
                                     ->get()
                                     ->mapWithKeys(fn (AcademicYear $record): array => [$record->id => $record->state === AcademicYear::StateActive ? (string) $record->label : $record->displayLabel()])
@@ -745,6 +816,7 @@ class TermPlanningWorkbench extends Page
                                 ->label('Term')
                                 ->options(Term::typeOptions())
                                 ->required()
+                                ->live()
                                 ->unique(
                                     table: Term::class,
                                     column: 'type',
@@ -758,9 +830,6 @@ class TermPlanningWorkbench extends Page
                                 ->validatedWhenNotDehydrated(false),
                             DatePicker::make('starts_on')
                                 ->label('Start date')
-                                ->native(false)
-                                ->displayFormat('M j, Y')
-                                ->suffixIcon(Heroicon::OutlinedCalendar)
                                 ->minDate(fn (Get $get): ?string => $this->academicYearDateBound($get('academic_year_id'), 'start'))
                                 ->maxDate(fn (Get $get): ?string => $this->academicYearDateBound($get('academic_year_id'), 'end'))
                                 ->helperText(fn (Get $get): ?string => $this->academicYearBoundsHelperText($get('academic_year_id')))
@@ -770,15 +839,16 @@ class TermPlanningWorkbench extends Page
                                 ->validatedWhenNotDehydrated(false),
                             DatePicker::make('ends_on')
                                 ->label('End date')
-                                ->native(false)
-                                ->displayFormat('M j, Y')
-                                ->suffixIcon(Heroicon::OutlinedCalendar)
                                 ->minDate(fn (Get $get): ?string => $this->academicYearDateBound($get('academic_year_id'), 'start'))
                                 ->maxDate(fn (Get $get): ?string => $this->academicYearDateBound($get('academic_year_id'), 'end'))
-                                ->helperText('Must be on or after the term start date.')
+                                ->helperText('Must be after start date.')
                                 ->required()
                                 ->after('starts_on')
-                                ->rules([$this->academicYearBoundRule('end')])
+                                ->rules([
+                                    $this->academicYearBoundRule('end'),
+                                    $this->termMinimumDurationRule(),
+                                    $this->termSiblingOverlapRule($term->id),
+                                ])
                                 ->disabled($identityLocked)
                                 ->validatedWhenNotDehydrated(false),
                         ])
@@ -955,6 +1025,14 @@ class TermPlanningWorkbench extends Page
                             'default_max_units' => $newDefaultMaxUnits,
                         ]);
                     } else {
+                        $this->assertTermDateGuards(
+                            (int) $data['academic_year_id'],
+                            (string) $data['type'],
+                            (string) $data['starts_on'],
+                            (string) $data['ends_on'],
+                            $term->id,
+                        );
+
                         $term->update([
                             'academic_year_id' => $data['academic_year_id'],
                             'type' => $data['type'],
@@ -975,6 +1053,10 @@ class TermPlanningWorkbench extends Page
                                 ScheduleGenerationRun::StatusDispatching,
                                 ScheduleGenerationRun::StatusUnderReview,
                             ])
+                            ->where(function ($query): void {
+                                $query->whereNull('candidate_state')
+                                    ->orWhereNotIn('candidate_state', ['Superseded', 'Rejected']);
+                            })
                             ->lockForUpdate()
                             ->get();
 
@@ -1270,6 +1352,174 @@ class TermPlanningWorkbench extends Page
         };
     }
 
+    protected function termMinimumDurationRule(): Closure
+    {
+        return function (Get $get): Closure {
+            return function (string $attribute, mixed $value, Closure $fail) use ($get): void {
+                $startsOn = $get('starts_on');
+                $type = (string) ($get('type') ?? '');
+
+                if (blank($startsOn) || blank($value)) {
+                    return;
+                }
+
+                $error = $this->termMinimumDurationError($type, (string) $startsOn, (string) $value);
+                if ($error !== null) {
+                    $fail($error);
+                }
+            };
+        };
+    }
+
+    protected function termSiblingOverlapRule(?int $ignoreTermId = null): Closure
+    {
+        return function (Get $get) use ($ignoreTermId): Closure {
+            return function (string $attribute, mixed $value, Closure $fail) use ($get, $ignoreTermId): void {
+                $academicYearId = $get('academic_year_id');
+                $startsOn = $get('starts_on');
+
+                if (blank($academicYearId) || blank($startsOn) || blank($value)) {
+                    return;
+                }
+
+                $error = $this->termSiblingOverlapError(
+                    (int) $academicYearId,
+                    (string) $startsOn,
+                    (string) $value,
+                    $ignoreTermId,
+                );
+
+                if ($error !== null) {
+                    $fail($error);
+                }
+            };
+        };
+    }
+
+    protected function academicYearNoOverlapRule(?int $ignoreAcademicYearId = null): Closure
+    {
+        return function (Get $get) use ($ignoreAcademicYearId): Closure {
+            return function (string $attribute, mixed $value, Closure $fail) use ($get, $ignoreAcademicYearId): void {
+                $startsOn = $get('starts_on');
+
+                if (blank($startsOn) || blank($value)) {
+                    return;
+                }
+
+                $error = $this->overlappingAcademicYearError((string) $startsOn, (string) $value, $ignoreAcademicYearId);
+                if ($error !== null) {
+                    $fail($error);
+                }
+            };
+        };
+    }
+
+    protected function assertNoOverlappingAcademicYear(string $startsOn, string $endsOn, ?int $ignoreAcademicYearId = null): void
+    {
+        $error = $this->overlappingAcademicYearError($startsOn, $endsOn, $ignoreAcademicYearId);
+        if ($error !== null) {
+            throw ValidationException::withMessages(['ends_on' => $error]);
+        }
+    }
+
+    protected function overlappingAcademicYearError(string $startsOn, string $endsOn, ?int $ignoreAcademicYearId = null): ?string
+    {
+        $start = CarbonImmutable::parse($startsOn)->startOfDay();
+        $end = CarbonImmutable::parse($endsOn)->startOfDay();
+
+        if ($end->lte($start)) {
+            return null;
+        }
+
+        $overlapping = AcademicYear::query()
+            ->where('state', '!=', AcademicYear::StateArchived)
+            ->when($ignoreAcademicYearId !== null, fn ($query) => $query->whereKeyNot($ignoreAcademicYearId))
+            ->whereDate('starts_on', '<=', $end->toDateString())
+            ->whereDate('ends_on', '>=', $start->toDateString())
+            ->orderBy('starts_on')
+            ->first();
+
+        if (! $overlapping instanceof AcademicYear) {
+            return null;
+        }
+
+        return sprintf(
+            'These dates overlap with %s (%s to %s). Adjust the start or end date so academic years do not overlap.',
+            $overlapping->label,
+            $overlapping->starts_on->format('M j, Y'),
+            $overlapping->ends_on->format('M j, Y'),
+        );
+    }
+
+    private function assertTermDateGuards(
+        int $academicYearId,
+        string $type,
+        string $startsOn,
+        string $endsOn,
+        ?int $ignoreTermId = null,
+    ): void {
+        $durationError = $this->termMinimumDurationError($type, $startsOn, $endsOn);
+        if ($durationError !== null) {
+            throw ValidationException::withMessages(['ends_on' => $durationError]);
+        }
+
+        $overlapError = $this->termSiblingOverlapError($academicYearId, $startsOn, $endsOn, $ignoreTermId);
+        if ($overlapError !== null) {
+            throw ValidationException::withMessages(['ends_on' => $overlapError]);
+        }
+    }
+
+    private function termMinimumDurationError(string $type, string $startsOn, string $endsOn): ?string
+    {
+        $start = CarbonImmutable::parse($startsOn)->startOfDay();
+        $end = CarbonImmutable::parse($endsOn)->startOfDay();
+
+        if ($end->lte($start)) {
+            return null;
+        }
+
+        $daySpan = $start->diffInDays($end);
+
+        if (in_array($type, [Term::TypeFirstSemester, Term::TypeSecondSemester], true) && $daySpan < 7) {
+            return 'Regular semesters must span at least 7 days between the start and end dates.';
+        }
+
+        if ($type === Term::TypeSpecialTerm && $daySpan < 2) {
+            return 'Special terms must span more than 1 day between the start and end dates.';
+        }
+
+        return null;
+    }
+
+    private function termSiblingOverlapError(int $academicYearId, string $startsOn, string $endsOn, ?int $ignoreTermId = null): ?string
+    {
+        $start = CarbonImmutable::parse($startsOn)->startOfDay();
+        $end = CarbonImmutable::parse($endsOn)->startOfDay();
+
+        if ($end->lte($start)) {
+            return null;
+        }
+
+        $overlapping = Term::query()
+            ->where('academic_year_id', $academicYearId)
+            ->when($ignoreTermId !== null, fn ($query) => $query->whereKeyNot($ignoreTermId))
+            ->whereDate('starts_on', '<=', $end->toDateString())
+            ->whereDate('ends_on', '>=', $start->toDateString())
+            ->orderBy('starts_on')
+            ->first();
+
+        if (! $overlapping instanceof Term) {
+            return null;
+        }
+
+        return sprintf(
+            'These dates overlap with %s (%s to %s) in this academic year.',
+            $overlapping->typeLabel(),
+            $overlapping->starts_on->format('M j, Y'),
+            $overlapping->ends_on->format('M j, Y'),
+        );
+    }
+
     public static function canAccess(): bool
     {
 
@@ -1434,15 +1684,9 @@ class TermPlanningWorkbench extends Page
                     Select::make('window_type')->label('Period')->options(TermCalendarWindow::typeOptions())->required()->distinct(),
                     DatePicker::make('opens_on')
                         ->label('Opens on')
-                        ->native(false)
-                        ->displayFormat('M j, Y')
-                        ->suffixIcon(Heroicon::OutlinedCalendar)
                         ->required(),
                     DatePicker::make('closes_on')
                         ->label('Closes on')
-                        ->native(false)
-                        ->displayFormat('M j, Y')
-                        ->suffixIcon(Heroicon::OutlinedCalendar)
                         ->required()
                         ->afterOrEqual('opens_on'),
                     TimePicker::make('cutoff_at')->label('Close time')->timezone('UTC')->seconds(false),
@@ -1502,8 +1746,10 @@ class TermPlanningWorkbench extends Page
                 && $this->termId !== null
                 && ! $this->isTermClosed()
                 && ! $this->hasPublishedTimetable())
-            ->disabled(fn (): bool => ! $this->activeCalendarPackage() instanceof TermCalendarPackage)
-            ->tooltip(fn (): ?string => $this->activeCalendarPackage() instanceof TermCalendarPackage ? null : 'Activate the teaching calendar first.')
+            ->modal(fn (): bool => $this->activeCalendarPackage() instanceof TermCalendarPackage)
+            ->extraAttributes(fn (): array => $this->activeCalendarPackage() instanceof TermCalendarPackage
+                ? []
+                : ['aria-disabled' => 'true', 'class' => 'tala-action-disabled'])
             ->fillForm(function (): array {
                 $term = $this->selectedTerm();
                 $package = $this->activeCalendarPackage();
@@ -1572,6 +1818,16 @@ class TermPlanningWorkbench extends Page
                     throw ValidationException::withMessages([
                         'faculty_user_ids' => 'Availability reminders cannot be sent for closed or published terms.',
                     ]);
+                }
+
+                if (! $this->activeCalendarPackage() instanceof TermCalendarPackage) {
+                    Notification::make()
+                        ->title('Activate the teaching calendar first')
+                        ->body('Activate Step 1 (Calendar) before sending faculty availability reminders or setting a reply-by date.')
+                        ->warning()
+                        ->send();
+
+                    return;
                 }
 
                 $package = TermCalendarPackage::query()->where('term_id', $term->id)->find($data['package_id'] ?? null);
@@ -2105,15 +2361,18 @@ class TermPlanningWorkbench extends Page
 
     protected function undecidedDraftRun(Term $term): ?ScheduleGenerationRun
     {
-        return ScheduleGenerationRun::query()
+        $runId = ScheduleGenerationRun::query()
             ->where('term_id', $term->id)
             ->where('status', ScheduleGenerationRun::StatusUnderReview)
             ->where(function ($query): void {
                 $query->whereNull('candidate_state')
                     ->orWhereNotIn('candidate_state', ['Accepted', 'Rejected', 'Stale', 'Superseded']);
             })
-            ->latest('id')
-            ->first();
+            ->max('id');
+
+        return $runId !== null
+            ? ScheduleGenerationRun::query()->find($runId)
+            : null;
     }
 
     public function openBlockingDraft(int $runId): void
@@ -2150,7 +2409,7 @@ class TermPlanningWorkbench extends Page
 
             if ($this->hasPublishedTimetable($term) && $this->hasOfficialStudentEnrollments($term)) {
                 throw ValidationException::withMessages([
-                    'term' => 'Full timetable regeneration is blocked because active official student enrollments exist. Use Revise schedule instead.',
+                    'term' => 'Full timetable regeneration is blocked because active official student enrollments exist. Use Revise official schedule instead.',
                 ]);
             }
 
@@ -2171,7 +2430,7 @@ class TermPlanningWorkbench extends Page
                 && ! in_array($blockingRun->candidate_state, ['Rejected', 'Stale', 'Superseded'], true)
                 && ($blockingRun->candidate_state !== 'Accepted'
                     || ($blockingRun->published_at === null
-                        && ! PublishedTimetableVersion::query()->where('schedule_generation_run_id', $blockingRun->id)->exists()));
+                        && ! PublishedTimetableVersion::query()->where('schedule_run_id', $blockingRun->id)->exists()));
 
             if ($canDiscardBlocking) {
                 app(ReviewTimetableCandidate::class)->reject(
@@ -2577,13 +2836,17 @@ class TermPlanningWorkbench extends Page
 
         }
 
-        return ScheduleGenerationRun::query()
+        $latestId = ScheduleGenerationRun::query()
 
             ->where('term_id', $this->termId)
 
-            ->latest('id')
+            ->max('id');
 
-            ->first();
+        return $latestId !== null
+
+            ? ScheduleGenerationRun::query()->find($latestId)
+
+            : null;
 
     }
 
@@ -2886,9 +3149,12 @@ class TermPlanningWorkbench extends Page
         $allRuns = $term instanceof Term
             ? ScheduleGenerationRun::query()
                 ->where('term_id', $term->id)
-                ->when(! $isTimetableView, fn ($query) => $query->select(['id', 'term_id', 'status', 'candidate_state', 'created_at']))
-                ->latest('id')
+                ->select($isTimetableView
+                    ? ['id', 'term_id', 'status', 'candidate_state', 'diagnostics', 'created_at']
+                    : ['id', 'term_id', 'status', 'candidate_state', 'created_at'])
                 ->get()
+                ->sortByDesc('id')
+                ->values()
             : collect();
 
         $allCandidateRows = collect();
@@ -3179,6 +3445,25 @@ class TermPlanningWorkbench extends Page
 
         $selectedVersion?->loadMissing('scheduleRun');
 
+        $readiness = $term instanceof Term ? app(ReadyTermPlanningProjection::class)->forTerm($term) : null;
+        $stepState = $term instanceof Term
+            ? $this->stepState($term, [
+                'activePackage' => $activePackage,
+                'draftPackages' => $draftPackages,
+                'currentVersion' => $currentVersion,
+                'allRuns' => $allRuns,
+                'offerings' => $offerings,
+                'sourceClasses' => $sourceClasses,
+                'contextClasses' => $contextClasses,
+                'cohorts' => $cohorts,
+                'demands' => $demands,
+                'rooms' => $rooms,
+                'missingQualifications' => $missingQualifications,
+                'availabilityProjection' => $availabilityProjection,
+                'readiness' => $readiness,
+            ])
+            : null;
+
         return [
 
             'offerings' => $offerings,
@@ -3239,7 +3524,9 @@ class TermPlanningWorkbench extends Page
 
             'publishedMeetings' => $publishedMeetings,
 
-            'readiness' => $term instanceof Term ? app(ReadyTermPlanningProjection::class)->forTerm($term) : null,
+            'readiness' => $readiness,
+
+            'stepState' => $stepState,
 
             'counts' => $term instanceof Term ? [
 
@@ -3251,7 +3538,7 @@ class TermPlanningWorkbench extends Page
 
             ] : ['classes' => 0, 'confirmed' => 0, 'runs' => 0],
 
-            'readOnly' => auth()->user()?->hasRole(User::StaffRoleAcademicHead) ?? true,
+            'readOnly' => $this->isReadOnlyOversight(),
 
             'activeRun' => $activeRun,
 

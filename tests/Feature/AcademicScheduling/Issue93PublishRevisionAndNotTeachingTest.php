@@ -6,6 +6,7 @@ use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Actions\Scheduling\FacultyAvailabilityStatusProjection;
 use App\Actions\Scheduling\PublishedScheduleRevisionService;
 use App\Actions\Scheduling\SchedulePublishService;
+use App\Actions\Scheduling\SyncTeachingAssignmentsFromTimetable;
 use App\Actions\Scheduling\TimetableRevisionImpactGuard;
 use App\Filament\Pages\MyAvailability;
 use App\Filament\Pages\TermResources;
@@ -130,10 +131,16 @@ final class Issue93PublishRevisionAndNotTeachingTest extends TestCase
             ->where('state', ClassOfferingTeachingAssignment::StateActive)
             ->sole();
 
+        $timetableVersion = PublishedTimetableVersion::query()
+            ->where('schedule_run_id', $run->id)
+            ->sole();
+
+        $this->assertSame('AUTH-93-INITIAL', $timetableVersion->authority_reference);
         $this->assertSame($faculty->id, $assignment->faculty_user_id);
         $this->assertSame($section->term_offering_id, $assignment->term_offering_id);
         $this->assertSame($registrar->id, $assignment->assigned_by);
-        $this->assertSame('AUTH-93-INITIAL', $assignment->authority_reference);
+        $this->assertTrue($assignment->isFromPublishedTimetable());
+        $this->assertSame(SyncTeachingAssignmentsFromTimetable::authorityFor($timetableVersion), $assignment->authority_reference);
     }
 
     #[Test]

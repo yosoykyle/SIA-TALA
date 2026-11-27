@@ -89,8 +89,8 @@
             tag="a"
             :href="$card['details_url']"
             color="gray"
-            size="xs"
-            icon="heroicon-m-arrow-right"
+            size="sm"
+            icon="heroicon-o-arrow-right"
             icon-position="after"
         >
             Details

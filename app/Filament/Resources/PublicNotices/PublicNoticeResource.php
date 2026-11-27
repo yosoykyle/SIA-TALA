@@ -23,9 +23,11 @@ class PublicNoticeResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedMegaphone;
 
-    protected static ?string $navigationLabel = 'Notices';
+    protected static ?string $navigationLabel = 'Announcements';
 
-    protected static ?string $pluralModelLabel = 'Notices';
+    protected static ?string $modelLabel = 'Announcement';
+
+    protected static ?string $pluralModelLabel = 'Announcements';
 
     protected static ?int $navigationSort = 1;
 

@@ -172,7 +172,7 @@ class ViewAdmissionCycle extends ViewRecord
                         ->prefixIcon('heroicon-o-clock')
                         ->placeholder('Select date and time')
                         ->helperText(fn (): string => 'Current correction boundary: '.($this->cycle()->correction_closes_at?->timezone('Asia/Manila')->format('M j, Y · g:i A') ?? 'Not set').'. The proposed boundary must be strictly after the current boundary.')
-                        ->native(false)
+                        ->native(true)
                         ->minDate(fn (): ?string => $this->cycle()->correction_closes_at?->copy()->timezone((string) config('app.display_timezone'))->startOfDay()->format('Y-m-d H:i:s'))
                         ->required(),
                     ...$this->authoritySchema(),
@@ -294,7 +294,7 @@ class ViewAdmissionCycle extends ViewRecord
             ->timezone('Asia/Manila')
             ->prefixIcon($icon)
             ->placeholder('Not set')
-            ->native(false);
+            ->native(true);
     }
 
     /** @return list<TextInput|Textarea> */
@@ -329,7 +329,7 @@ class ViewAdmissionCycle extends ViewRecord
                         ->prefixIcon('heroicon-o-calendar')
                         ->placeholder('Select date and time')
                         ->helperText(fn (): string => 'Current public closing: '.($this->cycle()->closes_at?->timezone('Asia/Manila')->format('M j, Y · g:i A') ?? 'Not set').'.')
-                        ->native(false)
+                        ->native(true)
                         ->minDate(fn (): string => now((string) config('app.display_timezone'))->startOfDay()->format('Y-m-d H:i:s'))
                         ->required(),
                     DateTimePicker::make('correction_closes_at')
@@ -339,7 +339,7 @@ class ViewAdmissionCycle extends ViewRecord
                         ->prefixIcon('heroicon-o-clock')
                         ->placeholder('Select date and time')
                         ->helperText(fn (): string => 'Current correction boundary: '.($this->cycle()->correction_closes_at?->timezone('Asia/Manila')->format('M j, Y · g:i A') ?? 'Not set').'. Required only when the new public closing would pass the current correction boundary.')
-                        ->native(false),
+                        ->native(true),
                 ]),
             ...$this->authoritySchema(),
         ];

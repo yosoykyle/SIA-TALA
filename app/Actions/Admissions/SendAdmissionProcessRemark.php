@@ -43,7 +43,7 @@ class SendAdmissionProcessRemark
             self::StepScreening => 'Application screening',
             self::StepClearance => 'Enrollment clearance',
             self::StepReadiness => 'Ready for enrollment',
-            self::StepPayment => 'Payment verified',
+            self::StepPayment => 'Payment verification',
             self::StepEnrolled => 'Officially enrolled',
         ];
     }

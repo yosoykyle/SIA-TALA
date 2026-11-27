@@ -623,7 +623,7 @@ final class Issue93ZeroUnitAndRoomGuardsTest extends TestCase
             'sequence' => 1,
         ]);
 
-        Livewire::withQueryParams(['termId' => $term->id])
+        Livewire::withQueryParams(['termId' => $term->id, 'classesView' => 'classes'])
             ->test(TermClasses::class)
             ->callTableAction('editClass', $section, [
                 'capacity' => 35,

@@ -17,6 +17,10 @@ class ManagePublicContent
     public function create(string $model, User $actor, array $data): PublicNotice|FaqEntry
     {
         Gate::forUser($actor)->authorize('create', $model);
+        $orderColumn = $model === PublicNotice::class ? 'display_order' : 'sort_order';
+        if (! array_key_exists($orderColumn, $data) || $data[$orderColumn] === null || $data[$orderColumn] === '') {
+            $data[$orderColumn] = ((int) $model::query()->max($orderColumn)) + 1;
+        }
         $data = $this->validate($model, $data);
 
         return DB::transaction(function () use ($model, $actor, $data): PublicNotice|FaqEntry {
@@ -33,6 +37,10 @@ class ManagePublicContent
     public function save(PublicNotice|FaqEntry $record, User $actor, array $data, int $expectedRevision): PublicNotice|FaqEntry
     {
         Gate::forUser($actor)->authorize('update', $record);
+        $orderColumn = $record instanceof PublicNotice ? 'display_order' : 'sort_order';
+        if (! array_key_exists($orderColumn, $data) || $data[$orderColumn] === null || $data[$orderColumn] === '') {
+            $data[$orderColumn] = max(1, (int) $record->{$orderColumn});
+        }
         $data = $this->validate($record::class, $data);
 
         return DB::transaction(function () use ($record, $actor, $data, $expectedRevision): PublicNotice|FaqEntry {
@@ -208,22 +216,77 @@ class ManagePublicContent
         }, attempts: 5);
     }
 
+    /** @param array<int|string> $orderedIds */
+    public function reorderNotices(array $orderedIds, User $actor): void
+    {
+        $this->reorderCollection(PublicNotice::class, $orderedIds, $actor);
+    }
+
+    /** @param array<int|string> $orderedIds */
+    public function reorderFaqs(array $orderedIds, User $actor): void
+    {
+        $this->reorderCollection(FaqEntry::class, $orderedIds, $actor);
+    }
+
+    /**
+     * @param  class-string<PublicNotice>|class-string<FaqEntry>  $model
+     * @param  array<int|string>  $orderedIds
+     */
+    private function reorderCollection(string $model, array $orderedIds, User $actor): void
+    {
+        $ids = array_values(array_unique(array_map('intval', $orderedIds)));
+        if ($ids === []) {
+            return;
+        }
+
+        $orderColumn = $model === PublicNotice::class ? 'display_order' : 'sort_order';
+
+        DB::transaction(function () use ($model, $ids, $actor, $orderColumn): void {
+            $records = $model::query()
+                ->whereIn('id', $ids)
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
+
+            foreach ($ids as $index => $id) {
+                $record = $records->get($id);
+                if (! $record instanceof PublicNotice && ! $record instanceof FaqEntry) {
+                    continue;
+                }
+
+                Gate::forUser($actor->fresh())->authorize('update', $record);
+                $record->setAttribute($orderColumn, $index + 1);
+                $record->updated_by = $actor->id;
+                $record->save();
+            }
+
+            activity('public_content')
+                ->causedBy($actor)
+                ->event('reordered')
+                ->withProperties([
+                    'model' => $model,
+                    'ordered_ids' => $ids,
+                ])
+                ->log('Public content reordered');
+        }, attempts: 5);
+    }
+
     /** @param class-string<PublicNotice>|class-string<FaqEntry> $model */
     private function validate(string $model, array $data): array
     {
         $rules = $model === PublicNotice::class ? [
-            'title' => ['required', 'string', 'max:160'],
+            'title' => ['required', 'string', 'max:120'],
             'message' => ['required', 'string', 'max:500'],
             'display_order' => ['required', 'integer', 'min:1'],
-            'link_label' => ['nullable', 'required_with:link_url', 'string', 'max:80'],
+            'link_label' => ['nullable', 'required_with:link_url', 'string', 'max:60'],
             'link_url' => ['nullable', 'required_with:link_label', 'string', 'max:2048', 'url:https', function (string $attribute, mixed $value, \Closure $fail): void {
                 if (parse_url($value, PHP_URL_USER) !== null || parse_url($value, PHP_URL_PASS) !== null || preg_match('/[\\\\\x00-\x20]/', $value)) {
                     $fail('Use a safe HTTPS link without embedded credentials or control characters.');
                 }
             }],
         ] : [
-            'question' => ['required', 'string', 'max:160'],
-            'answer' => ['required', 'string', 'max:3000'],
+            'question' => ['required', 'string', 'max:120'],
+            'answer' => ['required', 'string', 'max:2000'],
             'category' => ['required', Rule::in(array_keys(FaqEntry::categoryOptions()))],
             'sort_order' => ['required', 'integer', 'min:1'],
         ];

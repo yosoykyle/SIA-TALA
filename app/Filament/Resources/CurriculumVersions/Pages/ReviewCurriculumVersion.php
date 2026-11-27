@@ -1219,17 +1219,19 @@ class ReviewCurriculumVersion extends Page
             ->modalWidth(Width::Large)
             ->stickyModalHeader()
             ->stickyModalFooter()
-            ->modalHeading(fn (): string => 'Add batch to '.$this->loadedCurriculum()->batchLabel())
-            ->modalDescription('Assign an additional Academic Year batch to this Active curriculum without duplicating its subjects.')
+            ->modalHeading(fn (): string => $this->loadedCurriculum()->batches->isEmpty()
+                ? 'Assign starting batch to '.$this->loadedCurriculum()->batchLabel()
+                : 'Add batch to '.$this->loadedCurriculum()->batchLabel())
+            ->modalDescription('Assign an Academic Year batch to this curriculum without duplicating its subjects.')
             ->modalSubmitActionLabel(fn (): string => $this->loadedCurriculum()->program?->is_active === false
                 ? 'Activate and proceed'
-                : 'Add batch')
+                : ($this->loadedCurriculum()->batches->isEmpty() ? 'Assign batch' : 'Add batch'))
             ->fillForm(fn (): array => [
                 'academic_year_id' => CurriculumVersionForm::suggestedBatchId($this->curriculumVersion()->program_id),
                 'activate_program_if_inactive' => false,
             ])
             ->schema(fn (): array => CurriculumVersionForm::addBatchFields($this->loadedCurriculum()))
-            ->visible(fn (): bool => $this->loadedCurriculum()->state === CurriculumVersion::StateActive
+            ->visible(fn (): bool => in_array($this->loadedCurriculum()->state, [CurriculumVersion::StateDraft, CurriculumVersion::StateActive], true)
                 && $this->currentUserCan('copy'))
             ->action(function (array $data): void {
                 $curriculum = $this->curriculumVersion();
@@ -1358,8 +1360,11 @@ class ReviewCurriculumVersion extends Page
             ->disabled(fn (): bool => $this->reviewReadinessBlockers() !== [])
             ->modalHeading(fn (): string => 'Publish '.$this->loadedCurriculum()->batchLabel().'?')
             ->modalDescription(function (): string {
-                $program = $this->loadedCurriculum()->program;
-                $base = "Subjects can't be edited after publishing. Once published, this curriculum becomes Active and its assigned batch becomes eligible in Admissions.";
+                $curriculum = $this->loadedCurriculum();
+                $program = $curriculum->program;
+                $base = $curriculum->batches->isNotEmpty()
+                    ? "Subjects can't be edited after publishing. Once published, this curriculum becomes Active and its assigned batches become eligible in Admissions."
+                    : "Subjects can't be edited after publishing. Publishing with a starting batch makes this curriculum eligible in Admissions right away. Publishing without a batch activates the curriculum, but it will not appear in Admissions until a batch is assigned.";
 
                 if ($program instanceof Program && ! $program->is_active) {
                     return "{$program->code} is currently inactive. Activate the program to proceed. {$base}";
@@ -1367,20 +1372,61 @@ class ReviewCurriculumVersion extends Page
 
                 return $base;
             })
-            ->schema(function (): array {
-                $program = $this->loadedCurriculum()->program;
-
-                if (! $program instanceof Program || $program->is_active) {
-                    return [];
-                }
+            ->fillForm(function (): array {
+                $curriculum = $this->loadedCurriculum();
 
                 return [
-                    Checkbox::make('activate_program_if_inactive')
+                    'starting_academic_year_id' => $curriculum->batches->isEmpty()
+                        ? CurriculumVersionForm::suggestedBatchId($curriculum->program_id)
+                        : null,
+                    'publish_without_batch' => false,
+                    'activate_program_if_inactive' => false,
+                ];
+            })
+            ->schema(function (): array {
+                $curriculum = $this->loadedCurriculum();
+                $program = $curriculum->program;
+                $fields = [];
+
+                if ($curriculum->batches->isEmpty()) {
+                    $fields[] = CurriculumVersionForm::applyInlineAcademicYearCreation(
+                        Select::make('starting_academic_year_id')
+                            ->label('Starting batch (Academic Year)')
+                            ->options(fn (): array => CurriculumVersionForm::availableBatchOptions($curriculum->program_id))
+                            ->placeholder('Select starting Academic Year batch')
+                            ->helperText('Choose the first incoming batch for this curriculum, or use + to add an academic year.')
+                            ->native(true)
+                            ->nullable()
+                            ->live()
+                            ->disabled(fn (Get $get): bool => (bool) $get('publish_without_batch'))
+                            ->required(fn (Get $get): bool => ! (bool) $get('publish_without_batch'))
+                            ->afterStateUpdated(function (mixed $state, Set $set): void {
+                                if (filled($state)) {
+                                    $set('publish_without_batch', false);
+                                }
+                            }),
+                    );
+
+                    $fields[] = Checkbox::make('publish_without_batch')
+                        ->label('Publish without a batch for now (will not appear in Admissions until a batch is assigned)')
+                        ->default(false)
+                        ->live()
+                        ->afterStateUpdated(function (bool $state, Set $set): void {
+                            if ($state) {
+                                $set('starting_academic_year_id', null);
+                            }
+                        });
+                }
+
+                if ($program instanceof Program && ! $program->is_active) {
+                    $fields[] = Checkbox::make('activate_program_if_inactive')
                         ->label('Activate program and proceed')
                         ->helperText("Marks {$program->code} · {$program->name} Active before publishing this curriculum.")
                         ->default(false)
-                        ->accepted(),
-                ];
+                        ->accepted();
+                }
+
+                return $fields;
             })
             ->modalSubmitActionLabel(fn (): string => $this->loadedCurriculum()->program?->is_active === false
                 ? 'Activate and proceed'
@@ -1401,36 +1447,81 @@ class ReviewCurriculumVersion extends Page
                     return;
                 }
 
-                $program = $curriculum->program;
+                $needsBatchDecision = $curriculum->batches->isEmpty();
+                $publishWithoutBatch = (bool) ($data['publish_without_batch'] ?? false);
+                $selectedAcademicYearId = (! $publishWithoutBatch && filled($data['starting_academic_year_id'] ?? null))
+                    ? (int) $data['starting_academic_year_id']
+                    : null;
 
-                if ($program instanceof Program && ! $program->is_active) {
-                    if (! (bool) ($data['activate_program_if_inactive'] ?? false)) {
-                        Notification::make()
-                            ->title('Program activation required')
-                            ->body("{$program->code} is inactive. Confirm Activate program and proceed to publish.")
-                            ->danger()
-                            ->send();
-                        $this->halt();
+                if ($needsBatchDecision && ! $publishWithoutBatch && $selectedAcademicYearId === null) {
+                    Notification::make()
+                        ->title('Starting batch decision required')
+                        ->body('Select a starting batch (Academic Year) or check Publish without a batch for now.')
+                        ->danger()
+                        ->send();
+                    $this->halt();
 
-                        return;
-                    }
-
-                    Gate::forUser($this->actor())->authorize('update', $program);
-                    $program->update(['is_active' => true]);
-
-                    activity()
-                        ->performedOn($program)
-                        ->causedBy($this->actor())
-                        ->event('program_activated_for_curriculum_publish')
-                        ->withProperties(['curriculum_version_id' => $curriculum->id])
-                        ->log('Program activated during curriculum publish');
+                    return;
                 }
 
+                $program = $curriculum->program;
+
+                if ($program instanceof Program && ! $program->is_active && ! (bool) ($data['activate_program_if_inactive'] ?? false)) {
+                    Notification::make()
+                        ->title('Program activation required')
+                        ->body("{$program->code} is inactive. Confirm Activate program and proceed to publish.")
+                        ->danger()
+                        ->send();
+                    $this->halt();
+
+                    return;
+                }
+
+                $lifecycle = app(CurriculumVersionLifecycleService::class);
+                $actor = $this->actor();
+
                 try {
-                    $activated = app(CurriculumVersionLifecycleService::class)->activate(
-                        actor: $this->actor(),
-                        curriculumVersion: $curriculum,
-                    );
+                    $activated = DB::transaction(function () use (
+                        $actor,
+                        $curriculum,
+                        $program,
+                        $selectedAcademicYearId,
+                        $lifecycle,
+                    ): CurriculumVersion {
+                        if ($program instanceof Program && ! $program->is_active) {
+                            Gate::forUser($actor)->authorize('update', $program);
+                            $program->update(['is_active' => true]);
+
+                            activity()
+                                ->performedOn($program)
+                                ->causedBy($actor)
+                                ->event('program_activated_for_curriculum_publish')
+                                ->withProperties(['curriculum_version_id' => $curriculum->id])
+                                ->log('Program activated during curriculum publish');
+                        }
+
+                        if ($selectedAcademicYearId !== null) {
+                            $academicYear = AcademicYear::query()->find($selectedAcademicYearId);
+
+                            if (! $academicYear instanceof AcademicYear) {
+                                throw ValidationException::withMessages([
+                                    'starting_academic_year_id' => 'Choose an existing Academic Year for the starting batch.',
+                                ]);
+                            }
+
+                            $lifecycle->addBatch(
+                                actor: $actor,
+                                curriculum: $curriculum,
+                                academicYear: $academicYear,
+                                activateProgramIfInactive: false,
+                            );
+                        }
+
+                        return $lifecycle->activate(
+                            actor: $actor,
+                            curriculumVersion: $curriculum,
+                        );
+                    });
                 } catch (ValidationException $exception) {
                     Notification::make()
                         ->title('Curriculum not published')
@@ -1445,10 +1536,13 @@ class ReviewCurriculumVersion extends Page
                 $this->flushRenderCache();
                 $this->record = $activated;
                 $this->activeStep = 'year';
+                $publishedWithBatch = ! $needsBatchDecision || $selectedAcademicYearId !== null;
 
                 Notification::make()
                     ->title('Curriculum published')
-                    ->body('This curriculum is now Active and ready for assigned batches.')
+                    ->body($publishedWithBatch
+                        ? 'This curriculum is now Active and eligible in Admissions for its assigned batches.'
+                        : 'This curriculum is now Active, but it will not appear in Admissions until a batch is assigned.')
                     ->success()
                     ->send();
             });
@@ -2283,8 +2377,10 @@ class ReviewCurriculumVersion extends Page
             'selectedEntriesSummary' => $selectedEntriesSummary,
             'copyBanner' => $copyBanner,
             'assignedBatches' => $assignedBatches,
-            'showAssignedBatchesStrip' => $assignedBatches !== [] || $curriculum->state === CurriculumVersion::StateActive,
-            'canAddBatch' => $curriculum->state === CurriculumVersion::StateActive && $this->currentUserCan('copy'),
+            'showAssignedBatchesStrip' => $assignedBatches !== []
+                || in_array($curriculum->state, [CurriculumVersion::StateDraft, CurriculumVersion::StateActive], true),
+            'canAddBatch' => in_array($curriculum->state, [CurriculumVersion::StateDraft, CurriculumVersion::StateActive], true)
+                && $this->currentUserCan('copy'),
             'reviewData' => $reviewData,
             'selectedSubject' => $selectedEntry,
             'selectedSubjectIsShared' => $selectedEntry instanceof CurriculumEntry
@@ -2392,7 +2488,7 @@ class ReviewCurriculumVersion extends Page
                 'label' => 'Batch '.CurriculumVersion::formatBatchShort($batch->academicYear),
                 'academic_year_label' => (string) $batch->academicYear->label,
                 'students_count' => $studentsCount,
-                'added_at' => $batch->created_at?->format('M j, Y') ?? '—',
+                'added_at' => $batch->created_at?->format('M j, Y') ?? 'Not recorded',
                 'in_use' => $inUse,
                 'can_remove' => $canManageBatches && ! $inUse,
             ];
@@ -2530,6 +2626,14 @@ class ReviewCurriculumVersion extends Page
                     'semesters' => $semesters,
                 ];
             }
+        }
+
+        if ($this->isEditableDraft() && $curriculum->batches->isEmpty()) {
+            $warnings[] = [
+                'scope' => 'Batch',
+                'message' => 'No starting batch assigned yet. This curriculum will not appear in Admissions until a batch is assigned.',
+                'year' => null,
+            ];
         }
 
         if ($this->isEditableDraft() && $curriculum->program instanceof Program && ! $curriculum->program->is_active) {
@@ -2747,7 +2851,7 @@ class ReviewCurriculumVersion extends Page
 
         return [
             'id' => $entry->id,
-            'code' => (string) ($spec?->course?->code ?? '—'),
+            'code' => (string) ($spec?->course?->code ?? '-'),
             'title' => (string) ($spec?->title ?? 'Subject details unavailable'),
             'units' => $spec instanceof CourseSpecification
                 ? $this->formatUnits((float) $spec->credit_units)
@@ -2883,7 +2987,7 @@ class ReviewCurriculumVersion extends Page
                 $hasChanges = true;
             }
 
-            $code = (string) ($entry->courseSpecification?->course?->code ?? '—');
+            $code = (string) ($entry->courseSpecification?->course?->code ?? '-');
             $items[] = [
                 'code' => $code,
                 'title' => (string) ($entry->courseSpecification?->title ?? 'Untitled subject'),

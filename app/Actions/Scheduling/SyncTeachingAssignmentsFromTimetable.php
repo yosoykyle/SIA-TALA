@@ -115,7 +115,7 @@ class SyncTeachingAssignmentsFromTimetable
                 ->each(fn (ClassOfferingTeachingAssignment $assignment) => $this->assignments->endCoFaculty($assignment, $actor));
 
             if ($plan['add_roster']) {
-                $this->rosters->execute($section, $actor);
+                $this->rosters->execute($section, $actor, notifySubmissionRequired: false);
             }
         }
 

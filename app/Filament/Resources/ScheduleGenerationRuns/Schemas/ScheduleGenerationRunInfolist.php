@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\ScheduleGenerationRuns\Schemas;
 
 use App\Actions\Scheduling\ScheduleSolverRecoveryService;
+use App\Actions\Scheduling\TimetableConflictDiagnosticService;
 use App\Filament\Resources\CalendarEvents\CalendarEventResource;
 use App\Filament\Resources\FacultyQualifications\FacultyQualificationResource;
 use App\Filament\Resources\FacultyTermLoadOverrides\FacultyTermLoadOverrideResource;
@@ -141,11 +142,29 @@ class ScheduleGenerationRunInfolist
             ? CarbonImmutable::parse((string) $validatedAtRaw)->timezone('Asia/Manila')->format('M j, Y, g:i A')
             : DisplayDateTime::format($record->updated_at ?? $record->created_at);
 
+        $conflictDiagnosis = [
+            'has_conflicts' => false,
+            'summary' => '',
+            'items' => [],
+        ];
+
+        if (! $wasPublished
+            && ! $isActiveRun
+            && (! ($evidence['validated'] ?? false)
+                || $hardConflicts > 0
+                || $record->candidate_state === 'Stale'
+                || in_array($record->status, [
+                    ScheduleGenerationRun::StatusBlocked,
+                    ScheduleGenerationRun::StatusFailed,
+                ], true))) {
+            $conflictDiagnosis = app(TimetableConflictDiagnosticService::class)->diagnose($record, $record->term);
+        }
+
         $relativeGap = self::relativeGap($record);
-        $hardConstraintRows = self::hardConstraintRows($record);
+        $findingRows = self::findingRows($record, $contextTermId ?? $record->term_id, $conflictDiagnosis);
+        $hardConstraintRows = self::hardConstraintRows($record, $findingRows);
         $qualityRows = self::qualityMeasureRows($record);
         $hasQualitySection = $qualityRows !== [] || self::solverStatistics($record) !== [] || is_numeric($record->objective_value);
-        $findingRows = self::findingRows($record, $contextTermId ?? $record->term_id);
 
         $failure = $record->finalSolverFailure();
         $showFailureDiagnostics = $record->status === ScheduleGenerationRun::StatusFailed || $failure !== [];
@@ -167,7 +186,9 @@ class ScheduleGenerationRunInfolist
         ] : null;
 
         $blockerMessage = $record->status === ScheduleGenerationRun::StatusBlocked
-            ? ($failure['message'] ?? data_get($record->diagnostics, 'solver_result.summary.message', 'Review the validation findings below and correct the linked source records before generating again.'))
+            ? (($conflictDiagnosis['has_conflicts'] ?? false) && ($conflictDiagnosis['summary'] ?? '') !== ''
+                ? (string) $conflictDiagnosis['summary']
+                : ($failure['message'] ?? data_get($record->diagnostics, 'solver_result.summary.message', 'Review the validation findings below and correct the linked source records before generating again.')))
             : null;
 
         $termParts = array_filter([
@@ -214,6 +235,7 @@ class ScheduleGenerationRunInfolist
             'qualityRows' => $qualityRows,
             'hasQualitySection' => $hasQualitySection,
             'findingRows' => $findingRows,
+            'conflictDiagnosis' => $conflictDiagnosis,
             'showFailureDiagnostics' => $showFailureDiagnostics,
             'failureInfo' => [
                 'classification' => filled($failure['classification'] ?? null) ? Str::headline((string) $failure['classification']) : 'Service failure',
@@ -254,34 +276,170 @@ class ScheduleGenerationRunInfolist
     /**
      * @param  array<string, mixed>  $finding
      * @param  array<string, Collection<int, Model>>  $preloaded
+     * @param  array{demands?:array<int,string>,faculty?:array<int,string>,rooms?:array<int,string>,cohorts?:array<int,string>}  $entityLabels
      * @return array{label:string,url:string|null}
      */
-    public static function sourcePresentation(array $finding, ?int $termId = null, array $preloaded = []): array
+    public static function sourcePresentation(array $finding, ?int $termId = null, array $preloaded = [], array $entityLabels = []): array
     {
         $type = (string) ($finding['source_type'] ?? 'source');
         $id = is_numeric($finding['source_id'] ?? null) ? (int) $finding['source_id'] : null;
         $field = filled($finding['source_field'] ?? null) ? (string) $finding['source_field'] : null;
-        $label = Str::headline($type).($id !== null ? ' #'.$id : '').($field !== null ? ' / '.$field : '');
 
         if ($id === null) {
-            return ['label' => $label, 'url' => null];
+            return ['label' => self::humanSourceTypeFallback($type, $field), 'url' => null];
         }
 
         $context = in_array($type, ['scheduling_demand', 'room', 'faculty_qualification'], true) && $termId !== null
             ? ['termId' => $termId]
             : [];
+
+        $resolvedRecord = match ($type) {
+            'schedule_run' => $preloaded['schedule_run'][$id] ?? ScheduleGenerationRun::query()->find($id),
+            'scheduling_demand' => $preloaded['scheduling_demand'][$id] ?? SchedulingDemand::query()
+                ->with([
+                    'courseComponent.courseSpecification.course:id,code',
+                    'sectionDeliveryGroup.section:id,class_reference,code',
+                    'sectionDeliveryGroup.section.cohorts:id,reference',
+                    'termOffering.curriculumEntry.courseSpecification.course:id,code',
+                ])
+                ->find($id),
+            'room' => $preloaded['room'][$id] ?? Room::query()->find($id),
+            'term' => $preloaded['term'][$id] ?? Term::query()->find($id),
+            'faculty_qualification' => $preloaded['faculty_qualification'][$id] ?? FacultyQualification::query()
+                ->with(['faculty:id,name', 'course:id,code'])
+                ->find($id),
+            'faculty_term_load_override' => $preloaded['faculty_term_load_override'][$id] ?? FacultyTermLoadOverride::query()
+                ->with('faculty:id,name')
+                ->find($id),
+            'calendar_event' => $preloaded['calendar_event'][$id] ?? CalendarEvent::query()->find($id),
+            default => null,
+        };
+
+        $label = self::humanSourceLabel($type, $id, $resolvedRecord, $entityLabels, $field);
+
         $url = match ($type) {
-            'schedule_run' => self::viewUrl($preloaded['schedule_run'][$id] ?? ScheduleGenerationRun::query()->find($id), ScheduleGenerationRunResource::class),
-            'scheduling_demand' => self::viewUrl($preloaded['scheduling_demand'][$id] ?? SchedulingDemand::query()->find($id), SchedulingDemandResource::class, $context),
-            'room' => self::viewUrl($preloaded['room'][$id] ?? Room::query()->find($id), RoomResource::class, $context),
-            'term' => self::viewUrl($preloaded['term'][$id] ?? Term::query()->find($id), TermResource::class),
-            'faculty_qualification' => self::viewUrl($preloaded['faculty_qualification'][$id] ?? FacultyQualification::query()->find($id), FacultyQualificationResource::class, $context),
-            'faculty_term_load_override' => self::viewUrl($preloaded['faculty_term_load_override'][$id] ?? FacultyTermLoadOverride::query()->find($id), FacultyTermLoadOverrideResource::class),
-            'calendar_event' => self::editUrl($preloaded['calendar_event'][$id] ?? CalendarEvent::query()->find($id), CalendarEventResource::class, $termId !== null ? ['termId' => $termId] : []),
+            'schedule_run' => self::viewUrl($resolvedRecord, ScheduleGenerationRunResource::class),
+            'scheduling_demand' => self::viewUrl($resolvedRecord, SchedulingDemandResource::class, $context),
+            'room' => self::viewUrl($resolvedRecord, RoomResource::class, $context),
+            'term' => self::viewUrl($resolvedRecord, TermResource::class),
+            'faculty_qualification' => self::viewUrl($resolvedRecord, FacultyQualificationResource::class, $context),
+            'faculty_term_load_override' => self::viewUrl($resolvedRecord, FacultyTermLoadOverrideResource::class),
+            'calendar_event' => self::editUrl($resolvedRecord, CalendarEventResource::class, $termId !== null ? ['termId' => $termId] : []),
             default => null,
         };
 
         return ['label' => $label, 'url' => $url];
+    }
+
+    /**
+     * @param  array{demands?:array<int,string>,faculty?:array<int,string>,rooms?:array<int,string>,cohorts?:array<int,string>}  $entityLabels
+     */
+    private static function humanSourceLabel(
+        string $type,
+        int $id,
+        ?Model $record,
+        array $entityLabels,
+        ?string $field = null,
+    ): string {
+        if ($type === 'scheduling_demand') {
+            if (! empty($entityLabels['demands'][$id])) {
+                return $entityLabels['demands'][$id];
+            }
+            if ($record instanceof SchedulingDemand) {
+                $courseCode = trim((string) (
+                    $record->courseComponent?->courseSpecification?->course?->code
+                    ?: $record->termOffering?->curriculumEntry?->courseSpecification?->course?->code
+                    ?: data_get($record->source_snapshot, 'course_code', '')
+                ));
+                $section = $record->sectionDeliveryGroup?->section;
+                $sectionRef = $section && $section->relationLoaded('cohorts') && $section->cohorts->isNotEmpty()
+                    ? $section->cohorts->pluck('reference')->filter()->unique()->implode(', ')
+                    : trim((string) ($section?->class_reference ?: $section?->code ?: ''));
+                $comp = match (strtoupper((string) ($record->courseComponent?->component_type ?? ''))) {
+                    'LECTURE' => 'Lecture',
+                    'LABORATORY' => 'Lab',
+                    default => '',
+                };
+                $base = implode(' · ', array_filter([$courseCode, $sectionRef]));
+                if ($base !== '') {
+                    return $comp !== '' ? sprintf('%s (%s)', $base, $comp) : $base;
+                }
+            }
+
+            return 'Scheduled class';
+        }
+
+        if ($type === 'room') {
+            if (! empty($entityLabels['rooms'][$id])) {
+                return 'Room '.$entityLabels['rooms'][$id];
+            }
+            if ($record instanceof Room) {
+                $code = trim((string) $record->code);
+                $name = trim((string) $record->name);
+                if ($code !== '') {
+                    return $name !== '' && strcasecmp($code, $name) !== 0 ? "Room {$code} · {$name}" : "Room {$code}";
+                }
+            }
+
+            return 'Campus room';
+        }
+
+        if ($type === 'faculty_qualification') {
+            if ($record instanceof FacultyQualification) {
+                $parts = array_filter([
+                    $record->faculty?->name,
+                    $record->course?->code,
+                ]);
+                if ($parts !== []) {
+                    return implode(' · ', $parts);
+                }
+            }
+
+            return 'Faculty qualification';
+        }
+
+        if ($type === 'faculty_term_load_override') {
+            if ($record instanceof FacultyTermLoadOverride && $record->faculty?->name) {
+                return $record->faculty->name.' · Load override';
+            }
+
+            return 'Faculty load override';
+        }
+
+        if ($type === 'term') {
+            return $record instanceof Term && filled($record->label) ? (string) $record->label : 'Term settings';
+        }
+
+        if ($type === 'calendar_event') {
+            if ($record instanceof CalendarEvent && filled($record->event_type)) {
+                return Str::headline((string) $record->event_type);
+            }
+
+            return 'Calendar block';
+        }
+
+        if ($type === 'schedule_run') {
+            return 'Attempt #'.$id;
+        }
+
+        return self::humanSourceTypeFallback($type, $field);
+    }
+
+    private static function humanSourceTypeFallback(string $type, ?string $field = null): string
+    {
+        $base = match ($type) {
+            'scheduling_demand' => 'Scheduled class',
+            'room' => 'Campus room',
+            'faculty_qualification' => 'Faculty qualification',
+            'faculty_term_load_override' => 'Faculty load override',
+            'calendar_event' => 'Calendar block',
+            'schedule_run' => 'Timetable attempt',
+            default => Str::headline($type),
+        };
+
+        return $field !== null && ! str_contains($field, '_') && $type === 'source'
+            ? $base.' · '.Str::headline($field)
+            : $base;
     }
 
     /**
@@ -529,13 +687,14 @@ class ScheduleGenerationRunInfolist
     }
 
     /**
+     * @param  list<array<string, mixed>>|null  $precomputedFindings
      * @return list<array{label:string,status:string,color:string,notes:string}>
      */
-    private static function hardConstraintRows(ScheduleGenerationRun $record): array
+    private static function hardConstraintRows(ScheduleGenerationRun $record, ?array $precomputedFindings = null): array
     {
         $snapshot = self::inputSnapshot($record);
         $constraints = data_get($snapshot, 'constraint_profile.hard_constraints', $snapshot['hard_constraints'] ?? []);
-        $findings = self::findingRows($record, $record->term_id);
+        $findings = $precomputedFindings ?? self::findingRows($record, $record->term_id);
         $validation = self::currentRevalidation($record);
         $summary = $validation !== [] ? self::currentSummary($record) : self::solverSummary($record);
         $accepted = ($summary['status'] ?? null) === 'accepted'
@@ -707,21 +866,57 @@ class ScheduleGenerationRunInfolist
     }
 
     /**
+     * @param  array<string, mixed>|null  $conflictDiagnosis
      * @return list<array<string, mixed>>
      */
-    private static function findingRows(ScheduleGenerationRun $record, ?int $termId = null): array
-    {
+    private static function findingRows(
+        ScheduleGenerationRun $record,
+        ?int $termId = null,
+        ?array $conflictDiagnosis = null,
+    ): array {
         $latestValidation = self::currentRevalidation($record);
         $findings = $latestValidation !== []
             ? ($latestValidation['findings'] ?? null)
             : (self::solverResult($record)['findings'] ?? null);
 
-        if (! is_array($findings)) {
-            return [];
-        }
+        $validFindings = is_array($findings)
+            ? collect($findings)->filter(fn (mixed $finding): bool => is_array($finding))->values()
+            : collect();
 
         $effectiveTermId = $termId ?? $record->term_id;
-        $validFindings = collect($findings)->filter(fn (mixed $finding): bool => is_array($finding))->values();
+        $diagnosedItems = is_array($conflictDiagnosis['items'] ?? null) ? $conflictDiagnosis['items'] : [];
+        $hasDiagnosedItems = $diagnosedItems !== [];
+
+        $diagnosticRows = [];
+        foreach ($diagnosedItems as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+            $involved = is_array($item['involved'] ?? null) ? array_values(array_filter($item['involved'])) : [];
+            $fixes = is_array($item['how_to_fix'] ?? null) ? array_values(array_filter($item['how_to_fix'])) : [];
+            $parts = [
+                trim((string) ($item['title'] ?? '')),
+                $involved !== [] ? 'Involved: '.implode(', ', array_slice($involved, 0, 4)).'.' : '',
+                trim((string) ($item['why'] ?? '')),
+                $fixes !== [] ? 'What you can do: '.implode(' ', array_slice($fixes, 0, 2)) : '',
+            ];
+            $diagnosticRows[] = [
+                'code' => 'diagnosed_conflict',
+                'severity' => ($item['severity'] ?? 'danger') === 'danger' ? 'blocking' : 'warning',
+                'constraint' => (string) ($item['category'] ?? 'Conflict'),
+                'constraint_label' => (string) ($item['category'] ?? 'Conflict'),
+                'message' => implode(' ', array_filter($parts)),
+                'source_label' => ! empty($item['action_label'])
+                    ? (string) $item['action_label']
+                    : ($involved !== [] ? (string) $involved[0] : 'Timetable inputs'),
+                'source_url' => ! empty($item['action_url']) ? (string) $item['action_url'] : null,
+            ];
+        }
+
+        if ($validFindings->isEmpty()) {
+            return $diagnosticRows;
+        }
+
         $idsByType = $validFindings
             ->filter(fn (array $finding): bool => is_numeric($finding['source_id'] ?? null))
             ->groupBy(fn (array $finding): string => (string) ($finding['source_type'] ?? 'source'))
@@ -729,17 +924,54 @@ class ScheduleGenerationRunInfolist
 
         $preloaded = [
             'schedule_run' => $idsByType->has('schedule_run') ? ScheduleGenerationRun::query()->whereIn('id', $idsByType->get('schedule_run'))->get()->keyBy('id') : collect(),
-            'scheduling_demand' => $idsByType->has('scheduling_demand') ? SchedulingDemand::query()->whereIn('id', $idsByType->get('scheduling_demand'))->get()->keyBy('id') : collect(),
+            'scheduling_demand' => $idsByType->has('scheduling_demand')
+                ? SchedulingDemand::query()
+                    ->whereIn('id', $idsByType->get('scheduling_demand'))
+                    ->with([
+                        'courseComponent.courseSpecification.course:id,code',
+                        'sectionDeliveryGroup.section:id,class_reference,code',
+                        'sectionDeliveryGroup.section.cohorts:id,reference',
+                        'termOffering.curriculumEntry.courseSpecification.course:id,code',
+                    ])
+                    ->get()
+                    ->keyBy('id')
+                : collect(),
             'room' => $idsByType->has('room') ? Room::query()->whereIn('id', $idsByType->get('room'))->get()->keyBy('id') : collect(),
             'term' => $idsByType->has('term') ? Term::query()->whereIn('id', $idsByType->get('term'))->get()->keyBy('id') : collect(),
-            'faculty_qualification' => $idsByType->has('faculty_qualification') ? FacultyQualification::query()->whereIn('id', $idsByType->get('faculty_qualification'))->get()->keyBy('id') : collect(),
-            'faculty_term_load_override' => $idsByType->has('faculty_term_load_override') ? FacultyTermLoadOverride::query()->whereIn('id', $idsByType->get('faculty_term_load_override'))->get()->keyBy('id') : collect(),
+            'faculty_qualification' => $idsByType->has('faculty_qualification')
+                ? FacultyQualification::query()
+                    ->whereIn('id', $idsByType->get('faculty_qualification'))
+                    ->with(['faculty:id,name', 'course:id,code'])
+                    ->get()
+                    ->keyBy('id')
+                : collect(),
+            'faculty_term_load_override' => $idsByType->has('faculty_term_load_override')
+                ? FacultyTermLoadOverride::query()
+                    ->whereIn('id', $idsByType->get('faculty_term_load_override'))
+                    ->with('faculty:id,name')
+                    ->get()
+                    ->keyBy('id')
+                : collect(),
             'calendar_event' => $idsByType->has('calendar_event') ? CalendarEvent::query()->whereIn('id', $idsByType->get('calendar_event'))->get()->keyBy('id') : collect(),
         ];
 
-        return $validFindings
-            ->map(function (array $finding) use ($effectiveTermId, $preloaded): array {
-                $source = self::sourcePresentation($finding, $effectiveTermId, $preloaded);
+        $entityLabels = app(TimetableConflictDiagnosticService::class)->entityLabelsForRun($record);
+
+        $genericEnvelopeCodes = ['solver_infeasible', 'solver_unassigned', 'solver_reason'];
+
+        $rawRows = $validFindings
+            ->reject(function (array $finding) use ($hasDiagnosedItems, $genericEnvelopeCodes): bool {
+                if (! $hasDiagnosedItems) {
+                    return false;
+                }
+
+                $code = strtolower((string) ($finding['code'] ?? ''));
+                $sourceType = (string) ($finding['source_type'] ?? 'schedule_run');
+
+                return in_array($code, $genericEnvelopeCodes, true) && $sourceType === 'schedule_run';
+            })
+            ->map(function (array $finding) use ($effectiveTermId, $preloaded, $entityLabels): array {
+                $source = self::sourcePresentation($finding, $effectiveTermId, $preloaded, $entityLabels);
                 $constraint = (string) ($finding['constraint'] ?? '');
 
                 return [
@@ -749,7 +981,10 @@ class ScheduleGenerationRunInfolist
                     'source_url' => $source['url'],
                 ];
             })
+            ->values()
             ->all();
+
+        return [...$diagnosticRows, ...$rawRows];
     }
 
     /**

@@ -84,16 +84,50 @@
         <div class="landing-dot-matrix"></div>
         <div class="landing-aurora-blob landing-aurora-blob--sage"></div>
         <x-tala-ambient-backdrop variant="auth" class="landing-ambient" />
-        <div class="landing-trinkets-fg">
+        <div class="landing-trinkets-fg" data-trinkets-fg>
             @foreach ($fgTrinkets as [$shape, $fx, $fy, $fsize, $ftone, $fopacity, $fmotion, $fdur, $fdelay])
+                @php
+                    $colorDelay = round((($fx * 0.08) + ($fy * 0.14)) * -1, 2);
+                @endphp
                 <span
                     class="landing-fg-trinket"
                     data-shape="{{ $shape }}"
                     data-tone="{{ $ftone }}"
                     data-motion="{{ $fmotion }}"
-                    style="--fx: {{ $fx }}%; --fy: {{ $fy }}%; --fsize: {{ $fsize }}px; --fopacity: {{ $fopacity }}; --fdur: {{ $fdur }}s; --fdelay: {{ $fdelay }}s;"
+                    style="--fx: {{ $fx }}%; --fy: {{ $fy }}%; --fsize: {{ $fsize }}px; --fopacity: {{ $fopacity }}; --fdur: {{ $fdur }}s; --fdelay: {{ $fdelay }}s; --fcolor-delay: {{ $colorDelay }}s;"
                 >
-                    {!! $fgShapes[$shape] !!}
+                    <span class="landing-fg-trinket__glyph" data-trinket-glyph>{!! $fgShapes[$shape] !!}</span>
+                </span>
+            @endforeach
+        </div>
+        @php
+            $burstSparkPool = [
+                ['spark', 'green', 14],
+                ['star', 'gold', 12],
+                ['dot', 'crimson', 8],
+                ['spark', 'gold', 15],
+                ['plus', 'green', 12],
+                ['dot', 'gold', 9],
+                ['star', 'crimson', 13],
+                ['ring', 'green', 13],
+                ['spark', 'crimson', 11],
+                ['dot', 'green', 8],
+                ['star', 'gold', 14],
+                ['plus', 'crimson', 11],
+                ['spark', 'green', 13],
+                ['dot', 'gold', 7],
+            ];
+        @endphp
+        <div class="hero-gravity-fx" data-hero-gravity-fx aria-hidden="true">
+            <span class="hero-gravity-ring" data-hero-gravity-ring></span>
+            @foreach ($burstSparkPool as [$sShape, $sTone, $sSize])
+                <span
+                    class="hero-burst-spark"
+                    data-hero-burst-spark
+                    data-tone="{{ $sTone }}"
+                    style="--ssize: {{ $sSize }}px;"
+                >
+                    {!! $fgShapes[$sShape] !!}
                 </span>
             @endforeach
         </div>
@@ -162,9 +196,10 @@
 
                 <div class="landing-navbar__actions">
                     @if ($workspaceActionData !== null)
-                        <a class="btn btn-secondary-custom public-sign-in" href="{{ $workspaceActionData['url'] }}">
+                        <a class="btn btn-secondary-custom public-sign-in public-sign-in--workspace" href="{{ $workspaceActionData['url'] }}">
                             <x-filament::icon icon="heroicon-o-squares-2x2" class="tala-public-icon" aria-hidden="true" />
-                            <span>{{ $workspaceActionData['label'] }}</span>
+                            <span class="public-sign-in__label-full">{{ $workspaceActionData['label'] }}</span>
+                            <span class="public-sign-in__label-compact" aria-hidden="true">Workspace</span>
                         </a>
                     @else
                         <a class="btn btn-secondary-custom public-sign-in" href="{{ route('public.sign-in') }}">
@@ -534,67 +569,183 @@
             </div>
         </section>
 
-        <section class="section-block programs-section" id="programs" data-navbar-contrast-surface="theme" aria-labelledby="programs-title">
+        @php
+            $programsUnavailable = in_array('programs', $unavailable, true);
+            $totalPrograms = $totalProgramCount ?? $programs->count();
+            $visibleProgramCount = $programs->count();
+            $visibleAcceptingCount = $programs->whereIn('id', $acceptingProgramIds)->count();
+            $allOpenProgramCount = $openProgramCount ?? $visibleAcceptingCount;
+            $allNotOpenProgramCount = $notOpenProgramCount ?? max(0, $totalPrograms - $allOpenProgramCount);
+            $activeDuration = $programFilters['duration'] ?? null;
+            $activeAvailability = $programFilters['availability'] ?? null;
+            $hasActiveProgramFilters = $programFilters !== [];
+            $showDurationFilter = count($programDurations) > 1;
+        @endphp
+
+        <section
+            class="section-block programs-section"
+            id="programs"
+            data-navbar-contrast-surface="theme"
+            aria-labelledby="programs-title"
+            data-program-catalog
+            data-catalog-complete="{{ $hasActiveProgramFilters ? 'false' : 'true' }}"
+            data-catalog-total="{{ $totalPrograms }}"
+            data-catalog-open-total="{{ $allOpenProgramCount }}"
+            data-catalog-base-url="{{ route('home') }}"
+        >
             <div class="container">
                 <div class="catalog-heading" data-reveal>
                     <div>
                         <h2 class="section-title" id="programs-title">Explore programs</h2>
-                        <p class="section-lead">Compare program length and whether applications are open.</p>
+                        <p class="section-lead">See program lengths and which programs are currently accepting applications.</p>
                     </div>
-                    @if ($programs->isNotEmpty())
-                        @php
-                            $acceptingProgramCount = $programs->whereIn('id', $acceptingProgramIds)->count();
-                        @endphp
-                        <p class="catalog-summary">
-                            <span><strong>{{ $programs->count() }}</strong> {{ Str::plural('program', $programs->count()) }}</span>
-                            <span class="catalog-summary__sep" aria-hidden="true">·</span>
-                            <span><strong>{{ $acceptingProgramCount }}</strong> accepting applications</span>
-                        </p>
-                    @endif
                 </div>
 
-                @if (count($programDurations) > 0 && ! in_array('programs', $unavailable, true))
-                    <form class="program-filters" method="GET" action="{{ route('home') }}#programs" aria-label="Filter Programs" data-reveal>
-                        <div class="program-filters__field">
-                            <label class="form-label" for="program-duration">Program length</label>
-                            <select class="form-select" id="program-duration" name="duration">
-                                <option value="">All lengths</option>
-                                @foreach ($programDurations as $duration)
-                                    <option value="{{ $duration }}" @selected(($programFilters['duration'] ?? null) === $duration)>{{ $duration }} {{ Str::plural('year', $duration) }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                        <div class="program-filters__field">
-                            <label class="form-label" for="program-availability">Admission availability</label>
-                            <select class="form-select" id="program-availability" name="availability">
-                                <option value="">All Programs</option>
-                                <option value="open" @selected(($programFilters['availability'] ?? null) === 'open')>Applications open</option>
-                                <option value="enquire" @selected(($programFilters['availability'] ?? null) === 'enquire')>Ask Admissions</option>
-                            </select>
-                        </div>
-                        <div class="program-filters__actions">
-                            <button class="btn btn-secondary-custom" type="submit">Filter Programs</button>
-                            @if ($programFilters !== [])
-                                <a class="text-link program-filters__clear" href="{{ route('home') }}#programs">Clear filters</a>
-                            @endif
-                        </div>
-                    </form>
+                @if ($totalPrograms > 0 && ! $programsUnavailable)
+                    <search aria-label="Filter programs" data-reveal>
+                        <form class="program-filters" method="GET" action="{{ route('home') }}#programs" data-program-filters>
+                            <div class="program-filters__controls">
+                                @if ($showDurationFilter)
+                                    <fieldset class="program-filter-group">
+                                        <legend class="visually-hidden">Program length</legend>
+                                        <div class="program-segmented">
+                                            <div class="program-segmented__option">
+                                                <input
+                                                    class="visually-hidden program-segmented__input"
+                                                    type="radio"
+                                                    id="program-duration-all"
+                                                    name="duration"
+                                                    value=""
+                                                    @checked($activeDuration === null)
+                                                >
+                                                <label class="program-segmented__pill" for="program-duration-all">
+                                                    <span>All lengths</span>
+                                                    <span class="program-segmented__count" aria-hidden="true">{{ $totalPrograms }}</span>
+                                                </label>
+                                            </div>
+                                            @foreach ($programDurations as $duration)
+                                                @php
+                                                    $durationCount = ($programDurationCounts ?? [])[$duration] ?? null;
+                                                @endphp
+                                                <div class="program-segmented__option">
+                                                    <input
+                                                        class="visually-hidden program-segmented__input"
+                                                        type="radio"
+                                                        id="program-duration-{{ $duration }}"
+                                                        name="duration"
+                                                        value="{{ $duration }}"
+                                                        @checked($activeDuration === $duration)
+                                                    >
+                                                    <label class="program-segmented__pill" for="program-duration-{{ $duration }}">
+                                                        <span>{{ $duration }} {{ Str::plural('year', $duration) }}</span>
+                                                        @if ($durationCount !== null)
+                                                            <span class="program-segmented__count" aria-hidden="true">{{ $durationCount }}</span>
+                                                        @endif
+                                                    </label>
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    </fieldset>
+                                @endif
+
+                                <fieldset class="program-filter-group">
+                                    <legend class="visually-hidden">Admissions availability</legend>
+                                    <div class="program-segmented">
+                                        <div class="program-segmented__option">
+                                            <input
+                                                class="visually-hidden program-segmented__input"
+                                                type="radio"
+                                                id="program-availability-all"
+                                                name="availability"
+                                                value=""
+                                                @checked($activeAvailability === null)
+                                            >
+                                            <label class="program-segmented__pill" for="program-availability-all">
+                                                <span>All</span>
+                                                <span class="program-segmented__count" aria-hidden="true">{{ $totalPrograms }}</span>
+                                            </label>
+                                        </div>
+                                        <div class="program-segmented__option">
+                                            <input
+                                                class="visually-hidden program-segmented__input"
+                                                type="radio"
+                                                id="program-availability-open"
+                                                name="availability"
+                                                value="open"
+                                                @checked($activeAvailability === 'open')
+                                            >
+                                            <label class="program-segmented__pill" for="program-availability-open">
+                                                <span class="program-segmented__dot program-segmented__dot--open" aria-hidden="true"></span>
+                                                <span>Applications open</span>
+                                                <span class="program-segmented__count" aria-hidden="true">{{ $allOpenProgramCount }}</span>
+                                            </label>
+                                        </div>
+                                        <div class="program-segmented__option">
+                                            <input
+                                                class="visually-hidden program-segmented__input"
+                                                type="radio"
+                                                id="program-availability-enquire"
+                                                name="availability"
+                                                value="enquire"
+                                                @checked($activeAvailability === 'enquire')
+                                            >
+                                            <label class="program-segmented__pill" for="program-availability-enquire">
+                                                <span>Not currently open</span>
+                                                <span class="program-segmented__count" aria-hidden="true">{{ $allNotOpenProgramCount }}</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </fieldset>
+                            </div>
+
+                            <div class="program-filters__actions">
+                                <p class="catalog-summary" data-program-summary>
+                                    @if ($hasActiveProgramFilters)
+                                        <span>Showing <strong>{{ $visibleProgramCount }}</strong> of <strong>{{ $totalPrograms }}</strong> {{ Str::plural('program', $totalPrograms) }}</span>
+                                    @else
+                                        <span><strong>{{ $visibleProgramCount }}</strong> {{ Str::plural('program', $visibleProgramCount) }}</span>
+                                        <span class="catalog-summary__sep" aria-hidden="true">·</span>
+                                        <span><strong>{{ $visibleAcceptingCount }}</strong> accepting applications</span>
+                                    @endif
+                                </p>
+                                <button class="btn btn-secondary-custom program-filters__submit" type="submit">Apply filters</button>
+                                <a
+                                    class="program-filters__clear"
+                                    href="{{ route('home') }}#programs"
+                                    data-program-filter-clear
+                                    @if (! $hasActiveProgramFilters) hidden @endif
+                                >
+                                    <x-filament::icon icon="heroicon-o-x-mark" class="tala-public-icon" aria-hidden="true" />
+                                    <span>Clear filters</span>
+                                </a>
+                            </div>
+                        </form>
+                    </search>
+                    <p class="visually-hidden" role="status" aria-live="polite" data-program-filter-status></p>
                 @endif
 
-                <ul class="program-list list-unstyled mb-0">
-                    @forelse ($programs as $program)
+                <ul class="program-list list-unstyled mb-0" data-program-list data-reveal>
+                    @foreach ($programs as $program)
                         @php
                             $isAccepting = in_array($program->id, $acceptingProgramIds, true);
                         @endphp
-                        <li class="program-row bento-card {{ $isAccepting ? 'program-row--open' : '' }}" data-spotlight data-reveal>
+                        <li
+                            class="program-row bento-card {{ $isAccepting ? 'program-row--open' : '' }}"
+                            style="view-transition-name: program-card-{{ $program->id }};"
+                            data-spotlight
+                            data-program-card
+                            data-program-id="{{ $program->id }}"
+                            data-duration="{{ $program->duration_years }}"
+                            data-availability="{{ $isAccepting ? 'open' : 'enquire' }}"
+                        >
                             <div class="program-row__header">
                                 <span class="program-duration">
                                     <x-filament::icon icon="heroicon-o-clock" class="tala-public-icon" aria-hidden="true" />
                                     <span>{{ $program->duration_years }} {{ Str::plural('year', $program->duration_years) }}</span>
                                 </span>
                                 <span class="program-availability {{ $isAccepting ? 'is-open' : '' }}">
-                                    <x-filament::icon :icon="$isAccepting ? 'heroicon-o-check-circle' : 'heroicon-o-chat-bubble-left-right'" class="tala-public-icon" aria-hidden="true" />
-                                    <span>{{ $isAccepting ? 'Applications open' : 'Ask Admissions' }}</span>
+                                    <x-filament::icon :icon="$isAccepting ? 'heroicon-o-check-circle' : 'heroicon-o-calendar-days'" class="tala-public-icon" aria-hidden="true" />
+                                    <span>{{ $isAccepting ? 'Applications open' : 'Not currently open' }}</span>
                                 </span>
                             </div>
 
@@ -619,12 +770,27 @@
                                 </a>
                             </div>
                         </li>
-                    @empty
-                        <li class="program-empty bento-card">
+                    @endforeach
+
+                    <li
+                        class="program-empty bento-card"
+                        data-program-empty
+                        @if ($programs->isNotEmpty()) hidden @endif
+                    >
+                        <div class="program-empty__copy">
                             <x-filament::icon icon="heroicon-o-information-circle" class="tala-public-icon" aria-hidden="true" />
-                            <span>{{ in_array('programs', $unavailable, true) ? 'Program information is temporarily unavailable. Contact Admissions for guidance.' : ($programFilters !== [] ? 'No Programs match these filters. Clear filters to see the current Programs.' : 'Contact Admissions for program information.') }}</span>
-                        </li>
-                    @endforelse
+                            <span data-program-empty-message>{{ $programsUnavailable ? 'Program information is temporarily unavailable. Contact Admissions for guidance.' : ($hasActiveProgramFilters || $totalPrograms > 0 ? 'No programs match these filters. Clear filters to view all offered programs.' : 'Contact Admissions for program information.') }}</span>
+                        </div>
+                        @if ($totalPrograms > 0 && ! $programsUnavailable)
+                            <a
+                                class="btn btn-secondary-custom btn-pill-action program-empty__reset"
+                                href="{{ route('home') }}#programs"
+                                data-program-filter-clear
+                            >
+                                <span>Clear filters</span>
+                            </a>
+                        @endif
+                    </li>
                 </ul>
             </div>
         </section>
@@ -848,7 +1014,43 @@
     <footer class="footer-section">
         <div class="container">
             <div class="footer-shell" data-navbar-contrast-surface="theme">
-                <div class="footer-shell__ambient" aria-hidden="true"></div>
+                @php
+                    $footerRisingTrinkets = [
+                        // [shape, fx%, sizePx, tone, opacity, durSec, negDelaySec, driftPx, rotDeg, travelPx]
+                        ['spark', 7, 18, 'green', 0.56, 6.4, -0.8, 18, 28, -460],
+                        ['dot', 14, 11, 'gold', 0.48, 5.6, -3.1, -14, 0, -420],
+                        ['plane', 21, 21, 'crimson', 0.44, 7.8, -5.2, 26, 18, -500],
+                        ['star', 28, 15, 'gold', 0.54, 6.1, -1.9, -18, -32, -450],
+                        ['ring', 35, 19, 'green', 0.46, 8.4, -6.4, 12, 24, -490],
+                        ['plus', 42, 14, 'crimson', 0.42, 5.9, -2.7, -16, 65, -430],
+                        ['spark', 49, 22, 'gold', 0.58, 7.2, -4.5, 20, -22, -510],
+                        ['arc', 56, 20, 'green', 0.46, 6.8, -0.4, -22, 20, -460],
+                        ['dot', 63, 12, 'crimson', 0.46, 5.4, -3.9, 15, 0, -410],
+                        ['star', 70, 17, 'green', 0.54, 7.5, -5.8, -19, 34, -480],
+                        ['squiggle', 77, 24, 'gold', 0.48, 8.8, -2.2, 22, -16, -500],
+                        ['plus', 84, 15, 'green', 0.50, 6.3, -4.1, -15, -58, -440],
+                        ['plane', 90, 20, 'gold', 0.52, 7.1, -1.3, -24, -14, -490],
+                        ['ring', 95, 14, 'crimson', 0.40, 6.6, -5.0, -12, 26, -450],
+                    ];
+                @endphp
+                <div class="footer-shell__ambient" aria-hidden="true">
+                    <span class="footer-aurora-wave footer-aurora-wave--green"></span>
+                    <span class="footer-aurora-wave footer-aurora-wave--gold"></span>
+                    <span class="footer-aurora-wave footer-aurora-wave--crimson"></span>
+                    <div class="footer-trinket-stream" data-footer-trinket-stream>
+                        @foreach ($footerRisingTrinkets as [$rShape, $rX, $rSize, $rTone, $rOpacity, $rDur, $rDelay, $rDrift, $rRot, $rTravel])
+                            <span
+                                class="footer-rising-trinket"
+                                data-footer-trinket
+                                data-shape="{{ $rShape }}"
+                                data-tone="{{ $rTone }}"
+                                style="--fx: {{ $rX }}%; --fsize: {{ $rSize }}px; --fopacity: {{ $rOpacity }}; --fdur: {{ $rDur }}s; --fdelay: {{ $rDelay }}s; --fdrift: {{ $rDrift }}px; --frot: {{ $rRot }}deg; --ftravel: {{ $rTravel }}px;"
+                            >
+                                {!! $fgShapes[$rShape] !!}
+                            </span>
+                        @endforeach
+                    </div>
+                </div>
 
                 <div class="footer-shell__inner">
                     <div class="footer-top-band">
@@ -942,7 +1144,7 @@
                     <div class="modal-body">
                         <dl class="program-facts">
                             <div class="program-fact"><dt>Program length:&nbsp;</dt><dd>{{ $program->duration_years }} {{ Str::plural('year', $program->duration_years) }}</dd></div>
-                            <div class="program-fact"><dt>Admission:&nbsp;</dt><dd>{{ $isAccepting ? 'Applications open' : 'Ask Admissions about applying' }}</dd></div>
+                            <div class="program-fact"><dt>Admissions:&nbsp;</dt><dd>{{ $isAccepting ? 'Applications open' : 'Not currently open for online applications' }}</dd></div>
                         </dl>
                         @if (filled($program->description))
                             <p class="program-modal-description">{{ $program->description }}</p>
@@ -954,7 +1156,7 @@
                             @else
                                 <a class="btn btn-secondary-custom" href="{{ route('home', ['modal' => 'support']) }}">Contact Admissions</a>
                             @endif
-                            <a class="btn btn-secondary-custom" href="{{ route('home', $programFilters) }}#programs" data-bs-dismiss="modal">Back to all Programs</a>
+                            <a class="btn btn-secondary-custom" href="{{ route('home', $programFilters) }}#programs" data-bs-dismiss="modal" data-program-modal-back>Back to all programs</a>
                         </div>
                     </div>
                 </div>

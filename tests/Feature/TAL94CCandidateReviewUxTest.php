@@ -631,7 +631,7 @@ final class TAL94CCandidateReviewUxTest extends TestCase
             ],
             'input_hash' => hash('sha256', (string) Str::uuid()),
             'solver_version' => 'tal94c-test-solver',
-            'model_version' => 'tal94-demand-v2',
+            'model_version' => ScheduleGenerationRun::ContractVersion,
             'diagnostics' => [
                 'solver_result' => [
                     'marker' => 'original-result-preserved',

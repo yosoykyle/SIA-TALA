@@ -524,6 +524,7 @@ const snapshotHasValidationErrors = (snapshot) => {
 
 const AUTH_SUBMIT_METHODS = new Set([
     'authenticate',
+    'activate',
     'request',
     'resetPassword',
     'register',
@@ -666,3 +667,239 @@ window.setUpSpaModeUnsavedDataChangesAlert = ({ resolveLivewireComponentUsing, $
         window.removeEventListener('beforeunload', beforeUnloadHandler);
     });
 };
+
+// Always-on inline drag-and-drop + keyboard ArrowUp/ArrowDown reordering for Public Content tables.
+const initTalaInlineSortableTables = () => {
+    document.querySelectorAll('.tala-inline-sortable-table table tbody').forEach((tbody) => {
+        if (tbody.dataset.talaSortableBound === 'true' || ! tbody.querySelector('[data-tala-drag-handle]')) {
+            return;
+        }
+        tbody.dataset.talaSortableBound = 'true';
+
+        let draggedRow = null;
+
+        const commitOrder = () => {
+            const wireRoot = tbody.closest('[wire\\:id]');
+            const wireId = wireRoot?.getAttribute('wire:id');
+            if (! wireId || ! window.Livewire?.find) {
+                return;
+            }
+            const orderedIds = Array.from(tbody.querySelectorAll('[data-tala-drag-handle][data-record-id]'))
+                .map((el) => el.getAttribute('data-record-id'))
+                .filter(Boolean);
+            if (orderedIds.length > 0) {
+                window.Livewire.find(wireId)?.call('reorderTable', orderedIds);
+            }
+        };
+
+        const clearDropHighlights = () => {
+            tbody.querySelectorAll('tr[data-tala-drop-target]').forEach((row) => {
+                row.removeAttribute('data-tala-drop-target');
+                row.style.outline = '';
+                row.style.outlineOffset = '';
+            });
+        };
+
+        tbody.addEventListener('dragstart', (event) => {
+            const handle = event.target instanceof Element ? event.target.closest('[data-tala-drag-handle]') : null;
+            const row = handle?.closest('tr');
+            if (! handle || ! row) {
+                event.preventDefault();
+                return;
+            }
+            draggedRow = row;
+            if (event.dataTransfer) {
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', handle.getAttribute('data-record-id') ?? '');
+            }
+            row.style.opacity = '0.55';
+        });
+
+        tbody.addEventListener('dragend', () => {
+            if (draggedRow) {
+                draggedRow.style.opacity = '';
+                draggedRow = null;
+            }
+            clearDropHighlights();
+        });
+
+        tbody.addEventListener('dragover', (event) => {
+            if (! draggedRow) {
+                return;
+            }
+            const targetRow = event.target instanceof Element ? event.target.closest('tr') : null;
+            if (! targetRow || targetRow.parentElement !== tbody || targetRow === draggedRow) {
+                return;
+            }
+            event.preventDefault();
+            clearDropHighlights();
+            targetRow.setAttribute('data-tala-drop-target', 'true');
+            targetRow.style.outline = '2px solid #2f7d3b';
+            targetRow.style.outlineOffset = '-2px';
+        });
+
+        tbody.addEventListener('drop', (event) => {
+            if (! draggedRow) {
+                return;
+            }
+            const targetRow = event.target instanceof Element ? event.target.closest('tr') : null;
+            clearDropHighlights();
+            if (! targetRow || targetRow.parentElement !== tbody || targetRow === draggedRow) {
+                return;
+            }
+            event.preventDefault();
+            const rect = targetRow.getBoundingClientRect();
+            const insertAfter = event.clientY > rect.top + rect.height / 2;
+            tbody.insertBefore(draggedRow, insertAfter ? targetRow.nextSibling : targetRow);
+            commitOrder();
+        });
+
+        tbody.addEventListener('keydown', (event) => {
+            const handle = event.target instanceof Element ? event.target.closest('[data-tala-drag-handle]') : null;
+            if (! handle || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) {
+                return;
+            }
+            const row = handle.closest('tr');
+            if (! row || row.parentElement !== tbody) {
+                return;
+            }
+            const sibling = event.key === 'ArrowUp' ? row.previousElementSibling : row.nextElementSibling;
+            if (! sibling || sibling.tagName !== 'TR') {
+                return;
+            }
+            event.preventDefault();
+            tbody.insertBefore(row, event.key === 'ArrowUp' ? sibling : sibling.nextSibling);
+            handle.focus();
+            commitOrder();
+        });
+    });
+};
+
+// Live character counters for inputs/textareas with `data-tala-char-limit`.
+const initTalaCharCounters = () => {
+    document.querySelectorAll('[data-tala-char-limit]').forEach((control) => {
+        if (! (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement)) {
+            return;
+        }
+        if (control.dataset.talaCounterBound === 'true') {
+            return;
+        }
+        control.dataset.talaCounterBound = 'true';
+
+        const limit = Number.parseInt(control.getAttribute('data-tala-char-limit') ?? '', 10);
+        if (! Number.isFinite(limit) || limit <= 0) {
+            return;
+        }
+
+        const fieldWrapper = control.closest('.fi-fo-field, .fi-fo-field-wrp');
+        const labelSlot = fieldWrapper?.querySelector('.fi-fo-field-label-ctn, .fi-fo-field-label-col') ?? fieldWrapper;
+        if (! labelSlot) {
+            return;
+        }
+
+        const badge = document.createElement('span');
+        badge.className = 'tala-char-counter ml-auto text-xs font-medium text-zinc-500 tabular-nums dark:text-zinc-400';
+        const update = () => {
+            const len = Array.from(control.value ?? '').length;
+            badge.textContent = `${len} / ${limit}`;
+        };
+        update();
+        control.addEventListener('input', update);
+        labelSlot.appendChild(badge);
+    });
+};
+
+// Lightweight local draft recovery for Public Content create/edit forms.
+const initTalaPublicContentDraftRecovery = () => {
+    if (! /^\/admin\/public-content\/(public-notices|faq-entries)\/(create|\d+\/edit)$/.test(window.location.pathname)) {
+        return;
+    }
+
+    const form = document.querySelector('.fi-body form');
+    if (! (form instanceof HTMLFormElement) || form.dataset.talaDraftBound === 'true') {
+        return;
+    }
+    form.dataset.talaDraftBound = 'true';
+
+    const storageKey = `tala_public_content_draft:${window.location.pathname}`;
+    const readFields = () => {
+        const data = {};
+        form.querySelectorAll('input[id^="form."], textarea[id^="form."], select[id^="form."], input[id^="data."], textarea[id^="data."], select[id^="data."]').forEach((el) => {
+            if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
+                data[el.id] = el.value;
+            }
+        });
+        return data;
+    };
+
+    try {
+        const savedRaw = window.localStorage.getItem(storageKey);
+        if (savedRaw) {
+            const saved = JSON.parse(savedRaw);
+            const current = readFields();
+            const hasDiff = Object.keys(saved).some((k) => typeof saved[k] === 'string' && saved[k] !== '' && saved[k] !== (current[k] ?? ''));
+            if (hasDiff && ! form.querySelector('[data-tala-draft-banner]')) {
+                const banner = document.createElement('div');
+                banner.setAttribute('data-tala-draft-banner', 'true');
+                banner.className = 'mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900 dark:border-emerald-800/60 dark:bg-emerald-950/50 dark:text-emerald-100';
+                banner.innerHTML = '<span>Recovered an unsaved local draft from this browser.</span><span class="flex items-center gap-2"><button type="button" data-restore-draft class="font-semibold underline">Restore draft</button><button type="button" data-discard-draft class="text-zinc-600 underline dark:text-zinc-300">Discard</button></span>';
+                banner.querySelector('[data-restore-draft]')?.addEventListener('click', () => {
+                    Object.entries(saved).forEach(([id, value]) => {
+                        const input = document.getElementById(id);
+                        if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement || input instanceof HTMLSelectElement) {
+                            input.value = String(value);
+                            input.dispatchEvent(new Event('input', { bubbles: true }));
+                            input.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                    });
+                    banner.remove();
+                });
+                banner.querySelector('[data-discard-draft]')?.addEventListener('click', () => {
+                    window.localStorage.removeItem(storageKey);
+                    banner.remove();
+                });
+                form.prepend(banner);
+            }
+        }
+    } catch {
+        // Ignore storage errors in restricted environments.
+    }
+
+    const persistDraft = () => {
+        try {
+            window.localStorage.setItem(storageKey, JSON.stringify(readFields()));
+        } catch {
+            // Ignore storage errors.
+        }
+    };
+
+    const clearDraft = () => {
+        try {
+            window.localStorage.removeItem(storageKey);
+        } catch {
+            // Ignore storage errors.
+        }
+    };
+
+    form.addEventListener('input', persistDraft);
+    form.addEventListener('change', persistDraft);
+    form.addEventListener('submit', clearDraft);
+    form.querySelectorAll('a[href]').forEach((link) => {
+        if ((link.textContent ?? '').trim().toLowerCase() === 'cancel') {
+            link.addEventListener('click', clearDraft);
+        }
+    });
+};
+
+const bootTalaPublicContentEnhancements = () => {
+    initTalaInlineSortableTables();
+    initTalaCharCounters();
+    initTalaPublicContentDraftRecovery();
+};
+
+bootTalaPublicContentEnhancements();
+document.addEventListener('DOMContentLoaded', bootTalaPublicContentEnhancements);
+document.addEventListener('livewire:navigated', bootTalaPublicContentEnhancements);
+if (document.body) {
+    new MutationObserver(() => bootTalaPublicContentEnhancements()).observe(document.body, { childList: true, subtree: true });
+}

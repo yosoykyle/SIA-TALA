@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\PublicNotices\Schemas;
 
-use App\Models\PublicNotice;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -15,19 +14,42 @@ class PublicNoticeForm
     public static function configure(Schema $schema): Schema
     {
         return $schema->components([
-            Section::make('Notice draft')
-                ->description('System Administration owns this public guidance. Saving published content creates an updated draft; the live notice stays unchanged until you publish.')
+            Section::make('Announcement draft')
+                ->description('Save as a draft to review later, or publish directly to the public landing page. Leave start and end times blank to publish immediately until unpublished.')
                 ->schema([
-                    TextInput::make('title')->required()->maxLength(160)->columnSpanFull(),
-                    Textarea::make('message')->required()->maxLength(500)->rows(4)->helperText('Plain text only; 500 characters maximum.')->columnSpanFull(),
-                    TextInput::make('display_order')->label('Display position')->integer()->required()->minValue(1)
-                        ->default(fn (): int => ((int) PublicNotice::query()->max('display_order')) + 1)
-                        ->helperText('The next position is suggested from saved notices. You can change it; overlapping published windows must use different positions.'),
-                    DateTimePicker::make('visible_from')->label('Visible from')->timezone('Asia/Manila')->seconds(false),
-                    DateTimePicker::make('visible_until')->label('Visible until')->timezone('Asia/Manila')->seconds(false)
-                        ->afterOrEqual(fn (Get $get): ?string => filled($get('visible_from')) ? 'visible_from' : null),
-                    TextInput::make('link_label')->label('Link label (optional)')->maxLength(80)->requiredWith('link_url'),
-                    TextInput::make('link_url')->label('HTTPS link (optional)')->rules(['nullable', 'url:https'])->maxLength(2048)->requiredWith('link_label'),
+                    TextInput::make('title')
+                        ->required()
+                        ->maxLength(120)
+                        ->helperText('120 characters maximum.')
+                        ->extraInputAttributes(['data-tala-char-limit' => '120'])
+                        ->columnSpanFull(),
+                    Textarea::make('message')
+                        ->required()
+                        ->maxLength(500)
+                        ->rows(4)
+                        ->helperText('Plain text only; 500 characters maximum.')
+                        ->extraInputAttributes(['data-tala-char-limit' => '500'])
+                        ->columnSpanFull(),
+                    DateTimePicker::make('visible_from')->label('Visible from (Asia/Manila)')->timezone('Asia/Manila')->seconds(false)
+                        ->helperText('Optional start time in Asia/Manila. Leave blank to go live as soon as you publish.'),
+                    DateTimePicker::make('visible_until')->label('Visible until (Asia/Manila)')->timezone('Asia/Manila')->seconds(false)
+                        ->afterOrEqual(fn (Get $get): ?string => filled($get('visible_from')) ? 'visible_from' : null)
+                        ->helperText('Optional end time in Asia/Manila. Leave blank to stay live until unpublished.'),
+                    TextInput::make('link_url')
+                        ->label('HTTPS link (optional)')
+                        ->rules(['nullable', 'url:https'])
+                        ->maxLength(2048)
+                        ->live(onBlur: true)
+                        ->helperText('Optional HTTPS link (e.g. https://...).')
+                        ->columnSpanFull(),
+                    TextInput::make('link_label')
+                        ->label('Link label')
+                        ->maxLength(60)
+                        ->visible(fn (Get $get): bool => filled($get('link_url')))
+                        ->required(fn (Get $get): bool => filled($get('link_url')))
+                        ->helperText('60 characters maximum.')
+                        ->extraInputAttributes(['data-tala-char-limit' => '60'])
+                        ->columnSpanFull(),
                 ])->columns(2)->columnSpanFull(),
         ]);
     }

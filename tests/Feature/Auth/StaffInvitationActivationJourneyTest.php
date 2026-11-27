@@ -2,14 +2,19 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Actions\SystemAdministration\StaffInvitationService;
+use App\Filament\Pages\Auth\StaffActivation;
 use App\Models\OperationalEvent;
 use App\Models\User;
+use Filament\Facades\Filament;
 use Illuminate\Contracts\Notifications\Dispatcher;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
+use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -123,8 +128,12 @@ class StaffInvitationActivationJourneyTest extends TestCase
             'token' => 'malformed',
         ]))
             ->assertOk()
+            ->assertSee('fi-auth-layout has-media media-top', false)
             ->assertSee('Ask a System Administrator to resend the invitation.')
-            ->assertDontSee('name="password"', false);
+            ->assertDontSee('autocomplete="new-password"', false)
+            ->assertDontSee('name="password"', false)
+            ->assertDontSee('faculty@example.test', false)
+            ->assertDontSee('Ada Lovelace', false);
 
         $this->travel(61)->minutes();
         $this->get(route('staff-invitations.activate', [
@@ -132,8 +141,94 @@ class StaffInvitationActivationJourneyTest extends TestCase
             'token' => $result->plainTextToken,
         ]))
             ->assertOk()
+            ->assertSee('fi-auth-layout has-media media-top', false)
             ->assertSee('Ask a System Administrator to resend the invitation.')
-            ->assertDontSee('name="password"', false);
+            ->assertDontSee('autocomplete="new-password"', false)
+            ->assertDontSee('name="password"', false)
+            ->assertDontSee('faculty@example.test', false)
+            ->assertDontSee('Ada Lovelace', false);
+    }
+
+    public function test_staff_activation_auth_designer_page_activates_logs_in_and_redirects_to_mfa_setup(): void
+    {
+        Notification::fake();
+        $actor = $this->administrator();
+        $service = app(StaffInvitationService::class);
+        $result = $service->invite($actor, $this->invitationPayload());
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        Filament::bootCurrentPanel();
+        RateLimiter::clear('livewire-rate-limiter:'.sha1(StaffActivation::class.'|activate|127.0.0.1'));
+
+        Livewire::withQueryParams(['token' => $result->plainTextToken])
+            ->test(StaffActivation::class, ['invitation' => $result->invitation])
+            ->assertSet('isUsable', true)
+            ->assertSee('Ada Lovelace')
+            ->assertSee('faculty@example.test')
+            ->assertSee('Faculty')
+            ->fillForm([
+                'password' => 'a secure staff passphrase 2026',
+                'passwordConfirmation' => 'a secure staff passphrase 2026',
+            ])
+            ->call('activate')
+            ->assertHasNoFormErrors()
+            ->assertRedirect(route('filament.admin.auth.multi-factor-authentication.set-up-required'));
+
+        $user = $result->invitation->user->fresh();
+        $this->assertAuthenticatedAs($user);
+        $this->assertTrue(Hash::check('a secure staff passphrase 2026', (string) $user->password));
+        $this->assertSame(User::StatusVerificationRequired, $user->status);
+        $this->assertTrue($user->hasAssignedRole(User::StaffRoleFaculty));
+        $this->assertSame(User::StaffRoleFaculty, session(WorkspaceContextResolver::SessionKey));
+        $this->assertNotNull($result->invitation->fresh()->accepted_at);
+        $this->assertDatabaseHas('activity_log', [
+            'subject_type' => User::class,
+            'subject_id' => $user->id,
+            'event' => 'staff_invitation_activated',
+        ]);
+    }
+
+    public function test_staff_activation_page_rate_limits_repeated_attempts_and_post_route_remains_compatible(): void
+    {
+        Notification::fake();
+        $actor = $this->administrator();
+        $service = app(StaffInvitationService::class);
+        $result = $service->invite($actor, $this->invitationPayload());
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        Filament::bootCurrentPanel();
+        $component = Livewire::withQueryParams(['token' => $result->plainTextToken])
+            ->test(StaffActivation::class, ['invitation' => $result->invitation]);
+
+        for ($attempt = 1; $attempt <= 5; $attempt++) {
+            $component
+                ->fillForm([
+                    'password' => 'short',
+                    'passwordConfirmation' => 'short',
+                ])
+                ->call('activate')
+                ->assertHasFormErrors(['password']);
+        }
+
+        $component
+            ->fillForm([
+                'password' => 'a secure staff passphrase 2026',
+                'passwordConfirmation' => 'a secure staff passphrase 2026',
+            ])
+            ->call('activate')
+            ->assertSet('rateLimitContext', 'staff_activation')
+            ->assertSee('Too many activation attempts');
+
+        $this->assertGuest();
+
+        $this->post(route('staff-invitations.accept', $result->invitation), [
+            'token' => $result->plainTextToken,
+            'password' => 'a secure post passphrase 2026',
+            'password_confirmation' => 'a secure post passphrase 2026',
+        ])->assertRedirect(route('filament.admin.auth.multi-factor-authentication.set-up-required'));
+
+        $this->assertAuthenticatedAs($result->invitation->user->fresh());
+        $this->assertNotNull($result->invitation->fresh()->accepted_at);
     }
 
     public function test_dispatch_failure_does_not_reverse_the_invitation_and_records_safe_recovery_evidence(): void
@@ -151,6 +246,46 @@ class StaffInvitationActivationJourneyTest extends TestCase
             'event_type' => 'staff_invitation_email',
             'related_record_id' => $result->invitation->id,
             'status' => OperationalEvent::StatusFailed,
+        ]);
+    }
+
+    public function test_streamlined_invite_accepts_optional_reason_and_authority_and_supports_correct_email_and_cancel(): void
+    {
+        Notification::fake();
+        $actor = $this->administrator();
+        $service = app(StaffInvitationService::class);
+
+        $result = $service->invite($actor, [
+            'email' => 'typo.faculty@example.test',
+            'first_name' => 'Grace',
+            'last_name' => 'Hopper',
+            'roles' => [User::StaffRoleFaculty],
+        ]);
+
+        $invitedUser = $result->invitation->user->refresh();
+        $this->assertNull($result->invitation->authority);
+        $this->assertNull($result->invitation->reason);
+        $this->assertSame('typo.faculty@example.test', $invitedUser->email);
+
+        $correctedInvitation = $service->correctPendingEmailAndResend($invitedUser, 'grace.hopper@example.test', $actor);
+
+        $this->assertSame('grace.hopper@example.test', $invitedUser->fresh()->email);
+        $this->assertSame($correctedInvitation->id, $result->invitation->fresh()->superseded_by_id);
+        $this->assertDatabaseHas('activity_log', [
+            'log_name' => 'user_access',
+            'event' => 'staff_invitation_email_corrected',
+            'subject_id' => $invitedUser->id,
+        ]);
+
+        $cancelledUserId = $invitedUser->id;
+        $service->cancelPendingInvitation($invitedUser->fresh(), $actor, 'Invitation no longer needed.');
+
+        $this->assertDatabaseMissing('users', ['id' => $cancelledUserId]);
+        $this->assertDatabaseMissing('staff_invitations', ['user_id' => $cancelledUserId]);
+        $this->assertDatabaseMissing('staff_access_profiles', ['user_id' => $cancelledUserId]);
+        $this->assertDatabaseHas('activity_log', [
+            'log_name' => 'user_access',
+            'event' => 'staff_invitation_cancelled',
         ]);
     }
 

@@ -8,6 +8,7 @@ use App\Models\AcademicDecision;
 use App\Models\CourseRequirement;
 use App\Models\CurriculumEntry;
 use App\Models\Enrollment;
+use App\Models\PriorAcademicCredit;
 use App\Models\ProgramShiftCreditEntry;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
@@ -75,9 +76,10 @@ class IrregularStudentReasons
     {
         $effect = $this->effects->forStudent($student, $term);
         $decision = $this->activeDecision($student, $term);
+        $activeShift = $this->activeUnenrolledShift($student);
         $reasons = collect()
             ->merge($this->returneeReasons($student))
-            ->merge($this->shifteeReasons($student))
+            ->merge($this->shifteeReasons($student, $activeShift))
             ->merge($this->resultReasons($student));
 
         if ($decision?->effect === AcademicDecision::EffectAdvisingRequired && $reasons->isEmpty()) {
@@ -87,7 +89,15 @@ class IrregularStudentReasons
         $reasons = $reasons
             ->sortBy(fn (array $reason): int => array_search($reason['code'], self::Priority, true))
             ->values();
-        $keptRegular = $decision?->effect === AcademicDecision::EffectAllowed && $reasons->isNotEmpty();
+        $decisionPredatesShift = $activeShift instanceof StudentLifecycleChange
+            && $decision instanceof AcademicDecision
+            && $decision->effect === AcademicDecision::EffectAllowed
+            && $decision->recorded_at !== null
+            && $activeShift->created_at !== null
+            && $decision->recorded_at->lt($activeShift->created_at);
+        $keptRegular = $decision?->effect === AcademicDecision::EffectAllowed
+            && ! $decisionPredatesShift
+            && $reasons->isNotEmpty();
         $isIrregular = ! $keptRegular
             && $effect['effect'] !== AcademicDecision::EffectBlocked
             && ($effect['effect'] === AcademicDecision::EffectAdvisingRequired || $reasons->contains(
@@ -111,8 +121,15 @@ class IrregularStudentReasons
      */
     public function needsReview(StudentProfile $student): bool
     {
-        return $student->lifecycle_status === StudentProfile::LifecycleActive
-            && $this->activeDecision($student, null) === null
+        if ($student->lifecycle_status !== StudentProfile::LifecycleActive) {
+            return false;
+        }
+
+        if ($this->activeUnenrolledShift($student) instanceof StudentLifecycleChange) {
+            return false;
+        }
+
+        return $this->activeDecision($student, null) === null
             && $this->forStudent($student)['is_irregular'];
     }
 
@@ -125,7 +142,9 @@ class IrregularStudentReasons
     {
         return once(fn (): Collection => StudentProfile::query()
             ->where('lifecycle_status', StudentProfile::LifecycleActive)
-            ->whereHas('enrollments', fn ($query) => $query->whereNotNull('officially_enrolled_at'))
+            ->where(fn ($query) => $query
+                ->whereHas('enrollments', fn ($enrollmentQuery) => $enrollmentQuery->whereNotNull('officially_enrolled_at'))
+                ->orWhereHas('priorAcademicCredits', fn ($creditQuery) => $creditQuery->where('state', PriorAcademicCredit::StateActive)))
             ->get()
             ->filter(fn (StudentProfile $student): bool => $this->needsReview($student))
             ->map(fn (StudentProfile $student): int => (int) $student->id)
@@ -207,7 +226,7 @@ class IrregularStudentReasons
         $reasons = collect();
         if ($failed->isNotEmpty()) {
             $reasons->push($this->reason(self::ReasonFailed, 'Failed subject', 'You did not pass '.$failed->map(
-                fn (array $result): string => $this->subjectLabel($result).' (Grade: '.number_format((float) $result['result'], 2).') in '.$this->termLabel($result['term']),
+                fn (array $result): string => $this->subjectLabel($result).' (Grade: '.number_format((float) $result['result'], 2).') in '.$this->resultTermLabel($result),
             )->implode('; ').'.', $failed->map($this->subjectCode(...))->values()->all()));
         }
         if ($incomplete->isNotEmpty()) {
@@ -226,7 +245,7 @@ class IrregularStudentReasons
             $reasons->push($this->reason(self::ReasonDroppedSubject, 'Dropped subject', 'Approved drop: '.$dropped->map($this->subjectLabel(...))->implode('; ').'. You need to take it again.', $dropped->map($this->subjectCode(...))->values()->all()));
         }
         if ($withdrawn->isNotEmpty()) {
-            $terms = $withdrawn->map(fn (array $result): string => $this->termLabel($result['term']))->unique()->implode(', ');
+            $terms = $withdrawn->map(fn (array $result): string => $this->resultTermLabel($result))->unique()->implode(', ');
             $reasons->push($this->reason(self::ReasonDroppedTerm, 'Dropped term', 'You withdrew from '.$terms.'. Subjects to take again: '.$withdrawn->map($this->subjectCode(...))->implode(', ').'.', $withdrawn->map($this->subjectCode(...))->values()->all()));
         }
         if ($pending->isNotEmpty()) {
@@ -328,28 +347,59 @@ class IrregularStudentReasons
         return collect([$this->reason(self::ReasonReturnee, 'Returnee', $details, [])]);
     }
 
-    /** @return Collection<int, array{code: string, label: string, details: string, subjects: list<string>}> */
-    private function shifteeReasons(StudentProfile $student): Collection
+    /**
+     * Returns the student's latest applied Program Shift matching their current curriculum when
+     * they have not yet officially enrolled since that shift.
+     */
+    public function activeUnenrolledShift(StudentProfile $student): ?StudentLifecycleChange
     {
+        if ($student->curriculum_version_id === null) {
+            return null;
+        }
+
         $shift = StudentLifecycleChange::query()
-            ->with(['targetProgram', 'targetCurriculumVersion'])
+            ->with(['targetProgram', 'targetCurriculumVersion', 'term'])
             ->where('student_profile_id', $student->id)
             ->where('type', StudentLifecycleChange::TypeProgramShift)
             ->where('state', StudentLifecycleChange::StateApplied)
             ->where('target_curriculum_version_id', $student->curriculum_version_id)
             ->latest('effective_on')
+            ->latest('id')
             ->first();
 
         if (! $shift instanceof StudentLifecycleChange) {
-            return collect();
+            return null;
         }
 
         $enrolledSinceShift = Enrollment::query()
             ->where('student_profile_id', $student->id)
             ->whereNotNull('officially_enrolled_at')
-            ->whereHas('term', fn ($query) => $query->whereDate('starts_on', '>=', $shift->effective_on ?? $shift->created_at))
+            ->where(function ($query) use ($shift): void {
+                $query->where('term_id', $shift->term_id);
+
+                $shiftTermStartsOn = $shift->term?->starts_on?->toDateString();
+                if ($shiftTermStartsOn !== null) {
+                    $query->orWhere(function ($laterTermQuery) use ($shift, $shiftTermStartsOn): void {
+                        $laterTermQuery
+                            ->whereHas('term', fn ($termQuery) => $termQuery->whereDate('starts_on', '>=', $shiftTermStartsOn))
+                            ->when(
+                                $shift->created_at !== null,
+                                fn ($timeQuery) => $timeQuery->where('officially_enrolled_at', '>=', $shift->created_at),
+                            );
+                    });
+                }
+            })
             ->exists();
-        if ($enrolledSinceShift) {
+
+        return $enrolledSinceShift ? null : $shift;
+    }
+
+    /** @return Collection<int, array{code: string, label: string, details: string, subjects: list<string>}> */
+    private function shifteeReasons(StudentProfile $student, ?StudentLifecycleChange $shift = null): Collection
+    {
+        $shift ??= $this->activeUnenrolledShift($student);
+
+        if (! $shift instanceof StudentLifecycleChange) {
             return collect();
         }
 
@@ -389,6 +439,22 @@ class IrregularStudentReasons
         $title = $result['course_specification']?->title;
 
         return $this->subjectCode($result).($title ? ' – '.$title : '');
+    }
+
+    /** @param array<string, mixed> $result */
+    private function resultTermLabel(array $result): string
+    {
+        $term = $result['term'] ?? null;
+        if ($term instanceof Term) {
+            return $this->termLabel($term);
+        }
+
+        $priorLabel = collect([
+            $result['period_label'] ?? null,
+            $result['academic_year_label'] ?? null,
+        ])->filter()->implode(' ');
+
+        return $priorLabel !== '' ? $priorLabel : 'an earlier term';
     }
 
     private function termLabel(?Term $term): string

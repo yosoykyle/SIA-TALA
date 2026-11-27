@@ -47,7 +47,7 @@ class RequirementSetsRelationManager extends RelationManager
                         TextInput::make('version')->numeric()->minValue(1)->required(),
                         DateTimePicker::make('effective_at')->label('Effective from')
                             ->helperText('Controls when this requirement version may apply. Existing submitted versions retain their original requirements.')
-                            ->placeholder('Select date and time')->prefixIcon('heroicon-o-calendar-days')->native(false)->required(),
+                            ->placeholder('Select date and time')->prefixIcon('heroicon-o-calendar-days')->native(true)->seconds(false)->required(),
                         Select::make('replaces_requirement_set_id')
                             ->label('Replaces version')
                             ->options(fn (Get $get): array => AdmissionRequirementSet::query()

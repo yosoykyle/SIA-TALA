@@ -8,7 +8,10 @@
         <p>{{ $case->term?->label }}</p>
     </div>
     <section class="registrar-case-preparation tala-task-surface" aria-labelledby="ready-heading">
-        <div><h2 id="ready-heading">Ready to enroll</h2><p>Subjects confirmed. Seats reserved. Enrollment payment cleared.</p></div>
+        <div>
+            <h2 id="ready-heading">Ready to enroll (Manual fallback)</h2>
+            <p>Subjects confirmed, seats reserved, and enrollment payment cleared. Use this manual fallback to complete official enrollment and issue the COR.</p>
+        </div>
         {{ $this->getAction('finalizeOfficialEnrollment', isMounting: false) }}
     </section>
     <div class="registrar-case-grid">

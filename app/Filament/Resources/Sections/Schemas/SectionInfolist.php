@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Sections\Schemas;
 
 use App\Filament\Resources\Sections\Pages\ViewSection;
 use App\Models\ClassOfferingTeachingAssignment;
+use App\Models\Program;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Support\DisplayDateTime;
@@ -68,7 +69,39 @@ class SectionInfolist
                             ->schema([
                                 TextEntry::make('curriculum_origin')
                                     ->label('Curriculum source')
-                                    ->state(fn (Section $record): string => collect([$record->termOffering?->curriculumEntry?->curriculumVersion?->program?->name, $record->termOffering?->curriculumEntry?->year_level])->filter()->implode(' · ') ?: 'Not recorded')
+                                    ->state(function (Section $record): string {
+                                        $record->loadMissing(['cohorts.program', 'termOffering.curriculumEntry.curriculumVersion.program']);
+                                        $hostProgram = $record->termOffering?->curriculumEntry?->curriculumVersion?->program;
+                                        $base = collect([$hostProgram?->name, $record->termOffering?->curriculumEntry?->year_level])
+                                            ->filter()
+                                            ->implode(' · ');
+
+                                        $additionalPrograms = $record->cohorts
+                                            ->pluck('program')
+                                            ->filter(fn (mixed $program): bool => $program instanceof Program)
+                                            ->unique('id')
+                                            ->reject(fn (Program $program): bool => $hostProgram instanceof Program && (int) $program->id === (int) $hostProgram->id)
+                                            ->sortBy(fn (Program $program): string => strtoupper((string) ($program->code ?: $program->name)))
+                                            ->values();
+
+                                        if ($additionalPrograms->isEmpty()) {
+                                            return $base ?: 'Not recorded';
+                                        }
+
+                                        if ($base === '') {
+                                            return $additionalPrograms
+                                                ->map(fn (Program $program): string => $program->name ?: (string) $program->code)
+                                                ->filter()
+                                                ->implode(' · ') ?: 'Not recorded';
+                                        }
+
+                                        $extraCodes = $additionalPrograms
+                                            ->map(fn (Program $program): string => $program->code ?: (string) $program->name)
+                                            ->filter()
+                                            ->implode(', ');
+
+                                        return $extraCodes !== '' ? "{$base} (+ {$extraCodes})" : $base;
+                                    })
                                     ->columnSpan(['default' => 1, 'md' => 2]),
                                 TextEntry::make('confirmed_at')
                                     ->label('Class confirmed')

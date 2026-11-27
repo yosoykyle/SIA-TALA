@@ -186,6 +186,10 @@ class Issue93TermPlanningQaGuardrailsTest extends TestCase
     {
         $this->actingAsRegistrar();
         $term = Term::factory()->create(['type' => Term::TypeFirstSemester, 'default_max_units' => 24]);
+        $package = TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateActive,
+            'activated_at' => now(),
+        ]);
         $faculty = $this->makeFaculty('Marco', 'Santos');
         $program = Program::factory()->create(['code' => 'BSIT']);
         $curriculum = CurriculumVersion::factory()->for($program)->create(['state' => CurriculumVersion::StateActive]);
@@ -195,7 +199,11 @@ class Issue93TermPlanningQaGuardrailsTest extends TestCase
             'year_level' => 'Second Year',
             'term_type' => Term::TypeFirstSemester,
         ]);
-        TermOffering::factory()->for($term)->for($entry, 'curriculumEntry')->create(['state' => TermOffering::StatePendingScheduling]);
+        $offering = TermOffering::factory()->for($term)->for($entry, 'curriculumEntry')->create(['state' => TermOffering::StatePendingScheduling]);
+        Section::factory()->for($offering, 'termOffering')->create([
+            'term_calendar_package_id' => $package->id,
+            'confirmed_at' => now(),
+        ]);
         FacultyQualification::factory()->create(['faculty_user_id' => $faculty->id, 'course_id' => $course->id, 'is_active' => true]);
 
         $component = Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)
@@ -258,5 +266,31 @@ class Issue93TermPlanningQaGuardrailsTest extends TestCase
             ->assertDontSee('Not recorded')
             ->assertDontSee('Initial publication')
             ->assertSee('Generated through TALA');
+    }
+
+    public function test_printed_timetable_respects_weekly_grid_landscape_and_list_view_portrait_layouts(): void
+    {
+        $this->actingAsRegistrar();
+        $version = PublishedTimetableVersion::factory()->create(['authority_reference' => null]);
+        PublishedTimetableMeeting::factory()->create([
+            'published_timetable_version_id' => $version->id,
+            'day_of_week' => 1,
+            'starts_at' => '08:00:00',
+            'ends_at' => '09:30:00',
+        ]);
+
+        $this->get(route('timetable.version.print', ['version' => $version, 'timetableFormat' => 'week']))
+            ->assertSuccessful()
+            ->assertSee('size: A4 landscape;', false)
+            ->assertSee('Weekly grid (Landscape)')
+            ->assertSee('tt-week-grid', false)
+            ->assertDontSee('<table class="tt-table">', false);
+
+        $this->get(route('timetable.version.print', ['version' => $version, 'timetableFormat' => 'list']))
+            ->assertSuccessful()
+            ->assertSee('size: A4 portrait;', false)
+            ->assertSee('List view (Portrait)')
+            ->assertSee('<table class="tt-table">', false)
+            ->assertDontSee('<div class="tt-week-grid"', false);
     }
 }

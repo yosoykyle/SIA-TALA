@@ -6,6 +6,7 @@ use App\Actions\Integrations\SchedulingSolver\CloudRunIdTokenProvider;
 use App\Actions\Integrations\SchedulingSolver\CloudRunSchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverRequest;
+use App\Models\ScheduleGenerationRun;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -56,7 +57,7 @@ final class TAL65CloudRunSchedulingSolverClientTest extends TestCase
 
         $client = app(SchedulingSolverClient::class);
         $snapshot = [
-            'contract_version' => 'tal94-demand-v2',
+            'contract_version' => ScheduleGenerationRun::ContractVersion,
             'run_metadata' => [
                 'solver_run_id' => 55,
                 'term_id' => 9,
@@ -80,7 +81,7 @@ final class TAL65CloudRunSchedulingSolverClientTest extends TestCase
         Http::assertSent(fn (Request $request): bool => $request->url() === 'https://solver.example.test/solve'
             && $request->method() === 'POST'
             && $request->hasHeader('Authorization', 'Bearer unit-id-token')
-            && $request['contract_version'] === 'tal94-demand-v2'
+            && $request['contract_version'] === ScheduleGenerationRun::ContractVersion
             && $request['scheduling_demands'][0]['scheduling_demand_id'] === 501
             && $request['optimization_settings']['publish_after_solver'] === false);
         Http::assertSentCount(1);

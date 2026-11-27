@@ -95,7 +95,7 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
         $component = Livewire::actingAs($accounting)
             ->test(ListEnrollments::class)
             ->assertSet('activeTab', 'overview')
-            ->assertSee('2 accounts need review')
+            ->assertSee('4 accounts need review')
             ->assertSee('Across all active and prior terms')
             ->assertSee('Open term accounts')
             ->assertDontSee('Active term:')
@@ -109,7 +109,7 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
             ->assertDontSee('TOR Clearance');
 
         $this->assertSame('Accounting overview', $component->instance()->getTitle());
-        $this->assertSame(['assessment' => 1, 'proof' => 1, 'student_changes' => 0], $component->instance()->accountingWorkCounts());
+        $this->assertSame(['assessment' => 1, 'proof' => 1, 'payment' => 2, 'student_changes' => 0], $component->instance()->accountingWorkCounts());
         $this->assertArrayNotHasKey('tor_clearance', $component->instance()->getTabs());
 
         $component
@@ -123,7 +123,10 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
             ->assertCanNotSeeTableRecords([$ordinary['enrollment'], $proof['enrollment'], $clearance['enrollment']])
             ->set('activeTab', 'payment_proof')
             ->assertCanSeeTableRecords([$proof['enrollment']])
-            ->assertCanNotSeeTableRecords([$ordinary['enrollment'], $assessment['enrollment'], $clearance['enrollment']]);
+            ->assertCanNotSeeTableRecords([$ordinary['enrollment'], $assessment['enrollment'], $clearance['enrollment']])
+            ->set('activeTab', 'awaiting_payment')
+            ->assertCanSeeTableRecords([$ordinary['enrollment'], $clearance['enrollment']])
+            ->assertCanNotSeeTableRecords([$proof['enrollment'], $assessment['enrollment']]);
 
         $this->assertNotContains(
             'App\\Filament\\Resources\\Payments\\PaymentResource',

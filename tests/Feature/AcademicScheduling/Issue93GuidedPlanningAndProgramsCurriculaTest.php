@@ -75,18 +75,15 @@ final class Issue93GuidedPlanningAndProgramsCurriculaTest extends TestCase
             $html = $stage->html();
 
             $stage->assertSee('1. Calendar')
-                ->assertSee('2. Classes & sections')
+                ->assertSee('2. Sections & classes')
                 ->assertSee('3. Faculty & rooms')
                 ->assertSee('4. Timetable')
                 ->assertSeeHtml('tala-stage-bar')
                 ->assertSeeHtml('aria-label="Term planning progress"')
-                ->assertSeeHtml('href="'.e(TermCalendar::getUrl(['termId' => $term->id])).'"')
-                ->assertSeeHtml('href="'.e(TermClasses::getUrl(['termId' => $term->id])).'"')
-                ->assertSeeHtml('href="'.e(TermResources::getUrl(['termId' => $term->id])).'"')
-                ->assertSeeHtml('href="'.e(TermTimetable::getUrl(['termId' => $term->id])).'"');
+                ->assertSeeHtml('href="'.e(TermCalendar::getUrl(['termId' => $term->id])).'"');
 
             $posCalendar = strpos($html, '1. Calendar');
-            $posClasses = strpos($html, '2. Classes &amp; sections');
+            $posClasses = strpos($html, '2. Sections &amp; classes');
             $posResources = strpos($html, '3. Faculty &amp; rooms');
             $posTimetable = strpos($html, '4. Timetable');
 
@@ -99,7 +96,7 @@ final class Issue93GuidedPlanningAndProgramsCurriculaTest extends TestCase
             $this->assertSame([], $stage->instance()->getSubNavigation());
         }
 
-        // Activate calendar -> Step 1 transitions to Done.
+        // Activate calendar -> Step 1 transitions to Done and Step 2 unlocks.
         $package = TermCalendarPackage::factory()->for($term)->create([
             'state' => TermCalendarPackage::StateActive,
             'activated_at' => now(),
@@ -114,7 +111,8 @@ final class Issue93GuidedPlanningAndProgramsCurriculaTest extends TestCase
 
         Livewire::withQueryParams(['termId' => $term->id])->test(TermCalendar::class)
             ->assertSee('Done')
-            ->assertSee('Next step');
+            ->assertSee('Next step')
+            ->assertSeeHtml('href="'.e(TermClasses::getUrl(['termId' => $term->id])).'"');
 
         // Read-only Academic Head does not see the Registrar-only stepper bar.
         $this->staff(User::StaffRoleAcademicHead);
@@ -251,7 +249,16 @@ final class Issue93GuidedPlanningAndProgramsCurriculaTest extends TestCase
     public function test_term_resources_exposes_add_room_and_manage_teaching_qualifications_directly(): void
     {
         $this->staff(User::StaffRoleRegistrar);
-        $term = Term::factory()->create();
+        $term = Term::factory()->create(['state' => Term::StateActive]);
+        $package = TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateActive,
+            'activated_at' => now(),
+        ]);
+        $offering = TermOffering::factory()->for($term)->create();
+        Section::factory()->for($offering, 'termOffering')->create([
+            'term_calendar_package_id' => $package->id,
+            'confirmed_at' => now(),
+        ]);
         Room::factory()->create(['is_active' => true]);
 
         Livewire::withQueryParams(['termId' => $term->id, 'resourceView' => 'faculty'])->test(TermResources::class)
@@ -259,8 +266,8 @@ final class Issue93GuidedPlanningAndProgramsCurriculaTest extends TestCase
             ->assertSee('Assign subjects');
 
         Livewire::withQueryParams(['termId' => $term->id, 'resourceView' => 'rooms'])->test(TermResources::class)
-            ->assertActionDoesNotExist(TestAction::make('manageRoomCatalog')->table())
-            ->assertSee('Edit room catalog in School Resources');
+            ->assertActionVisible(TestAction::make('addRoom')->table())
+            ->assertSee('Add room');
 
         Livewire::withQueryParams(['tab' => 'rooms'])->test(SchoolResources::class)
             ->assertActionVisible(TestAction::make('addRoom')->table())
@@ -269,6 +276,9 @@ final class Issue93GuidedPlanningAndProgramsCurriculaTest extends TestCase
         $this->staff(User::StaffRoleAcademicHead);
         Livewire::withQueryParams(['termId' => $term->id, 'resourceView' => 'faculty'])->test(TermResources::class)
             ->assertActionHidden(TestAction::make('assignSubjects')->table());
+
+        Livewire::withQueryParams(['termId' => $term->id, 'resourceView' => 'rooms'])->test(TermResources::class)
+            ->assertActionHidden(TestAction::make('addRoom')->table());
 
         Livewire::withQueryParams(['tab' => 'rooms'])->test(SchoolResources::class)
             ->assertActionHidden(TestAction::make('addRoom')->table());
@@ -305,6 +315,10 @@ final class Issue93GuidedPlanningAndProgramsCurriculaTest extends TestCase
 
         $expectedCalendarUrl = TermCalendar::getUrl(['termId' => $term->id]);
         Livewire::test(TermOverview::class)
+            ->assertSeeHtml('href="'.e(TermOverview::getUrl(['academicYearId' => $term->academic_year_id])).'"')
+            ->assertDontSee($ulidCode);
+
+        Livewire::withQueryParams(['academicYearId' => $term->academic_year_id])->test(TermOverview::class)
             ->assertSeeHtml('href="'.e($expectedCalendarUrl).'"')
             ->assertDontSee($ulidCode);
 
@@ -325,13 +339,13 @@ final class Issue93GuidedPlanningAndProgramsCurriculaTest extends TestCase
         $programsCurriculaItem = $items->first(fn (NavigationItem $item): bool => $item->getLabel() === 'Programs & Curricula');
         $this->assertNotNull($programsCurriculaItem);
         $this->assertSame(
-            ['Programs', 'Subject catalog', 'Curricula'],
+            ['Programs', 'Curricula', 'Subject catalog'],
             collect($programsCurriculaItem->getChildItems())->map->getLabel()->values()->all(),
         );
         $this->assertSame('Programs & Curricula', CatalogCurriculaWorkbench::getNavigationLabel());
 
         // CourseSpecificationForm uncollapses room_type_default and auto-defaults LECTURE -> LECTURE_ROOM, LABORATORY -> LABORATORY.
-        $createSubject = Livewire::test(ListCourses::class)->mountAction('create');
+        $createSubject = Livewire::test(ListCourses::class)->mountAction(TestAction::make('create')->table());
         $mountedSchema = $createSubject->instance()->getSchema($createSubject->instance()->getMountedActionSchemaName());
         $components = $mountedSchema->getRawState()['components'];
         $firstKey = array_key_first($components);
@@ -458,13 +472,13 @@ final class Issue93GuidedPlanningAndProgramsCurriculaTest extends TestCase
                 ->assertDontSee('Catalog & Curricula');
         }
 
-        // 2. CatalogCurriculaWorkbench renders the unified Program Cards grid + Has drafts tab + status filter.
+        // 2. CatalogCurriculaWorkbench renders the unified Program Cards grid + Has drafts tab + status filter + toolbar Add program action.
         Livewire::test(CatalogCurriculaWorkbench::class)
             ->assertSee('Has drafts')
             ->assertSee('1 draft')
             ->assertSee('BSIT')
             ->assertSee('BSTM')
-            ->assertSee('Subject catalog')
+            ->assertActionVisible(TestAction::make('createProgram')->table())
             ->assertSee('Add program')
             ->call('setStatusFilter', 'has_drafts')
             ->assertSee('BSIT')

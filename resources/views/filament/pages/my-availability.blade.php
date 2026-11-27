@@ -121,10 +121,38 @@
                                     </p>
                                 @endif
                             </div>
-                            @if ($weeklyHoursSummary)
-                                <p class="tala-availability-hours-pill tabular-nums" role="status" aria-live="polite">
-                                    {{ $weeklyHoursSummary }}
-                                </p>
+                            @if ($weeklyHoursSummary || ! empty($hoursTarget))
+                                <div class="tala-availability-header__metrics">
+                                    @if ($weeklyHoursSummary)
+                                        <p class="tala-availability-hours-pill tabular-nums" role="status" aria-live="polite">
+                                            {{ $weeklyHoursSummary }}
+                                        </p>
+                                    @endif
+                                    @if (! empty($hoursTarget))
+                                        @php
+                                            $hoursTargetStatus = $hoursTarget['status'] ?? 'neutral';
+                                            $hoursTargetIcon = match ($hoursTargetStatus) {
+                                                'met' => 'heroicon-m-check-circle',
+                                                'short' => 'heroicon-m-exclamation-triangle',
+                                                default => 'heroicon-m-clock',
+                                            };
+                                        @endphp
+                                        <p
+                                            @class([
+                                                'tala-availability-target-pill',
+                                                'tabular-nums',
+                                                'is-met' => $hoursTargetStatus === 'met',
+                                                'is-short' => $hoursTargetStatus === 'short',
+                                                'is-neutral' => $hoursTargetStatus === 'neutral',
+                                            ])
+                                            role="status"
+                                            aria-live="polite"
+                                        >
+                                            <x-filament::icon :icon="$hoursTargetIcon" class="tala-availability-target-pill__icon" aria-hidden="true" />
+                                            <span>{{ $hoursTarget['label'] }}</span>
+                                        </p>
+                                    @endif
+                                </div>
                             @endif
                         </header>
 
@@ -322,6 +350,18 @@
                                                 </li>
                                             @endforeach
                                         </ul>
+
+                                        @if (! empty($breakSplitWarning))
+                                            <section class="tala-warning-banner" role="status" aria-labelledby="faculty-break-split-warning-heading">
+                                                <h4 id="faculty-break-split-warning-heading" class="flex items-center gap-2 text-sm font-semibold">
+                                                    <x-filament::icon icon="heroicon-o-exclamation-triangle" class="h-5 w-5" aria-hidden="true" />
+                                                    <span>Selected time blocks may be too short for a qualified subject</span>
+                                                </h4>
+                                                <p class="text-sm">
+                                                    After daily breaks, your longest uninterrupted block is <strong class="tabular-nums">{{ $breakSplitWarning['longest_block_label'] }}</strong>, which is shorter than <strong>{{ $breakSplitWarning['subjects_summary'] }}</strong>. Extend a range before or after the break so this class can fit, or save as-is if you do not expect to teach it.
+                                                </p>
+                                            </section>
+                                        @endif
 
                                         @error('teachingWindows')
                                             <p class="tala-availability-error" role="alert">{{ $message }}</p>

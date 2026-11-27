@@ -343,7 +343,7 @@ class Issue93HardeningStep1Test extends TestCase
             'state' => GraduationReviewBatch::StateOpen,
         ]);
 
-        Livewire::withQueryParams(['overviewTab' => 'academic-years'])->test(TermOverview::class)
+        Livewire::test(TermOverview::class)
             ->assertTableActionHidden('deleteAcademicYear', $ayWithGradBatch);
 
         $ayWithActiveTerm = AcademicYear::factory()->create([
@@ -357,7 +357,7 @@ class Issue93HardeningStep1Test extends TestCase
             'ends_on' => '2027-12-15',
         ]);
 
-        Livewire::withQueryParams(['overviewTab' => 'academic-years'])->test(TermOverview::class)
+        Livewire::test(TermOverview::class)
             ->callTableAction('editAcademicYear', $ayWithActiveTerm, data: [
                 'label' => $ayWithActiveTerm->label,
                 'starts_on' => '2027-08-01',
@@ -370,7 +370,7 @@ class Issue93HardeningStep1Test extends TestCase
 
         $activeTerm->update(['state' => Term::StateClosed]);
 
-        Livewire::withQueryParams(['overviewTab' => 'academic-years'])->test(TermOverview::class)
+        Livewire::test(TermOverview::class)
             ->callTableAction('editAcademicYear', $ayWithActiveTerm, data: [
                 'label' => $ayWithActiveTerm->label,
                 'starts_on' => '2027-08-01',

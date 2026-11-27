@@ -18,6 +18,7 @@ use App\Actions\Enrollment\StartRegistrationCase;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
+use App\Filament\Resources\Enrollments\Tables\EnrollmentsTable;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionApplicationEvent;
 use App\Models\AdmissionCycle;
@@ -34,6 +35,7 @@ use App\Models\OperationalEvent;
 use App\Models\Payment;
 use App\Models\PreliminaryEvidenceReview;
 use App\Models\RegistrarEnrollmentClearance;
+use App\Models\RegistrationProposalVersion;
 use App\Models\Term;
 use App\Models\User;
 use App\Queries\Admissions\AdmissionDeadlineStatus;
@@ -61,6 +63,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Text;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
+use Filament\Support\Enums\Size;
 use Filament\Support\Enums\Width;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Collection;
@@ -139,7 +142,7 @@ class ViewAdmissionApplication extends ViewRecord
                 ->label('Start review')->icon('heroicon-o-play')->color('primary')
                 ->modalSubmitActionLabel('Start review')
                 ->requiresConfirmation()
-                ->modalDescription('Start review of this submitted version. Ordinary Applicant edits will lock; later changes need a named correction. Opening this record or a private copy alone does not start review.')
+                ->modalDescription('Lock this submission for review. Any later changes will require a correction request.')
                 ->schema([Hidden::make('expected_submission_version_id')->default(fn (): ?int => $this->application()->current_submission_version_id)])
                 ->visible(fn (): bool => (bool) auth()->user()?->can('review', $this->application()) && $this->application()->allowsSubmittedEdit() && ! $this->isClosed())
                 ->action(fn (array $data, Action $action): mixed => $this->runAction(function (User $actor) use ($data): void {
@@ -175,7 +178,7 @@ class ViewAdmissionApplication extends ViewRecord
                     ->icon('heroicon-o-check-circle')
                     ->modalHeading('Admissions ready for enrollment')
                     ->modal()
-                    ->modalDescription('The current decision, identity review, and source-matching Registrar clearance satisfy admissions readiness. The Applicant follows the published enrollment availability. Official enrollment is a separate journey.')
+                    ->modalDescription('Admission decision, identity review, and enrollment clearance are complete. This applicant is ready for enrollment.')
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Close')
                     ->visible(fn (): bool => $this->application()->application_state === AdmissionApplication::StateAdmitted
@@ -185,7 +188,7 @@ class ViewAdmissionApplication extends ViewRecord
                     ->label('Resolve identity warning')
                     ->modalSubmitActionLabel('Record identity resolution')
                     ->icon('heroicon-o-identification')
-                    ->modalDescription(fn (): string => 'Record the checked identity result for '.$this->application()->application_reference.'. Decision eligibility is recalculated. Existing identities and warning history are retained.')
+                    ->modalDescription(fn (): string => 'Record the identity check result for '.$this->application()->application_reference.'.')
                     ->schema([
                         Select::make('identity_match_review_id')
                             ->label('Private warning')
@@ -232,9 +235,9 @@ class ViewAdmissionApplication extends ViewRecord
                     ->icon('heroicon-o-check-badge')
                     ->modalDescription(function (): string {
                         $currentClearance = $this->application()->enrollmentClearances()->whereDoesntHave('successor')->first();
-                        $status = $currentClearance ? 'Current clearance: '.str($currentClearance->result)->headline().'.' : 'No clearance recorded yet.';
+                        $prefix = $currentClearance ? 'Current status: '.str($currentClearance->result)->headline().'. ' : '';
 
-                        return "{$status} Check each paper you received in person. Record clearance once every required paper is checked; otherwise write what is wrong and notify the Applicant. Earlier clearances stay in history.";
+                        return $prefix.'Check each original paper received in person. Record clearance when complete, or notify the applicant of missing items.';
                     })
                     ->schema(fn (): array => [
                         Hidden::make('expected_current_clearance_id')
@@ -268,7 +271,7 @@ class ViewAdmissionApplication extends ViewRecord
                             ->timezone(config('app.display_timezone'))
                             ->displayFormat('M j, Y · g:i A')
                             ->seconds(false)
-                            ->native(false)
+                            ->native(true)
                             ->minDate(fn (): ?string => $this->pickerDayStart(now()))
                             ->rule(fn (): \Closure => $this->exactWindowRule(fn (): CarbonInterface => now(), null, ''))
                             ->validationMessages(['after_or_equal' => fn (): string => 'Choose a time after now ('.$this->formatDeadline(now()).').'])
@@ -290,7 +293,7 @@ class ViewAdmissionApplication extends ViewRecord
                             ->label('Notify Applicant of deficiencies')
                             ->color('warning')
                             ->modalHeading('Notify Applicant of deficiencies')
-                            ->modalDescription('Tell the Applicant which papers are missing or need fixing. Papers you ticked are still recorded as passed.')
+                            ->modalDescription('Tell the applicant which papers are missing or need fixing. Checked papers are still saved as received.')
                             ->modalSubmitActionLabel('Send to Applicant')
                             ->schema([
                                 Textarea::make('safe_instruction')
@@ -338,7 +341,7 @@ class ViewAdmissionApplication extends ViewRecord
                     ->requiresConfirmation()
                     ->modalIcon('heroicon-o-user-plus')
                     ->modalHeading('Start enrollment at the Registrar desk')
-                    ->modalDescription(fn (): string => 'Start '.$this->application()->first_name.' '.$this->application()->last_name.'\'s enrollment for '.($this->application()->term?->label ?? 'the admitted term').' now. The Applicant does not need to sign in. You review the proposed subjects next, then Accounting assesses the fee and records the payment on the same enrollment record.')
+                    ->modalDescription(fn (): string => 'Start enrollment for '.$this->application()->first_name.' '.$this->application()->last_name.' ('.($this->application()->term?->label ?? 'admitted term').'). You will review proposed subjects next before Accounting assesses fees.')
                     ->modalSubmitActionLabel('Start enrollment')
                     ->visible(fn (): bool => $this->canStartEnrollment())
                     ->action(fn (): mixed => $this->startEnrollmentAndOpen()),
@@ -355,8 +358,8 @@ class ViewAdmissionApplication extends ViewRecord
                     ->modalSubmitAction(fn (Action $action): Action => $action->disabled(! $this->deadlineWindowIsOpen()))
                     ->icon('heroicon-o-calendar-days')
                     ->modalDescription(fn (): string => $this->deadlineStatus()['status'] === AdmissionDeadlineStatus::Expired
-                        ? 'This application expired: '.$this->deadlineStatus()['reason'].' A new deadline returns the Applicant to the pending step and emails them the new date.'
-                        : 'Move this Applicant\'s own deadline. The cycle deadline for everyone else stays the same. The Applicant is emailed the new date.')
+                        ? 'This application expired ('.$this->deadlineStatus()['reason'].'). Set a new deadline to reopen it and email the applicant.'
+                        : 'Set a new deadline for this applicant only. They will be emailed the updated date.')
                     ->fillForm(fn (): array => [
                         'kind' => $this->deadlineStatus()['kind']
                             ?? ($this->readinessIsCleared() ? AdmissionDeadlineStatus::KindPayment : AdmissionDeadlineStatus::KindRequirements),
@@ -378,7 +381,7 @@ class ViewAdmissionApplication extends ViewRecord
                             ->timezone(config('app.display_timezone'))
                             ->displayFormat('M j, Y · g:i A')
                             ->seconds(false)
-                            ->native(false)
+                            ->native(true)
                             ->minDate(fn (): ?string => $this->pickerDayStart(now()))
                             ->maxDate(fn (): ?string => $this->pickerDayEnd($this->application()->admissionCycle?->period_ends_at))
                             ->rule(fn (): \Closure => $this->exactWindowRule(fn (): CarbonInterface => now(), fn (): ?CarbonInterface => $this->application()->admissionCycle?->period_ends_at, 'the end of the admission period'))
@@ -425,7 +428,7 @@ class ViewAdmissionApplication extends ViewRecord
                     ->color('danger')
                     ->requiresConfirmation()
                     ->modalWidth(Width::Large)
-                    ->modalDescription('This application will be withdrawn and will no longer be ready for enrollment. Its records stay in history. Reopening requires Registrar approval.')
+                    ->modalDescription('Withdraw this application from enrollment. Existing records stay in history, and reopening requires Registrar approval.')
                     ->modalSubmitActionLabel('Record withdrawal')
                     ->schema([
                         Textarea::make('reason')->label('Reason for withdrawal')
@@ -454,7 +457,7 @@ class ViewAdmissionApplication extends ViewRecord
                     ->color('gray')
                     ->modalSubmitActionLabel('Reopen application')
                     ->icon('heroicon-o-arrow-path')
-                    ->modalDescription(fn (): string => 'Reopen '.$this->application()->application_reference.' with the recorded approval. Current sources are checked again for readiness. Withdrawal and prior history are retained.')
+                    ->modalDescription(fn (): string => 'Reopen '.$this->application()->application_reference.' with recorded approval. Prior history is retained.')
                     ->schema([
                         Textarea::make('reason')->label('Reason for reopening')
                             ->placeholder('Explain why the same withdrawn application should resume.')
@@ -588,7 +591,7 @@ class ViewAdmissionApplication extends ViewRecord
             ->icon('heroicon-o-pencil-square')
             ->color('warning')
             ->modalWidth('4xl')
-            ->modalDescription(fn (): string => 'Reopen only the named fields and copies in '.$this->application()->application_reference.'. The Applicant receives your instruction and due date. Readiness remains unavailable until the required corrections and review are complete; submitted history is retained.')
+            ->modalDescription('Select the fields or documents the applicant needs to fix and set a due date.')
             ->schema([
                 Hidden::make('expected_submission_version_id')->default(fn (): ?int => $this->application()->current_submission_version_id),
                 Hidden::make('expected_target_requirement_set_id'),
@@ -675,7 +678,7 @@ class ViewAdmissionApplication extends ViewRecord
                     ->maxLength(1500),
                 DateTimePicker::make('due_at')
                     ->label('Correction due')
-                    ->helperText(fn (): string => $this->correctionWindowGuidance().' An active correction remains available after its deadline.')
+                    ->helperText('The applicant is emailed the documents to fix and this due date.')
                     ->validationMessages([
                         'after_or_equal' => fn (): string => 'Choose a time after now ('.$this->formatDeadline(now()).').',
                         'before_or_equal' => fn (): string => 'Choose a time on or before the correction deadline ('.$this->formatDeadline($this->application()->admissionCycle?->correction_closes_at).').',
@@ -684,7 +687,7 @@ class ViewAdmissionApplication extends ViewRecord
                     ->displayFormat('M j, Y · g:i A')
                     ->seconds(false)
                     ->prefixIcon('heroicon-o-calendar-days')
-                    ->native(false)
+                    ->native(true)
                     ->minDate(fn (): ?string => $this->pickerDayStart(now()))
                     ->maxDate(fn (): ?string => $this->pickerDayEnd($this->application()->admissionCycle?->correction_closes_at))
                     ->rule(fn (): \Closure => $this->exactWindowRule(fn (): CarbonInterface => now(), fn (): ?CarbonInterface => $this->application()->admissionCycle?->correction_closes_at, 'the correction deadline'))
@@ -748,10 +751,10 @@ class ViewAdmissionApplication extends ViewRecord
             ->icon('heroicon-o-document-magnifying-glass')
             ->modalDescription(function (): string {
                 if ($this->application()->application_state === AdmissionApplication::StateAdmitted) {
-                    return 'Replace the current Admitted decision for '.$this->application()->application_reference.'. An approval reference is required. Previous decisions remain in history; readiness is recalculated.';
+                    return 'Replace the current Admitted decision for '.$this->application()->application_reference.'. An approval reference is required.';
                 }
 
-                return 'Record a result for each submitted copy, then the admission decision. Leave the decision empty to save the copy results only. Earlier reviews and decisions remain in history.';
+                return 'Review each submitted document, then record the admission decision. Leave the decision blank to save document results only.';
             })
             ->fillForm(fn (): array => [
                 'copies' => collect($this->currentEvidence())->mapWithKeys(function (DocumentEvidence $evidence): array {
@@ -921,7 +924,7 @@ class ViewAdmissionApplication extends ViewRecord
             ->color('success')
             ->modalHeading('Admit application')
             ->modalWidth(Width::ThreeExtraLarge)
-            ->modalDescription('Tick each copy that is correct, or mark it For correction. All copies must be ticked to admit.')
+            ->modalDescription('Check each valid document, or mark it For correction. All documents must be checked to admit.')
             ->modalSubmitActionLabel(fn (): string => $this->admitFormHasCorrections() ? 'Send correction' : 'Admit')
             ->fillForm(fn (): array => [
                 'copies' => collect($this->currentEvidence())->mapWithKeys(function (DocumentEvidence $evidence): array {
@@ -961,9 +964,11 @@ class ViewAdmissionApplication extends ViewRecord
                         Actions::make([
                             Action::make('openCopy'.$evidence->id)
                                 ->label('Open')
-                                ->icon('heroicon-m-arrow-top-right-on-square')
+                                ->button()
+                                ->size(Size::Medium)
                                 ->color('gray')
-                                ->link()
+                                ->icon('heroicon-o-arrow-top-right-on-square')
+                                ->extraAttributes(['class' => 'justify-center whitespace-nowrap'])
                                 ->url(route('admissions.evidence.view', ['evidence' => $evidence->id]))
                                 ->openUrlInNewTab(),
                             Action::make('markForCorrection'.$evidence->id)
@@ -988,7 +993,7 @@ class ViewAdmissionApplication extends ViewRecord
                     ->extraAttributes(['class' => 'tala-admit-copy-row']))->all(),
                 DateTimePicker::make('correction_due_at')
                     ->label('Correction due')
-                    ->helperText(fn (): string => $this->correctionWindowGuidance().' The Applicant is emailed the copies to fix and this due date.')
+                    ->helperText('The applicant is emailed the documents to fix and this due date.')
                     ->validationMessages([
                         'after_or_equal' => fn (): string => 'Choose a time after now ('.$this->formatDeadline(now()).').',
                         'before_or_equal' => fn (): string => 'Choose a time on or before the correction deadline ('.$this->formatDeadline($this->application()->admissionCycle?->correction_closes_at).').',
@@ -997,7 +1002,7 @@ class ViewAdmissionApplication extends ViewRecord
                     ->displayFormat('M j, Y · g:i A')
                     ->seconds(false)
                     ->prefixIcon('heroicon-o-calendar-days')
-                    ->native(false)
+                    ->native(true)
                     ->minDate(fn (): ?string => $this->pickerDayStart(now()))
                     ->maxDate(fn (): ?string => $this->pickerDayEnd($this->application()->admissionCycle?->correction_closes_at))
                     ->rule(fn (): \Closure => $this->exactWindowRule(fn (): CarbonInterface => now(), fn (): ?CarbonInterface => $this->application()->admissionCycle?->correction_closes_at, 'the correction deadline'))
@@ -1266,7 +1271,7 @@ class ViewAdmissionApplication extends ViewRecord
                         ? 'No preliminary copies are required.'
                         : ($copiesAccepted ? 'All '.$copies->count().' submitted copies accepted' : $copies->where('accepted', true)->count().' of '.$copies->count().' submitted copies accepted'),
                     $decision
-                        ? str($decision->decision)->headline().' by '.($decision->decisionMaker?->getFilamentName() ?? 'Registrar').' · '.$format($decision->decided_at)
+                        ? str($decision->decision)->headline().' · '.$format($decision->decided_at)
                         : 'Decision pending',
                 ])->implode(' · ').'.',
                 'blocker' => $decision ? null : ($correctionNote ?? ($copiesAccepted ? $this->admissionBlockerGuidance() : null)),
@@ -1303,29 +1308,32 @@ class ViewAdmissionApplication extends ViewRecord
                 'done' => (bool) $projection['ready'] && $enrollment !== null,
                 'stopped' => false,
                 'summary' => match (true) {
-                    (bool) $projection['ready'] && $enrollment !== null => 'Admissions checks are complete and enrollment has started.',
+                    (bool) $projection['ready'] && $enrollment !== null => 'Admissions checks are complete and enrollment has started · '.EnrollmentsTable::stage($enrollment).'.',
                     (bool) $projection['ready'] => 'Admissions checks are complete. Start enrollment to move on to payment.',
                     default => 'Becomes ready once admission, identity review and clearance are complete.',
                 },
                 'blocker' => (bool) $projection['ready'] && $enrollment === null && ! $this->canStartEnrollment()
                     ? 'Enrollment can start once the enrollment period for this term is open.'
                     : null,
-                'action' => $enrollment === null ? 'startEnrollment' : null,
-                'button' => $enrollment === null ? 'Start enrollment' : null,
+                'action' => $enrollment === null ? 'startEnrollment' : 'openEnrollment',
+                'button' => $enrollment === null ? 'Start enrollment' : 'Open enrollment',
+                'persistent_action' => $enrollment !== null,
             ],
             [
                 'key' => SendAdmissionProcessRemark::StepPayment,
                 'done' => $enrollment?->officially_enrolled_at !== null || $verifiedPayment !== null,
+                'waiting' => $enrollment?->currentProposalVersion?->state !== RegistrationProposalVersion::StateConfirmed,
                 'stopped' => false,
                 'summary' => match (true) {
                     $verifiedPayment !== null => 'Verified by Accounting · '.$format($verifiedPayment->verified_at),
                     $enrollment?->officially_enrolled_at !== null => 'Enrollment finalized without a separate payment record.',
-                    $enrollment !== null => 'Enrollment started. Accounting assesses the fee and records the payment on the enrollment record.',
+                    $enrollment?->currentProposalVersion?->state === RegistrationProposalVersion::StateConfirmed => 'Enrollment is for payment. Accounting assesses the fee and records the payment on the enrollment record.',
+                    $enrollment !== null => 'Starts once the enrollment is for payment, after the subjects are chosen and confirmed.',
                     default => 'Starts after enrollment begins. Accounting then assesses the fee and verifies the payment; it cannot be overridden.',
                 },
                 'blocker' => null,
-                'action' => $enrollment !== null ? 'openEnrollment' : null,
-                'button' => $enrollment !== null ? 'Open enrollment' : null,
+                'action' => null,
+                'button' => null,
             ],
             [
                 'key' => SendAdmissionProcessRemark::StepEnrolled,
@@ -1348,6 +1356,9 @@ class ViewAdmissionApplication extends ViewRecord
                 $state = 'done';
             } elseif ($currentFound) {
                 $state = 'upcoming';
+            } elseif ($step['waiting'] ?? false) {
+                $state = 'upcoming';
+                $currentFound = true;
             } else {
                 $state = match (true) {
                     $step['stopped'], $deadline['status'] === AdmissionDeadlineStatus::Closed => 'stopped',
@@ -1363,7 +1374,7 @@ class ViewAdmissionApplication extends ViewRecord
                 $step['blocker'] = 'Expired: '.$deadline['reason'].' The Applicant was told to contact Admissions support.';
             }
 
-            $action = in_array($state, ['current', 'expired'], true) && $step['action'] !== null ? $this->getAction($step['action']) : null;
+            $action = (in_array($state, ['current', 'expired'], true) || ($step['persistent_action'] ?? false)) && $step['action'] !== null ? $this->getAction($step['action']) : null;
             $actionIsAvailable = $action instanceof Action && $action->isVisible();
             $isClosed = $state === 'stopped' && $deadline['status'] === AdmissionDeadlineStatus::Closed;
             // Screening is a choice, not a remark: Admit or For correction replace the remark box (#99 Scope 10).
@@ -1387,6 +1398,7 @@ class ViewAdmissionApplication extends ViewRecord
                 'blocker' => in_array($state, ['current', 'expired'], true) ? $step['blocker'] : null,
                 'action' => $actionIsAvailable ? $step['action'] : null,
                 'action_label' => $actionIsAvailable ? $step['button'] : null,
+                'persistent_action' => (bool) ($step['persistent_action'] ?? false),
                 'choices' => $choices,
                 'documents' => $step['documents'] ?? [],
                 'remarks' => ($remarks->get($step['key']) ?? collect())->map(fn (AdmissionApplicationEvent $event): array => [

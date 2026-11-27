@@ -231,16 +231,20 @@ class CoursesTable
                 ? 'Try a different subject code, title, or filter.'
                 : 'Create a reusable subject to use across program curricula.')
             ->emptyStateActions([
-                Action::make('emptyCreateSubject')
-                    ->label('New subject')
-                    ->icon(Heroicon::Plus)
+                CourseResource::createSubjectAction()
+                    ->name('emptyCreateSubject')
+                    ->icon(Heroicon::OutlinedPlus)
                     ->color('primary')
                     ->visible(fn (HasTable $livewire): bool => ! filled($livewire->getTableSearch())
                         && ! $livewire->getTable()->isFiltered()
-                        && (auth()->user()?->can('create', Course::class) ?? false))
-                    ->action(fn (HasTable $livewire) => $livewire->mountAction('create')),
+                        && (auth()->user()?->can('create', Course::class) ?? false)),
             ])
             ->toolbarActions([
+                CourseResource::createSubjectAction()
+                    ->icon(Heroicon::OutlinedPlus)
+                    ->color('primary')
+                    ->size('sm')
+                    ->visible(fn (): bool => auth()->user()?->can('create', Course::class) ?? false),
                 BulkActionGroup::make([
                     self::assignSelectedToCurriculaAction(),
                     self::removeSelectedFromCurriculaAction(),

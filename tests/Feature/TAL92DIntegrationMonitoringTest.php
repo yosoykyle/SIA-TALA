@@ -48,7 +48,8 @@ final class TAL92DIntegrationMonitoringTest extends TestCase
 
         $this->assertStringNotContainsString('smtp_secret_hidden', $html);
         $this->assertStringNotContainsString('solver_secret_hidden', $html);
-        $this->assertStringContainsString('Not checked by TALA', $html);
+        $this->assertStringContainsString('hosting infrastructure level', $html);
+        $this->assertStringContainsString('Solver runs &amp; reports', $html);
         $this->assertFileDoesNotExist(app_path('Filament/Pages/IntegrationStatus.php'));
         $this->assertFileDoesNotExist(app_path('Filament/Resources/OperationalEvents/OperationalEventResource.php'));
         $this->assertFileDoesNotExist(app_path('Filament/Resources/SystemSettings/SystemSettingResource.php'));

@@ -119,9 +119,11 @@ class Enrollment extends Page
 
     private function isIrregularStudent(): bool
     {
-        $student = $this->entryContext()['student_profile'] ?? null;
+        $context = $this->entryContext();
+        $student = $context['student_profile'] ?? null;
 
-        return $student instanceof StudentProfile && app(IrregularStudentReasons::class)->forStudent($student)['is_irregular'];
+        return $student instanceof StudentProfile
+            && app(IrregularStudentReasons::class)->forStudent($student, $context['term'] ?? null)['is_irregular'];
     }
 
     public function confirmProposalAction(): Action
@@ -145,7 +147,12 @@ class Enrollment extends Page
                         throw ValidationException::withMessages(['proposal' => 'Your subjects changed after you opened this form. Close it and review the current subjects.']);
                     }
                     app(ConfirmRegistrationProposal::class)->execute($proposal, $this->actor());
-                    Notification::make()->title('Subjects confirmed')->body('Check the next enrollment step below.')->success()->send();
+                    $updatedCase = $this->currentEnrollment()?->fresh();
+                    if ($updatedCase?->canonical_outcome === EnrollmentRecord::OutcomeOfficiallyEnrolled) {
+                        Notification::make()->title('Officially enrolled')->body('Your subjects are confirmed and your Certificate of Registration is ready.')->success()->send();
+                    } else {
+                        Notification::make()->title('Subjects confirmed')->body('Check the next enrollment step below.')->success()->send();
+                    }
                 } catch (Throwable $exception) {
                     $this->failure('Proposal was not confirmed', $exception);
                 }

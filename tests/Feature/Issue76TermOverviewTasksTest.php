@@ -71,7 +71,12 @@ class Issue76TermOverviewTasksTest extends TestCase
         $calendar = Livewire::withQueryParams(['termId' => $term->id])->test(TermCalendar::class);
         $this->assertSame(2, $calendar->viewData('sourceClasses')->count());
         $this->assertSame(['classes' => 0, 'confirmed' => 0, 'runs' => 0], $calendar->viewData('counts'));
-        $calendar->assertSeeHtml('href="'.e(TermClasses::getUrl(['termId' => $term->id])).'"');
+        $calendar->assertSee('2. Sections & classes')
+            ->assertSee('Complete Step 1 first');
+
+        TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive, 'activated_at' => now()]);
+        Livewire::withQueryParams(['termId' => $term->id])->test(TermCalendar::class)
+            ->assertSeeHtml('href="'.e(TermClasses::getUrl(['termId' => $term->id])).'"');
 
         Livewire::withQueryParams(['termId' => $term->id, 'classesView' => 'cohorts'])->test(TermClasses::class)
             ->assertSuccessful();
@@ -90,6 +95,10 @@ class Issue76TermOverviewTasksTest extends TestCase
             app(RecordFacultyAvailabilityDeadline::class)->execute($term, auth()->user(), now()->addWeek()->toDateTimeString(), 'Approved deadline', null, 0);
         }
         $offering = TermOffering::factory()->for($term)->create();
+        Section::factory()->for($offering, 'termOffering')->create([
+            'term_calendar_package_id' => $package->id,
+            'confirmed_at' => now(),
+        ]);
         $faculty = User::factory()->create(['status' => User::StatusActive]);
         Role::findOrCreate(User::StaffRoleFaculty, 'web');
         $faculty->assignRole(User::StaffRoleFaculty);
@@ -151,6 +160,8 @@ class Issue76TermOverviewTasksTest extends TestCase
         $this->assertSame(TermOverview::getUrl(), $navigationUrl);
         $this->withoutMiddleware(EnsureStaffMfaIsEnabled::class);
         $this->get($navigationUrl)->assertOk()
+            ->assertSeeHtml('href="'.e(TermOverview::getUrl(['academicYearId' => $active->academic_year_id])).'"');
+        $this->get(TermOverview::getUrl(['academicYearId' => $active->academic_year_id]))->assertOk()
             ->assertSeeHtml('href="'.e(TermCalendar::getUrl(['termId' => $active->id])).'"');
 
         Livewire::withQueryParams(['termId' => $active->id])->test(TermCalendar::class)
@@ -357,13 +368,21 @@ class Issue76TermOverviewTasksTest extends TestCase
         $this->registrar();
         Role::findOrCreate(User::StaffRoleFaculty, 'web');
         $term = Term::factory()->create();
+        $package = TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive, 'activated_at' => now()]);
+        $offering = TermOffering::factory()->for($term)->create();
+        Section::factory()->for($offering, 'termOffering')->create([
+            'term_calendar_package_id' => $package->id,
+            'confirmed_at' => now(),
+        ]);
         $faculty = User::factory()->create(['name' => 'AAA-CATALOG-ONLY-FACULTY', 'status' => User::StatusActive]);
         $faculty->assignRole(User::StaffRoleFaculty);
 
+        // When 0 term-scoped faculty exist but active school faculty exist, Step 3 auto-falls back so Registrar can assign subjects immediately.
         $page = Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)
-            ->assertSee('No faculty linked to this term')
-            ->assertSee('View classes');
-        $this->assertSame(0, $page->instance()->getTableRecords()->total());
+            ->assertSee($faculty->fresh()->name)
+            ->assertSee('Needs subject assignment');
+        $this->assertSame(0, $page->viewData('termFacultyCount'));
+        $this->assertTrue($page->viewData('facultyScopeAutoFallback'));
 
         $rows = $page->filterTable('faculty_scope', 'all')->searchTable($faculty->fresh()->name)->instance()->getTableRecords()->items();
         $this->assertArrayHasKey('faculty-'.$faculty->id, $rows);
@@ -396,7 +415,7 @@ class Issue76TermOverviewTasksTest extends TestCase
         $this->assertSame(2, $projection['summary']['class_count']);
         $this->assertCount(12, collect($projection['rows'])->where('program_id', $program->id));
 
-        $page = Livewire::test(TermOverview::class);
+        $page = Livewire::withQueryParams(['academicYearId' => $term->academic_year_id])->test(TermOverview::class);
         $this->assertGreaterThanOrEqual(1, $page->instance()->getTableRecords()->total());
         $page->filterTable('state', Term::StateDraft)
             ->assertSeeHtml('href="'.e(TermCalendar::getUrl(['termId' => $term->id])).'"')
@@ -418,27 +437,27 @@ class Issue76TermOverviewTasksTest extends TestCase
 
         Livewire::withQueryParams(['termId' => $term->id])->test(TermCalendar::class)
             ->assertSeeHtml('href="'.e(TermCalendar::getUrl(['termId' => $term->id])).'"')
-            ->assertSeeHtml('href="'.e(TermClasses::getUrl(['termId' => $term->id])).'"');
+            ->assertSee('2. Sections & classes');
 
         TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive, 'activated_at' => now()]);
         Livewire::withQueryParams(['termId' => $term->id])->test(TermCalendar::class)
             ->assertSeeHtml('href="'.e(TermClasses::getUrl(['termId' => $term->id])).'"');
     }
 
-    public function test_new_term_toolbar_action_renders_only_on_terms_tab(): void
+    public function test_new_term_toolbar_action_renders_only_inside_an_academic_year(): void
     {
         $this->registrar();
-        Term::factory()->create();
+        $term = Term::factory()->create();
 
         Livewire::test(TermOverview::class)
             ->assertOk()
-            ->assertActionVisible(TestAction::make('createTerm')->table())
-            ->assertActionDoesNotExist(TestAction::make('createAcademicYear')->table());
-
-        Livewire::withQueryParams(['overviewTab' => 'academic-years'])->test(TermOverview::class)
-            ->assertOk()
             ->assertActionVisible(TestAction::make('createAcademicYear')->table())
             ->assertActionDoesNotExist(TestAction::make('createTerm')->table());
+
+        Livewire::withQueryParams(['academicYearId' => $term->academic_year_id])->test(TermOverview::class)
+            ->assertOk()
+            ->assertActionVisible(TestAction::make('createTerm')->table())
+            ->assertActionDoesNotExist(TestAction::make('createAcademicYear')->table());
     }
 
     private function registrar(string $role = User::StaffRoleRegistrar): void

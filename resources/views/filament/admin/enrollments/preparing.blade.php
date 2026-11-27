@@ -17,6 +17,9 @@
     @else
     @php
         $irregularRequest = \App\Models\IrregularEnrollmentRequest::query()->where('enrollment_id', $case->id)->first();
+        $irregularReview ??= $case->studentProfile !== null
+            ? app(\App\Actions\Academics\IrregularStudentReasons::class)->forStudent($case->studentProfile, $case->term)
+            : null;
     @endphp
     @if ($irregularRequest !== null)
         <section class="registrar-irregular-request tala-task-surface" aria-labelledby="irregular-request-heading">
@@ -30,6 +33,11 @@
                 <p>Choose subjects opens with the student’s requested classes ticked. Saving them approves the application.</p>
                 <div class="registrar-case-task-actions">{{ $this->getAction('returnIrregularRequest', isMounting: false) }}</div>
             @endif
+        </section>
+    @elseif (($irregularReview['is_irregular'] ?? false) === true)
+        <section class="registrar-irregular-request tala-task-surface" aria-labelledby="irregular-status-heading">
+            <h2 id="irregular-status-heading">Irregular status</h2>
+            <x-irregular-reasons :review="$irregularReview" />
         </section>
     @endif
     <section class="registrar-case-preparation tala-task-surface" aria-labelledby="preparation-heading">

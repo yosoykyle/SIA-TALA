@@ -1,7 +1,7 @@
 @php
     $taskTitle = match ($viewTab) {
         'overview' => 'Term calendar',
-        'classes' => 'Classes & sections',
+        'classes' => 'Sections & classes',
         'resources' => 'Faculty & rooms',
         'generate', 'published' => 'Timetable',
         default => 'Term Planning',
@@ -12,6 +12,9 @@
             $taskBreadcrumbs[\App\Filament\Pages\AcademicApprovals::getUrl(['termId' => $term->id])] = 'Academic Oversight';
         }
         $taskBreadcrumbs[\App\Filament\Pages\TermOverview::getUrl()] = 'Term Planning';
+        if ($term->academic_year_id && $term->academicYear) {
+            $taskBreadcrumbs[\App\Filament\Pages\TermOverview::getUrl(['academicYearId' => $term->academic_year_id])] = (string) $term->academicYear->label;
+        }
         $taskBreadcrumbs[] = $taskTitle;
     } elseif ($readOnly) {
         $taskBreadcrumbs = [

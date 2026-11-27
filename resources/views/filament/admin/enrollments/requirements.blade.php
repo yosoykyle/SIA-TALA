@@ -1,15 +1,24 @@
 @assets
     <link rel="stylesheet" href="{{ asset('css/tala-enrollment.css').'?v='.filemtime(public_path('css/tala-enrollment.css')) }}">
 @endassets
+@php($paidAndBlocked = ($requirement['state'] ?? null) === 'Cleared')
 <div class="registrar-case">
     <div class="registrar-case-identity">
         <p>{{ $case->studentProfile?->program?->name ?? $case->admissionApplication?->program?->name }}</p>
         <p>{{ $case->term?->label }}</p>
     </div>
     <section class="registrar-requirements tala-task-surface" aria-labelledby="requirements-heading">
+        @if ($paidAndBlocked)
+            <div class="mb-3">
+                <x-filament::badge color="warning" icon="heroicon-o-exclamation-triangle">Paid · Auto-enrollment blocked</x-filament::badge>
+            </div>
+        @endif
         <div class="registrar-requirements-heading">
             <x-filament::icon icon="heroicon-o-exclamation-circle" />
-            <div><h2 id="requirements-heading">Review enrollment requirements</h2><p>Complete these checks before continuing with the selected subjects.</p></div>
+            <div>
+                <h2 id="requirements-heading">{{ $paidAndBlocked ? 'Resolve blocker to complete official enrollment' : 'Review enrollment requirements' }}</h2>
+                <p>{{ $paidAndBlocked ? 'Enrollment payment is cleared (no repayment needed), but automatic enrollment could not finish. Resolve each item below, then use the manual fallback to finalize enrollment.' : 'Complete these checks before continuing with the selected subjects.' }}</p>
+            </div>
         </div>
         <ul class="registrar-requirement-list">
             @foreach ($requirements as $requirement)

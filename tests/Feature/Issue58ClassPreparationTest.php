@@ -80,7 +80,7 @@ class Issue58ClassPreparationTest extends TestCase
     {
         $actor = $this->registrar();
         [$term, $package, $curriculum, $specification, $section] = $this->sources();
-        Livewire::withQueryParams(['termId' => $term->id, 'viewTab' => 'classes'])->test(TermClasses::class)
+        Livewire::withQueryParams(['termId' => $term->id, 'viewTab' => 'classes', 'classesView' => 'classes'])->test(TermClasses::class)
             ->callAction('recordCohort', ['curriculum_version_id' => $curriculum->id, 'reference' => 'MODAL-COHORT', 'confirmed_count' => 20])
             ->assertHasNoActionErrors()
             ->callTableAction('prepareClassOffering', $section, ['section_id' => $section->id, ...$this->classFacts()])
@@ -135,7 +135,7 @@ class Issue58ClassPreparationTest extends TestCase
         $this->registrar();
         [$term, $package, $curriculum, $specification, $section] = $this->sources();
         $action = $case === 'term' ? 'recordCohort' : 'prepareClassOffering';
-        $page = Livewire::withQueryParams(['termId' => $term->id, 'viewTab' => 'classes'])->test(TermClasses::class);
+        $page = Livewire::withQueryParams(['termId' => $term->id, 'viewTab' => 'classes', 'classesView' => 'classes'])->test(TermClasses::class);
         if ($action === 'prepareClassOffering') {
             $page->mountTableAction($action, $section);
         } else {
@@ -151,7 +151,7 @@ class Issue58ClassPreparationTest extends TestCase
         $page->setActionData($data)->callMountedAction();
         if ($case === 'calendar') {
             $page->call('unmountAction')->assertTableActionHidden('prepareClassOffering', $section)
-                ->assertSee('Loading and confirming classes requires an active teaching calendar.');
+                ->assertSee('Complete Step 1 first');
         } elseif ($case === 'term') {
             $page->call('unmountAction')->assertActionHidden('recordCohort');
         } else {
@@ -439,7 +439,7 @@ class Issue58ClassPreparationTest extends TestCase
             'delivery_mode' => TermOffering::ModalityFaceToFace,
         ]);
 
-        Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
+        Livewire::withQueryParams(['termId' => $term->id, 'classesView' => 'classes'])->test(TermClasses::class)
             ->callTableBulkAction('confirmSelectedClasses', [$prep1, $prep2], ['classes' => [
                 ['section_id' => $prep1->id, 'cohorts' => [['term_cohort_id' => $cohort->id, 'expected_count' => 15]]],
                 ['section_id' => $prep2->id, 'cohorts' => [['term_cohort_id' => $cohort->id, 'expected_count' => 15]]],
@@ -503,7 +503,7 @@ class Issue58ClassPreparationTest extends TestCase
             $this->assertNull($section->term_calendar_package_id);
             $this->assertNull($section->confirmed_at);
         }
-        $component = Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
+        $component = Livewire::withQueryParams(['termId' => $term->id, 'classesView' => 'classes'])->test(TermClasses::class)
             ->callTableBulkAction('confirmSelectedClasses', $sections, ['classes' => [
                 ['section_id' => $sections[0]->id, 'cohorts' => [['term_cohort_id' => $cohort->id, 'expected_count' => 10]]],
                 ['section_id' => $sections[1]->id, 'cohorts' => [['term_cohort_id' => $cohort->id, 'expected_count' => $secondCount]]],
@@ -536,7 +536,7 @@ class Issue58ClassPreparationTest extends TestCase
     public function test_native_bulk_review_rejects_source_changes_after_opening(string $source): void
     {
         [$term, , $cohort, $sections] = $this->unpreparedBulkClasses();
-        $component = Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
+        $component = Livewire::withQueryParams(['termId' => $term->id, 'classesView' => 'classes'])->test(TermClasses::class)
             ->mountTableBulkAction('confirmSelectedClasses', $sections)
             ->setTableBulkActionData(['classes' => array_map(fn (Section $section): array => [
                 'section_id' => $section->id,

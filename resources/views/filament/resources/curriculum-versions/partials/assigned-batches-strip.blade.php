@@ -6,17 +6,17 @@
     <header class="tala-batches-panel__header">
         <div class="tala-batches-panel__heading">
             <h2 id="curriculum-assigned-batches-heading" class="tala-batches-panel__title">Assigned batches</h2>
-            <x-filament::badge color="gray" size="sm" class="tala-tabular">
+            <x-filament::badge :color="$batchCount === 0 ? 'warning' : 'gray'" size="sm" class="tala-tabular">
                 {{ $batchCount }} {{ \Illuminate\Support\Str::plural('batch', $batchCount) }}
             </x-filament::badge>
         </div>
 
-        @if ($canAddBatch)
+        @if ($canAddBatch && $assignedBatches !== [])
             <x-filament::button
                 type="button"
-                size="xs"
+                size="sm"
                 color="gray"
-                icon="heroicon-m-plus"
+                icon="heroicon-o-plus"
                 wire:click="mountAction('addBatch')"
             >
                 Add batch
@@ -56,7 +56,7 @@
                             @elseif ($batch['in_use'] ?? false)
                                 <x-filament::badge color="gray" size="sm">In use</x-filament::badge>
                             @else
-                                <span class="tala-batches-table__muted">—</span>
+                                <span class="tala-batches-table__muted">-</span>
                             @endif
                         </td>
                     </tr>
@@ -64,6 +64,23 @@
             </tbody>
         </x-data-table>
     @else
-        <p class="tala-batches-panel__empty">No batches assigned yet.</p>
+        <div class="tala-batches-panel__empty-advisory p-4">
+            <x-tala-access-alert variant="warning" title="No starting batch assigned yet">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <p class="m-0">No starting batch assigned yet. This curriculum will not appear in Admissions until a batch is assigned.</p>
+                    @if ($canAddBatch)
+                        <x-filament::button
+                            type="button"
+                            size="sm"
+                            color="warning"
+                            icon="heroicon-o-plus"
+                            wire:click="mountAction('addBatch')"
+                        >
+                            Assign batch
+                        </x-filament::button>
+                    @endif
+                </div>
+            </x-tala-access-alert>
+        </div>
     @endif
 </section>

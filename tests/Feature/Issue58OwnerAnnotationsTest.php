@@ -29,9 +29,11 @@ use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
 use App\Models\Room;
 use App\Models\RoomFeature;
+use App\Models\Section;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermCohort;
+use App\Models\TermOffering;
 use App\Models\TermTeachingGridRow;
 use App\Models\User;
 use App\Support\RoomEquipment;
@@ -131,17 +133,19 @@ class Issue58OwnerAnnotationsTest extends TestCase
             CourseSpecification::factory()->create(['course_id' => $qualification->course_id, 'state' => CourseSpecification::StateActive, 'title' => $title]);
         }
         $term = Term::factory()->create();
+        $this->unlockResourcesStep($term);
 
         $page = Livewire::withQueryParams(['termId' => $term->id, 'resourceView' => 'faculty'])->test(TermResources::class)
-            ->assertDontSee('Faculty source count')->filterTable('faculty_scope', 'all');
+            ->filterTable('faculty_scope', 'all');
 
         $record = $page->instance()->getTableRecords()->items()['faculty-'.$faculty->id];
         $this->assertSame('Faculty source count', $record['name']);
         $this->assertSame(2, $record['eligible_course_count']);
         $this->assertStringContainsString('Design, research and analysis', $record['detail']);
-        $this->assertTrue($page->instance()->getTable()->getColumn('eligible_courses')->isToggledHidden());
-        $this->assertTrue($page->instance()->getTable()->getColumn('load')->isToggledHidden());
-        $page->assertSee('Faculty source count')->assertSee('2 eligible subjects')->assertSee('No response')->assertSee('Not sent');
+        $this->assertFalse($page->instance()->getTable()->getColumn('eligible_courses')->isToggledHidden());
+        $this->assertFalse($page->instance()->getTable()->getColumn('load')->isToggledHidden());
+        $this->assertTrue($page->instance()->getTable()->getColumn('evidence')->isToggledHidden());
+        $page->assertSee('Faculty source count')->assertSee('2 subjects · Not in term')->assertSee('No response')->assertSee('Not sent');
         $page->searchTable('Design, research and analysis')->assertSee('Faculty source count');
     }
 
@@ -149,34 +153,22 @@ class Issue58OwnerAnnotationsTest extends TestCase
     {
         $this->staff();
         $term = Term::factory()->create();
+        $this->unlockResourcesStep($term);
         $page = Livewire::withQueryParams(['termId' => $term->id, 'resourceView' => 'rooms'])->test(TermResources::class);
-        $page->call('applyTableColumnManager', $page->get('tableColumns'));
+        $this->assertTrue($page->instance()->getTable()->getColumn('capacity')->isVisible());
 
         $page->call('chooseResourceView', 'faculty');
 
-        $this->assertTrue($page->instance()->getTable()->getColumn('eligible_courses')->isToggledHidden());
-        $choices = collect($page->get('tableColumns'))->map(function (array $column): array {
-            if (in_array($column['name'], ['eligible_courses', 'load'], true)) {
-                $column['isToggled'] = true;
-            }
+        $this->assertFalse($page->instance()->getTable()->getColumn('eligible_courses')->isToggledHidden());
+        $this->assertFalse($page->instance()->getTable()->getColumn('load')->isToggledHidden());
+        $this->assertTrue($page->instance()->getTable()->getColumn('evidence')->isToggledHidden());
 
-            return $column;
-        })->all();
-        $page->call('applyTableColumnManager', $choices)->call('chooseResourceView', 'rooms');
+        $page->call('chooseResourceView', 'rooms');
         $this->assertTrue($page->instance()->getTable()->getColumn('capacity')->isVisible());
         $page->call('chooseResourceView', 'faculty');
         $this->assertFalse($page->instance()->getTable()->getColumn('eligible_courses')->isToggledHidden());
         $this->assertFalse($page->instance()->getTable()->getColumn('load')->isToggledHidden());
-        $choices = collect($page->get('tableColumns'))->map(function (array $column): array {
-            if ($column['name'] === 'eligible_courses') {
-                $column['isToggled'] = false;
-            }
-
-            return $column;
-        })->all();
-        $page->call('applyTableColumnManager', $choices)->call('chooseResourceView', 'rooms')->call('chooseResourceView', 'faculty');
-        $this->assertTrue($page->instance()->getTable()->getColumn('eligible_courses')->isToggledHidden());
-        $this->assertFalse($page->instance()->getTable()->getColumn('load')->isToggledHidden());
+        $this->assertTrue($page->instance()->getTable()->getColumn('evidence')->isToggledHidden());
     }
 
     public function test_empty_coverage_prepares_complete_term_classes_while_head_keeps_read_only_scope(): void
@@ -187,9 +179,15 @@ class Issue58OwnerAnnotationsTest extends TestCase
         CurriculumEntry::factory()->for($curriculum, 'curriculumVersion')->create(['term_type' => $term->type]);
         Livewire::withQueryParams(['termId' => $term->id])->test(TermOverview::class)
             ->assertRedirect(TermCalendar::getUrl(['termId' => $term->id]));
+
+        TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateActive,
+            'activated_at' => now(),
+        ]);
+
         Livewire::withQueryParams(['termId' => $term->id])->test(TermCalendar::class)
             ->assertSee(TermClasses::getUrl(['termId' => $term->id]));
-        Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
+        Livewire::withQueryParams(['termId' => $term->id, 'classesView' => 'classes'])->test(TermClasses::class)
             ->assertActionVisible(TestAction::make('loadCurriculumSubjects')->table());
 
         $this->staff(User::StaffRoleAcademicHead);
@@ -198,7 +196,7 @@ class Issue58OwnerAnnotationsTest extends TestCase
         $this->assertTrue(collect($headCalendar->instance()->getWorkspaceNavigation())->contains(
             fn ($item): bool => $item->getUrl() === TermClasses::getUrl(['termId' => $term->id])
         ));
-        Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
+        Livewire::withQueryParams(['termId' => $term->id, 'classesView' => 'classes'])->test(TermClasses::class)
             ->assertActionHidden(TestAction::make('loadCurriculumSubjects')->table());
     }
 
@@ -361,6 +359,10 @@ class Issue58OwnerAnnotationsTest extends TestCase
     {
         $this->staff();
         $term = Term::factory()->create();
+        TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateActive,
+            'activated_at' => now(),
+        ]);
         $cohort = TermCohort::factory()->for($term)->create(['reference' => 'ANNOTATION-SECTION']);
         $other = TermCohort::factory()->create(['reference' => 'ANNOTATION-OTHER']);
         $page = Livewire::withQueryParams(['termId' => $term->id, 'classesView' => 'cohorts'])->test(TermClasses::class)
@@ -415,9 +417,9 @@ class Issue58OwnerAnnotationsTest extends TestCase
         $this->staff();
         $term = Term::factory()->create();
         Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)
-            ->assertSee('Activate the teaching calendar so faculty can submit availability.')
-            ->assertActionDisabled('sendAvailabilityReminder');
-        TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive]);
+            ->assertSee('Activate the term calendar first before assigning faculty and rooms.')
+            ->assertDontSee('Send reminder & due date');
+        $this->unlockResourcesStep($term);
         $page = Livewire::withQueryParams(['termId' => $term->id])->test(TermResources::class)
             ->assertSee('Reply by:')
             ->assertSee('No due date set')
@@ -442,7 +444,14 @@ class Issue58OwnerAnnotationsTest extends TestCase
         $term = Term::factory()->create();
         $readOnly = $role === User::StaffRoleAcademicHead;
 
-        Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
+        if (! $readOnly) {
+            TermCalendarPackage::factory()->for($term)->create([
+                'state' => TermCalendarPackage::StateActive,
+                'activated_at' => now(),
+            ]);
+        }
+
+        Livewire::withQueryParams(['termId' => $term->id, 'classesView' => 'classes'])->test(TermClasses::class)
             ->assertSee('No classes added for this term')
             ->assertSee($readOnly ? 'The Registrar adds student sections and loads classes for this term.' : 'Add student sections first, then load subjects from curriculum or add a class.')
             ->searchTable('zz-no-matching-course')
@@ -456,8 +465,13 @@ class Issue58OwnerAnnotationsTest extends TestCase
             ->searchTable('zz-no-matching-section')
             ->assertSee('No matching student sections');
 
+        $resourcesTerm = Term::factory()->create();
+        if (! $readOnly) {
+            $this->unlockResourcesStep($resourcesTerm);
+        }
+
         foreach (['faculty' => ['No matching faculty', 'Try another name or clear the search.'], 'rooms' => ['No matching rooms', 'Try another code, name, or building, or clear the search.']] as $view => [$heading, $description]) {
-            Livewire::withQueryParams(['termId' => $term->id, 'resourceView' => $view])->test(TermResources::class)
+            Livewire::withQueryParams(['termId' => $resourcesTerm->id, 'resourceView' => $view])->test(TermResources::class)
                 ->searchTable('zz-no-matching-resource')
                 ->assertSee($heading)->assertSee($description)
                 ->assertDontSee('No teaching resources recorded');
@@ -474,6 +488,20 @@ class Issue58OwnerAnnotationsTest extends TestCase
                 ->assertDontSee('Teaching calendar not active.')
                 ->assertDontSee('Send reminder & due date');
         }
+    }
+
+    private function unlockResourcesStep(Term $term): void
+    {
+        $package = TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateActive,
+            'activated_at' => now(),
+        ]);
+        $offering = TermOffering::factory()->for($term)->create();
+        Section::factory()->for($offering, 'termOffering')->create([
+            'term_calendar_package_id' => $package->id,
+            'state' => Section::StateOpen,
+            'confirmed_at' => now(),
+        ]);
     }
 
     private function staff(string $name = User::StaffRoleRegistrar): void

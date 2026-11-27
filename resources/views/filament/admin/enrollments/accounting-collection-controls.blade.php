@@ -1,4 +1,4 @@
-<x-record-collection-controls :heading="['accounts' => 'All student accounts', 'payment_proof' => 'Review receipts', 'assessment_required' => 'Assessment reviews', 'student_changes' => 'Student status changes'][$this->activeTab] ?? 'Student accounts'">
+<x-record-collection-controls :heading="['accounts' => 'All student accounts', 'payment_proof' => 'Review receipts', 'awaiting_payment' => 'Waiting for payment', 'assessment_required' => 'Assessment reviews', 'student_changes' => 'Student status changes'][$this->activeTab] ?? 'Student accounts'">
     <x-slot:filters>
         <x-record-collection-filters :table="$this->getTable()" :form="$filters" wire:key="accounting-collection-filters-{{ $this->activeTab }}" />
     </x-slot:filters>

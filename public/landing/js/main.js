@@ -213,15 +213,25 @@ const initPublicLanding = () => {
         window.history.replaceState(window.history.state, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
     };
 
-    document.querySelectorAll('[data-program-detail-modal]').forEach((modalElement) => {
-        const programId = modalElement.dataset.programDetailModal;
+    const bindProgramDetailModal = (modalElement) => {
+        if (!modalElement || modalElement.dataset?.talaModalBound === 'true') {
+            return;
+        }
 
-        modalElement.addEventListener('shown.bs.modal', () => replaceProgramParameter(programId));
-        modalElement.addEventListener('hidden.bs.modal', () => {
+        if (modalElement.dataset) {
+            modalElement.dataset.talaModalBound = 'true';
+        }
+
+        const programId = modalElement.dataset?.programDetailModal;
+
+        modalElement.addEventListener?.('shown.bs.modal', () => replaceProgramParameter(programId));
+        modalElement.addEventListener?.('hidden.bs.modal', () => {
             replaceProgramParameter(null);
             document.querySelector(`[data-program-read-more="${programId}"]`)?.focus({ preventScroll: true });
         });
-    });
+    };
+
+    document.querySelectorAll('[data-program-detail-modal]').forEach(bindProgramDetailModal);
 
     const requestedProgramModal = new URLSearchParams(window.location.search).get('program');
     const requestedProgramElement = requestedProgramModal
@@ -1243,6 +1253,1047 @@ const initPublicLanding = () => {
             const currentScrollY = window.scrollY || 0;
             const threshold = Math.max(40, openY * 0.4);
             snapSheetTo(currentScrollY >= threshold ? 0 : openY);
+        });
+    }
+
+    const programCatalog = document.querySelector?.('[data-program-catalog]') ?? null;
+    const programFilterForm = programCatalog?.querySelector?.('[data-program-filters]') ?? null;
+    const programList = programCatalog?.querySelector?.('[data-program-list]') ?? null;
+
+    if (programCatalog && programFilterForm && programList) {
+        document.documentElement?.classList?.add?.('has-program-filter-js');
+
+        const programSummary = programCatalog.querySelector?.('[data-program-summary]') ?? null;
+        const programStatusRegion = programCatalog.querySelector?.('[data-program-filter-status]') ?? null;
+        const programEmptyItem = programList.querySelector?.('[data-program-empty]') ?? null;
+        const programClearControls = [...(programCatalog.querySelectorAll?.('[data-program-filter-clear]') ?? [])];
+        const totalProgramCount = Number.parseInt(programCatalog.dataset?.catalogTotal ?? '', 10);
+        const totalOpenCount = Number.parseInt(programCatalog.dataset?.catalogOpenTotal ?? '', 10);
+        let isCatalogComplete = programCatalog.dataset?.catalogComplete === 'true';
+        let hydrateCatalogPromise = null;
+        let lastAnnouncedStatus = '';
+
+        const getProgramCards = () => [...(programList.querySelectorAll?.('[data-program-card]') ?? [])];
+
+        const readSelectedFilters = () => {
+            const checkedDuration = programFilterForm.querySelector?.('input[name="duration"]:checked')?.value ?? '';
+            const checkedAvailability = programFilterForm.querySelector?.('input[name="availability"]:checked')?.value ?? '';
+
+            return {
+                duration: checkedDuration,
+                availability: checkedAvailability,
+            };
+        };
+
+        const buildFilteredHref = (filters, extraParams = {}) => {
+            const baseHref = programCatalog.dataset?.catalogBaseUrl || window.location?.pathname || '/';
+            const params = new URLSearchParams();
+
+            if (filters.duration) {
+                params.set('duration', filters.duration);
+            }
+
+            if (filters.availability) {
+                params.set('availability', filters.availability);
+            }
+
+            Object.entries(extraParams).forEach(([key, value]) => {
+                if (value !== null && value !== undefined && value !== '') {
+                    params.set(key, String(value));
+                }
+            });
+
+            const query = params.toString();
+            const separator = query ? `?${query}` : '';
+
+            return `${baseHref}${separator}#programs`;
+        };
+
+        const syncHistoryUrl = (filters) => {
+            if (!window.history?.replaceState || typeof URL !== 'function' || !window.location?.href) {
+                return;
+            }
+
+            const nextUrl = new URL(window.location.href);
+            const preservedEntries = [];
+
+            nextUrl.searchParams.forEach((value, key) => {
+                if (key !== 'duration' && key !== 'availability') {
+                    preservedEntries.push([key, value]);
+                }
+            });
+
+            const nextParams = new URLSearchParams();
+
+            if (filters.duration) {
+                nextParams.set('duration', filters.duration);
+            }
+
+            if (filters.availability) {
+                nextParams.set('availability', filters.availability);
+            }
+
+            preservedEntries.forEach(([key, value]) => {
+                nextParams.append(key, value);
+            });
+
+            const query = nextParams.toString();
+            const search = query ? `?${query}` : '';
+            const hasFilters = Boolean(filters.duration || filters.availability);
+            const nextHash = hasFilters ? '#programs' : (nextUrl.hash || '');
+
+            window.history.replaceState(
+                window.history.state,
+                '',
+                `${nextUrl.pathname}${search}${nextHash}`
+            );
+        };
+
+        const pluralizeProgram = (count) => (count === 1 ? 'program' : 'programs');
+
+        const updateProgramSummary = (visibleCount, openCount, totalCount, hasFilters) => {
+            if (!programSummary) {
+                return;
+            }
+
+            if (typeof document.createElement === 'function' && typeof programSummary.replaceChildren === 'function') {
+                const strong = (value) => {
+                    const el = document.createElement('strong');
+                    el.textContent = String(value);
+                    return el;
+                };
+
+                if (hasFilters) {
+                    const span = document.createElement('span');
+                    span.append('Showing ', strong(visibleCount), ' of ', strong(totalCount), ` ${pluralizeProgram(totalCount)}`);
+                    programSummary.replaceChildren(span);
+                } else {
+                    const countSpan = document.createElement('span');
+                    countSpan.append(strong(visibleCount), ` ${pluralizeProgram(visibleCount)}`);
+
+                    const sep = document.createElement('span');
+                    sep.className = 'catalog-summary__sep';
+                    sep.setAttribute('aria-hidden', 'true');
+                    sep.textContent = '·';
+
+                    const openSpan = document.createElement('span');
+                    openSpan.append(strong(openCount), ' accepting applications');
+
+                    programSummary.replaceChildren(countSpan, sep, openSpan);
+                }
+            } else {
+                programSummary.textContent = hasFilters
+                    ? `Showing ${visibleCount} of ${totalCount} ${pluralizeProgram(totalCount)}`
+                    : `${visibleCount} ${pluralizeProgram(visibleCount)} · ${openCount} accepting applications`;
+            }
+        };
+
+        const announceProgramFilterState = (visibleCount, totalCount, hasFilters) => {
+            if (!programStatusRegion) {
+                return;
+            }
+
+            const message = visibleCount === 0
+                ? 'No programs match the selected filters.'
+                : hasFilters
+                    ? `Showing ${visibleCount} of ${totalCount} ${pluralizeProgram(totalCount)}.`
+                    : `Showing all ${visibleCount} ${pluralizeProgram(visibleCount)}.`;
+
+            programStatusRegion.textContent = lastAnnouncedStatus === message ? `${message}\u00A0` : message;
+            lastAnnouncedStatus = message;
+        };
+
+        const applyProgramFiltersNow = (filters, { announce = true, syncUrl = true } = {}) => {
+            const cards = getProgramCards();
+            const hasFilters = Boolean(filters.duration || filters.availability);
+            let visibleCount = 0;
+            let visibleOpenCount = 0;
+
+            cards.forEach((card) => {
+                const cardDuration = String(card.dataset?.duration ?? '');
+                const cardAvailability = String(card.dataset?.availability ?? '');
+                const matchesDuration = !filters.duration || cardDuration === filters.duration;
+                const matchesAvailability = !filters.availability || cardAvailability === filters.availability;
+                const matches = matchesDuration && matchesAvailability;
+
+                card.hidden = !matches;
+
+                if (matches) {
+                    visibleCount += 1;
+                    if (cardAvailability === 'open') {
+                        visibleOpenCount += 1;
+                    }
+                }
+
+                const readMoreLink = card.querySelector?.('[data-program-read-more]');
+                const programId = card.dataset?.programId;
+                if (readMoreLink && programId) {
+                    readMoreLink.setAttribute?.('href', buildFilteredHref(filters, { program: programId }));
+                }
+            });
+
+            document.querySelectorAll?.('[data-program-modal-back]')?.forEach?.((backLink) => {
+                backLink.setAttribute?.('href', buildFilteredHref(filters));
+            });
+
+            if (programEmptyItem) {
+                programEmptyItem.hidden = visibleCount > 0;
+            }
+
+            programClearControls.forEach((control) => {
+                if (control.closest?.('[data-program-filters]')) {
+                    control.hidden = !hasFilters;
+                }
+            });
+
+            const resolvedTotal = Number.isFinite(totalProgramCount) && totalProgramCount > 0
+                ? totalProgramCount
+                : cards.length;
+            const resolvedOpenTotal = Number.isFinite(totalOpenCount)
+                ? totalOpenCount
+                : visibleOpenCount;
+
+            updateProgramSummary(
+                visibleCount,
+                hasFilters ? visibleOpenCount : resolvedOpenTotal,
+                resolvedTotal,
+                hasFilters
+            );
+
+            if (announce) {
+                announceProgramFilterState(visibleCount, resolvedTotal, hasFilters);
+            }
+
+            if (syncUrl) {
+                syncHistoryUrl(filters);
+            }
+
+            refreshScrollDimensions();
+            refreshSectionOffsets();
+            scheduleScrollProgress();
+            scheduleNavbarContrastUpdate({ immediate: true });
+        };
+
+        const runProgramFilterUpdate = (filters, options = {}) => {
+            const update = () => applyProgramFiltersNow(filters, options);
+
+            if (typeof document.startViewTransition === 'function' && !reducedMotion.matches) {
+                try {
+                    document.startViewTransition(update);
+                    return;
+                } catch {
+                    // Fall through to synchronous update
+                }
+            }
+
+            update();
+        };
+
+        const hydrateFullCatalog = () => {
+            if (isCatalogComplete) {
+                return Promise.resolve(true);
+            }
+
+            if (hydrateCatalogPromise) {
+                return hydrateCatalogPromise;
+            }
+
+            const baseHref = programCatalog.dataset?.catalogBaseUrl;
+            const fetchFn = window.fetch ?? (typeof fetch === 'function' ? fetch : null);
+            const Parser = window.DOMParser ?? (typeof DOMParser === 'function' ? DOMParser : null);
+
+            if (!baseHref || !fetchFn || !Parser) {
+                return Promise.resolve(false);
+            }
+
+            hydrateCatalogPromise = Promise.resolve(
+                fetchFn(baseHref, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            )
+                .then((response) => {
+                    if (!response?.ok) {
+                        return false;
+                    }
+
+                    return response.text();
+                })
+                .then((html) => {
+                    if (!html) {
+                        return false;
+                    }
+
+                    const parsed = new Parser().parseFromString(html, 'text/html');
+                    const freshCards = [...parsed.querySelectorAll('[data-program-catalog] [data-program-card]')];
+
+                    if (!freshCards.length) {
+                        return false;
+                    }
+
+                    getProgramCards().forEach((card) => card.remove());
+
+                    freshCards.forEach((freshCard) => {
+                        const importedCard = document.importNode(freshCard, true);
+                        if (programEmptyItem) {
+                            programList.insertBefore(importedCard, programEmptyItem);
+                        } else {
+                            programList.appendChild(importedCard);
+                        }
+                    });
+
+                    parsed.querySelectorAll('[data-program-detail-modal]').forEach((freshModal) => {
+                        const modalId = freshModal.id;
+                        if (modalId && !document.getElementById(modalId) && document.body) {
+                            const importedModal = document.importNode(freshModal, true);
+                            document.body.appendChild(importedModal);
+                            bindProgramDetailModal(importedModal);
+                        }
+                    });
+
+                    isCatalogComplete = true;
+                    if (programCatalog.dataset) {
+                        programCatalog.dataset.catalogComplete = 'true';
+                    }
+
+                    return true;
+                })
+                .catch(() => false)
+                .finally(() => {
+                    hydrateCatalogPromise = null;
+                });
+
+            return hydrateCatalogPromise;
+        };
+
+        const handleFilterChange = () => {
+            const filters = readSelectedFilters();
+
+            if (isCatalogComplete) {
+                runProgramFilterUpdate(filters);
+                return;
+            }
+
+            hydrateFullCatalog().then((hydrated) => {
+                if (hydrated) {
+                    runProgramFilterUpdate(readSelectedFilters());
+                } else {
+                    programFilterForm.submit?.();
+                }
+            });
+        };
+
+        const resetProgramFilters = (event) => {
+            event?.preventDefault?.();
+
+            const durationAll = programFilterForm.querySelector?.('input[name="duration"][value=""]');
+            const availabilityAll = programFilterForm.querySelector?.('input[name="availability"][value=""]');
+
+            if (durationAll) {
+                durationAll.checked = true;
+            }
+
+            if (availabilityAll) {
+                availabilityAll.checked = true;
+            }
+
+            handleFilterChange();
+        };
+
+        programFilterForm.addEventListener?.('change', (event) => {
+            if (event.target?.matches?.('input[type="radio"]')) {
+                handleFilterChange();
+            }
+        });
+
+        programFilterForm.addEventListener?.('submit', (event) => {
+            event.preventDefault?.();
+            handleFilterChange();
+        });
+
+        programClearControls.forEach((control) => {
+            control.addEventListener?.('click', resetProgramFilters);
+        });
+    }
+
+    const trinketShapeCycle = ['spark', 'star', 'ring', 'plus', 'arc', 'squiggle', 'plane', 'dot'];
+    const trinketSvgMap = {
+        spark: '<svg viewBox="0 0 24 24" focusable="false"><path d="M12 1 C 13 8, 16 11, 23 12 C 16 13, 13 16, 12 23 C 11 16, 8 13, 1 12 C 8 11, 11 8, 12 1 Z"/></svg>',
+        star: '<svg viewBox="0 0 24 24" focusable="false"><path d="M12 2.5 L 14.1 9.9 L 21.5 12 L 14.1 14.1 L 12 21.5 L 9.9 14.1 L 2.5 12 L 9.9 9.9 Z"/></svg>',
+        ring: '<svg viewBox="0 0 24 24" focusable="false"><circle class="tala-ambient-line" cx="12" cy="12" r="8.75"/></svg>',
+        plus: '<svg viewBox="0 0 24 24" focusable="false"><path class="tala-ambient-line" d="M12 3.5 V 20.5 M3.5 12 H 20.5"/></svg>',
+        squiggle: '<svg viewBox="0 0 64 20" focusable="false"><path class="tala-ambient-line" d="M2 10 C 8 0, 14 20, 20 10 S 32 0, 38 10 S 50 20, 62 10"/></svg>',
+        arc: '<svg viewBox="0 0 32 20" focusable="false"><path class="tala-ambient-line" d="M3 16 C 9 4, 23 4, 29 16"/></svg>',
+        plane: '<svg viewBox="0 0 48 44" focusable="false"><path d="M2 16 L 46 2 L 22 40 L 15 27 Z"/></svg>',
+        dot: '<span class="tala-ambient-dot"></span>',
+    };
+
+    const fgTrinketsContainer = document.querySelector?.('[data-trinkets-fg]') ?? null;
+    const fgTrinkets = fgTrinketsContainer
+        ? [...(fgTrinketsContainer.querySelectorAll?.('.landing-fg-trinket') ?? [])]
+        : [];
+
+    if (fgTrinkets.length > 0 && typeof window.setInterval === 'function') {
+        const trinketScaleCycle = [1, 1.14, 0.9, 1.06];
+        // Choreographed sweep alternating left & right flanks top-to-bottom
+        const leftHalf = Math.ceil(fgTrinkets.length / 2);
+        const trinketWaveOrder = [];
+        for (let offset = 0; offset < leftHalf; offset += 1) {
+            if (offset < fgTrinkets.length) {
+                trinketWaveOrder.push(offset);
+            }
+            const rightIndex = leftHalf + offset;
+            if (rightIndex < fgTrinkets.length) {
+                trinketWaveOrder.push(rightIndex);
+            }
+        }
+
+        let waveCursor = 0;
+        let trinketInterval = null;
+        let morphSwapTimer = null;
+
+        const canMorphTrinkets = () => !reducedMotion.matches
+            && !forcedColors.matches
+            && !document.hidden;
+
+        const morphNextTrinket = () => {
+            if (!canMorphTrinkets() || !trinketWaveOrder.length) {
+                return;
+            }
+
+            const targetIndex = trinketWaveOrder[waveCursor % trinketWaveOrder.length];
+            const trinket = fgTrinkets[targetIndex];
+            const glyph = trinket?.querySelector?.('[data-trinket-glyph]') ?? null;
+
+            waveCursor += 1;
+
+            if (!trinket || !glyph) {
+                return;
+            }
+
+            const currentShape = trinket.dataset?.shape ?? 'spark';
+            const currentPos = trinketShapeCycle.indexOf(currentShape);
+            const nextShape = trinketShapeCycle[(currentPos + 1) % trinketShapeCycle.length];
+            const nextScale = trinketScaleCycle[waveCursor % trinketScaleCycle.length];
+
+            trinket.classList?.add?.('is-morphing');
+
+            if (morphSwapTimer !== null) {
+                window.clearTimeout?.(morphSwapTimer);
+            }
+
+            morphSwapTimer = window.setTimeout?.(() => {
+                morphSwapTimer = null;
+
+                if (trinket.dataset) {
+                    trinket.dataset.shape = nextShape;
+                }
+
+                glyph.innerHTML = trinketSvgMap[nextShape] ?? trinketSvgMap.spark;
+                trinket.style?.setProperty?.('--fmorph-scale', String(nextScale));
+                trinket.classList?.remove?.('is-morphing');
+            }, 640);
+        };
+
+        const syncTrinketMorphLoop = () => {
+            if (trinketInterval !== null) {
+                window.clearInterval?.(trinketInterval);
+                trinketInterval = null;
+            }
+
+            if (canMorphTrinkets()) {
+                trinketInterval = window.setInterval(morphNextTrinket, 2800);
+            } else {
+                fgTrinkets.forEach((trinket) => trinket.classList?.remove?.('is-morphing'));
+            }
+        };
+
+        document.addEventListener?.('visibilitychange', syncTrinketMorphLoop);
+        reducedMotion.addEventListener?.('change', syncTrinketMorphLoop);
+        forcedColors.addEventListener?.('change', syncTrinketMorphLoop);
+        syncTrinketMorphLoop();
+    }
+
+    const footerTrinketStream = document.querySelector?.('[data-footer-trinket-stream]') ?? null;
+
+    if (footerTrinketStream) {
+        const footerTones = ['green', 'gold', 'crimson'];
+        const footerSizes = [12, 15, 18, 21, 14, 19, 23, 16];
+        const footerDrifts = [-24, 18, -14, 24, -20, 14, 28, -18];
+        let footerCycleCount = 0;
+        let isFooterVisible = true;
+
+        const syncFooterStreamPlayback = () => {
+            const shouldPause = !isFooterVisible
+                || Boolean(document.hidden)
+                || reducedMotion.matches
+                || forcedColors.matches;
+
+            footerTrinketStream.classList?.toggle?.('is-paused', shouldPause);
+        };
+
+        footerTrinketStream.addEventListener?.('animationiteration', (event) => {
+            const trinket = event.target?.closest?.('[data-footer-trinket]') ?? event.target;
+
+            if (!trinket?.dataset) {
+                return;
+            }
+
+            footerCycleCount += 1;
+
+            const currentShape = trinket.dataset.shape ?? 'spark';
+            const nextShape = trinketShapeCycle[(trinketShapeCycle.indexOf(currentShape) + 1) % trinketShapeCycle.length];
+            const currentTone = trinket.dataset.tone ?? 'green';
+            const nextTone = footerTones[(footerTones.indexOf(currentTone) + 1) % footerTones.length];
+            const nextSize = footerSizes[footerCycleCount % footerSizes.length];
+            const nextDrift = footerDrifts[footerCycleCount % footerDrifts.length];
+            // Golden-ratio horizontal lane progression keeps launches well distributed across 6%..94%
+            const nextX = Math.round(6 + (((footerCycleCount * 37) % 89)));
+
+            trinket.dataset.shape = nextShape;
+            trinket.dataset.tone = nextTone;
+            trinket.innerHTML = trinketSvgMap[nextShape] ?? trinketSvgMap.spark;
+            trinket.style?.setProperty?.('--fx', `${nextX}%`);
+            trinket.style?.setProperty?.('--fsize', `${nextSize}px`);
+            trinket.style?.setProperty?.('--fdrift', `${nextDrift}px`);
+        });
+
+        if ('IntersectionObserver' in window) {
+            const footerObserveTarget = footerTrinketStream.closest?.('.footer-shell') ?? footerTrinketStream;
+            new window.IntersectionObserver(([entry]) => {
+                isFooterVisible = Boolean(entry?.isIntersecting);
+                syncFooterStreamPlayback();
+            }, { rootMargin: '80px 0px' }).observe(footerObserveTarget);
+        }
+
+        document.addEventListener?.('visibilitychange', syncFooterStreamPlayback);
+        reducedMotion.addEventListener?.('change', syncFooterStreamPlayback);
+        forcedColors.addEventListener?.('change', syncFooterStreamPlayback);
+        syncFooterStreamPlayback();
+    }
+
+    const heroSection = document.querySelector?.('.hero-section') ?? null;
+    const gravityTrinkets = [
+        ...fgTrinkets,
+        ...(document.querySelectorAll?.('.landing-ambient .tala-ambient-trinket') ?? []),
+    ];
+    const gravityAuroras = [...(document.querySelectorAll?.('.landing-ambient .tala-ambient-glow, .landing-aurora-blob') ?? [])];
+    const gravityRing = document.querySelector?.('[data-hero-gravity-ring]') ?? null;
+    const burstSparkEls = [...(document.querySelectorAll?.('[data-hero-burst-spark]') ?? [])];
+
+    if (heroSection && (gravityTrinkets.length > 0 || gravityAuroras.length > 0) && typeof window.requestAnimationFrame === 'function') {
+        const interactiveSelector = 'a, button, input, select, textarea, label, [role="button"], .navbar, .sheet-drag-handle';
+        const goldenAngle = 2.399963229728653;
+        const holdThresholdMs = 150;
+        const moveCancelPx = 12;
+
+        const bodies = gravityTrinkets.map((el, index) => ({
+            el,
+            isFg: fgTrinkets.includes(el),
+            homeX: 0,
+            homeY: 0,
+            x: 0,
+            y: 0,
+            vx: 0,
+            vy: 0,
+            rot: 0,
+            vrot: 0,
+            scale: 1,
+            orbitAngle: index * goldenAngle,
+            orbitSpeed: (index % 2 === 0 ? 1 : -1) * (1.35 + ((index % 5) * 0.28)),
+            orbitBaseRadius: 26 + ((index * 11) % 42),
+        }));
+
+        const auroraBodies = gravityAuroras.map((el, index) => ({
+            el,
+            homeX: 0,
+            homeY: 0,
+            x: 0,
+            y: 0,
+            vx: 0,
+            vy: 0,
+            scale: 1,
+            vscale: 0,
+            orbitAngle: index * 2.0943951023931953,
+            orbitRadius: 36 + (index * 18),
+        }));
+
+        const sparks = burstSparkEls.map((el) => ({
+            el,
+            active: false,
+            x: 0,
+            y: 0,
+            vx: 0,
+            vy: 0,
+            rot: 0,
+            vrot: 0,
+            age: 0,
+            life: 0.75,
+        }));
+
+        let gravityState = 'idle'; // 'idle' | 'gathering' | 'burst' | 'returning'
+        let pendingPointerId = null;
+        let activePointerId = null;
+        let holdStartTimer = null;
+        let downX = 0;
+        let downY = 0;
+        let pointerX = 0;
+        let pointerY = 0;
+        let engageAt = 0;
+        let burstAt = 0;
+        let burstDurationMs = 460;
+        let lastFrameAt = 0;
+        let gravityRafId = null;
+        let ringOpacity = 0;
+        let ringScale = 0.4;
+
+        const canRunHeroGravity = () => !reducedMotion.matches && !forcedColors.matches && !document.hidden;
+
+        const clearHoldTimer = () => {
+            if (holdStartTimer !== null) {
+                window.clearTimeout?.(holdStartTimer);
+                holdStartTimer = null;
+            }
+        };
+
+        const syncBodyToDom = (body) => {
+            body.el.style?.setProperty?.('--gx', `${body.x.toFixed(1)}px`);
+            body.el.style?.setProperty?.('--gy', `${body.y.toFixed(1)}px`);
+            if (body.isFg) {
+                body.el.style?.setProperty?.('--gscale', body.scale.toFixed(3));
+                body.el.style?.setProperty?.('--grot', `${body.rot.toFixed(1)}deg`);
+            }
+        };
+
+        const syncAuroraToDom = (aurora) => {
+            aurora.el.style?.setProperty?.('--gx', `${aurora.x.toFixed(1)}px`);
+            aurora.el.style?.setProperty?.('--gy', `${aurora.y.toFixed(1)}px`);
+            aurora.el.style?.setProperty?.('--gscale', aurora.scale.toFixed(3));
+        };
+
+        const syncRingToDom = () => {
+            if (!gravityRing) {
+                return;
+            }
+
+            if (ringOpacity <= 0.01) {
+                gravityRing.style.opacity = '0';
+                return;
+            }
+
+            gravityRing.style.opacity = ringOpacity.toFixed(3);
+            gravityRing.style.transform = `translate3d(${pointerX.toFixed(1)}px, ${pointerY.toFixed(1)}px, 0) scale(${ringScale.toFixed(3)})`;
+        };
+
+        const resetAllToIdle = () => {
+            clearHoldTimer();
+            pendingPointerId = null;
+            activePointerId = null;
+            gravityState = 'idle';
+            if (gravityRafId !== null) {
+                window.cancelAnimationFrame?.(gravityRafId);
+                gravityRafId = null;
+            }
+            heroSection.classList?.remove?.('is-gravity-holding');
+            fgTrinketsContainer?.classList?.remove?.('is-gravity-active');
+            ringOpacity = 0;
+            syncRingToDom();
+
+            bodies.forEach((body) => {
+                body.x = 0;
+                body.y = 0;
+                body.vx = 0;
+                body.vy = 0;
+                body.rot = 0;
+                body.vrot = 0;
+                body.scale = 1;
+                body.el.style?.removeProperty?.('--gx');
+                body.el.style?.removeProperty?.('--gy');
+                if (body.isFg) {
+                    body.el.style?.removeProperty?.('--gscale');
+                    body.el.style?.removeProperty?.('--grot');
+                }
+            });
+
+            auroraBodies.forEach((aurora) => {
+                aurora.x = 0;
+                aurora.y = 0;
+                aurora.vx = 0;
+                aurora.vy = 0;
+                aurora.scale = 1;
+                aurora.vscale = 0;
+                aurora.el.style?.removeProperty?.('--gx');
+                aurora.el.style?.removeProperty?.('--gy');
+                aurora.el.style?.removeProperty?.('--gscale');
+            });
+
+            sparks.forEach((spark) => {
+                spark.active = false;
+                spark.el.style.opacity = '0';
+            });
+        };
+
+        const snapshotRestingHomes = () => {
+            bodies.forEach((body) => {
+                const rect = body.el.getBoundingClientRect?.();
+                if (rect && (rect.width > 0 || rect.height > 0)) {
+                    body.homeX = rect.left + (rect.width / 2) - body.x;
+                    body.homeY = rect.top + (rect.height / 2) - body.y;
+                } else {
+                    body.homeX = (window.innerWidth || 1280) * 0.5;
+                    body.homeY = (window.innerHeight || 800) * 0.5;
+                }
+            });
+
+            auroraBodies.forEach((aurora) => {
+                const rect = aurora.el.getBoundingClientRect?.();
+                if (rect && (rect.width > 0 || rect.height > 0)) {
+                    aurora.homeX = rect.left + (rect.width / 2) - aurora.x;
+                    aurora.homeY = rect.top + (rect.height / 2) - aurora.y;
+                } else {
+                    aurora.homeX = (window.innerWidth || 1280) * 0.5;
+                    aurora.homeY = (window.innerHeight || 800) * 0.5;
+                }
+            });
+        };
+
+        const triggerFireworksSparks = (originX, originY, charge) => {
+            const count = sparks.length;
+            if (!count) {
+                return;
+            }
+
+            const speedBoost = 240 + (charge * 420);
+
+            sparks.forEach((spark, index) => {
+                const angle = ((Math.PI * 2 * index) / count) + (((index % 3) - 1) * 0.14);
+                const variance = 0.72 + ((index % 5) * 0.14);
+                const speed = speedBoost * variance;
+
+                spark.active = true;
+                spark.x = originX;
+                spark.y = originY;
+                spark.vx = Math.cos(angle) * speed;
+                spark.vy = (Math.sin(angle) * speed) - (80 + charge * 90);
+                spark.rot = 0;
+                spark.vrot = (index % 2 === 0 ? 1 : -1) * (180 + (index * 24));
+                spark.age = 0;
+                spark.life = 0.58 + ((index % 4) * 0.11);
+            });
+        };
+
+        const stepGravityLoop = (timestamp) => {
+            const now = typeof timestamp === 'number' ? timestamp : nowMs();
+            const dt = Math.min(0.05, Math.max(0.004, (now - lastFrameAt) / 1000));
+            lastFrameAt = now;
+
+            if (gravityState === 'gathering') {
+                const charge = Math.min(1, Math.max(0, (now - engageAt) / 1400));
+                const tighten = 1 - (charge * 0.58);
+                const pullStiffness = 28 + (charge * 46);
+                const damping = Math.exp(-7.5 * dt);
+                const auroraStiffness = 14 + (charge * 22);
+                const auroraDamping = Math.exp(-5.4 * dt);
+
+                ringOpacity = 0.24 + (charge * 0.52);
+                ringScale = 0.55 + (charge * 0.72) + (Math.sin(now / 150) * 0.06);
+                syncRingToDom();
+
+                bodies.forEach((body) => {
+                    body.orbitAngle += body.orbitSpeed * (1 + charge * 2.1) * dt;
+                    const radius = body.orbitBaseRadius * tighten;
+                    const desiredScreenX = pointerX + (Math.cos(body.orbitAngle) * radius);
+                    const desiredScreenY = pointerY + (Math.sin(body.orbitAngle) * radius);
+                    const targetX = desiredScreenX - body.homeX;
+                    const targetY = desiredScreenY - body.homeY;
+
+                    body.vx = (body.vx + ((targetX - body.x) * pullStiffness * dt)) * damping;
+                    body.vy = (body.vy + ((targetY - body.y) * pullStiffness * dt)) * damping;
+                    body.x += body.vx * dt;
+                    body.y += body.vy * dt;
+                    body.rot += body.orbitSpeed * 38 * dt;
+                    body.scale = 1 + (charge * 0.24);
+                    syncBodyToDom(body);
+                });
+
+                auroraBodies.forEach((aurora) => {
+                    aurora.orbitAngle += 0.65 * (1 + charge * 1.4) * dt;
+                    const radius = aurora.orbitRadius * (1 - (charge * 0.5));
+                    const targetX = (pointerX + (Math.cos(aurora.orbitAngle) * radius)) - aurora.homeX;
+                    const targetY = (pointerY + (Math.sin(aurora.orbitAngle) * radius)) - aurora.homeY;
+                    const targetScale = 1 - (charge * 0.34);
+
+                    aurora.vx = (aurora.vx + ((targetX - aurora.x) * auroraStiffness * dt)) * auroraDamping;
+                    aurora.vy = (aurora.vy + ((targetY - aurora.y) * auroraStiffness * dt)) * auroraDamping;
+                    aurora.x += aurora.vx * dt;
+                    aurora.y += aurora.vy * dt;
+                    aurora.scale += (targetScale - aurora.scale) * Math.min(1, dt * 6);
+                    syncAuroraToDom(aurora);
+                });
+            } else if (gravityState === 'burst' || gravityState === 'returning') {
+                const elapsedMs = Math.max(0, now - burstAt);
+                const returnRamp = Math.min(1, Math.max(0, (elapsedMs - 220) / 920));
+                const smoothReturn = returnRamp * returnRamp * (3 - (2 * returnRamp));
+                const burstWeight = 1 - smoothReturn;
+
+                const trinketSpringK = 12.5 * smoothReturn;
+                const trinketDamping = Math.exp(-(2.5 + (2.4 * smoothReturn)) * dt);
+                const auroraSpringK = 8.2 * smoothReturn;
+                const auroraDamping = Math.exp(-(2.1 + (2.0 * smoothReturn)) * dt);
+                const gravityAccel = 190 * burstWeight;
+                let allSettled = smoothReturn >= 0.99;
+
+                ringOpacity = Math.max(0, ringOpacity - (dt * 2.2));
+                ringScale += dt * 2.6;
+                syncRingToDom();
+
+                bodies.forEach((body) => {
+                    body.vx = (body.vx + (-body.x * trinketSpringK * dt)) * trinketDamping;
+                    body.vy = (body.vy + ((gravityAccel - (body.y * trinketSpringK)) * dt)) * trinketDamping;
+                    body.x += body.vx * dt;
+                    body.y += body.vy * dt;
+                    body.vrot *= Math.exp(-3.4 * dt);
+                    body.rot = (body.rot + (body.vrot * dt)) * Math.exp(-(3.2 * smoothReturn) * dt);
+                    body.scale += (1 - body.scale) * Math.min(1, dt * (2.5 + (4.5 * smoothReturn)));
+
+                    if (
+                        Math.abs(body.x) > 0.65
+                        || Math.abs(body.y) > 0.65
+                        || Math.abs(body.vx) > 5
+                        || Math.abs(body.vy) > 5
+                    ) {
+                        allSettled = false;
+                    }
+
+                    syncBodyToDom(body);
+                });
+
+                auroraBodies.forEach((aurora) => {
+                    aurora.vx = (aurora.vx + (-aurora.x * auroraSpringK * dt)) * auroraDamping;
+                    aurora.vy = (aurora.vy + (-aurora.y * auroraSpringK * dt)) * auroraDamping;
+                    aurora.vscale = (aurora.vscale + ((1 - aurora.scale) * auroraSpringK * dt)) * auroraDamping;
+                    aurora.x += aurora.vx * dt;
+                    aurora.y += aurora.vy * dt;
+                    aurora.scale += aurora.vscale * dt;
+
+                    if (
+                        Math.abs(aurora.x) > 0.9
+                        || Math.abs(aurora.y) > 0.9
+                        || Math.abs(aurora.scale - 1) > 0.012
+                        || Math.abs(aurora.vx) > 6
+                        || Math.abs(aurora.vy) > 6
+                    ) {
+                        allSettled = false;
+                    }
+
+                    syncAuroraToDom(aurora);
+                });
+
+                if (elapsedMs >= burstDurationMs) {
+                    gravityState = 'returning';
+                }
+
+                let anySparkAlive = false;
+                sparks.forEach((spark) => {
+                    if (spark.active) {
+                        anySparkAlive = true;
+                    }
+                });
+
+                if (allSettled && !anySparkAlive && ringOpacity <= 0.01) {
+                    resetAllToIdle();
+                    return;
+                }
+            }
+
+            // Update fireworks mini-sparks independently during burst + return
+            const sparkDrag = Math.exp(-2.8 * dt);
+            sparks.forEach((spark) => {
+                if (!spark.active) {
+                    return;
+                }
+
+                spark.age += dt;
+                if (spark.age >= spark.life) {
+                    spark.active = false;
+                    spark.el.style.opacity = '0';
+                    return;
+                }
+
+                const progress = spark.age / spark.life;
+                spark.vy += 520 * dt;
+                spark.vx *= sparkDrag;
+                spark.vy *= sparkDrag;
+                spark.x += spark.vx * dt;
+                spark.y += spark.vy * dt;
+                spark.rot += spark.vrot * dt;
+
+                const fade = progress < 0.12 ? (progress / 0.12) : (1 - ((progress - 0.12) / 0.88));
+                const scale = 1.15 - (progress * 0.55);
+                spark.el.style.opacity = (Math.max(0, fade) * 0.92).toFixed(3);
+                spark.el.style.transform = `translate3d(${spark.x.toFixed(1)}px, ${spark.y.toFixed(1)}px, 0) scale(${scale.toFixed(3)}) rotate(${spark.rot.toFixed(1)}deg)`;
+            });
+
+            if (gravityState !== 'idle') {
+                gravityRafId = window.requestAnimationFrame(stepGravityLoop);
+            }
+        };
+
+        const startGravityLoop = () => {
+            lastFrameAt = nowMs();
+            if (gravityRafId === null) {
+                gravityRafId = window.requestAnimationFrame(stepGravityLoop);
+            }
+        };
+
+        const engageGathering = () => {
+            if (!canRunHeroGravity() || pendingPointerId === null) {
+                return;
+            }
+
+            activePointerId = pendingPointerId;
+            pendingPointerId = null;
+            gravityState = 'gathering';
+            engageAt = nowMs();
+            heroSection.classList?.add?.('is-gravity-holding');
+            fgTrinketsContainer?.classList?.add?.('is-gravity-active');
+            snapshotRestingHomes();
+            startGravityLoop();
+        };
+
+        const releaseGathering = () => {
+            clearHoldTimer();
+            pendingPointerId = null;
+
+            if (gravityState !== 'gathering') {
+                return;
+            }
+
+            const charge = Math.min(1, Math.max(0.18, (nowMs() - engageAt) / 1400));
+            activePointerId = null;
+            gravityState = 'burst';
+            burstAt = nowMs();
+            burstDurationMs = Math.round(380 + (charge * 180));
+            heroSection.classList?.remove?.('is-gravity-holding');
+
+            const burstPower = 380 + (charge * 520);
+
+            bodies.forEach((body, index) => {
+                const screenX = body.homeX + body.x;
+                const screenY = body.homeY + body.y;
+                const dx = screenX - pointerX;
+                const dy = screenY - pointerY;
+                const dist = Math.hypot(dx, dy);
+                const fallbackAngle = index * goldenAngle;
+                const nx = dist > 2 ? (dx / dist) : Math.cos(fallbackAngle);
+                const ny = dist > 2 ? (dy / dist) : Math.sin(fallbackAngle);
+                const variance = 0.78 + ((index % 5) * 0.12);
+
+                body.vx = nx * burstPower * variance;
+                body.vy = (ny * burstPower * variance) - (65 + charge * 85);
+                body.vrot = (index % 2 === 0 ? 1 : -1) * (170 + charge * 220);
+                body.scale = 1.16 + (charge * 0.18);
+            });
+
+            const auroraBurstPower = 180 + (charge * 280);
+
+            auroraBodies.forEach((aurora, index) => {
+                const dx = (aurora.homeX + aurora.x) - pointerX;
+                const dy = (aurora.homeY + aurora.y) - pointerY;
+                const dist = Math.hypot(dx, dy);
+                const fallbackAngle = index * 2.0943951023931953;
+                const nx = dist > 2 ? (dx / dist) : Math.cos(fallbackAngle);
+                const ny = dist > 2 ? (dy / dist) : Math.sin(fallbackAngle);
+
+                aurora.vx = nx * auroraBurstPower;
+                aurora.vy = ny * auroraBurstPower;
+                aurora.vscale = 0.9 + (charge * 0.85);
+            });
+
+            triggerFireworksSparks(pointerX, pointerY, charge);
+            startGravityLoop();
+        };
+
+        heroSection.addEventListener?.('pointerdown', (event) => {
+            if (!canRunHeroGravity()) {
+                return;
+            }
+
+            if (event.button !== undefined && event.button !== 0) {
+                return;
+            }
+
+            if (event.target?.closest?.(interactiveSelector)) {
+                return;
+            }
+
+            clearHoldTimer();
+            pendingPointerId = event.pointerId ?? 'mouse';
+            downX = event.clientX ?? 0;
+            downY = event.clientY ?? 0;
+            pointerX = downX;
+            pointerY = downY;
+
+            holdStartTimer = window.setTimeout?.(() => {
+                holdStartTimer = null;
+                engageGathering();
+            }, holdThresholdMs) ?? null;
+        });
+
+        window.addEventListener('pointermove', (event) => {
+            const eventId = event.pointerId ?? 'mouse';
+
+            if (pendingPointerId !== null && eventId === pendingPointerId) {
+                const moveDist = Math.hypot((event.clientX ?? 0) - downX, (event.clientY ?? 0) - downY);
+                if (moveDist > moveCancelPx) {
+                    clearHoldTimer();
+                    pendingPointerId = null;
+                    return;
+                }
+                pointerX = event.clientX ?? pointerX;
+                pointerY = event.clientY ?? pointerY;
+                return;
+            }
+
+            if (gravityState === 'gathering' && activePointerId !== null && eventId === activePointerId) {
+                pointerX = event.clientX ?? pointerX;
+                pointerY = event.clientY ?? pointerY;
+            }
+        }, { passive: true });
+
+        const handlePointerRelease = (event) => {
+            const eventId = event?.pointerId ?? 'mouse';
+
+            if (pendingPointerId !== null && eventId === pendingPointerId) {
+                clearHoldTimer();
+                pendingPointerId = null;
+            }
+
+            if (activePointerId !== null && eventId === activePointerId) {
+                releaseGathering();
+            }
+        };
+
+        window.addEventListener('pointerup', handlePointerRelease);
+        window.addEventListener('pointercancel', handlePointerRelease);
+        window.addEventListener('blur', resetAllToIdle);
+        window.addEventListener('scroll', () => {
+            if (pendingPointerId !== null) {
+                clearHoldTimer();
+                pendingPointerId = null;
+            }
+
+            if (gravityState !== 'idle' && (window.scrollY || 0) > (window.innerHeight || 800) * 0.75) {
+                resetAllToIdle();
+            }
+        }, { passive: true });
+
+        reducedMotion.addEventListener?.('change', () => {
+            if (reducedMotion.matches) {
+                resetAllToIdle();
+            }
+        });
+        forcedColors.addEventListener?.('change', () => {
+            if (forcedColors.matches) {
+                resetAllToIdle();
+            }
         });
     }
 

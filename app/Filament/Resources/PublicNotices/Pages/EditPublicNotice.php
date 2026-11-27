@@ -18,8 +18,8 @@ class EditPublicNotice extends EditRecord
     {
         return [
             PublicContent::getUrl() => 'Public Content',
-            PublicNoticeResource::getUrl('index') => 'Notices',
-            'Edit notice',
+            PublicNoticeResource::getUrl('index') => 'Announcements',
+            'Edit announcement',
         ];
     }
 }

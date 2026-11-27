@@ -455,14 +455,16 @@ Official Cloud Run mechanics rechecked on **September 14, 2026** support the bou
 
 #### Controlled Scheduling Flow
 
-1. TALA assembles one immutable whole-term snapshot from the active Term Calendar Package, every confirmed and scheduling-ready Class Offering, required meeting blocks, linked cohorts, eligible Faculty, Faculty term capacity and declared hard unavailability, rooms, room hard unavailability, and authorized exact commitments.
-2. A queued Laravel job sends the snapshot to the private solver service.
-3. CP-SAT first finds complete hard feasibility and then applies the fixed lexicographic quality hierarchy: cohort mode switches, cohort idle time, Faculty load imbalance, Faculty idle time, room-seat waste, and stable earlier placement.
-4. The adapter returns `Optimal`, `Feasible`, `Infeasible`, `Unknown`, `ModelInvalid`, or `TechnicalFailure` with typed evidence. It never publishes.
-5. Laravel independently validates every returned assignment against the saved snapshot and institutional invariants.
-6. Registrar reviews the complete candidate and may apply only bounded corrections that revalidate the whole candidate and waive no hard rule.
-7. Registrar publishes an immutable `PublishedTimetableVersion` under PRD 03's publication and attribution rules; any institutional sign-off remains external.
-8. Faculty and Clinic 4-owned Student schedule/COR projections read only from the applicable published version.
+1. TALA assembles one immutable whole-term snapshot from the active Term Calendar Package, every confirmed and scheduling-ready Class Offering, required meeting blocks, linked cohorts, eligible Faculty, Faculty term capacity and declared hard unavailability, rooms, room hard unavailability, and authorized exact commitments. Because `schedule_runs` rows carry large `input_snapshot` JSON columns, Laravel persistence and UI reads query and order `schedule_runs` primary-key-first (`latest('id')` / `orderByDesc('id')`) or via ID projections before hydrating `input_snapshot` so large snapshot reads do not exhaust MySQL `sort_buffer_size` (`1038 Out of sort memory`).
+2. A queued Laravel job sends the snapshot to the private solver service under the single `300`-second internal request budget (`15`-second response reserve inside the `360`-second Cloud Run request ceiling).
+3. Before building `CpModel`, P1 pre-solve feasibility guards (`_presolve_feasibility_guards`) fail fast on mathematically impossible exclusive-faculty unit/hour/block limits, room-pool capacity limits, or cohort weekly grid minutes.
+4. CP-SAT constructs a P0 factored per-meeting interval model (`_prepare_meetings`, `_build_factored_hard_model`) using unified week-timeline `AddNoOverlap` intervals (`DAY_STRIDE_MINUTES = 3000`, including buffered `duration + 30` modality-transition intervals), structural `same_faculty_required` sharing, `AddAllDifferent` day spread, deduplicated faculty load, and conditional slot booleans (`SLOT_BOOL_OPTION_LIMIT = 1000`)—eliminating Cartesian candidate-product and pairwise modality-buffer memory blowup.
+5. CP-SAT first solves for complete hard feasibility, then applies P2 Stage-2 lexicographic optimization (`_solve_lexicographic`) over the fixed hierarchy (cohort mode switches, cohort idle time, Faculty load imbalance, Faculty idle time, room-seat waste, stable earlier placement). On large terms (`>= 20` scheduling demands), each level runs with a `15s` cap, `1%` relative gap limit, `2.5s` stagnation early-stop callback (`_Stage2EarlyStopCallback`), and `expression >= value` floor continuation on `FEASIBLE` bounds.
+6. The adapter returns `Optimal`, `Feasible`, `Infeasible`, `Unknown`, `ModelInvalid`, or `TechnicalFailure` with typed evidence. It never publishes.
+7. Laravel independently validates every returned assignment against the saved snapshot and institutional invariants.
+8. Registrar reviews the complete candidate and may apply only bounded corrections that revalidate the whole candidate and waive no hard rule.
+9. Registrar publishes an immutable `PublishedTimetableVersion` under PRD 03's publication and attribution rules; any institutional sign-off remains external.
+10. Faculty and Clinic 4-owned Student schedule/COR projections read only from the applicable published version.
 
 #### Authoritative CP-SAT Integration Sequence
 
@@ -554,7 +556,7 @@ The adapter compiles that fixed contract into a versioned immutable whole-Term s
 
 The **August 19, 2026** Issue #22 activation evidence above supersedes the older statement that the promoted service still ran `tal94-demand-v2` / `balanced_v1`. It shows one then-promoted `tala-timetable-v2` / `lexicographic_v1` revision and one successful canonical qualification, not an unchanged live revision today or a TALA production deployment. The 8-vCPU/16-GiB profile remains the accepted planning default unless a fresh provider check, compatibility result, workload change, or telemetry invalidates it. Further build, validation, and promotion require separate authorization.
 
-Historical fixture, candidate-size, memory, status, validation, and scaling measurements remain bounded evidence in the archived [Representative Solver Evidence](archive/project-progress/TAL-96B2-Representative-Solver-Evidence.md) and [Cloud Run Capacity Benchmark](archive/project-progress/TAL-96B3-Cloud-Run-Capacity-Benchmark.md). Slice 3 reconciles solver code, Laravel integration, internal contract, formulation, schema, tests, fixtures, and deployable packaging. It reruns expensive capacity qualification only when local model-size, memory, runtime, or compatibility evidence invalidates the accepted profile; proportionate source-level acceptance still uses the coordinated Servitech workload.
+Historical fixture, candidate-size, memory, status, validation, and scaling measurements remain bounded evidence in the archived [Representative Solver Evidence](archive/project-progress/TAL-96B2-Representative-Solver-Evidence.md) and [Cloud Run Capacity Benchmark](archive/project-progress/TAL-96B3-Cloud-Run-Capacity-Benchmark.md), while the P0/P1/P2 factored CP-SAT formulation and its November 2026 local scaling addendum are recorded in [TALA CP-SAT Technical Formulation](research%20paper/TALA_CP-SAT_Technical_Formulation.md). Slice 3 reconciles solver code, Laravel integration, internal contract, formulation, schema, tests, fixtures, and deployable packaging. It reruns expensive Cloud Run capacity qualification only when local model-size, memory, runtime, or compatibility evidence invalidates the accepted 8-vCPU/16-GiB profile; proportionate source-level acceptance still uses the coordinated Servitech workload.
 
 ### 9.2 Manual Payment Verification and Onsite Recording
 

@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
@@ -145,7 +146,81 @@ class UserAccessService
         });
     }
 
+    public function updateStaffIdentifier(
+        User $actor,
+        User $target,
+        ?string $staffIdentifier,
+        string $reason,
+        string $authority,
+        ?string $evidenceReference = null,
+    ): User {
+        $this->authorizeAdministrator($actor);
+        $this->validateReasonAndAuthority($reason, $authority);
+
+        $normalized = filled($staffIdentifier) ? Str::squish((string) $staffIdentifier) : null;
+
+        validator(['staff_identifier' => $normalized], [
+            'staff_identifier' => [
+                'nullable',
+                'string',
+                'max:100',
+                Rule::unique('staff_access_profiles', 'staff_identifier')->ignore($target->id, 'user_id'),
+            ],
+        ])->validate();
+
+        return DB::transaction(function () use ($actor, $target, $normalized, $reason, $authority, $evidenceReference): User {
+            $locked = User::query()->lockForUpdate()->findOrFail($target->id);
+
+            if (! $locked->isStaffCapable()) {
+                throw ValidationException::withMessages([
+                    'staff_identifier' => 'This action is limited to Staff-capable accounts.',
+                ]);
+            }
+
+            $existing = $locked->staffAccessProfile()->first();
+            $before = $existing?->staff_identifier;
+
+            if ($before === $normalized) {
+                return $locked->refresh();
+            }
+
+            $nameParts = preg_split('/\s+/', trim((string) $locked->name)) ?: [];
+            $fallbackFirst = $nameParts[0] ?? 'Staff';
+            $fallbackLast = count($nameParts) > 1 ? implode(' ', array_slice($nameParts, 1)) : $fallbackFirst;
+
+            $locked->staffAccessProfile()->updateOrCreate(
+                ['user_id' => $locked->id],
+                [
+                    'staff_identifier' => $normalized,
+                    'first_name' => $existing?->first_name ?: ($locked->first_name ?: $fallbackFirst),
+                    'middle_name' => $existing?->middle_name ?? $locked->middle_name,
+                    'last_name' => $existing?->last_name ?: ($locked->last_name ?: $fallbackLast),
+                    'suffix' => $existing?->suffix,
+                ],
+            );
+
+            $this->audit($actor, $locked, 'staff_identifier_updated', $reason, $authority, [
+                'before_staff_identifier' => $before,
+                'after_staff_identifier' => $normalized,
+                'evidence_reference' => $evidenceReference,
+            ]);
+
+            return $locked->refresh();
+        });
+    }
+
     public function requestStaffEmailChange(
+        User $actor,
+        User $target,
+        string $newEmail,
+        #[\SensitiveParameter] string $actorPassword,
+        string $reason,
+        ?string $authority = null,
+    ): PendingEmailChange {
+        return $this->requestEmailChange($actor, $target, $newEmail, $actorPassword, $reason, $authority);
+    }
+
+    public function requestEmailChange(
         User $actor,
         User $target,
         string $newEmail,
@@ -172,8 +247,10 @@ class UserAccessService
         return DB::transaction(function () use ($actor, $target, $newEmail, $reason, $authority): PendingEmailChange {
             $locked = User::query()->lockForUpdate()->findOrFail($target->id);
 
-            if (! $locked->isStaffCapable()) {
-                throw ValidationException::withMessages(['target' => 'This action is limited to Staff-capable accounts.']);
+            if ($locked->status === User::StatusInvitationPending) {
+                throw ValidationException::withMessages([
+                    'target' => 'Use Correct email & resend for a pending staff invitation.',
+                ]);
             }
 
             if (User::query()->where('email', $newEmail)->whereKeyNot($locked->id)->exists()) {

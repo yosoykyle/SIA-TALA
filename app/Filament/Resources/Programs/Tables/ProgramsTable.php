@@ -275,11 +275,21 @@ class ProgramsTable
                 : 'Add a degree or diploma program to begin building curricula.')
             ->emptyStateActions([
                 ProgramResource::createProgramAction('emptyCreateProgram')
+                    ->label('Add program')
+                    ->icon(Heroicon::OutlinedPlus)
+                    ->color('primary')
                     ->visible(fn (HasTable $livewire): bool => ! filled($livewire->getTableSearch())
                         && ! $livewire->getTable()->isFiltered()
                         && (auth()->user()?->can('create', Program::class) ?? false)),
             ])
-            ->toolbarActions([])
+            ->toolbarActions([
+                ProgramResource::createProgramAction()
+                    ->label('Add program')
+                    ->icon(Heroicon::OutlinedPlus)
+                    ->color('primary')
+                    ->size('sm')
+                    ->visible(fn (): bool => auth()->user()?->can('create', Program::class) ?? false),
+            ])
             ->defaultSort('code');
     }
 

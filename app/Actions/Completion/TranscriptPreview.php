@@ -6,6 +6,8 @@ use App\Actions\Academics\OfficialCourseResultProjection;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\DegreeConferral;
+use App\Models\Enrollment;
+use App\Models\PriorAcademicCredit;
 use App\Models\ProgramShiftCreditEntry;
 use App\Models\RegistrationCreditEvaluation;
 use App\Models\RegistrationCreditLine;
@@ -85,6 +87,12 @@ class TranscriptPreview
                     'attempt_event_id' => $event->id,
                 ];
             });
+        $countedReleasedEventIds = $releasedRows
+            ->filter(fn (array $row): bool => (float) $row['earned_units'] > 0.0 && $row['attempt_event_id'] !== null)
+            ->pluck('attempt_event_id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values();
         $approvedCreditRows = ProgramShiftCreditEntry::query()
             ->where('treatment', ProgramShiftCreditEntry::TreatmentAccepted)
             ->where('state', ProgramShiftCreditEntry::StateRecorded)
@@ -98,7 +106,7 @@ class TranscriptPreview
                 'sourceGradeOutcomeEvent',
             ])
             ->get()
-            ->map(function (ProgramShiftCreditEntry $credit): array {
+            ->map(function (ProgramShiftCreditEntry $credit) use ($countedReleasedEventIds): array {
                 $term = $credit->lifecycleChange->term;
                 $specification = $credit->curriculumEntry->courseSpecification;
                 $units = (float) $specification->credit_units;
@@ -108,6 +116,8 @@ class TranscriptPreview
                 $sourceCourseCode = $credit->source_course_id !== null
                     ? $credit->sourceCourse->code
                     : null;
+                $alreadyCountedInReleased = $credit->source_grade_outcome_event_id !== null
+                    && $countedReleasedEventIds->contains((int) $credit->source_grade_outcome_event_id);
 
                 return [
                     'academic_year' => $term->academicYear->label,
@@ -122,16 +132,50 @@ class TranscriptPreview
                         ? 'Approved credit/equivalency from '.$sourceCourseCode
                         : 'Approved credit/equivalency',
                     'attempt_or_credit' => 'Approved credit/equivalency',
-                    'earned_units' => $units,
+                    'earned_units' => $alreadyCountedInReleased ? 0.0 : $units,
                     'attempt_event_id' => $credit->source_grade_outcome_event_id,
                 ];
             });
         $transferCreditRows = $this->transferCreditRows($student);
+        $priorCreditRows = PriorAcademicCredit::query()
+            ->active()
+            ->where('student_profile_id', $student->id)
+            ->with(['courseSpecification.course', 'term.academicYear'])
+            ->orderBy('id')
+            ->get()
+            ->map(function (PriorAcademicCredit $credit): array {
+                $specification = $credit->courseSpecification;
+                $course = $specification?->course;
+
+                if (! $specification instanceof CourseSpecification || $course === null) {
+                    throw ValidationException::withMessages(['transcript' => 'A prior academic record has an incomplete course specification.']);
+                }
+
+                $ayLabel = $credit->displayAcademicYearLabel();
+                $termLabel = $credit->displayTermLabel();
+
+                return [
+                    'academic_year' => $ayLabel,
+                    'term_id' => $credit->term_id ?? ('prior:'.$ayLabel.'|'.$termLabel),
+                    'term' => $termLabel,
+                    'term_starts_on' => $credit->term?->starts_on?->toDateString() ?? $credit->periodSortKey(),
+                    'course_code' => $course->code,
+                    'course_title' => $specification->title,
+                    'units' => number_format((float) $credit->units, 2, '.', ''),
+                    'result' => $credit->effectiveResultCode(),
+                    'remarks' => filled($credit->source_school) ? 'Prior record ('.$credit->source_school.')' : 'Prior institutional record',
+                    'attempt_or_credit' => 'Prior record',
+                    'earned_units' => $credit->isPassing() ? (float) $credit->units : 0.0,
+                    'attempt_event_id' => null,
+                    'prior_credit_id' => (int) $credit->id,
+                ];
+            });
         $runningEarnedUnits = 0.0;
         $rowsWithSummaries = [];
         $termGroups = $releasedRows
             ->concat($approvedCreditRows)
             ->concat($transferCreditRows)
+            ->concat($priorCreditRows)
             ->sortBy([
                 ['term_starts_on', 'asc'],
                 ['term_id', 'asc'],
@@ -202,6 +246,7 @@ class TranscriptPreview
             'request_source_fingerprint' => $request->source_fingerprint,
             'output_restriction_source' => app(OfficialOutputRestrictionService::class)->fingerprintFor($student),
             'academic_event_ids' => collect($academicYears)->flatten(1)->pluck('attempt_event_id')->filter()->values()->all(),
+            'prior_credit_ids' => collect($academicYears)->flatten(1)->pluck('prior_credit_id')->filter()->values()->all(),
             'content' => collect($content)->except(['request', 'status'])->all(),
         ];
         $content['source_fingerprint'] = hash('sha256', json_encode($fingerprintSource, JSON_THROW_ON_ERROR));
@@ -217,35 +262,56 @@ class TranscriptPreview
      */
     private function transferCreditRows(StudentProfile $student): Collection
     {
-        $evaluation = RegistrationCreditEvaluation::effectiveForStudent($student);
-        if ($evaluation === null || $evaluation->credited_curriculum_entry_ids === []) {
+        $officialEnrollmentIds = Enrollment::query()
+            ->where('student_profile_id', $student->id)
+            ->where(fn ($query) => $query
+                ->where('canonical_outcome', Enrollment::OutcomeOfficiallyEnrolled)
+                ->orWhereNotNull('officially_enrolled_at'))
+            ->pluck('id');
+
+        if ($officialEnrollmentIds->isEmpty()) {
             return collect();
         }
-        $evaluation->loadMissing(['enrollment.term.academicYear', 'creditLines']);
-        $term = $evaluation->enrollment->term;
-        $lines = $evaluation->creditLines->keyBy('curriculum_entry_id');
 
-        return CurriculumEntry::query()->with('courseSpecification.course')
-            ->whereIn('id', $evaluation->credited_curriculum_entry_ids)->get()
-            ->map(function (CurriculumEntry $entry) use ($term, $lines): array {
-                $specification = $entry->courseSpecification;
-                $units = (float) $specification->credit_units;
-                $line = $lines->get($entry->id);
+        $evaluations = RegistrationCreditEvaluation::query()
+            ->whereIn('enrollment_id', $officialEnrollmentIds)
+            ->with(['enrollment.term.academicYear', 'creditLines'])
+            ->latest('id')
+            ->get()
+            ->unique('curriculum_version_id')
+            ->values();
 
-                return [
-                    'academic_year' => $term->academicYear->label,
-                    'term_id' => $term->id,
-                    'term' => $term->label,
-                    'term_starts_on' => $term->starts_on->toDateString(),
-                    'course_code' => $specification->course->code,
-                    'course_title' => $specification->title,
-                    'units' => number_format($units, 2, '.', ''),
-                    'result' => $line?->tor_grade ?? 'Credited',
-                    'remarks' => $line instanceof RegistrationCreditLine ? $line->transcriptRemark() : 'Transfer credit',
-                    'attempt_or_credit' => 'Transfer credit',
-                    'earned_units' => $units,
-                    'attempt_event_id' => null,
-                ];
-            });
+        return $evaluations->flatMap(function (RegistrationCreditEvaluation $evaluation): Collection {
+            $entryIds = $evaluation->credited_curriculum_entry_ids ?? [];
+            if ($entryIds === [] || $evaluation->enrollment?->term === null) {
+                return collect();
+            }
+
+            $term = $evaluation->enrollment->term;
+            $lines = $evaluation->creditLines->keyBy('curriculum_entry_id');
+
+            return CurriculumEntry::query()->with('courseSpecification.course')
+                ->whereIn('id', $entryIds)->get()
+                ->map(function (CurriculumEntry $entry) use ($term, $lines): array {
+                    $specification = $entry->courseSpecification;
+                    $units = (float) $specification->credit_units;
+                    $line = $lines->get($entry->id);
+
+                    return [
+                        'academic_year' => $term->academicYear->label,
+                        'term_id' => $term->id,
+                        'term' => $term->label,
+                        'term_starts_on' => $term->starts_on->toDateString(),
+                        'course_code' => $specification->course->code,
+                        'course_title' => $specification->title,
+                        'units' => number_format($units, 2, '.', ''),
+                        'result' => $line?->tor_grade ?? 'Credited',
+                        'remarks' => $line instanceof RegistrationCreditLine ? $line->transcriptRemark() : 'Transfer credit',
+                        'attempt_or_credit' => 'Transfer credit',
+                        'earned_units' => $units,
+                        'attempt_event_id' => null,
+                    ];
+                });
+        })->values();
     }
 }

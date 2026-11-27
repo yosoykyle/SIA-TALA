@@ -51,7 +51,6 @@ class ListCurriculumVersions extends ListRecords
                 ->color('gray')
                 ->url(AcademicApprovals::getUrl($oversightParameters))
                 ->visible(fn (): bool => auth()->user()?->hasRole(User::StaffRoleAcademicHead) ?? false),
-            CurriculumVersionResource::createDraftAction(oversightTermId: $this->oversightTermId),
         ];
     }
 }

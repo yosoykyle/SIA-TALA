@@ -10,6 +10,7 @@ use App\Filament\Pages\AssistedAdmissionApplication;
 use App\Models\User;
 use Caresome\FilamentAuthDesigner\Data\AuthPageConfig;
 use Caresome\FilamentAuthDesigner\Enums\MediaPosition;
+use Closure;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
@@ -69,6 +70,22 @@ class TalaPanelTheme
             ? ['aria-label' => trim(strip_tags((string) $action->getLabel()))] : [], merge: true);
 
         $action->modalFooterActionsAlignment(Alignment::End);
+        $action->stickyModalHeader();
+        $action->stickyModalFooter();
+
+        $action->closeModalByClickingAway(static function (Action $action): bool {
+            if ($action->isSchemaDisabled() || $action->getModalSubmitAction() === false) {
+                return true;
+            }
+
+            $hasDefinedSchema = Closure::bind(
+                static fn (Action $target): bool => $target->schema !== null && $target->schema !== [],
+                null,
+                Action::class,
+            )($action);
+
+            return ! $hasDefinedSchema;
+        });
 
         $action->extraModalWindowAttributes([
             'x-effect' => <<<'JS'
@@ -99,6 +116,7 @@ class TalaPanelTheme
                 url('/sign-in*'),
                 url('/apply*'),
                 url('/workspace-chooser*'),
+                url('/staff-activation*'),
                 url('/outputs/*'),
                 url('/finance/*'),
                 url('/admissions/evidence/*'),
@@ -299,7 +317,7 @@ class TalaPanelTheme
 
     public static function isMandatoryMfaSetupRoute(): bool
     {
-        return request()->routeIs('filament.*.auth.multi-factor-authentication.set-up-required');
+        return \Filament\Support\original_request()->routeIs('filament.*.auth.multi-factor-authentication.set-up-required');
     }
 
     /** @param array<class-string> $scopes */

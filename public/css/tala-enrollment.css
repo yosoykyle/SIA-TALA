@@ -129,8 +129,22 @@
 .registrar-start-panel>p,.registrar-records-entry p{color:var(--tala-muted);font-size:1rem;line-height:1.6;margin-block-start:.5rem;}
 .registrar-start-actions{display:grid;gap:1rem;margin-block-start:1.5rem;}
 .registrar-start-actions .fi-btn{inline-size:100%;min-block-size:2.75rem;justify-content:flex-start;}
-.registrar-progress-panel .registrar-work-row{min-block-size:3.5rem;}
-.registrar-progress-panel .registrar-work-icon{color:var(--tala-muted);}
+.registrar-progress-panel,.registrar-workbench .tala-workspace-launcher__split>section.registrar-progress-panel.tala-task-surface{display:flex;flex-direction:column;justify-content:flex-start;min-inline-size:0;}
+.registrar-progress-panel__header{display:grid;gap:.5rem;}
+.registrar-progress-panel .tala-workspace-launcher__scope{margin:0;color:var(--tala-muted);font-size:1rem;line-height:1.6;}
+.registrar-progress-panel .registrar-work-list{flex:1;display:flex;flex-direction:column;justify-content:center;min-inline-size:0;margin-block-start:0;padding-block:.75rem;}
+.registrar-progress-panel .registrar-work-list>.registrar-work-row{display:grid;grid-template-columns:1.5rem minmax(0,1fr) auto 1rem;align-items:center;gap:.875rem;min-block-size:3.75rem;min-inline-size:0;padding:.875rem 1rem;border:1px solid var(--tala-edge);border-radius:var(--tala-control-radius,.5rem);background:var(--tala-surface);box-shadow:none;color:var(--tala-text);text-decoration:none;transition:background-color 150ms ease,border-color 150ms ease,color 150ms ease;}
+.registrar-progress-panel .registrar-work-list>.registrar-work-row>span:first-of-type{min-inline-size:0;}
+.registrar-progress-panel .registrar-work-list>.registrar-work-row strong{display:block;font-size:1rem;line-height:1.4;font-weight:600;color:var(--tala-text);}
+.registrar-progress-panel .registrar-work-list>.registrar-work-row .registrar-work-description{margin-block-start:.1875rem;line-height:1.45;}
+.registrar-progress-panel .registrar-work-list>.registrar-work-row:hover{background:var(--tala-surface-sunken);border-color:var(--tala-edge-strong);}
+.registrar-progress-panel .registrar-work-list>.registrar-work-row:active{background:color-mix(in srgb,var(--tala-surface-sunken) 85%,var(--tala-edge));border-color:var(--tala-edge-strong);}
+.registrar-progress-panel .registrar-work-list>.registrar-work-row:focus-visible{outline:3px solid var(--tala-focus);outline-offset:2px;border-color:var(--tala-edge-strong);background:var(--tala-surface-sunken);}
+.registrar-progress-panel .registrar-work-icon{inline-size:1.375rem;block-size:1.375rem;justify-self:center;color:var(--tala-muted);flex-shrink:0;transition:color 150ms ease;}
+.registrar-progress-panel .registrar-work-list>.registrar-work-row:is(:hover,:focus-visible) .registrar-work-icon{color:var(--tala-brand-foreground);}
+.registrar-progress-panel .registrar-work-count{font-size:1.125rem;line-height:1;font-weight:600;font-variant-numeric:tabular-nums;color:var(--tala-text);white-space:nowrap;padding-inline-start:.25rem;}
+.registrar-progress-panel .registrar-work-arrow{justify-self:end;transition:transform 150ms ease,color 150ms ease;}
+.registrar-progress-panel .registrar-work-list>.registrar-work-row:is(:hover,:focus-visible) .registrar-work-arrow{color:var(--tala-text);transform:translateX(2px);}
 /* Accounting composes the shared record workspace; its selection and hover styles remain shared. */
 .accounting-collection{display:grid;gap:var(--tala-card-gap);min-inline-size:0;}
 .accounting-selected-workspace{gap:var(--tala-card-gap);}
@@ -363,8 +377,11 @@
     .accounting-records-launcher .accounting-record-link+.accounting-record-link{border-block-start:0;border-inline-start:1px solid var(--tala-edge);}
 }
 @container(min-width:51.5rem){
-    .accounting-workbench .tala-workflow-steps{grid-template-columns:repeat(4,minmax(0,1fr));}
+    .accounting-workbench .tala-workflow-steps{grid-template-columns:repeat(3,minmax(0,1fr));}
     .accounting-workbench .tala-workflow-step__title{min-block-size:0;}
+}
+@container(min-width:68rem){
+    .accounting-workbench .tala-workflow-steps{grid-template-columns:repeat(5,minmax(0,1fr));}
 }
 @media(pointer:coarse){
     .accounting-workbench .tala-workflow-step .tala-workspace-text-link,.accounting-workbench .tala-workflow-step__action>.fi-btn{min-block-size:2.75rem;}
@@ -532,8 +549,9 @@
 @media(max-width:40rem){.registrar-enrollment-detail .fi-header-heading{font-size:1.75rem;}.registrar-case-waiting{padding:1.25rem;}.registrar-case-confirm .fi-btn{inline-size:100%;}.registrar-case-grid>section,.registrar-case-schedule{padding:1.25rem;}.registrar-subject-table{font-size:.875rem;}.registrar-subject-table :is(th,td){padding-inline:.375rem;}.registrar-subject-table th span{font-size:.8125rem;}.registrar-case-events>li{grid-template-columns:minmax(0,1fr);gap:.5rem;}.registrar-case-history-link{padding:1.25rem;}}
 @media(max-width:40rem){.registrar-case-current-subjects .registrar-subject-table{display:block;}.registrar-case-current-subjects .registrar-subject-table thead{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}.registrar-case-current-subjects .registrar-subject-table tbody{display:block;}.registrar-case-current-subjects .registrar-subject-table tbody tr{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"subject subject" "section units" "actions actions";gap:.5rem 1rem;padding-block:1rem;border-block-end:1px solid var(--tala-edge);}.registrar-case-current-subjects .registrar-subject-table tbody tr>:first-child{grid-area:subject;}.registrar-case-current-subjects .registrar-subject-table tbody tr>:nth-child(2){grid-area:section;}.registrar-case-current-subjects .registrar-subject-table tbody tr>:nth-child(3){grid-area:units;text-align:end;}.registrar-case-current-subjects .registrar-subject-table tbody tr>:nth-child(4){grid-area:actions;}.registrar-case-current-subjects .registrar-subject-table :is(th,td){min-inline-size:0;padding:0;border:0;}.registrar-case-current-subjects .registrar-subject-table tr>*:last-child{padding:0;}.registrar-case-current-subjects .registrar-subject-mobile-label{display:block;font-size:.75rem;color:var(--tala-muted);font-weight:400;}.registrar-case-current-subjects .registrar-subject-actions{flex-direction:column;align-items:stretch;flex-wrap:nowrap;white-space:normal;padding-block-start:.25rem!important;}.registrar-case-current-subjects .registrar-subject-actions .fi-btn{inline-size:100%;justify-content:center;white-space:nowrap;}}
 @media(max-width:64rem){.registrar-workbench-grid{grid-template-columns:minmax(0,1fr);}.registrar-start-panel{padding:1.25rem;}}
-@media(max-width:40rem){.registrar-enrollment-workbench .fi-header-heading{font-size:1.75rem;}.registrar-work-panel,.registrar-progress-panel,.registrar-records-entry{padding:1.25rem;}.registrar-work-row{gap:.75rem;grid-template-columns:1.5rem minmax(0,1fr) auto 1rem;}.registrar-start-actions{grid-template-columns:minmax(0,1fr);}.registrar-records-entry{flex-direction:column;align-items:flex-start;}.registrar-enrollment-record{grid-template-columns:minmax(0,1fr);gap:1rem;}.registrar-enrollment-status{gap:.5rem;}.registrar-enrollment-program{overflow-wrap:anywhere;}}
-@media(forced-colors:active){.registrar-work-row:focus-visible{outline-color:Highlight;}.registrar-start-panel{background:Canvas;}.registrar-work-icon{color:CanvasText;}}
+@media(max-width:40rem){.registrar-enrollment-workbench .fi-header-heading{font-size:1.75rem;}.registrar-work-panel,.registrar-progress-panel,.registrar-records-entry{padding:1.25rem;}.registrar-work-row{gap:.75rem;grid-template-columns:1.5rem minmax(0,1fr) auto 1rem;}.registrar-progress-panel .registrar-work-list>.registrar-work-row{gap:.75rem;grid-template-columns:1.25rem minmax(0,1fr) auto 1rem;padding:.75rem .875rem;}.registrar-start-actions{grid-template-columns:minmax(0,1fr);}.registrar-records-entry{flex-direction:column;align-items:flex-start;}.registrar-enrollment-record{grid-template-columns:minmax(0,1fr);gap:1rem;}.registrar-enrollment-status{gap:.5rem;}.registrar-enrollment-program{overflow-wrap:anywhere;}}
+@media(prefers-reduced-motion:reduce){.registrar-progress-panel .registrar-work-list>.registrar-work-row,.registrar-progress-panel .registrar-work-icon,.registrar-progress-panel .registrar-work-arrow{transition:none;}.registrar-progress-panel .registrar-work-list>.registrar-work-row:is(:hover,:focus-visible) .registrar-work-arrow{transform:none;}}
+@media(forced-colors:active){.registrar-work-row:focus-visible{outline-color:Highlight;}.registrar-start-panel{background:Canvas;}.registrar-work-icon{color:CanvasText;}.registrar-progress-panel .registrar-work-list>.registrar-work-row{border:1px solid LinkText;background:Canvas;color:LinkText;}.registrar-progress-panel .registrar-work-list>.registrar-work-row:hover{border-color:Highlight;outline:1px solid Highlight;}.registrar-progress-panel .registrar-work-list>.registrar-work-row:focus-visible{outline:3px solid Highlight;outline-offset:2px;}.registrar-progress-panel .registrar-work-list>.registrar-work-row strong{color:LinkText;}.registrar-progress-panel .registrar-work-description,.registrar-progress-panel .registrar-work-count{color:CanvasText;}.registrar-progress-panel .registrar-work-icon,.registrar-progress-panel .registrar-work-arrow{color:LinkText;}}
 
 /* Accounting account records: native search, filters, pagination and record views. */
 .accounting-records-table .fi-ta-header-toolbar>div:has(>.fi-ta-search-field){flex:1;min-inline-size:0;}
@@ -2336,3 +2354,31 @@ button.tala-cashier-calendar__day:focus-visible{outline:3px solid var(--tala-foc
 .student-plan-legend{display:flex;flex-wrap:wrap;gap:.375rem 1rem;margin:0 0 var(--tala-card-gap,12px);padding:0;list-style:none;font-size:.8125rem;}
 .student-plan-legend>li{display:inline-flex;align-items:center;gap:.25rem;}
 .student-plan-legend .fi-icon{inline-size:1rem;block-size:1rem;}
+/* Registrar Enrollment continuation card & breakdown modal. */
+.registrar-continuation-card .tala-workspace-feature__action .fi-btn{inline-size:100%;justify-content:center;}
+.registrar-continuation-card__summary{margin:0;color:var(--tala-muted);font-size:var(--tala-type-caption);line-height:1.4;font-variant-numeric:tabular-nums;}
+.registrar-continuation-table-wrap{inline-size:100%;overflow-x:auto;border:1px solid var(--tala-edge);border-radius:.5rem;background:var(--tala-surface-sunken);}
+.registrar-continuation-table-wrap:focus-visible,.registrar-continuation-breakdown__table-wrap:focus-visible{outline:3px solid var(--tala-focus);outline-offset:2px;}
+.registrar-continuation-table{inline-size:100%;border-collapse:collapse;font-size:.8125rem;line-height:1.4;}
+.registrar-continuation-table :is(th,td){padding:.375rem .625rem;border-block-end:1px solid var(--tala-edge);text-align:start;vertical-align:middle;}
+.registrar-continuation-table tbody tr:last-child :is(th,td){border-block-end:0;}
+.registrar-continuation-table thead th{font-size:.75rem;font-weight:600;color:var(--tala-muted);white-space:nowrap;}
+.registrar-continuation-table tbody th{font-weight:500;color:var(--tala-text);white-space:nowrap;}
+.registrar-continuation-table .is-num{text-align:end;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.registrar-continuation-breakdown{display:grid;gap:1rem;min-inline-size:0;}
+.registrar-continuation-breakdown__metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(10rem,1fr));gap:.75rem 1.25rem;margin:0;padding:.875rem 1rem;}
+.registrar-continuation-breakdown__metrics dt{font-size:.75rem;color:var(--tala-muted);}
+.registrar-continuation-breakdown__metrics dd{margin:.125rem 0 0;font-size:1.375rem;font-weight:600;line-height:1.2;font-variant-numeric:tabular-nums;}
+.registrar-continuation-breakdown__caption{margin:0;font-size:.8125rem;color:var(--tala-muted);font-variant-numeric:tabular-nums;}
+.registrar-continuation-breakdown__table-wrap{max-block-size:26rem;overflow:auto;border:1px solid var(--tala-edge);border-radius:.5rem;background:var(--tala-surface);}
+.registrar-continuation-breakdown__table{inline-size:100%;border-collapse:collapse;}
+.registrar-continuation-breakdown__table thead{position:sticky;inset-block-start:0;z-index:1;background:var(--tala-surface-sunken);}
+.registrar-continuation-breakdown__table thead th{box-shadow:inset 0 -1px 0 var(--tala-edge);}
+.registrar-continuation-breakdown__name{display:block;font-weight:600;color:var(--tala-text);}
+.registrar-continuation-breakdown__empty{padding:1.5rem 1rem;border:1px solid var(--tala-edge);border-radius:.5rem;background:var(--tala-surface-sunken);}
+.registrar-continuation-breakdown__empty h3{margin:0;font-size:1rem;font-weight:600;}
+.registrar-continuation-breakdown__empty p{margin:.375rem 0 0;font-size:.875rem;color:var(--tala-muted);}
+@media(forced-colors:active){
+    .registrar-continuation-table-wrap,.registrar-continuation-breakdown__table-wrap,.registrar-continuation-breakdown__empty{border:1px solid CanvasText;background:Canvas;color:CanvasText;}
+    .registrar-continuation-breakdown__table thead{background:Canvas;}
+}

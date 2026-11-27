@@ -2,6 +2,8 @@
 
 namespace App\Actions\Finance;
 
+use App\Actions\Enrollment\AttemptAutoOfficialEnrollment;
+use App\Actions\Enrollment\AutoFinalizationTrigger;
 use App\Models\Payment;
 use App\Models\PaymentAllocation;
 use App\Models\PaymentEvidenceVersion;
@@ -123,7 +125,37 @@ class ReviewPaymentEvidence
         }
 
         if ($created) {
-            DB::afterCommit(fn () => $this->notificationService->record($payment));
+            $enrollmentId = $payment->termAccount?->enrollment_id;
+            $verifiedRef = trim($externalCheckReference);
+            $paymentSummary = sprintf(
+                'Verified payment of PHP %s (%s) applied.',
+                number_format((float) $this->money->normalize((string) $payment->amount), 2),
+                $verifiedRef,
+            );
+
+            DB::afterCommit(function () use ($payment, $enrollmentId, $actor, $verifiedRef, $paymentSummary): void {
+                $autoFinalized = false;
+                $alertedRegistrars = false;
+
+                if ($enrollmentId !== null) {
+                    $result = app(AttemptAutoOfficialEnrollment::class)->attempt(
+                        (int) $enrollmentId,
+                        new AutoFinalizationTrigger(
+                            triggerType: AutoFinalizationTrigger::TypePaymentEvidenceVerified,
+                            triggerReference: $verifiedRef,
+                            clearedByUserId: $actor->id,
+                            paymentId: $payment->id,
+                            paymentSummary: $paymentSummary,
+                        ),
+                    );
+                    $autoFinalized = $result->wasFinalized();
+                    $alertedRegistrars = $result->alertedRegistrars();
+                }
+
+                if (! $autoFinalized) {
+                    $this->notificationService->record($payment, suppressRegistrarAlert: $alertedRegistrars);
+                }
+            });
         }
 
         return $payment;

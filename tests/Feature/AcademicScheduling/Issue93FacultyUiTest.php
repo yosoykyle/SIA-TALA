@@ -407,7 +407,8 @@ class Issue93FacultyUiTest extends TestCase
             ->assertDontSee('View My availability');
 
         $schedule->assertSeeHtml('href="'.e(MyAvailability::getUrl()).'"')
-            ->assertSeeHtml('<span class="tala-timetable-tile-class">'.$fixture['section']->code.'</span>');
+            ->assertSeeHtml('tala-timetable-tile-class')
+            ->assertSeeHtml('>'.$fixture['section']->code.'</span>');
 
         // Filtering exposes Print filtered alongside Print all without a dropdown menu.
         $schedule->filterTable('day_of_week', 1)

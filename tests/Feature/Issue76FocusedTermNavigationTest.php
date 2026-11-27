@@ -59,7 +59,7 @@ class Issue76FocusedTermNavigationTest extends TestCase
         $this->assertSame(['Admissions', 'Students & Enrollment', 'Students Record'], array_map(fn ($item): string => $item->getLabel(), $groups[0]->getItems()));
         $this->assertSame(['Programs & Curricula', 'School Resources', 'Term Planning', 'Admission cycles'], array_map(fn ($item): string => $item->getLabel(), $groups[1]->getItems()));
         $items = $this->planningChildren();
-        $this->assertSame(['Calendar', 'Classes & sections', 'Faculty & rooms', 'Timetable'], array_map(fn ($item): string => $item->getLabel(), $items));
+        $this->assertSame(['1. Calendar', '2. Sections & classes', '3. Faculty & rooms', '4. Timetable'], array_map(fn ($item): string => $item->getLabel(), $items));
         foreach ($items as $item) {
             $this->assertNotNull($item->getIcon());
         }
@@ -86,10 +86,10 @@ class Issue76FocusedTermNavigationTest extends TestCase
         $this->assertSame('Term Planning', $parent->getLabel());
         $this->assertTrue($parent->isActive());
         $this->assertSame([
-            'Calendar',
-            'Classes & sections',
-            'Faculty & rooms',
-            'Timetable',
+            '1. Calendar',
+            '2. Sections & classes',
+            '3. Faculty & rooms',
+            '4. Timetable',
         ], array_map(fn ($item): string => $item->getLabel(), $parent->getChildItems()));
         $this->assertFalse($parent->getChildItems()[0]->isActive());
 
@@ -101,10 +101,10 @@ class Issue76FocusedTermNavigationTest extends TestCase
         $this->assertTrue($parent->isActive());
         $childLabels = array_map(fn ($item): string => $item->getLabel(), $parent->getChildItems());
         $this->assertSame([
-            'Calendar',
-            'Classes & sections',
-            'Faculty & rooms',
-            'Timetable',
+            '1. Calendar',
+            '2. Sections & classes',
+            '3. Faculty & rooms',
+            '4. Timetable',
         ], $childLabels);
         $this->assertTrue($parent->getChildItems()[0]->isActive());
     }
@@ -131,7 +131,7 @@ class Issue76FocusedTermNavigationTest extends TestCase
         $this->assertCount(1, $groups);
         $this->assertSame(['Academic Oversight'], array_map(fn ($item): string => $item->getLabel(), $groups[0]->getItems()));
         $planningItems = $this->planningChildren();
-        $this->assertSame(['Calendar', 'Classes & sections', 'Faculty & rooms', 'Timetable'], array_map(fn ($item): string => $item->getLabel(), $planningItems));
+        $this->assertSame(['1. Calendar', '2. Sections & classes', '3. Faculty & rooms', '4. Timetable'], array_map(fn ($item): string => $item->getLabel(), $planningItems));
         $this->assertTrue($planningItems[1]->isActive());
         foreach ($planningItems as $item) {
             $this->assertNotNull($item->getIcon());

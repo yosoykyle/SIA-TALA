@@ -2,6 +2,16 @@
     @include('filament.pages.partials.term-workspace-header')
     @if ($term)
         @php
+            $resolvedStepState = (isset($stepState) && is_array($stepState))
+                ? $stepState
+                : \App\Support\TermPlanningStepState::evaluate($term, (bool) ($readOnly ?? false));
+            $timetableStep = $resolvedStepState['steps']['timetable'] ?? null;
+            $isTimetableLocked = is_array($timetableStep) && (bool) ($timetableStep['locked'] ?? false);
+        @endphp
+        @if ($isTimetableLocked)
+            @include('filament.pages.partials.term-step-locked', ['step' => $timetableStep, 'term' => $term])
+        @else
+        @php
             $isTermClosed = $this->isTermClosed();
             $workingRun = $allRuns->first(fn ($run) => in_array($run->status, [
                 \App\Models\ScheduleGenerationRun::StatusUnderReview,
@@ -25,7 +35,7 @@
                     'Stale', 'Superseded' => 'Past attempt · Needs current sources',
                     default => match ($activeRun->status) {
                         \App\Models\ScheduleGenerationRun::StatusQueued, \App\Models\ScheduleGenerationRun::StatusDispatching => 'Timetable generation in progress',
-                        \App\Models\ScheduleGenerationRun::StatusFailed => 'Past attempt · Failed',
+                        \App\Models\ScheduleGenerationRun::StatusFailed => (strtolower((string) data_get($activeRun->diagnostics, 'solver_dispatch.status', '')) === 'cancelled' || strtoupper((string) data_get($activeRun->diagnostics, 'solver_dispatch.failure.code', '')) === 'CANCELLED_BY_REGISTRAR') ? 'Past attempt · Cancelled' : 'Past attempt · Failed',
                         \App\Models\ScheduleGenerationRun::StatusBlocked => 'Past attempt · Blocked',
                         \App\Models\ScheduleGenerationRun::StatusUnderReview => 'Draft timetable · Under review',
                         default => \App\Models\ScheduleGenerationRun::statusOptions()[$activeRun->status] ?? $activeRun->status,
@@ -80,7 +90,7 @@
                         @if ($isOfficialPublished && ! $isTermClosed)
                             <span
                                 class="tala-timetable-status-pill is-official"
-                                title="Official live schedule: use Revise schedule for approved changes"
+                                title="Official live schedule: use Revise official schedule for approved changes"
                             >
                                 <x-filament::icon icon="heroicon-m-lock-closed" />
                                 <span>Official · Live · {{ $scopeMeetingCount }} {{ \Illuminate\Support\Str::plural('meeting', $scopeMeetingCount) }}</span>
@@ -153,10 +163,17 @@
                             </x-filament::button>
                         @endif
 
-                        @if ($showOfficial && $selectedVersion)
-                            <x-filament::button tag="a" color="gray" size="sm" icon="heroicon-o-printer" :href="route('timetable.version.print', ['version' => $selectedVersion, 'timetableView' => $timetableView, 'timetableFormat' => $timetableFormat, 'viewFilter' => $viewFilter, 'programFilter' => $programFilter, 'yearFilter' => $yearFilter, 'tableSearch' => $tableSearch])" target="_blank" title="Print whole term">Print<span class="sr-only"> whole term</span></x-filament::button>
-                        @elseif ($activeRun && ! $pendingGeneration)
-                            <x-filament::button type="button" color="gray" size="sm" icon="heroicon-o-printer" x-on:click="window.print()" title="Print draft timetable">Print<span class="sr-only"> draft timetable</span></x-filament::button>
+                        @if (($showOfficial && $selectedVersion) || ($activeRun && ! $pendingGeneration))
+                            <x-filament::button
+                                type="button"
+                                color="gray"
+                                size="sm"
+                                icon="heroicon-o-printer"
+                                x-on:click="$dispatch('tala-open-print-options'); $dispatch('open-modal', { id: 'timetable-print-options' })"
+                                title="Choose print scope and filters"
+                            >
+                                Print<span class="sr-only"> timetable options</span>
+                            </x-filament::button>
                         @endif
 
                         <x-filament::dropdown placement="bottom-end" width="xs">
@@ -227,7 +244,7 @@
                     <section class="tala-studio-context-strip is-warning" role="status" aria-label="Whole-term publication locked">
                         <div class="tala-studio-context-strip__body">
                             <x-filament::icon icon="heroicon-o-exclamation-triangle" aria-hidden="true" />
-                            <span>Whole-term publishing and regeneration are locked because students are officially enrolled. Use <strong>Revise schedule</strong> on the official timetable for approved changes.</span>
+                            <span>Whole-term publishing and regeneration are locked because students are officially enrolled. Use <strong>Revise official schedule</strong> on the official timetable for approved changes.</span>
                         </div>
                         @if ($currentVersion)
                             <x-filament::button color="gray" size="sm" wire:click="chooseTimetable('official:{{ $currentVersion->id }}')">View official</x-filament::button>
@@ -245,7 +262,7 @@
                     <section class="tala-studio-context-strip is-neutral" role="status" aria-label="Whole-term draft generation locked">
                         <div class="tala-studio-context-strip__body">
                             <x-filament::icon icon="heroicon-o-lock-closed" aria-hidden="true" />
-                            <span>Whole-term draft generation is locked because active student enrollments exist for this term. Use <strong>Revise schedule</strong> for approved changes.</span>
+                            <span>Whole-term draft generation is locked because active student enrollments exist for this term. Use <strong>Revise official schedule</strong> for approved changes.</span>
                         </div>
                     </section>
                 @elseif ($isOfficialPublished && ! $isTermClosed && ! $isPostEnrollmentLocked && $activeDraftOption !== null)
@@ -313,11 +330,65 @@
             @endif
 
             @php
+                $unresolvedLateImpacts = is_array($availabilityProjection['unresolved_late_impacts'] ?? null)
+                    ? $availabilityProjection['unresolved_late_impacts']
+                    : [];
+                $lateImpactCount = (int) ($availabilityProjection['late_impact_count'] ?? count($unresolvedLateImpacts));
+            @endphp
+            @if ($isOfficialPublished && ! $isTermClosed && $lateImpactCount > 0 && ! empty($unresolvedLateImpacts))
+                <section class="tala-late-impact-banner" role="region" aria-label="Late faculty availability changes affecting the official timetable">
+                    <div class="tala-late-impact-banner__head">
+                        <x-filament::icon icon="heroicon-o-exclamation-triangle" aria-hidden="true" />
+                        <div>
+                            <strong>{{ $lateImpactCount }} late availability {{ \Illuminate\Support\Str::plural('change', $lateImpactCount) }} {{ $lateImpactCount === 1 ? 'affects' : 'affect' }} the official timetable</strong>
+                            <p class="tala-late-impact-banner__meta">Affected classes are highlighted on the timetable below. Revise each teacher's impacted classes without regenerating the whole term.</p>
+                        </div>
+                    </div>
+                    <div class="tala-late-impact-list">
+                        @foreach ($unresolvedLateImpacts as $impact)
+                            @php
+                                $impactModeLabel = match ((string) ($impact['mode_label'] ?? '')) {
+                                    'Choose teaching times' => 'Specific hours set',
+                                    'Cannot teach this Term' => 'Cannot teach this term',
+                                    default => (string) ($impact['mode_label'] ?? ''),
+                                };
+                                $impactMeetingIds = array_values(array_map('intval', $impact['affected_meeting_ids'] ?? []));
+                            @endphp
+                            <div class="tala-late-impact-item">
+                                <p>
+                                    <strong>{{ $impact['faculty_name'] }}</strong> ({{ $impactModeLabel }})
+                                    @if (! empty($impact['reason'])) · Reason: “{{ $impact['reason'] }}” @endif
+                                    @if (! empty($impact['affected_meetings']))
+                                        : {{ collect($impact['affected_meetings'])->map(fn (array $m): string => trim(($m['course_code'] ?? '').' '.($m['section_code'] ?? '').' ('.($m['day_label'] ?? '').' '.($m['time_label'] ?? '').')'))->implode('; ') }}
+                                    @endif
+                                </p>
+                                @if ($canReviseOfficial && $impactMeetingIds !== [])
+                                    <x-filament::button
+                                        type="button"
+                                        size="sm"
+                                        color="primary"
+                                        icon="heroicon-o-pencil-square"
+                                        wire:click="mountAction('revisePublishedSchedule', { section_meeting_ids: {{ \Illuminate\Support\Js::from($impactMeetingIds) }} })"
+                                    >
+                                        Revise affected classes
+                                    </x-filament::button>
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
+                </section>
+            @endif
+
+            @php
                 $isEmptyFailedDraft = ! $showOfficial && $activeRun && ! $pendingGeneration && ! ($timetablePresentation && $scopeMeetingCount);
+                $isCancelledRun = ! $showOfficial && $activeRun && (
+                    strtoupper((string) ($solverFailure['code'] ?? '')) === 'CANCELLED_BY_REGISTRAR'
+                    || strtolower((string) data_get($activeRun->diagnostics, 'solver_dispatch.status', '')) === 'cancelled'
+                );
                 $failureOutcome = (string) ($reviewEvidence['outcome'] ?? '');
                 $failureTechnical = (string) ($plainFailure['technical'] ?? '');
                 $failureRawLower = strtolower($failureTechnical.' '.($solverFailure['code'] ?? '').' '.($solverOutcome['solver_status'] ?? ''));
-                $isConnectionFailure = str_contains($failureRawLower, 'request failed')
+                $isConnectionFailure = ! $isCancelledRun && (str_contains($failureRawLower, 'request failed')
                     || str_contains($failureRawLower, 'authentication failed')
                     || str_contains($failureRawLower, 'not configured')
                     || str_contains($failureRawLower, 'probe failed')
@@ -326,11 +397,12 @@
                     || str_contains($failureRawLower, '503')
                     || str_contains($failureRawLower, 'unavailable')
                     || str_contains($failureRawLower, 'transport')
-                    || str_contains($failureRawLower, 'connection');
-                $isErrorSeverity = $isConnectionFailure
+                    || str_contains($failureRawLower, 'connection'));
+                $isErrorSeverity = ! $isCancelledRun && ($isConnectionFailure
                     || ($activeRun?->status === \App\Models\ScheduleGenerationRun::StatusFailed)
-                    || in_array($failureOutcome, ['TechnicalFailure', 'ModelInvalid'], true);
+                    || in_array($failureOutcome, ['TechnicalFailure', 'ModelInvalid'], true));
                 $failureAlertTitle = match (true) {
+                    $isCancelledRun => 'Generation cancelled',
                     $isConnectionFailure => 'Scheduling service unavailable',
                     $failureOutcome === 'Infeasible' => 'No valid timetable found',
                     $failureOutcome === 'ModelInvalid' => 'Schedule data could not be processed',
@@ -341,9 +413,14 @@
 
             @if ($hasTimetableRecord)
                 @php
+                    $resolvedConflictDiagnosis = is_array($conflictDiagnosis ?? null)
+                        ? $conflictDiagnosis
+                        : ['has_conflicts' => false, 'summary' => '', 'items' => []];
+                    $hasConflictGuideItems = ! $showOfficial && ! $pendingGeneration && (bool) ($resolvedConflictDiagnosis['has_conflicts'] ?? false) && ! empty($resolvedConflictDiagnosis['items']);
                     $hasDraftValidationWarning = $activeRun && ! $showOfficial && ! $pendingGeneration && ! $isEmptyFailedDraft && ! ($reviewEvidence['validated'] ?? false);
                     $showTopFailureCard = $plainFailure !== null && ! $pendingGeneration && ! $isEmptyFailedDraft;
-                    $hasVisibleStatusStrip = $hasDraftValidationWarning || $showTopFailureCard;
+                    $showTopConflictGuide = $hasConflictGuideItems && ! $isEmptyFailedDraft;
+                    $hasVisibleStatusStrip = $hasDraftValidationWarning || $showTopFailureCard || $showTopConflictGuide;
                 @endphp
                 <div wire:loading.delay.long wire:target="chooseTimetable,showTimetableView,showTimetableFormat,viewFilter,programFilter,yearFilter,tableSearch,clearViewFilters,moveCandidateMeeting,updateCandidateMeeting,togglePinMeeting,undoLastChangeFromNotification" class="tala-studio-status" role="status"><p class="tala-studio-message"><x-filament::loading-indicator aria-hidden="true" />Updating timetable…</p></div>
                 @if ($hasVisibleStatusStrip)
@@ -366,7 +443,7 @@
                                     </div>
                                 @endif
                             </div>
-                        @elseif ($hasDraftValidationWarning)
+                        @elseif ($hasDraftValidationWarning && ! $showTopConflictGuide)
                             <div class="tala-studio-alert-card is-warning" role="status">
                                 <div class="tala-studio-alert-card__body">
                                     <span class="tala-studio-alert-card__icon" aria-hidden="true">
@@ -378,6 +455,58 @@
                                     </div>
                                 </div>
                             </div>
+                        @endif
+
+                        @if ($showTopConflictGuide)
+                            <section class="tala-conflict-guide" aria-label="Conflict resolution guide">
+                                <header class="tala-conflict-guide__head">
+                                    <h3>{{ count($resolvedConflictDiagnosis['items']) === 1 ? 'How to resolve this scheduling issue' : 'How to resolve these scheduling issues' }}</h3>
+                                    @if (($resolvedConflictDiagnosis['summary'] ?? '') !== '')
+                                        <p class="tala-conflict-guide__summary">{{ $resolvedConflictDiagnosis['summary'] }}</p>
+                                    @endif
+                                </header>
+                                @foreach ($resolvedConflictDiagnosis['items'] as $conflictItem)
+                                    <article @class([
+                                        'tala-conflict-card',
+                                        'is-danger' => ($conflictItem['severity'] ?? 'danger') === 'danger',
+                                        'is-warning' => ($conflictItem['severity'] ?? '') === 'warning',
+                                    ])>
+                                        <header class="tala-conflict-card__head">
+                                            <h4>{{ $conflictItem['title'] }}</h4>
+                                            <x-filament::badge :color="($conflictItem['severity'] ?? 'danger') === 'danger' ? 'danger' : 'warning'" size="sm">{{ $conflictItem['category'] }}</x-filament::badge>
+                                        </header>
+                                        @if (! empty($conflictItem['involved']))
+                                            <ul class="tala-conflict-card__chips" aria-label="Involved people, classes, rooms, or times">
+                                                @foreach ($conflictItem['involved'] as $entityChip)
+                                                    <li class="tala-conflict-card__chip">{{ $entityChip }}</li>
+                                                @endforeach
+                                            </ul>
+                                        @endif
+                                        <p class="tala-conflict-card__why"><strong>Why:</strong> {{ $conflictItem['why'] }}</p>
+                                        @if (! empty($conflictItem['how_to_fix']))
+                                            <ul class="tala-conflict-card__fixes" aria-label="What you can do">
+                                                @foreach ($conflictItem['how_to_fix'] as $fixStep)
+                                                    <li>@if ($loop->first)<strong>What you can do:</strong> @endif{{ $fixStep }}</li>
+                                                @endforeach
+                                            </ul>
+                                        @endif
+                                        @if (! empty($conflictItem['action_url']) && ! empty($conflictItem['action_label']))
+                                            <div class="tala-conflict-card__action">
+                                                <x-filament::button
+                                                    tag="a"
+                                                    size="sm"
+                                                    :color="($conflictItem['severity'] ?? 'danger') === 'danger' ? 'primary' : 'gray'"
+                                                    icon="heroicon-m-arrow-right"
+                                                    icon-position="after"
+                                                    :href="$conflictItem['action_url']"
+                                                >
+                                                    {{ $conflictItem['action_label'] }}
+                                                </x-filament::button>
+                                            </div>
+                                        @endif
+                                    </article>
+                                @endforeach
+                            </section>
                         @endif
                     </section>
                 @endif
@@ -457,14 +586,15 @@
                                 \App\Models\ScheduleGenerationRun::StatusSuperseded,
                             ], true)
                             || in_array($activeRun->candidate_state, ['Rejected', 'Stale', 'Superseded'], true);
+                        $isRejectedFeasibleOutcome = $activeRun instanceof \App\Models\ScheduleGenerationRun
+                            && $activeRun->candidate_state === 'Rejected'
+                            && in_array($reviewEvidence['outcome'] ?? '', ['Optimal', 'Feasible', 'Local adjustment'], true);
                         $isDraftEmptyHero = (bool) ($activeRun && ! $showOfficial);
-                        $isErrorEmptyHero = $isDraftEmptyHero && (
+                        $isErrorEmptyHero = $isDraftEmptyHero && ! $isCancelledRun && (
                             $isErrorSeverity
                             || $hasSolverIssue
-                            || in_array($activeRun->status, [
-                                \App\Models\ScheduleGenerationRun::StatusFailed,
-                                \App\Models\ScheduleGenerationRun::StatusBlocked,
-                            ], true)
+                            || $activeRun->status === \App\Models\ScheduleGenerationRun::StatusFailed
+                            || ($activeRun->status === \App\Models\ScheduleGenerationRun::StatusBlocked && ! $isRejectedFeasibleOutcome)
                         );
                         $emptyHeroTone = $isErrorEmptyHero ? ($isErrorSeverity ? 'danger' : 'warning') : ($isDraftEmptyHero ? 'neutral' : 'default');
                         $emptyStageMood = match ($emptyHeroTone) {
@@ -482,7 +612,9 @@
                                     ? 'Resolve '.count($readinessBlockers).' remaining prerequisites below before generating a whole-term timetable.'
                                     : ($readiness['reason'] ?? 'Complete the remaining prerequisite before generating a timetable.')));
                         $emptyHeroHeading = $isDraftEmptyHero
-                            ? (in_array($activeRun->status, [\App\Models\ScheduleGenerationRun::StatusQueued, \App\Models\ScheduleGenerationRun::StatusDispatching], true) ? 'Preparing your timetable' : 'No timetable was created')
+                            ? ($isCancelledRun
+                                ? 'Generation was cancelled'
+                                : (in_array($activeRun->status, [\App\Models\ScheduleGenerationRun::StatusQueued, \App\Models\ScheduleGenerationRun::StatusDispatching], true) ? 'Preparing your timetable' : 'No timetable was created'))
                             : 'No timetable yet';
                     @endphp
                     <div
@@ -518,6 +650,7 @@
                                 @php
                                     $canRetryHero = ! $readOnly && ! $isTermClosed && $this->canRetryActiveRun();
                                     $heroKickerLabel = match (true) {
+                                        $isCancelledRun => 'Attempt #'.$activeRun->id.' · Cancelled',
                                         $isErrorSeverity => 'Attempt #'.$activeRun->id.' · '.($failureAlertTitle ?? 'Generation failed'),
                                         $isErrorEmptyHero => 'Attempt #'.$activeRun->id.' · Needs review',
                                         default => 'Attempt #'.$activeRun->id.' · '.$this->plainAttemptStatusLabel($activeRun),
@@ -541,11 +674,63 @@
                                     </div>
                                     @if ($plainFailure !== null && ($failureTechnical ?? '') !== '')
                                         <p class="tala-error-stage__ref">
-                                            <span class="tala-error-stage__ref-label">Error reference</span>
+                                            <span class="tala-error-stage__ref-label">{{ $isCancelledRun ? 'Details' : 'Error reference' }}</span>
                                             <code class="tala-error-stage__ref-code">{{ $failureTechnical }}</code>
                                         </p>
                                     @endif
                                 </div>
+
+                                @if ($hasConflictGuideItems ?? false)
+                                    <section class="tala-conflict-guide" aria-label="Conflict resolution guide">
+                                        <header class="tala-conflict-guide__head">
+                                            <h3>{{ count($resolvedConflictDiagnosis['items']) === 1 ? 'Conflict found and how to fix it' : 'Conflicts found and how to fix them' }}</h3>
+                                            @if (($resolvedConflictDiagnosis['summary'] ?? '') !== '')
+                                                <p class="tala-conflict-guide__summary">{{ $resolvedConflictDiagnosis['summary'] }}</p>
+                                            @endif
+                                        </header>
+                                        @foreach ($resolvedConflictDiagnosis['items'] as $conflictItem)
+                                            <article @class([
+                                                'tala-conflict-card',
+                                                'is-danger' => ($conflictItem['severity'] ?? 'danger') === 'danger',
+                                                'is-warning' => ($conflictItem['severity'] ?? '') === 'warning',
+                                            ])>
+                                                <header class="tala-conflict-card__head">
+                                                    <h4>{{ $conflictItem['title'] }}</h4>
+                                                    <x-filament::badge :color="($conflictItem['severity'] ?? 'danger') === 'danger' ? 'danger' : 'warning'" size="sm">{{ $conflictItem['category'] }}</x-filament::badge>
+                                                </header>
+                                                @if (! empty($conflictItem['involved']))
+                                                    <ul class="tala-conflict-card__chips" aria-label="Involved people, classes, rooms, or times">
+                                                        @foreach ($conflictItem['involved'] as $entityChip)
+                                                            <li class="tala-conflict-card__chip">{{ $entityChip }}</li>
+                                                        @endforeach
+                                                    </ul>
+                                                @endif
+                                                <p class="tala-conflict-card__why"><strong>Why:</strong> {{ $conflictItem['why'] }}</p>
+                                                @if (! empty($conflictItem['how_to_fix']))
+                                                    <ul class="tala-conflict-card__fixes" aria-label="What you can do">
+                                                        @foreach ($conflictItem['how_to_fix'] as $fixStep)
+                                                            <li>@if ($loop->first)<strong>What you can do:</strong> @endif{{ $fixStep }}</li>
+                                                        @endforeach
+                                                    </ul>
+                                                @endif
+                                                @if (! empty($conflictItem['action_url']) && ! empty($conflictItem['action_label']))
+                                                    <div class="tala-conflict-card__action">
+                                                        <x-filament::button
+                                                            tag="a"
+                                                            size="sm"
+                                                            :color="($conflictItem['severity'] ?? 'danger') === 'danger' ? 'primary' : 'gray'"
+                                                            icon="heroicon-m-arrow-right"
+                                                            icon-position="after"
+                                                            :href="$conflictItem['action_url']"
+                                                        >
+                                                            {{ $conflictItem['action_label'] }}
+                                                        </x-filament::button>
+                                                    </div>
+                                                @endif
+                                            </article>
+                                        @endforeach
+                                    </section>
+                                @endif
                             @else
                                 <x-servitech-empty-state
                                     :illustrated="true"
@@ -581,7 +766,7 @@
                                             @php
                                                 $blockerStepLabel = match ($blockerGroup['label']) {
                                                     'Term Calendar', 'Term calendar' => 'Calendar',
-                                                    'Classes', 'Classes & sections' => 'Classes & sections',
+                                                    'Classes', 'Classes & sections', 'Sections & classes' => 'Sections & classes',
                                                     'Resources', 'Faculty & rooms' => 'Faculty & rooms',
                                                     'Timetable' => 'Timetable',
                                                     default => $blockerGroup['label'],
@@ -604,7 +789,7 @@
                                                     tag="a"
                                                     size="sm"
                                                     :color="$loop->first ? 'primary' : 'gray'"
-                                                    :icon="match ($blockerGroup['label']) { 'Classes', 'Classes & sections' => 'heroicon-o-rectangle-group', 'Resources', 'Faculty & rooms' => 'heroicon-o-users', 'Timetable' => 'heroicon-o-table-cells', default => 'heroicon-o-calendar' }"
+                                                    :icon="match ($blockerGroup['label']) { 'Classes', 'Classes & sections', 'Sections & classes' => 'heroicon-o-rectangle-group', 'Resources', 'Faculty & rooms' => 'heroicon-o-users', 'Timetable' => 'heroicon-o-table-cells', default => 'heroicon-o-calendar' }"
                                                     :href="$blockerGroup['url']"
                                                 >
                                                     {{ $blockerStepLabel }}
@@ -866,17 +1051,349 @@
                     </div>
                     <x-slot name="footerActions"><x-filament::button color="gray" x-on:click="$dispatch('close-modal', { id: 'timetable-review-details' })">Close</x-filament::button></x-slot>
                 </x-filament::modal>
+
+                @php
+                    $printMeetingsPayload = collect($timetablePresentation['allMeetings'] ?? $timetablePresentation['meetings'] ?? [])
+                        ->map(fn (array $m): array => [
+                            'id' => (string) ($m['id'] ?? ''),
+                            'class' => (string) ($m['class'] ?? ''),
+                            'sectionDisplay' => (string) ($m['sectionDisplay'] ?? ''),
+                            'faculty' => (string) ($m['faculty'] ?? ''),
+                            'room' => (string) ($m['room'] ?? ''),
+                            'courseCode' => (string) ($m['courseCode'] ?? ''),
+                            'courseTitle' => (string) ($m['courseTitle'] ?? ''),
+                            'dayLabel' => (string) ($m['dayLabel'] ?? ''),
+                            'time' => (string) ($m['time'] ?? ''),
+                            'component' => (string) ($m['component'] ?? ''),
+                            'componentBadge' => (string) ($m['componentBadge'] ?? ''),
+                            'sections' => array_values(array_map(
+                                fn (array $s): array => [
+                                    'id' => (string) ($s['id'] ?? ''),
+                                    'label' => (string) ($s['label'] ?? ''),
+                                    'program' => (string) ($s['program'] ?? ''),
+                                    'years' => array_values(is_array($s['years'] ?? null) ? $s['years'] : []),
+                                ],
+                                is_array($m['sections'] ?? null) ? $m['sections'] : [],
+                            )),
+                        ])
+                        ->values()
+                        ->all();
+                    $printBaseUrl = ($showOfficial && $selectedVersion)
+                        ? route('timetable.version.print', ['version' => $selectedVersion])
+                        : '';
+                @endphp
+                <x-filament::modal id="timetable-print-options" width="lg" teleport="body">
+                    <x-slot name="heading">Print timetable</x-slot>
+                    <x-slot name="description">Choose which classes and layout to include in your printout.</x-slot>
+
+                    <div
+                        wire:key="print-options-{{ $showOfficial ? 'official-'.($selectedVersion?->id ?? '0') : 'draft-'.($activeRun?->id ?? '0') }}-{{ count($printMeetingsPayload) }}"
+                        class="space-y-4"
+                        x-data="{
+                            isOfficial: {{ \Illuminate\Support\Js::from((bool) ($showOfficial && $selectedVersion)) }},
+                            printBaseUrl: {{ \Illuminate\Support\Js::from($printBaseUrl) }},
+                            meetings: {{ \Illuminate\Support\Js::from($printMeetingsPayload) }},
+                            sectionOptions: {{ \Illuminate\Support\Js::from($interactiveContext['sectionOptions'] ?? []) }},
+                            facultyOptions: {{ \Illuminate\Support\Js::from($interactiveContext['facultyOptions'] ?? []) }},
+                            roomOptions: {{ \Illuminate\Support\Js::from($interactiveContext['roomOptions'] ?? []) }},
+                            programOptions: {{ \Illuminate\Support\Js::from($interactiveContext['programOptions'] ?? []) }},
+                            yearOptions: {{ \Illuminate\Support\Js::from($interactiveContext['yearOptions'] ?? []) }},
+                            scope: {{ \Illuminate\Support\Js::from(in_array($timetableView, ['whole', 'section', 'faculty', 'room'], true) ? $timetableView : 'whole') }},
+                            entity: {{ \Illuminate\Support\Js::from((string) ($viewFilter ?? '')) }},
+                            program: {{ \Illuminate\Support\Js::from((string) ($programFilter ?? '')) }},
+                            year: {{ \Illuminate\Support\Js::from((string) ($yearFilter ?? '')) }},
+                            format: {{ \Illuminate\Support\Js::from($timetableFormat === 'list' ? 'list' : 'week') }},
+                            search: {{ \Illuminate\Support\Js::from((string) ($tableSearch ?? '')) }},
+                            syncFromActiveView(state = null) {
+                                const src = state || window.__talaTimetableFilterState;
+                                if (!src || typeof src !== 'object') return;
+                                this.scope = ['whole', 'section', 'faculty', 'room'].includes(src.viewMode) ? src.viewMode : 'whole';
+                                this.program = String(src.programFilter || '');
+                                this.year = String(src.yearFilter || '');
+                                this.entity = this.scope === 'whole' ? '' : String(src.entityFilter || '');
+                                this.onProgramOrYearChange();
+                                this.format = (src.format === 'list' || src.mode === 'list') ? 'list' : 'week';
+                                this.search = String(src.searchQuery || '');
+                            },
+                            onScopeChange() {
+                                this.entity = '';
+                            },
+                            get canSelectSection() {
+                                return Boolean((this.program || '').trim() !== '' && (this.year || '').trim() !== '');
+                            },
+                            get filteredSectionOptions() {
+                                if (!this.canSelectSection) return [];
+                                return (this.sectionOptions || []).filter(sec => {
+                                    const progOk = sec.program === this.program;
+                                    const yearOk = Array.isArray(sec.years) && sec.years.includes(this.year);
+                                    return progOk && yearOk;
+                                });
+                            },
+                            onProgramOrYearChange() {
+                                if (this.scope !== 'section') return;
+                                if (!this.canSelectSection) {
+                                    this.entity = '';
+                                    return;
+                                }
+                                if (this.entity !== '') {
+                                    const stillValid = this.filteredSectionOptions.some(sec => String(sec.id) === String(this.entity));
+                                    if (!stillValid) {
+                                        this.entity = '';
+                                    }
+                                }
+                            },
+                            matchesMeeting(m) {
+                                if (!m) return false;
+                                if (this.scope === 'section' && this.entity !== '' && this.canSelectSection) {
+                                    const secMatch = (m.sections || []).some(s => String(s.id) === String(this.entity) || s.label === this.entity)
+                                        || m.class === this.entity;
+                                    if (!secMatch) return false;
+                                } else if (this.scope === 'faculty' && this.entity !== '') {
+                                    if (m.faculty !== this.entity) return false;
+                                } else if (this.scope === 'room' && this.entity !== '') {
+                                    if (m.room !== this.entity) return false;
+                                }
+                                if (this.program !== '' || this.year !== '') {
+                                    const progYearMatch = (m.sections || []).some(s => {
+                                        const pOk = !this.program || s.program === this.program;
+                                        const yOk = !this.year || (s.years || []).includes(this.year);
+                                        return pOk && yOk;
+                                    });
+                                    if (!progYearMatch) return false;
+                                }
+                                const q = (this.search || '').trim().toLowerCase();
+                                if (q !== '') {
+                                    const haystack = [
+                                        m.courseCode,
+                                        m.courseTitle,
+                                        m.class,
+                                        m.sectionDisplay,
+                                        m.faculty,
+                                        m.room,
+                                        m.dayLabel,
+                                        m.time,
+                                        m.component,
+                                        m.componentBadge,
+                                    ].filter(Boolean).join(' ').toLowerCase();
+                                    if (!haystack.includes(q)) return false;
+                                }
+                                return true;
+                            },
+                            get totalCount() {
+                                return (this.meetings || []).length;
+                            },
+                            get matchingCount() {
+                                return (this.meetings || []).filter(m => this.matchesMeeting(m)).length;
+                            },
+                            officialPrintUrl() {
+                                if (!this.printBaseUrl) return '#';
+                                const params = new URLSearchParams();
+                                params.set('timetableView', this.scope);
+                                params.set('timetableFormat', this.format);
+                                params.set('applyFilters', '1');
+                                if (this.scope !== 'whole' && this.entity !== '') {
+                                    params.set('viewFilter', this.entity);
+                                }
+                                if (this.program !== '') {
+                                    params.set('programFilter', this.program);
+                                }
+                                if (this.year !== '') {
+                                    params.set('yearFilter', this.year);
+                                }
+                                if ((this.search || '').trim() !== '') {
+                                    params.set('tableSearch', this.search.trim());
+                                }
+                                const sep = this.printBaseUrl.includes('?') ? '&' : '?';
+                                return this.printBaseUrl + sep + params.toString();
+                            },
+                            executePrint() {
+                                if (this.matchingCount === 0) return;
+                                if (this.isOfficial && this.printBaseUrl) {
+                                    window.open(this.officialPrintUrl(), '_blank', 'noopener');
+                                    this.$dispatch('close-modal', { id: 'timetable-print-options' });
+                                    return;
+                                }
+                                this.$dispatch('close-modal', { id: 'timetable-print-options' });
+                                window.dispatchEvent(new CustomEvent('tala-timetable-apply-print-filters', {
+                                    detail: {
+                                        viewMode: this.scope,
+                                        entityFilter: this.scope === 'whole' ? '' : this.entity,
+                                        programFilter: this.program,
+                                        yearFilter: this.year,
+                                        searchQuery: this.search,
+                                        format: this.format,
+                                        triggerPrint: true,
+                                    },
+                                }));
+                            },
+                        }"
+                        x-on:tala-open-print-options.window="syncFromActiveView()"
+                        x-on:tala-timetable-filter-sync.window="syncFromActiveView($event.detail)"
+                    >
+                        <div class="grid gap-1.5">
+                            <label for="print-opt-scope" class="text-sm font-medium text-zinc-800 dark:text-zinc-200">What to print</label>
+                            <x-filament::input.wrapper>
+                                <x-filament::input.select id="print-opt-scope" x-model="scope" x-on:change="onScopeChange()">
+                                    <option value="whole">Whole term (all classes)</option>
+                                    <option value="section">By student section</option>
+                                    <option value="faculty">By teacher</option>
+                                    <option value="room">By room</option>
+                                </x-filament::input.select>
+                            </x-filament::input.wrapper>
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2" x-show="programOptions.length > 0 || yearOptions.length > 0">
+                            <div class="grid gap-1.5" x-show="programOptions.length > 0">
+                                <label for="print-opt-program" class="text-sm font-medium text-zinc-800 dark:text-zinc-200">Program</label>
+                                <x-filament::input.wrapper>
+                                    <x-filament::input.select id="print-opt-program" x-model="program" x-on:change="onProgramOrYearChange()">
+                                        <option value="">All programs</option>
+                                        <template x-for="prog in programOptions" :key="prog">
+                                            <option :value="prog" x-text="prog"></option>
+                                        </template>
+                                    </x-filament::input.select>
+                                </x-filament::input.wrapper>
+                            </div>
+
+                            <div class="grid gap-1.5" x-show="yearOptions.length > 0">
+                                <label for="print-opt-year" class="text-sm font-medium text-zinc-800 dark:text-zinc-200">Year level</label>
+                                <x-filament::input.wrapper>
+                                    <x-filament::input.select id="print-opt-year" x-model="year" x-on:change="onProgramOrYearChange()">
+                                        <option value="">All years</option>
+                                        <template x-for="yr in yearOptions" :key="yr">
+                                            <option :value="yr" x-text="yr"></option>
+                                        </template>
+                                    </x-filament::input.select>
+                                </x-filament::input.wrapper>
+                            </div>
+                        </div>
+
+                        <div class="grid gap-1.5" x-cloak x-show="scope === 'section'">
+                            <label for="print-opt-section" class="text-sm font-medium text-zinc-800 dark:text-zinc-200">Student section</label>
+                            <div x-show="canSelectSection">
+                                <x-filament::input.wrapper>
+                                    <x-filament::input.select id="print-opt-section" x-model="entity">
+                                        <option value="" x-text="filteredSectionOptions.length === 0 ? 'No sections match selection' : 'All matching sections'"></option>
+                                        <template x-for="sec in filteredSectionOptions" :key="sec.id">
+                                            <option :value="sec.id" x-text="sec.label"></option>
+                                        </template>
+                                    </x-filament::input.select>
+                                </x-filament::input.wrapper>
+                            </div>
+                            <p class="tala-rail-hint" x-show="!canSelectSection">Choose a program and year level to filter by section.</p>
+                        </div>
+
+                        <div class="grid gap-1.5" x-cloak x-show="scope === 'faculty'">
+                            <label for="print-opt-faculty" class="text-sm font-medium text-zinc-800 dark:text-zinc-200">Teacher</label>
+                            <x-filament::input.wrapper>
+                                <x-filament::input.select id="print-opt-faculty" x-model="entity">
+                                    <option value="">All teachers</option>
+                                    <template x-for="fac in facultyOptions" :key="fac">
+                                        <option :value="fac" x-text="fac"></option>
+                                    </template>
+                                </x-filament::input.select>
+                            </x-filament::input.wrapper>
+                        </div>
+
+                        <div class="grid gap-1.5" x-cloak x-show="scope === 'room'">
+                            <label for="print-opt-room" class="text-sm font-medium text-zinc-800 dark:text-zinc-200">Room</label>
+                            <x-filament::input.wrapper>
+                                <x-filament::input.select id="print-opt-room" x-model="entity">
+                                    <option value="">All rooms</option>
+                                    <template x-for="rm in roomOptions" :key="rm">
+                                        <option :value="rm" x-text="rm"></option>
+                                    </template>
+                                </x-filament::input.select>
+                            </x-filament::input.wrapper>
+                        </div>
+
+                        <div class="grid gap-1.5">
+                            <span class="text-sm font-medium text-zinc-800 dark:text-zinc-200">Layout format</span>
+                            <x-tala-navigation compact stretch label="Print layout format" class="tala-print-format-tabs">
+                                <x-filament::tabs.item
+                                    icon="heroicon-o-calendar-days"
+                                    alpine-active="format === 'week'"
+                                    x-bind:aria-pressed="format === 'week' ? 'true' : 'false'"
+                                    x-on:click="format = 'week'"
+                                >
+                                    Weekly grid
+                                </x-filament::tabs.item>
+                                <x-filament::tabs.item
+                                    icon="heroicon-o-list-bullet"
+                                    alpine-active="format === 'list'"
+                                    x-bind:aria-pressed="format === 'list' ? 'true' : 'false'"
+                                    x-on:click="format = 'list'"
+                                >
+                                    List view
+                                </x-filament::tabs.item>
+                            </x-tala-navigation>
+                        </div>
+
+                        <div
+                            class="flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm tabular-nums"
+                            role="status"
+                            aria-live="polite"
+                            :class="matchingCount > 0
+                                ? 'border-zinc-200 bg-zinc-50 text-zinc-700 dark:border-white/10 dark:bg-zinc-900/60 dark:text-zinc-200'
+                                : 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200'"
+                        >
+                            <template x-if="matchingCount > 0">
+                                <span class="flex items-center gap-2">
+                                    <x-filament::icon icon="heroicon-m-check-circle" class="h-4 w-4 shrink-0 text-[var(--tala-brand)]" aria-hidden="true" />
+                                    <span>Prints <strong x-text="matchingCount"></strong> of <strong x-text="totalCount"></strong> scheduled <span x-text="totalCount === 1 ? 'meeting' : 'meetings'"></span></span>
+                                </span>
+                            </template>
+                            <template x-if="matchingCount === 0">
+                                <span class="flex items-center gap-2">
+                                    <x-filament::icon icon="heroicon-m-exclamation-triangle" class="h-4 w-4 shrink-0" aria-hidden="true" />
+                                    <span>No scheduled meetings match these filters. Adjust your selection before printing.</span>
+                                </span>
+                            </template>
+                        </div>
+
+                        <div class="flex items-center justify-end gap-3 border-t border-zinc-200 pt-4 dark:border-white/10">
+                            <x-filament::button
+                                type="button"
+                                color="gray"
+                                x-on:click="$dispatch('close-modal', { id: 'timetable-print-options' })"
+                            >
+                                Cancel
+                            </x-filament::button>
+                            <x-filament::button
+                                type="button"
+                                color="primary"
+                                icon="heroicon-o-printer"
+                                x-bind:disabled="matchingCount === 0"
+                                x-on:click="executePrint()"
+                            >
+                                Print schedule
+                            </x-filament::button>
+                        </div>
+                    </div>
+                </x-filament::modal>
             @endif
             @include('filament.pages.partials.timetable-generation-failure-modal')
         </div>
+        @endif
     @else
         <section class="tala-task-surface" aria-label="Term timetable">
             <x-servitech-empty-state
                 :illustrated="false"
                 icon="heroicon-o-table-cells"
                 heading="Choose a term"
-                description="Choose a term above to view or generate its timetable."
-            />
+                description="Open Term Planning to select a term and view or generate its timetable."
+            >
+                <x-filament::button
+                    tag="a"
+                    :href="\App\Filament\Pages\TermOverview::getUrl()"
+                    color="primary"
+                    size="sm"
+                    icon="heroicon-m-arrow-right"
+                    icon-position="after"
+                >
+                    Open Term Planning
+                </x-filament::button>
+            </x-servitech-empty-state>
         </section>
     @endif
     <x-filament-actions::modals />

@@ -51,7 +51,7 @@ final class TAL94E1SchedulingSolverTransportTest extends TestCase
             'http://127.0.0.1:8080/health' => Http::response([
                 'status' => 'ok',
                 'service' => 'tala-scheduler-solver',
-                'model_version' => 'tal94-demand-v2',
+                'model_version' => 'tala-timetable-v2',
             ]),
             'http://127.0.0.1:8080/solve' => Http::response(
                 [
@@ -70,13 +70,13 @@ final class TAL94E1SchedulingSolverTransportTest extends TestCase
 
         $probe = $client->probe();
         $solverResponse = $client->solve($this->request([
-            'contract_version' => 'tal94-demand-v2',
+            'contract_version' => 'tala-timetable-v2',
             'run_metadata' => ['solver_run_id' => 55],
         ]));
         $result = $solverResponse->payload();
 
         $this->assertSame(200, $probe['status']);
-        $this->assertStringContainsString('tal94-demand-v2', $probe['body']);
+        $this->assertStringContainsString('tala-timetable-v2', $probe['body']);
         $this->assertSame('optimal', $result['solver_status']);
         $this->assertSame('provider-request-55', $solverResponse->providerRequestId());
         $this->assertSame([
@@ -93,7 +93,7 @@ final class TAL94E1SchedulingSolverTransportTest extends TestCase
             && ! $request->hasHeader('Authorization')
             && $request->hasHeader('X-TALA-Solver-Request-ID', 'test-solver-request')
             && $request->hasHeader('X-TALA-Snapshot-SHA256')
-            && $request['contract_version'] === 'tal94-demand-v2');
+            && $request['contract_version'] === 'tala-timetable-v2');
         Http::assertSentCount(2);
     }
 
@@ -152,7 +152,7 @@ final class TAL94E1SchedulingSolverTransportTest extends TestCase
         ]);
 
         try {
-            $this->localClient()->solve($this->request(['contract_version' => 'tal94-demand-v2']));
+            $this->localClient()->solve($this->request(['contract_version' => 'tala-timetable-v2']));
             $this->fail('A failed solver response did not throw.');
         } catch (SchedulingSolverTransportException $exception) {
             $this->assertSame('Local scheduling solver request failed.', $exception->getMessage());
@@ -176,7 +176,7 @@ final class TAL94E1SchedulingSolverTransportTest extends TestCase
         ]);
 
         try {
-            $this->localClient()->solve($this->request(['contract_version' => 'tal94-demand-v2']));
+            $this->localClient()->solve($this->request(['contract_version' => 'tala-timetable-v2']));
             $this->fail("HTTP {$status} did not throw a typed solver transport exception.");
         } catch (SchedulingSolverTransportException $exception) {
             $this->assertSame($classification, $exception->classification());
@@ -198,7 +198,7 @@ final class TAL94E1SchedulingSolverTransportTest extends TestCase
         ]);
 
         try {
-            $this->localClient()->solve($this->request(['contract_version' => 'tal94-demand-v2']));
+            $this->localClient()->solve($this->request(['contract_version' => 'tala-timetable-v2']));
             $this->fail('A connection failure did not throw.');
         } catch (SchedulingSolverTransportException $exception) {
             $this->assertSame(SchedulingSolverTransportException::ClassificationConnection, $exception->classification());
@@ -209,7 +209,7 @@ final class TAL94E1SchedulingSolverTransportTest extends TestCase
         Http::assertSentCount(1);
 
         try {
-            $this->localClient()->solve($this->request(['contract_version' => 'tal94-demand-v2']));
+            $this->localClient()->solve($this->request(['contract_version' => 'tala-timetable-v2']));
             $this->fail('A malformed solver response did not throw.');
         } catch (SchedulingSolverTransportException $exception) {
             $this->assertSame(SchedulingSolverTransportException::ClassificationMalformedResponse, $exception->classification());
@@ -239,7 +239,7 @@ final class TAL94E1SchedulingSolverTransportTest extends TestCase
         );
 
         try {
-            $client->solve($this->request(['contract_version' => 'tal94-demand-v2']));
+            $client->solve($this->request(['contract_version' => 'tala-timetable-v2']));
             $this->fail('A credential failure did not throw.');
         } catch (SchedulingSolverTransportException $exception) {
             $this->assertSame(SchedulingSolverTransportException::ClassificationCredential, $exception->classification());

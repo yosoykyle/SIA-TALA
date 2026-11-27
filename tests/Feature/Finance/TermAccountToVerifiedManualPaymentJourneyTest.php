@@ -1775,7 +1775,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         $this->assertSame([['label' => 'Enrollment obligation', 'applied' => '12000.00', 'remaining' => '0.00'],
             ['label' => 'Midterm obligation', 'applied' => '4000.25', 'remaining' => '13999.75']], $preview['allocation']);
         $this->assertSame(0, Payment::query()->where('term_account_id', $fixture['account']->id)->count());
-        $page->callMountedAction()->assertHasNoActionErrors()->assertNotified('Payment receipt verified');
+        $page->callMountedAction()->assertHasNoActionErrors()->assertNotified('Payment verified · Needs Registrar attention');
         $payment = Payment::query()->where('payment_evidence_version_id', $first->id)->firstOrFail();
         $this->assertSame('16000.25', $payment->amount);
         $this->assertSame(['12000.00', '4000.25'], $payment->allocations->sortBy('sequence')->pluck('amount')->all());
