@@ -471,7 +471,7 @@ final class AutoOfficialEnrollmentTest extends TestCase
         Livewire::actingAs($learner->fresh())
             ->test(StudentEnrollmentPage::class)
             ->assertSee('Prepare subjects')
-            ->assertSee('Confirm subjects')
+            ->assertDontSee('Confirm subjects')
             ->assertSee('Pay fees')
             ->assertSee('Officially enrolled')
             ->assertSee('your enrollment becomes official automatically and your COR will be ready immediately')
