@@ -15,6 +15,7 @@ use App\Actions\Scheduling\RecordTermCohort;
 use App\Filament\Resources\CurriculumVersions\Pages\ReviewCurriculumVersion;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
 use App\Filament\Student\Pages\Dashboard as StudentDashboard;
+use App\Filament\Student\Pages\ScheduleView;
 use App\Models\AcademicYear;
 use App\Models\ClassOfferingTeachingAssignment;
 use App\Models\CorVersion;
@@ -590,9 +591,13 @@ final class Issue93EnrollmentEquivalencyAndNonCreditTest extends TestCase
         Livewire::actingAs($studentUser)
             ->test(StudentDashboard::class)
             ->assertSee('Your enrollment is official')
+            ->assertSee('2nd Semester Early H5');
+
+        Livewire::actingAs($studentUser)
+            ->test(ScheduleView::class)
             ->assertSee('2nd Semester Early H5')
             ->assertSee('Early Second Sem Subject')
-            ->assertSee('Switch active term');
+            ->assertSee('1st Semester Ongoing H5');
     }
 
     #[Test]
