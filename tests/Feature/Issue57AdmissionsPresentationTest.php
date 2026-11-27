@@ -22,6 +22,7 @@ use App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications
 use App\Filament\Resources\AdmissionApplications\Pages\ViewAdmissionApplication;
 use App\Filament\Resources\AdmissionCycles\Pages\ListAdmissionCycles;
 use App\Filament\Resources\AdmissionCycles\Pages\ViewAdmissionCycle;
+use App\Filament\Resources\StudentProfiles\Pages\ViewStudentProfile;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionApplicationEvent;
 use App\Models\AdmissionCycle;
@@ -38,6 +39,7 @@ use App\Models\OfficialCredentialResult;
 use App\Models\OperationalEvent;
 use App\Models\PreliminaryEvidenceReview;
 use App\Models\RegistrarEnrollmentClearance;
+use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermCalendarWindow;
@@ -414,7 +416,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
             expectedSubmissionVersionId: $application->current_submission_version_id,
         );
         $ready = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id]);
-        // A cleared Applicant's next step is enrollment, which the Registrar can start at the desk; readiness stays reachable.
+        // A cleared Applicant's next step is enrollment, started from the cleared Enrollment clearance step (#103 retired Ready for enrollment).
         $this->assertNotContains('startEnrollment', collect($ready->instance()->getCachedHeaderActions())->map->getName()->all());
         $ready->assertActionVisible('startEnrollment');
         $ready->mountAction('reviewReadiness')->assertActionMounted('reviewReadiness');
@@ -1901,13 +1903,13 @@ class Issue57AdmissionsPresentationTest extends TestCase
         $page = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $fresh->id])
             ->assertSee('Process evaluation');
         $steps = collect($page->instance()->processEvaluation())->pluck('state', 'key')->all();
-        $this->assertSame(['screening' => 'current', 'clearance' => 'upcoming', 'readiness' => 'upcoming', 'payment' => 'upcoming', 'enrolled' => 'upcoming'], $steps);
+        $this->assertSame(['screening' => 'current', 'clearance' => 'upcoming', 'payment' => 'upcoming', 'enrolled' => 'upcoming'], $steps);
         $this->assertSame('startReview', $page->instance()->processEvaluation()[0]['action']);
 
         [$admitted] = $this->admittedApplication($registrar);
         $evaluation = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $admitted->id])
             ->instance()->processEvaluation();
-        $this->assertSame(['done', 'current', 'upcoming', 'upcoming', 'upcoming'], array_column($evaluation, 'state'));
+        $this->assertSame(['done', 'current', 'upcoming', 'upcoming'], array_column($evaluation, 'state'));
         $this->assertSame('recordEnrollmentClearance', $evaluation[1]['action']);
         $this->assertSame('Application screening', $evaluation[0]['label']);
     }
@@ -1921,7 +1923,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
 
         $evaluation = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
             ->instance()->processEvaluation();
-        $this->assertSame(['current', 'upcoming', 'upcoming', 'upcoming', 'upcoming'], array_column($evaluation, 'state'));
+        $this->assertSame(['current', 'upcoming', 'upcoming', 'upcoming'], array_column($evaluation, 'state'));
         $this->assertSame('Application screening', $evaluation[0]['label']);
         $this->assertSame('reviewApplication', $evaluation[0]['action']);
         $this->assertSame([['label' => 'School review copy', 'status' => 'Awaiting review', 'color' => 'warning']], $evaluation[0]['documents']);
@@ -1934,7 +1936,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
         ]);
         $evaluation = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
             ->instance()->processEvaluation();
-        $this->assertSame(['current', 'upcoming', 'upcoming', 'upcoming', 'upcoming'], array_column($evaluation, 'state'));
+        $this->assertSame(['current', 'upcoming', 'upcoming', 'upcoming'], array_column($evaluation, 'state'));
         $this->assertSame('All 1 submitted copies accepted · Decision pending.', $evaluation[0]['summary']);
     }
 
@@ -1964,6 +1966,54 @@ class Issue57AdmissionsPresentationTest extends TestCase
             ->exists());
     }
 
+    public function test_student_record_shows_admission_papers_to_be_followed_and_the_registrar_passes_them_there(): void
+    {
+        Mail::fake();
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $registrar = $this->registrar();
+        [$application, $requirement] = $this->admittedApplication($registrar);
+        app(RecordRegistrarEnrollmentClearance::class)->execute(
+            $application->fresh(), $registrar, RegistrarEnrollmentClearance::ResultCleared, true,
+            expectedDecisionId: $application->decisions()->whereDoesntHave('successor')->value('id'),
+            expectedSubmissionVersionId: $application->current_submission_version_id,
+        );
+        $student = StudentProfile::factory()->create(['user_id' => $application->user_id]);
+        Enrollment::factory()->create([
+            'admission_application_id' => $application->id,
+            'student_profile_id' => $student->id,
+            'credential_user_id' => $application->user_id,
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+            'officially_enrolled_at' => now(),
+        ]);
+
+        $page = Livewire::actingAs($registrar)->test(ViewStudentProfile::class, ['record' => $student->id])
+            ->assertSee('1 admission paper to be followed')
+            ->assertSee('School review copy');
+        $this->assertSame(['School review copy'], $page->instance()->admissionPapers()['followed']);
+
+        $page->call('selectRecordTab', 'requirements')
+            ->assertSee('Admission papers')
+            ->assertSee('To be followed')
+            ->assertDontSee('No document checklist recorded')
+            ->assertActionVisible('updateAdmissionPapers')
+            ->callAction('updateAdmissionPapers', ['checklist_InPerson' => [$requirement->id]])
+            ->assertNotified('Papers updated');
+
+        $this->assertSame(
+            OfficialCredentialResult::ResultVerified,
+            $application->credentialResults()->where('admission_requirement_id', $requirement->id)->whereDoesntHave('successor')->value('result'),
+        );
+        Livewire::actingAs($registrar)->test(ViewStudentProfile::class, ['record' => $student->id])
+            ->assertSee('All admission papers passed')
+            ->assertActionHidden('updateAdmissionPapers');
+
+        $imported = StudentProfile::factory()->create();
+        Livewire::actingAs($registrar)->test(ViewStudentProfile::class, ['record' => $imported->id])
+            ->assertDontSee('Admission papers')
+            ->assertDontSee('admission paper')
+            ->assertActionHidden('updateAdmissionPapers');
+    }
+
     public function test_enrollment_clearance_tags_unticked_papers_to_be_followed_and_update_papers_passes_them_later(): void
     {
         Mail::fake();
@@ -1987,6 +2037,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
         $this->assertSame('To be followed', collect(app(Requirements::class)->onSiteItems($application->fresh()))->keyBy('label')['School review copy']['state']);
         $page = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id]);
         $this->assertStringContainsString('To be followed: School review copy', $page->instance()->processEvaluation()[1]['summary']);
+        $this->assertContains('updateFollowedPapers', array_column($page->instance()->processEvaluation()[1]['choices'], 'action'), 'Update papers sits on the cleared clearance step.');
 
         $page->assertActionVisible('updateFollowedPapers')
             ->callAction('updateFollowedPapers', ['checklist_InPerson' => [$requirement->id]])

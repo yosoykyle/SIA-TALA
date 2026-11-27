@@ -62,14 +62,20 @@ class Issue93FacultyClassGradesTest extends TestCase
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $faculty = $this->staff(User::StaffRoleFaculty);
 
-        $openTerm = $this->termWithGradeWindow(open: true, label: 'First Semester 2026');
-        $closedTerm = $this->termWithGradeWindow(open: false, label: 'Second Semester 2026');
+        $activeTerm = $this->termWithGradeWindow(open: true, label: 'First Semester 2026');
+        $priorTerm = $this->termWithGradeWindow(
+            open: false,
+            label: 'Second Semester 2025',
+            startsOn: now()->subMonths(8)->toDateString(),
+            endsOn: now()->subMonths(4)->toDateString(),
+            state: Term::StateClosed,
+        );
 
-        $draftOpen = $this->classRosterFixture($registrar, $faculty, $openTerm, 'CLS-DRAFT-OPEN', 'Algorithms and Complexity', 2);
+        $draftOpen = $this->classRosterFixture($registrar, $faculty, $activeTerm, 'CLS-DRAFT-OPEN', 'Algorithms and Complexity', 2);
         $firstDraftRow = $draftOpen->rows()->orderBy('id')->firstOrFail();
         $firstDraftRow->update(['final_result' => '1.50']);
 
-        $returnedClass = $this->classRosterFixture($registrar, $faculty, $openTerm, 'CLS-RETURNED', 'Operating Systems', 1);
+        $returnedClass = $this->classRosterFixture($registrar, $faculty, $activeTerm, 'CLS-RETURNED', 'Operating Systems', 1);
         $returnedRow = $returnedClass->rows()->sole();
         app(SaveGradeRosterDraft::class)->execute($returnedClass, [
             ['id' => $returnedRow->id, 'final_result' => '2.00', 'inc_completion_note' => null],
@@ -77,14 +83,14 @@ class Issue93FacultyClassGradesTest extends TestCase
         $returnedClass = app(SubmitGradeRoster::class)->execute($returnedClass->fresh(), $faculty);
         app(ReturnGradeRoster::class)->execute($returnedClass, $registrar, 'Verify lab exam score.', [$returnedRow->id]);
 
-        $submittedClass = $this->classRosterFixture($registrar, $faculty, $openTerm, 'CLS-SUBMITTED', 'Database Systems', 1);
+        $submittedClass = $this->classRosterFixture($registrar, $faculty, $activeTerm, 'CLS-SUBMITTED', 'Database Systems', 1);
         $submittedRow = $submittedClass->rows()->sole();
         app(SaveGradeRosterDraft::class)->execute($submittedClass, [
             ['id' => $submittedRow->id, 'final_result' => '1.75', 'inc_completion_note' => null],
         ], $submittedClass->lock_version, $submittedClass->membership_signature, $faculty);
         app(SubmitGradeRoster::class)->execute($submittedClass->fresh(), $faculty);
 
-        $releasedIncClass = $this->classRosterFixture($registrar, $faculty, $openTerm, 'CLS-INC-OPEN', 'Capstone Project', 1);
+        $releasedIncClass = $this->classRosterFixture($registrar, $faculty, $activeTerm, 'CLS-INC-OPEN', 'Capstone Project', 1);
         $incRow = $releasedIncClass->rows()->sole();
         app(SaveGradeRosterDraft::class)->execute($releasedIncClass, [
             ['id' => $incRow->id, 'final_result' => 'INC', 'inc_completion_note' => 'Defend final prototype.'],
@@ -92,16 +98,38 @@ class Issue93FacultyClassGradesTest extends TestCase
         $releasedIncClass = app(SubmitGradeRoster::class)->execute($releasedIncClass->fresh(), $faculty);
         app(PostAndReleaseGradeRoster::class)->execute($releasedIncClass, $registrar, 'REL-INC-001');
 
-        $closedDraft = $this->classRosterFixture($registrar, $faculty, $closedTerm, 'CLS-CLOSED-DRAFT', 'Discrete Structures', 1);
+        $priorDraft = $this->classRosterFixture($registrar, $faculty, $priorTerm, 'CLS-PRIOR-DRAFT', 'Discrete Structures', 1);
 
-        $this->assertSame('Class grades', FacultyGradeRoster::getNavigationLabel());
+        $priorIncTermOpen = $this->termWithGradeWindow(
+            open: true,
+            label: 'First Semester 2025',
+            startsOn: now()->subMonths(12)->toDateString(),
+            endsOn: now()->subMonths(8)->toDateString(),
+            state: Term::StateActive,
+        );
+        $priorIncClass = $this->classRosterFixture($registrar, $faculty, $priorIncTermOpen, 'CLS-PRIOR-INC', 'Compiler Design', 1);
+        $priorIncRow = $priorIncClass->rows()->sole();
+        app(SaveGradeRosterDraft::class)->execute($priorIncClass, [
+            ['id' => $priorIncRow->id, 'final_result' => 'INC', 'inc_completion_note' => 'Submit parser benchmark.'],
+        ], $priorIncClass->lock_version, $priorIncClass->membership_signature, $faculty);
+        $priorIncClass = app(SubmitGradeRoster::class)->execute($priorIncClass->fresh(), $faculty);
+        app(PostAndReleaseGradeRoster::class)->execute($priorIncClass, $registrar, 'REL-INC-PRIOR');
+        $priorIncTermOpen->update(['state' => Term::StateClosed]);
+
+        $this->assertSame('Class list & grades', FacultyGradeRoster::getNavigationLabel());
 
         Livewire::withQueryParams(['queue' => 'all'])
             ->actingAs($faculty)
             ->test(FacultyGradeRoster::class)
             ->assertSet('rosterId', null)
             ->assertSet('queue', 'all')
-            ->assertSee('Class grades')
+            ->assertSee('Class list & grades')
+            ->assertSee('Choose a class to view its masterlist or enter grades.')
+            ->assertSee('First Semester 2026')
+            ->assertSeeHtml('role="table"')
+            ->assertSeeHtml('<th scope="col" role="columnheader">Subject</th>')
+            ->assertSeeHtml('<th scope="row" role="rowheader">')
+            ->assertDontSeeHtml('id="faculty-class-term"')
             ->assertSee('CLS-DRAFT-OPEN')
             ->assertSee('1 of 2 graded')
             ->assertSee('CLS-RETURNED')
@@ -110,29 +138,39 @@ class Issue93FacultyClassGradesTest extends TestCase
             ->assertSee('Submitted for Registrar review')
             ->assertSee('CLS-INC-OPEN')
             ->assertSee('1 open INC')
-            ->assertSee('CLS-CLOSED-DRAFT')
+            ->assertSee('View masterlist')
+            ->assertSeeHtml('href="'.e(route('grade-rosters.print', $draftOpen)).'"')
+            ->assertSeeHtml('href="'.e(route('grade-rosters.csv', $draftOpen)).'"')
+            ->assertSeeHtml('href="'.e(FacultyGradeRoster::getUrl(['roster' => $draftOpen->id])).'"')
+            ->assertDontSee('CLS-PRIOR-DRAFT')
+            ->assertDontSee('CLS-PRIOR-INC')
+            ->assertDontSee('Grade rosters')
+            ->assertDontSee('Grade Rosters')
+            ->assertDontSee('Find classes')
+            ->assertDontSee('Roster returned for changes')
             ->set('queue', 'needs-action')
             ->assertSee('CLS-DRAFT-OPEN')
             ->assertSee('CLS-RETURNED')
             ->assertDontSee('CLS-SUBMITTED')
             ->assertDontSee('CLS-INC-OPEN')
-            ->assertDontSee('CLS-CLOSED-DRAFT')
+            ->assertDontSee('CLS-PRIOR-DRAFT')
             ->set('queue', 'inc')
+            ->assertSee('All assigned terms')
             ->assertSee('CLS-INC-OPEN')
+            ->assertSee('CLS-PRIOR-INC')
+            ->assertSee('First Semester 2025')
             ->assertDontSee('CLS-DRAFT-OPEN')
             ->assertDontSee('CLS-RETURNED')
             ->assertDontSee('CLS-SUBMITTED')
             ->set('queue', 'all')
-            ->set('classTerm', (string) $closedTerm->id)
-            ->assertSee('CLS-CLOSED-DRAFT')
-            ->assertDontSee('CLS-DRAFT-OPEN')
             ->set('classSearch', 'NoSuchCourseXYZ')
             ->assertSee('No classes match your filters')
             ->call('clearClassFilters')
             ->assertSet('queue', 'all')
             ->assertSet('classTerm', '')
             ->assertSet('classSearch', '')
-            ->assertSee('CLS-DRAFT-OPEN');
+            ->assertSee('CLS-DRAFT-OPEN')
+            ->assertDontSee('CLS-PRIOR-DRAFT');
 
         Livewire::withQueryParams(['queue' => 'needs-action'])
             ->actingAs($faculty)
@@ -140,24 +178,148 @@ class Issue93FacultyClassGradesTest extends TestCase
             ->assertSet('rosterId', null)
             ->assertSee('CLS-DRAFT-OPEN')
             ->assertSee('CLS-RETURNED')
-            ->assertDontSee('CLS-SUBMITTED');
+            ->assertDontSee('CLS-SUBMITTED')
+            ->assertDontSee('CLS-PRIOR-DRAFT');
 
         Livewire::withQueryParams(['queue' => 'inc'])
             ->actingAs($faculty)
             ->test(FacultyGradeRoster::class)
             ->assertSet('rosterId', null)
             ->assertSee('CLS-INC-OPEN')
+            ->assertSee('CLS-PRIOR-INC')
             ->assertDontSee('CLS-DRAFT-OPEN');
 
-        Livewire::withQueryParams(['termId' => $closedTerm->id])
+        Livewire::withQueryParams(['termId' => $priorTerm->id])
             ->actingAs($faculty)
             ->test(FacultyGradeRoster::class)
             ->assertSet('rosterId', null)
-            ->assertSet('classTerm', (string) $closedTerm->id)
-            ->assertSee('CLS-CLOSED-DRAFT')
+            ->assertSet('classTerm', (string) $priorTerm->id)
+            ->assertSee('CLS-PRIOR-DRAFT')
             ->assertDontSee('CLS-DRAFT-OPEN');
 
-        $this->assertNotNull($closedDraft->id);
+        Livewire::withQueryParams([]);
+
+        $this->assertNotNull($priorDraft->id);
+    }
+
+    #[Test]
+    public function masterlist_modal_shows_official_students_and_direct_export_and_print_controls(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $faculty = $this->staff(User::StaffRoleFaculty);
+        $otherFaculty = $this->staff(User::StaffRoleFaculty);
+        $term = $this->termWithGradeWindow(open: true, label: 'First Semester 2026');
+
+        $roster = $this->classRosterFixture($registrar, $faculty, $term, 'SEC-ML-101', 'Data Structures', 2);
+        $this->classRosterFixture($registrar, $faculty, $term, 'SEC-ML-102', 'Computer Networks', 1);
+
+        $students = $roster->rows()->with('courseEnrollment.enrollment.studentProfile')->get();
+        $firstStudent = $students[0]->courseEnrollment->enrollment->studentProfile;
+        $secondStudent = $students[1]->courseEnrollment->enrollment->studentProfile;
+
+        Livewire::withQueryParams(['classes' => 1])
+            ->actingAs($faculty)
+            ->test(FacultyGradeRoster::class)
+            ->assertSet('rosterId', null)
+            ->mountAction('viewMasterlist', ['roster' => $roster->id])
+            ->assertActionMounted('viewMasterlist')
+            ->assertMountedActionModalSee('Class masterlist · Data Structures')
+            ->assertMountedActionModalSee($firstStudent->last_name)
+            ->assertMountedActionModalSee($firstStudent->student_number)
+            ->assertMountedActionModalSee($secondStudent->last_name)
+            ->assertMountedActionModalSee($secondStudent->student_number)
+            ->assertMountedActionModalSee('Officially Enrolled')
+            ->assertMountedActionModalSee('Print masterlist')
+            ->assertMountedActionModalSee('Export CSV (Excel)')
+            ->assertMountedActionModalSee('Go to grading')
+            ->assertMountedActionModalSeeHtml('href="'.e(route('grade-rosters.print', $roster)).'"')
+            ->assertMountedActionModalSeeHtml('href="'.e(route('grade-rosters.csv', $roster)).'"')
+            ->assertMountedActionModalSeeHtml('href="'.e(FacultyGradeRoster::getUrl(['roster' => $roster->id])).'"');
+
+        $csvResponse = $this->actingAs($faculty)->get(route('grade-rosters.csv', $roster));
+        $csvResponse->assertOk();
+        $csvContent = $csvResponse->streamedContent();
+        $this->assertStringStartsWith("\xEF\xBB\xBF", $csvContent);
+        $this->assertStringContainsString($firstStudent->student_number, $csvContent);
+        $this->assertStringContainsString($secondStudent->student_number, $csvContent);
+
+        $this->actingAs($faculty)->get(route('grade-rosters.print', $roster))
+            ->assertOk()
+            ->assertSee($firstStudent->student_number);
+
+        Livewire::withQueryParams(['classes' => 1])
+            ->actingAs($otherFaculty)
+            ->test(FacultyGradeRoster::class)
+            ->mountAction('viewMasterlist', ['roster' => $roster->id])
+            ->assertStatus(404);
+
+        Livewire::withQueryParams([]);
+    }
+
+    #[Test]
+    public function class_index_avoids_n_plus_one_queries_as_assigned_classes_grow(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $faculty = $this->staff(User::StaffRoleFaculty);
+        $term = $this->termWithGradeWindow(open: true, label: 'First Semester 2026');
+
+        $this->classRosterFixture($registrar, $faculty, $term, 'N1-DRAFT-1', 'Systems Analysis', 2);
+        $incOne = $this->classRosterFixture($registrar, $faculty, $term, 'N1-INC-1', 'Applied Statistics', 1);
+        $incOneRow = $incOne->rows()->sole();
+        app(SaveGradeRosterDraft::class)->execute($incOne, [
+            ['id' => $incOneRow->id, 'final_result' => 'INC', 'inc_completion_note' => 'Complete lab exam.'],
+        ], $incOne->lock_version, $incOne->membership_signature, $faculty);
+        $incOne = app(SubmitGradeRoster::class)->execute($incOne->fresh(), $faculty);
+        app(PostAndReleaseGradeRoster::class)->execute($incOne, $registrar, 'REL-N1-01');
+
+        $twoClassQueries = 0;
+        $countingTwo = true;
+        DB::listen(function () use (&$twoClassQueries, &$countingTwo): void {
+            if ($countingTwo) {
+                $twoClassQueries++;
+            }
+        });
+
+        Livewire::withQueryParams(['classes' => 1])
+            ->actingAs($faculty)
+            ->test(FacultyGradeRoster::class)
+            ->assertSee('N1-DRAFT-1')
+            ->assertSee('N1-INC-1');
+
+        $countingTwo = false;
+
+        $this->classRosterFixture($registrar, $faculty, $term, 'N1-DRAFT-2', 'Linear Algebra', 2);
+        $this->classRosterFixture($registrar, $faculty, $term, 'N1-DRAFT-3', 'Human Computer Interaction', 2);
+        $this->classRosterFixture($registrar, $faculty, $term, 'N1-DRAFT-4', 'Information Assurance', 2);
+
+        $incTwo = $this->classRosterFixture($registrar, $faculty, $term, 'N1-INC-2', 'Embedded Systems', 1);
+        $incTwoRow = $incTwo->rows()->sole();
+        app(SaveGradeRosterDraft::class)->execute($incTwo, [
+            ['id' => $incTwoRow->id, 'final_result' => 'INC', 'inc_completion_note' => 'Submit hardware demo.'],
+        ], $incTwo->lock_version, $incTwo->membership_signature, $faculty);
+        $incTwo = app(SubmitGradeRoster::class)->execute($incTwo->fresh(), $faculty);
+        app(PostAndReleaseGradeRoster::class)->execute($incTwo, $registrar, 'REL-N1-02');
+
+        $sixClassQueries = 0;
+        $countingSix = true;
+        DB::listen(function () use (&$sixClassQueries, &$countingSix): void {
+            if ($countingSix) {
+                $sixClassQueries++;
+            }
+        });
+
+        Livewire::withQueryParams(['classes' => 1])
+            ->actingAs($faculty)
+            ->test(FacultyGradeRoster::class)
+            ->assertSee('N1-DRAFT-1')
+            ->assertSee('N1-DRAFT-4')
+            ->assertSee('N1-INC-2');
+
+        $countingSix = false;
+        Livewire::withQueryParams([]);
+
+        $this->assertSame($twoClassQueries, $sixClassQueries);
+        $this->assertLessThanOrEqual(30, $sixClassQueries);
     }
 
     #[Test]
@@ -237,17 +399,22 @@ class Issue93FacultyClassGradesTest extends TestCase
         return $user;
     }
 
-    private function termWithGradeWindow(bool $open, string $label): Term
-    {
+    private function termWithGradeWindow(
+        bool $open,
+        string $label,
+        ?string $startsOn = null,
+        ?string $endsOn = null,
+        string $state = Term::StateActive,
+    ): Term {
         $term = Term::factory()->create([
             'label' => $label,
-            'starts_on' => now()->subMonths(2)->toDateString(),
-            'ends_on' => now()->addMonths(2)->toDateString(),
-            'state' => Term::StateActive,
+            'starts_on' => $startsOn ?? now()->subMonths(2)->toDateString(),
+            'ends_on' => $endsOn ?? now()->addMonths(2)->toDateString(),
+            'state' => $state,
         ]);
 
         $package = TermCalendarPackage::factory()->for($term)->create([
-            'state' => TermCalendarPackage::StateActive,
+            'state' => $state === Term::StateClosed ? TermCalendarPackage::StateClosed : TermCalendarPackage::StateActive,
             'activated_at' => now(),
         ]);
 

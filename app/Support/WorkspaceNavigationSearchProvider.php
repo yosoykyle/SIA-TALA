@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
+use App\Filament\Pages\FacultyAcademicCalendar;
 use App\Filament\Pages\FacultyGradeRoster;
 use App\Filament\Pages\FacultyOverview;
 use App\Filament\Pages\FacultySchedule;
@@ -67,8 +68,9 @@ class WorkspaceNavigationSearchProvider implements GlobalSearchProvider
                 $facultyPages = [
                     'Overview' => FacultyOverview::class,
                     'My schedule' => FacultySchedule::class,
+                    'Academic calendar' => FacultyAcademicCalendar::class,
                     'My availability' => MyAvailability::class,
-                    'Class grades' => FacultyGradeRoster::class,
+                    'Class list & grades' => FacultyGradeRoster::class,
                 ];
 
                 foreach ($facultyPages as $label => $pageClass) {

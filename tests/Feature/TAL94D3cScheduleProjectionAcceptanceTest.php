@@ -91,7 +91,8 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
             meetingState: SectionMeeting::StateCancelled,
         );
 
-        Livewire::actingAs($owned['faculty'])
+        // #102 auto-scopes to one active term; this fixture gives the same faculty several, so name the owned one.
+        Livewire::withQueryParams(['termId' => $owned['term']->id])->actingAs($owned['faculty'])
             ->test(FacultySchedule::class)
             ->set('scheduleView', 'list')
             ->assertCanSeeTableRecords([$owned['meeting']])
@@ -106,6 +107,7 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
             ->assertSee('8:00 AM–11:00 AM')
             ->assertSee($owned['room']->code)
             ->assertSee('Face-to-Face');
+        Livewire::withQueryParams([]);
     }
 
     #[Test]

@@ -395,19 +395,20 @@ The standard TOR excludes term weighted average, cumulative GWA, LRN, period gra
 
 Capability coverage, hierarchy, states, responsive/accessibility outcomes and shared Student Home/Academic Oversight contracts live in the Clinic 5 and shared-shell [UI Surface Blueprint](../ui_surface_blueprint.md). This PRD owns product content, actions and authorization. DESIGN.md and the matching surface brief govern Impeccable-led composition and framework research.
 
-### 9.1 Faculty — Class grades
+### 9.1 Faculty — Class list & grades
 
-Faculty UI uses sentence-case plain language (**Class grades**, **class list**, **Submit class grades**, **Print class list**, **Export class list CSV**) over the internal canonical `GradeRoster` domain model (`FacultyGradeRoster`). **Class grades** uses TALA's shared native two-surface `childItems()` sidebar sub-options: **Needs action**, **All classes**, and **INC follow-up** (shown when open INCs exist).
+Faculty UI uses sentence-case plain language (**Class list & grades**, **class list**, **Submit class grades**, **Print masterlist**, **Export CSV (Excel)**) over the internal canonical `GradeRoster` domain model (`FacultyGradeRoster`). **Class list & grades** uses TALA's shared native two-surface `childItems()` sidebar sub-options: **Needs action**, **All classes**, and **INC follow-up** (shown when open INCs exist). **All classes** and **Needs action** auto-scope to the active term without a term-picker dropdown, while **INC follow-up** preserves cross-term scope so Faculty can complete open INCs from earlier terms.
 
-The queue shows:
+The **Subjects and sections** masterlist table displays assigned classes with:
 
-- course and class reference;
-- program/cohort;
+- subject title and code;
+- section reference (plus term label when viewing cross-term `INC follow-up`);
 - official learner count and grading progress;
-- submission deadline;
-- semantic status badge (`warning` / `success` / `info` / `gray`), owner, and next action.
+- submission deadline / date cue;
+- semantic status badge (`warning` / `success` / `info` / `gray`), owner, and next action; and
+- direct row actions: **View class masterlist** (modal showing the official student list with print and CSV actions), **Print masterlist**, **Export CSV (Excel)**, and **Go to grading**.
 
-Reactive Term, queue, and search controls narrow only the assigned classes.
+Queue and search controls narrow only the assigned classes in the active scope.
 
 The class list shows:
 

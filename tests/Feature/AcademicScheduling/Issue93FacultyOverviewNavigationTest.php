@@ -100,30 +100,58 @@ class Issue93FacultyOverviewNavigationTest extends TestCase
     }
 
     #[Test]
-    public function overview_shows_term_gate_when_no_term_is_auto_selected_and_loads_term_when_chosen(): void
+    public function overview_auto_resolves_active_term_without_term_gate_and_shows_empty_state_when_no_term_exists(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $faculty = $this->staff(User::StaffRoleFaculty);
 
+        TermCalendarPackage::query()->update(['state' => TermCalendarPackage::StateClosed]);
+        Term::query()->update(['state' => Term::StateClosed]);
+
+        Livewire::actingAs($faculty)
+            ->test(FacultyOverview::class)
+            ->assertSet('termId', null)
+            ->assertSee('No active term yet')
+            ->assertDontSee('Choose a term to view your overview');
+
         $packageA = $this->activePackage($registrar);
+        $packageA->term->update(['starts_on' => '2026-01-10', 'ends_on' => '2026-05-15', 'state' => Term::StateActive]);
+
         $packageB = $this->activePackage($registrar);
+        $packageB->term->update(['starts_on' => '2026-08-10', 'ends_on' => '2026-12-15', 'state' => Term::StateActive]);
 
         $this->assertSame(
             2,
             TermCalendarPackage::query()->where('state', TermCalendarPackage::StateActive)->distinct()->count('term_id'),
         );
 
-        // Two active-calendar terms -> deterministic gate asks teacher to pick one.
-        $component = Livewire::actingAs($faculty)
+        // Auto-resolves the newest active-calendar term with zero dropdown gate.
+        Livewire::actingAs($faculty)
             ->test(FacultyOverview::class)
-            ->assertSet('termId', null)
-            ->assertSee('Choose a term to view your overview');
-
-        $component->call('selectTerm', $packageA->term_id)
-            ->assertSet('termId', $packageA->term_id)
-            ->assertSee('Not published yet')
+            ->assertSet('termId', $packageB->term_id)
+            ->assertDontSee('Choose a term to view your overview')
+            ->assertDontSeeHtml('id="term-context-switcher"')
+            ->assertSee($packageB->term->label)
+            ->assertSee('Weekly schedule')
+            ->assertSee('Schedule not published yet')
+            ->assertSee('Open full schedule')
+            ->assertSee('Academic calendar')
+            ->assertSee('My availability')
             ->assertSee('Not submitted yet')
-            ->assertSeeInOrder(['0', 'classes needing action']);
+            ->assertSee('Class list & grades')
+            ->assertSee('0 assigned classes');
+
+        // Explicit ?termId= deep links still load that term, and unknown IDs return 404.
+        Livewire::actingAs($faculty)
+            ->test(FacultyOverview::class, ['termId' => $packageA->term_id])
+            ->assertSet('termId', $packageA->term_id)
+            ->assertSee($packageA->term->label);
+
+        $invalidTermId = (int) Term::query()->max('id') + 1;
+        Livewire::withQueryParams(['termId' => $invalidTermId])
+            ->actingAs($faculty)
+            ->test(FacultyOverview::class)
+            ->assertNotFound();
 
         $this->assertNotSame($packageA->term_id, $packageB->term_id);
     }
@@ -159,19 +187,29 @@ class Issue93FacultyOverviewNavigationTest extends TestCase
             ],
         );
 
-        Livewire::actingAs($faculty)
+        $component = Livewire::actingAs($faculty)
             ->test(FacultyOverview::class)
             ->assertSet('termId', $term->id)
             ->assertDontSee('Needs your action')
-            ->assertSeeInOrder(['1', 'class'])
+            ->assertSee('Weekly schedule')
+            ->assertSee('1 class')
             ->assertSee('1 weekly meeting')
-            ->assertSee('Exam period:')
+            ->assertSee($fixture['course']->code)
+            ->assertSee('Open full schedule')
+            ->assertSee('Academic calendar')
+            ->assertSee('My availability')
             ->assertSee('Available on selected times')
-            ->assertSee('Reply by Aug 15, 2026')
-            ->assertSeeInOrder(['0', 'classes needing action'])
+            ->assertDontSee('Reply by Aug 15, 2026')
+            ->assertDontSee('Update availability')
+            ->assertDontSee('Update times')
+            ->assertSee('Class list & grades')
             ->assertSee('0 assigned classes');
 
-        // Verify the other plain saved status labels.
+        // Verify zero occurrences of "roster" in visible UI text (excluding URL slugs like faculty-grade-roster).
+        $visibleText = preg_replace('/href="[^"]*"/i', '', $component->html());
+        $this->assertStringNotContainsStringIgnoringCase('roster', strip_tags((string) $visibleText));
+
+        // Verify the other plain saved status labels via backend declaration recording.
         app(RecordFacultyAvailabilityDeclaration::class)->execute(
             term: $term,
             faculty: $faculty,
@@ -180,7 +218,8 @@ class Issue93FacultyOverviewNavigationTest extends TestCase
             availabilityMode: FacultyAvailabilityDeclaration::ModeAnyApproved,
         );
         Livewire::actingAs($faculty)->test(FacultyOverview::class, ['termId' => $term->id])
-            ->assertSee('Available during all teaching hours');
+            ->assertSee('Available during all teaching hours')
+            ->assertDontSee('Update availability');
 
         app(RecordFacultyAvailabilityDeclaration::class)->execute(
             term: $term,
@@ -190,7 +229,8 @@ class Issue93FacultyOverviewNavigationTest extends TestCase
             availabilityMode: FacultyAvailabilityDeclaration::ModeCannotTeach,
         );
         Livewire::actingAs($faculty)->test(FacultyOverview::class, ['termId' => $term->id])
-            ->assertSee('Unavailable this term');
+            ->assertSee('Unavailable this term')
+            ->assertDontSee('Update availability');
     }
 
     #[Test]
@@ -207,7 +247,7 @@ class Issue93FacultyOverviewNavigationTest extends TestCase
             'recorded_by' => $registrar->id,
         ]);
 
-        // 1. No availability yet + schedule revision event -> availability is priority (no returned grades yet).
+        // 1. No availability yet + schedule revision event -> availability nudge + schedule revision surfaced.
         ScheduleRevisionEvent::query()->create([
             'term_id' => $term->id,
             'section_meeting_id' => $fixture['meeting']->id,
@@ -235,11 +275,11 @@ class Issue93FacultyOverviewNavigationTest extends TestCase
             ->assertSee('Reply by Aug 20, 2026')
             ->assertSee($fixture['course']->code)
             ->assertSee($fixture['section']->code)
-            ->assertViewHas('priorityCard', 'availability')
-            ->assertSeeHtml('href="'.e(MyAvailability::getUrl(['termId' => $term->id])).'"')
-            ->assertSeeHtml('href="'.e(FacultySchedule::getUrl(['termId' => $term->id])).'"');
+            ->assertSee('View schedule')
+            ->assertSeeHtml('href="'.e(MyAvailability::getUrl()).'"')
+            ->assertSeeHtml('href="'.e(FacultySchedule::getUrl()).'"');
 
-        // 2. Submit availability in chosen windows, then narrow grid so Review needed appears.
+        // 2. Submit availability in chosen windows, then narrow grid -> locked informational note (no self-edit CTA).
         app(RecordFacultyAvailabilityDeclaration::class)->execute(
             term: $term,
             faculty: $faculty,
@@ -253,10 +293,13 @@ class Issue93FacultyOverviewNavigationTest extends TestCase
 
         Livewire::actingAs($faculty)
             ->test(FacultyOverview::class, ['termId' => $term->id])
-            ->assertSee('Update times')
-            ->assertViewHas('priorityCard', 'availability');
+            ->assertSee('Teaching hours changed after submission')
+            ->assertSee('Contact the Registrar')
+            ->assertSee('View availability')
+            ->assertDontSee('Update times')
+            ->assertDontSee('Update availability');
 
-        // 3. Returned class grades + open INC completion -> Class grades outranks availability & schedule.
+        // 3. Returned class grades + open INC completion -> surfaced in action list and compact Class list & grades card.
         $returnedRoster = $this->createRosterForSection($faculty, $fixture['offering'], $fixture['section'], GradeRoster::StateReturned, [
             'return_reason' => 'Verify student 2026-001 final grade.',
         ]);
@@ -271,19 +314,17 @@ class Issue93FacultyOverviewNavigationTest extends TestCase
 
         Livewire::actingAs($faculty)
             ->test(FacultyOverview::class, ['termId' => $term->id])
-            ->assertViewHas('priorityCard', 'grades')
-            ->assertSee('Fix returned grades')
+            ->assertSeeInOrder(['Fix returned grades', 'Submit INC completion'])
             ->assertSee('Verify student 2026-001 final grade.')
-            ->assertSee('Submit INC completion')
-            ->assertSeeInOrder(['1', 'class needing action'])
-            ->assertSee('2 assigned classes')
+            ->assertSee('2 assigned classes · 1 needing action')
+            ->assertSee('1 open INC completion')
             ->assertSeeHtml('href="'.e(FacultyGradeRoster::getUrl(['roster' => $returnedRoster->id])).'"')
             ->assertSeeHtml('href="'.e(FacultyGradeRoster::getUrl(['roster' => $incRoster->id])).'"')
-            ->assertSeeHtml('href="'.e(FacultyGradeRoster::getUrl(['queue' => 'needs-action', 'termId' => $term->id])).'"');
+            ->assertSeeHtml('href="'.e(FacultyGradeRoster::getUrl(['queue' => 'needs-action'])).'"');
     }
 
     #[Test]
-    public function faculty_sidebar_navigation_exposes_sentence_case_items_class_grades_children_and_term_id(): void
+    public function faculty_sidebar_navigation_exposes_sentence_case_items_class_list_and_grades_children_and_clean_urls(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $faculty = $this->staff(User::StaffRoleFaculty);
@@ -301,21 +342,17 @@ class Issue93FacultyOverviewNavigationTest extends TestCase
             ->flatMap(fn ($group) => $group->getItems())
             ->values();
 
-        $this->assertSame(['Overview', 'My schedule', 'My availability', 'Class grades'], $navItems->map->getLabel()->all());
+        $this->assertSame(
+            ['Overview', 'My schedule', 'Academic calendar', 'My availability', 'Class list & grades'],
+            $navItems->map->getLabel()->all(),
+        );
 
-        /** @var NavigationItem $overview */
-        $overview = $navItems->firstWhere(fn (NavigationItem $item): bool => $item->getLabel() === 'Overview');
-        /** @var NavigationItem $schedule */
-        $schedule = $navItems->firstWhere(fn (NavigationItem $item): bool => $item->getLabel() === 'My schedule');
-        /** @var NavigationItem $availability */
-        $availability = $navItems->firstWhere(fn (NavigationItem $item): bool => $item->getLabel() === 'My availability');
+        foreach ($navItems as $item) {
+            $this->assertStringNotContainsString('termId=', (string) $item->getUrl());
+        }
+
         /** @var NavigationItem $classGrades */
-        $classGrades = $navItems->firstWhere(fn (NavigationItem $item): bool => $item->getLabel() === 'Class grades');
-
-        $this->assertStringContainsString('termId='.$term->id, (string) $overview->getUrl());
-        $this->assertStringContainsString('termId='.$term->id, (string) $schedule->getUrl());
-        $this->assertStringContainsString('termId='.$term->id, (string) $availability->getUrl());
-        $this->assertStringContainsString('termId='.$term->id, (string) $classGrades->getUrl());
+        $classGrades = $navItems->firstWhere(fn (NavigationItem $item): bool => $item->getLabel() === 'Class list & grades');
         $this->assertSame('1', $classGrades->getBadge());
 
         $children = collect($classGrades->getChildItems());
@@ -337,7 +374,7 @@ class Issue93FacultyOverviewNavigationTest extends TestCase
             ->flatMap(fn ($group) => $group->getItems())
             ->values();
         /** @var NavigationItem $updatedClassGrades */
-        $updatedClassGrades = $updatedNavItems->firstWhere(fn (NavigationItem $item): bool => $item->getLabel() === 'Class grades');
+        $updatedClassGrades = $updatedNavItems->firstWhere(fn (NavigationItem $item): bool => $item->getLabel() === 'Class list & grades');
         $updatedChildren = collect($updatedClassGrades->getChildItems());
 
         $this->assertSame(['Needs action', 'All classes', 'INC follow-up'], $updatedChildren->map->getLabel()->all());
@@ -348,8 +385,9 @@ class Issue93FacultyOverviewNavigationTest extends TestCase
         $search = app(WorkspaceNavigationSearchProvider::class);
         $this->assertSame(['Overview'], $search->getResults('Overview')->getCategories()->flatten()->pluck('title')->all());
         $this->assertSame(['My schedule'], $search->getResults('My schedule')->getCategories()->flatten()->pluck('title')->all());
+        $this->assertSame(['Academic calendar'], $search->getResults('Academic calendar')->getCategories()->flatten()->pluck('title')->all());
         $this->assertSame(['My availability'], $search->getResults('My availability')->getCategories()->flatten()->pluck('title')->all());
-        $this->assertSame(['Class grades'], $search->getResults('Class grades')->getCategories()->flatten()->pluck('title')->all());
+        $this->assertSame(['Class list & grades'], $search->getResults('Class list & grades')->getCategories()->flatten()->pluck('title')->all());
     }
 
     private function staff(string $role): User

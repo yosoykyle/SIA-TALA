@@ -8,6 +8,7 @@ use App\Actions\Academics\CurriculumEvaluation;
 use App\Actions\Academics\IrregularStudentReasons;
 use App\Actions\Academics\OfficialCourseResultProjection;
 use App\Actions\Academics\TermWeightedAverageProjection;
+use App\Actions\Admissions\AdmissionPaperChecklist;
 use App\Actions\Enrollment\CorrectRegistrationCreditEvaluation;
 use App\Actions\Enrollment\EnrollmentAcademicContextResolver;
 use App\Actions\Enrollment\RecordStudentSection;
@@ -28,6 +29,8 @@ use App\Filament\Resources\StudentProfiles\RelationManagers\HoldsRelationManager
 use App\Filament\Resources\StudentProfiles\StudentAcademicActions;
 use App\Filament\Resources\StudentProfiles\StudentOnboardingActions;
 use App\Filament\Resources\StudentProfiles\StudentProfileResource;
+use App\Filament\Support\AdmissionPaperFields;
+use App\Models\AdmissionApplication;
 use App\Models\Assessment;
 use App\Models\CourseEnrollment;
 use App\Models\CourseSpecification;
@@ -1543,6 +1546,85 @@ class ViewStudentProfile extends ViewRecord
             'sourceUrl' => $selected && EnrollmentResource::canView($selected)
                 ? EnrollmentResource::getUrl('view', ['record' => $selected, ...$this->oversightQueryParameters()]) : null,
         ];
+    }
+
+    /**
+     * Admission papers from the application this Student enrolled from (#103 Scope 7 follow-up):
+     * each is Passed or To be followed, so owed papers stay visible after official enrollment.
+     *
+     * @return array{application: AdmissionApplication|null, items: list<array{label: string, status: string, passed: bool, due: string}>, followed: list<string>}
+     */
+    #[Computed]
+    public function admissionPapers(): array
+    {
+        $checklist = app(AdmissionPaperChecklist::class);
+        $application = $checklist->applicationForStudent($this->studentProfile());
+
+        if (! $application instanceof AdmissionApplication) {
+            return ['application' => null, 'items' => [], 'followed' => []];
+        }
+
+        $items = collect($checklist->categories($application))
+            ->flatMap(fn (array $category): array => $category['items'])
+            ->map(fn (array $item): array => [
+                'label' => $item['label'],
+                'status' => $item['status'],
+                'passed' => $item['tone'] === 'verified',
+                'due' => $item['due'],
+            ])->values()->all();
+
+        return [
+            'application' => $application,
+            'items' => $items,
+            'followed' => collect($items)->reject(fn (array $item): bool => $item['passed'])->pluck('label')->values()->all(),
+        ];
+    }
+
+    public function updateAdmissionPapersAction(): Action
+    {
+        return Action::make('updateAdmissionPapers')
+            ->label('Update papers')
+            ->icon('heroicon-o-clipboard-document-check')
+            ->color('gray')
+            ->size('sm')
+            ->modalHeading('Update papers')
+            ->modalDescription('Tick the papers the student has now passed. They are tagged Passed; the rest stay To be followed.')
+            ->modalSubmitActionLabel('Save papers')
+            ->modalWidth(Width::TwoExtraLarge)
+            ->schema(fn (): array => $this->admissionPapers['application'] instanceof AdmissionApplication
+                ? AdmissionPaperFields::make(app(AdmissionPaperChecklist::class)->categories($this->admissionPapers['application']), onlyFollowed: true)
+                : [])
+            ->visible(fn (): bool => $this->canUpdateAdmissionPapers())
+            ->authorize(fn (): bool => $this->canUpdateAdmissionPapers())
+            ->action(function (array $data, Action $action): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User, 403);
+
+                try {
+                    DB::transaction(fn () => app(AdmissionPaperChecklist::class)->recordPassed(
+                        $this->admissionPapers['application'],
+                        $actor,
+                        AdmissionPaperFields::checkedIds($data),
+                    ));
+                } catch (ValidationException $exception) {
+                    Notification::make()->title('Papers were not updated')->body($exception->validator->errors()->first())->danger()->send();
+                    $action->halt();
+                }
+
+                unset($this->admissionPapers);
+                Notification::make()->title('Papers updated')->success()->send();
+            });
+    }
+
+    private function canUpdateAdmissionPapers(): bool
+    {
+        $application = $this->admissionPapers['application'];
+        $actor = auth()->user();
+
+        return $application instanceof AdmissionApplication
+            && $this->admissionPapers['followed'] !== []
+            && $actor instanceof User
+            && $actor->can('review', $application);
     }
 
     /** @return array{checklistCount: int, holdCount: int, hasChecklist: bool, hasHolds: bool} */

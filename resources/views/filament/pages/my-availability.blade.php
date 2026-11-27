@@ -1,33 +1,28 @@
 <x-filament-panels::page>
     <div class="tala-faculty-workflow space-y-4">
         @if (! $term)
-            <x-servitech-term-gate
-                heading="{{ $terms->isEmpty() ? 'No terms available yet' : 'Choose a term to view your availability' }}"
-                description="{{ $terms->isEmpty() ? 'No term is available. Contact the Registrar.' : 'Select an academic year and term to view school teaching hours and record your availability.' }}"
+            <x-servitech-empty-state
+                illustrated
+                heading="No active term yet"
+                description="Your availability opens here once the Registrar creates and activates a term."
                 icon="heroicon-o-calendar-days"
-                heading-id="faculty-term-chooser-heading"
-            >
-                @if ($terms->isNotEmpty())
-                    {{ $this->termSelection }}
-                @endif
-            </x-servitech-term-gate>
+            />
         @else
             <x-record-scope-bar
-                label="Selected term"
+                label="Active term"
                 icon="heroicon-o-calendar-days"
+                :scope-title="$scopeTitle"
                 :scope-meta="$scopeMeta"
-            >
-                {{ $this->termSelection }}
-            </x-record-scope-bar>
+            />
 
             @if ($registrarNotTeaching ?? false)
                 <section class="tala-warning-banner" role="status" aria-labelledby="faculty-registrar-not-teaching-heading">
                     <h2 id="faculty-registrar-not-teaching-heading" class="flex items-center gap-2 text-sm font-semibold">
                         <x-filament::icon icon="heroicon-o-information-circle" class="h-5 w-5" aria-hidden="true" />
-                        <span>Marked as not teaching this Term by the Registrar</span>
+                        <span>Marked as not teaching this term by the Registrar</span>
                     </h2>
                     <p class="text-sm">
-                        The Registrar set your teaching load to 0 units for this Term (Not teaching (Registrar)), so you will not be assigned classes.
+                        The Registrar set your teaching load to 0 units for this term (Not teaching (Registrar)), so you will not be assigned classes.
                     </p>
                     @if (filled($registrarNotTeachingReason ?? null))
                         <p class="text-sm">
@@ -35,7 +30,7 @@
                         </p>
                     @endif
                     <p class="text-sm">
-                        Contact the Registrar if your teaching status for this Term needs to be restored.
+                        Contact the Registrar if your teaching status for this term needs to be restored.
                     </p>
                 </section>
             @endif
@@ -44,10 +39,10 @@
                 <section class="tala-warning-banner" role="status" aria-labelledby="faculty-closed-term-heading">
                     <h2 id="faculty-closed-term-heading" class="flex items-center gap-2 text-sm font-semibold">
                         <x-filament::icon icon="heroicon-o-lock-closed" class="h-5 w-5" aria-hidden="true" />
-                        <span>This Term is closed</span>
+                        <span>This term is closed</span>
                     </h2>
                     <p class="text-sm">
-                        Availability for a closed Term is read-only and can no longer be edited.
+                        Availability for a closed term is read-only and can no longer be edited.
                     </p>
                 </section>
             @endif
@@ -59,7 +54,11 @@
                         <span>School teaching hours changed</span>
                     </h2>
                     <p class="text-sm">
-                        Adjust the highlighted days below to match the updated school hours.
+                        @if ($canEditAvailability)
+                            Adjust the highlighted days below to match the updated school hours.
+                        @else
+                            Some of your recorded teaching windows fall outside the updated school hours. Contact the Registrar if your availability needs adjustment.
+                        @endif
                     </p>
                 </section>
             @endif
@@ -98,8 +97,8 @@
             @if (! ($canEditAvailability ?? $hasActiveCoreCalendar) && ! $currentDeclaration && ! ($registrarNotTeaching ?? false))
                 <x-servitech-empty-state
                     illustrated
-                    :heading="($isTermClosed ?? false) ? 'No availability recorded for this closed Term' : 'Teaching calendar is not active yet'"
-                    :description="($isTermClosed ?? false) ? 'This Term is closed, so availability responses can no longer be submitted.' : 'Availability opens as soon as the Registrar activates the teaching calendar for this Term.'"
+                    :heading="($isTermClosed ?? false) ? 'No availability recorded for this closed term' : 'Teaching calendar is not active yet'"
+                    :description="($isTermClosed ?? false) ? 'This term is closed, so availability responses can no longer be submitted.' : 'Availability opens as soon as the Registrar activates the teaching calendar for this term.'"
                 />
             @else
                 <section class="tala-task-surface tala-availability-card" aria-labelledby="faculty-availability-status-heading">
@@ -114,11 +113,11 @@
                                     </p>
                                 @elseif ($registrarNotTeaching ?? false)
                                     <p class="tala-availability-header__meta">
-                                        Read-only while the Registrar has you marked as not teaching this Term.
+                                        Read-only while the Registrar has you marked as not teaching this term.
                                     </p>
                                 @else
                                     <p class="tala-availability-header__meta">
-                                        Choose how you can teach this Term.
+                                        Choose how you can teach this term.
                                     </p>
                                 @endif
                             </div>
@@ -173,7 +172,7 @@
                             <div class="tala-context-inset space-y-2">
                                 <h3 class="text-sm font-semibold">Recorded unavailable times</h3>
                                 <p class="text-sm text-gray-500 dark:text-gray-400">
-                                    Recorded under the earlier unavailable-times format. Choose one of the availability options below to save an update.
+                                    Recorded under the earlier unavailable-times format.
                                 </p>
                                 @if ($legacyUnavailableTimes->isEmpty())
                                     <p class="text-sm">No recurring unavailable times recorded.</p>
@@ -187,10 +186,10 @@
                             </div>
                         @endif
 
-                        @if ($canEditAvailability ?? $hasActiveCoreCalendar)
+                        @if ($canEditAvailability)
                             <form wire:submit="saveAvailability" class="tala-availability-form" novalidate>
                                 <fieldset class="tala-availability-fieldset">
-                                    <legend class="tala-availability-fieldset__legend">How can you teach this Term?</legend>
+                                    <legend class="tala-availability-fieldset__legend">How can you teach this term?</legend>
                                     <div class="tala-choice-options fi-fo-radio tala-availability-modes">
                                         <label class="fi-fo-radio-label">
                                             <input
@@ -230,7 +229,7 @@
                                             />
                                             <span class="fi-fo-radio-label-text">
                                                 <span class="block">Unavailable this term</span>
-                                                <span class="block fi-fo-radio-label-description">You will not be scheduled for any class this Term.</span>
+                                                <span class="block fi-fo-radio-label-description">You will not be scheduled for any class this term.</span>
                                             </span>
                                         </label>
                                     </div>
@@ -370,100 +369,73 @@
                                     </div>
                                 @endif
 
-                                @if ($hasDeclaration)
-                                    @php($hasReasonError = $errors->has('correctionReason'))
-                                    <div class="tala-availability-reason">
-                                        <label for="faculty-availability-reason">
-                                            Reason for update <span class="tala-availability-required" aria-hidden="true">*</span><span class="sr-only"> (required)</span>
-                                        </label>
-                                        <p id="faculty-availability-reason-help" class="tala-availability-reason__help">
-                                            Briefly explain what changed so the Registrar can review your update.
-                                        </p>
-                                        <textarea
-                                            id="faculty-availability-reason"
-                                            wire:model="correctionReason"
-                                            rows="2"
-                                            maxlength="2000"
-                                            required
-                                            aria-required="true"
-                                            @if ($hasReasonError) aria-invalid="true" @endif
-                                            aria-describedby="faculty-availability-reason-help{{ $hasReasonError ? ' faculty-availability-reason-error' : '' }}"
-                                            class="tala-availability-textarea"
-                                            placeholder="Example: Moved afternoon consultation hours to Thursday."
-                                        ></textarea>
-                                        @error('correctionReason')
-                                            <p id="faculty-availability-reason-error" class="tala-availability-error" role="alert">{{ $message }}</p>
-                                        @enderror
-                                    </div>
-                                @endif
-
                                 <footer class="tala-availability-footer">
                                     <div class="tala-availability-footer__actions">
                                         <x-filament::button type="button" color="gray" wire:click="cancelEdits">
                                             Cancel
                                         </x-filament::button>
                                         <x-filament::button type="submit" wire:loading.attr="disabled" wire:target="saveAvailability">
-                                            {{ $hasDeclaration ? 'Save update' : 'Save availability' }}
+                                            Save availability
                                         </x-filament::button>
                                     </div>
                                 </footer>
                             </form>
                         @elseif ($currentDeclaration || ($registrarNotTeaching ?? false))
+                            @if (($hasDeclaration ?? false) && ! ($isTermClosed ?? false) && ! ($registrarNotTeaching ?? false))
+                                <div class="tala-availability-locked-notice" role="status">
+                                    <x-filament::icon icon="heroicon-o-lock-closed" class="h-5 w-5" aria-hidden="true" />
+                                    <p>Availability submitted and locked for this term. Contact the Registrar if changes are needed.</p>
+                                </div>
+                            @endif
+
                             @if ($currentDeclaration && $effectiveMode === \App\Models\FacultyAvailabilityDeclaration::ModeWindows && $teachingWindows->isNotEmpty())
                                 <ul class="tala-availability-readonly-list tabular-nums">
                                     @foreach ($teachingWindows as $window)
                                         <li>
-                                            <strong>{{ $window['day'] }}</strong>
+                                            <div class="space-y-1">
+                                                <strong>{{ $window['day'] }}</strong>
+                                                @if (filled($window['outside_reason'] ?? null))
+                                                    <div>
+                                                        <x-filament::badge color="warning" size="sm">Outside approved hours</x-filament::badge>
+                                                    </div>
+                                                @endif
+                                            </div>
                                             <span>{{ $window['time'] }}</span>
                                         </li>
                                     @endforeach
                                 </ul>
+                            @elseif ($currentDeclaration && $effectiveMode === \App\Models\FacultyAvailabilityDeclaration::ModeAnyApproved)
+                                <p class="tala-work-footnote">
+                                    Available across all approved school teaching hours.
+                                </p>
+                            @elseif ($currentDeclaration && $effectiveMode === \App\Models\FacultyAvailabilityDeclaration::ModeCannotTeach)
+                                <p class="tala-work-footnote">
+                                    You are marked unavailable for any class this term.
+                                </p>
                             @endif
-                            <p class="tala-work-footnote">
-                                @if ($isTermClosed ?? false)
-                                    This Term is closed. Availability can no longer be edited.
-                                @elseif ($registrarNotTeaching ?? false)
-                                    The Registrar marked you as not teaching this Term, so availability is read-only.
-                                @else
-                                    This Term’s teaching calendar is not currently active. Updates open when the Registrar activates the teaching calendar.
-                                @endif
-                            </p>
+
+                            @if (filled($currentDeclaration?->correction_reason))
+                                <p class="tala-work-footnote">
+                                    <strong>Note:</strong> {{ $currentDeclaration->correction_reason }}
+                                </p>
+                            @endif
+
+                            @if ($isTermClosed ?? false)
+                                <p class="tala-work-footnote">
+                                    This term is closed. Availability can no longer be edited.
+                                </p>
+                            @elseif ($registrarNotTeaching ?? false)
+                                <p class="tala-work-footnote">
+                                    The Registrar marked you as not teaching this term, so availability is read-only.
+                                </p>
+                            @elseif (! $hasActiveCoreCalendar && ! ($hasDeclaration ?? false))
+                                <p class="tala-work-footnote">
+                                    This term’s teaching calendar is not currently active. Updates open when the Registrar activates the teaching calendar.
+                                </p>
+                            @endif
                         @endif
                     </div>
                 </section>
-            @endif
-
-            @if ($declarations->isNotEmpty() || ($historicalBlocks ?? []) !== [])
-                <x-record-history heading="Availability history" :has-entries="true" heading-tag="h2">
-                    @foreach ($declarations as $declaration)
-                        <x-record-history-item
-                            wire:key="availability-history-{{ $declaration->id }}"
-                            :heading="'Version '.$declaration->version.' · '.$this->stateHeading($declaration->effectiveMode())"
-                            :date="$declaration->declared_at"
-                            heading-tag="h3"
-                        >
-                            <p class="tabular-nums">{{ $this->availabilitySummary($declaration) }}</p>
-                            @if (filled($declaration->correction_reason))
-                                <p>Reason: {{ $declaration->correction_reason }}</p>
-                            @elseif ($declaration->version === 1)
-                                <p>Initial response</p>
-                            @endif
-                        </x-record-history-item>
-                    @endforeach
-                    @foreach ($historicalBlocks ?? [] as $block)
-                        <x-record-history-item
-                            wire:key="availability-legacy-block-{{ $block['id'] }}"
-                            heading="Earlier unavailable time · {{ $block['day'] }}"
-                            :date="$block['recorded_at']"
-                            heading-tag="h3"
-                        >
-                            <p class="tabular-nums">{{ $block['day'] }}, {{ $block['time'] }}</p>
-                            @if (filled($block['authority']))
-                                <p>{{ $block['authority'] }}</p>
-                            @endif
-                        </x-record-history-item>
-                    @endforeach
-                </x-record-history>
             @endif
         @endif
     </div>

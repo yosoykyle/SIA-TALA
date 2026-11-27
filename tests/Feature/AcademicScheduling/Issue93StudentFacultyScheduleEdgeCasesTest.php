@@ -297,7 +297,7 @@ final class Issue93StudentFacultyScheduleEdgeCasesTest extends TestCase
 
         Livewire::actingAs($faculty)
             ->test(MyAvailability::class, ['termId' => $activeTerm->id])
-            ->assertSee('Marked as not teaching this Term by the Registrar')
+            ->assertSee('Marked as not teaching this term by the Registrar')
             ->assertSee('Not teaching (Registrar)')
             ->assertSee('Approved research sabbatical for First Semester.');
 
@@ -307,8 +307,8 @@ final class Issue93StudentFacultyScheduleEdgeCasesTest extends TestCase
 
         Livewire::actingAs($faculty)
             ->test(MyAvailability::class, ['termId' => $closedTerm->id])
-            ->assertSee('This Term is closed')
-            ->assertSee('Availability for a closed Term is read-only and can no longer be edited.')
+            ->assertSee('This term is closed')
+            ->assertSee('Availability for a closed term is read-only and can no longer be edited.')
             ->assertDontSee('Save availability');
 
         Livewire::actingAs($faculty)

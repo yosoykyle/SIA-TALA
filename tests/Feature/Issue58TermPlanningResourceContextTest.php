@@ -564,8 +564,8 @@ class Issue58TermPlanningResourceContextTest extends TestCase
             'ends_at' => '11:00:00',
         ]);
         Livewire::withQueryParams(['termId' => $term->id])->test(MyAvailability::class)
-            ->assertSee('Earlier unavailable time')
-            ->assertSee('9:00 AM–11:00 AM');
+            ->assertDontSee('Availability history')
+            ->assertDontSee('Earlier unavailable time');
         $history = Livewire::withQueryParams(['termId' => $term->id])->test(ListCalendarEvents::class)
             ->assertSee('Back to My Availability')
             ->assertSee('Read-only earlier unavailable-time records belonging to you.')

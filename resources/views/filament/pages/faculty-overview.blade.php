@@ -1,41 +1,46 @@
 <x-filament-panels::page>
-    <div class="tala-faculty-workflow space-y-4">
+    <div class="tala-faculty-workflow tala-faculty-overview-layout space-y-4">
         @if (! $term)
-            <x-servitech-term-gate
-                heading="{{ $terms->isEmpty() ? 'No terms available yet' : 'Choose a term to view your overview' }}"
-                description="{{ $terms->isEmpty() ? 'Teaching terms appear here once the Registrar creates a term.' : 'Select an academic year and term to see your schedule, availability, and class grades.' }}"
-                icon="heroicon-o-calendar-days"
-                heading-id="faculty-overview-term-gate-heading"
-                :attention="$termGateAttention"
-                attention-label="Class grades needing your attention"
+            <x-servitech-empty-state
+                illustrated
+                heading="No active term yet"
+                description="Your teaching overview, weekly schedule, and classes appear here once the Registrar activates a term."
             >
-                @if ($terms->isNotEmpty())
-                    {{ $this->termSelection }}
-                @endif
-            </x-servitech-term-gate>
+                @foreach ($noTermAttention as $attention)
+                    <x-filament::button
+                        tag="a"
+                        color="gray"
+                        size="sm"
+                        icon="heroicon-m-arrow-right"
+                        icon-position="after"
+                        :href="$attention['href']"
+                    >
+                        {{ $attention['label'] }} ({{ $attention['count'] }})
+                    </x-filament::button>
+                @endforeach
+            </x-servitech-empty-state>
         @else
             <x-record-scope-bar
-                label="Selected term"
+                label="Current term"
                 icon="heroicon-o-calendar-days"
+                :scope-title="$scopeTitle"
                 :scope-meta="$scopeMeta"
-            >
-                {{ $this->termSelection }}
-            </x-record-scope-bar>
+            />
 
             @if ($actionItems !== [])
                 <section class="tala-task-surface overflow-hidden" aria-labelledby="faculty-needs-action-heading">
-                    <header class="p-5 border-b border-gray-200 dark:border-gray-800 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+                    <header class="p-4 sm:px-5 border-b border-gray-200 dark:border-gray-800 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
                         <div>
                             <h2 id="faculty-needs-action-heading" class="flex items-center gap-2 text-base font-semibold">
                                 Needs your action
-                                <x-filament::badge color="gray">{{ count($actionItems) }}</x-filament::badge>
+                                <x-filament::badge color="gray" class="tabular-nums">{{ count($actionItems) }}</x-filament::badge>
                             </h2>
                             <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Each item names the affected class or task and opens the direct place to handle it.</p>
                         </div>
                     </header>
                     <ul class="list-none m-0 p-0 divide-y divide-gray-200 dark:divide-gray-800">
                         @foreach ($actionItems as $item)
-                            <li class="p-5 flex flex-wrap items-center justify-between gap-x-5 gap-y-3">
+                            <li class="p-4 sm:px-5 flex flex-wrap items-center justify-between gap-x-5 gap-y-3">
                                 <div class="flex-1 basis-96 min-w-0 grid gap-1.5">
                                     <div>
                                         <x-filament::badge :color="$item['severity']">{{ $item['badge'] }}</x-filament::badge>
@@ -61,110 +66,110 @@
                 </section>
             @endif
 
-            <ul class="tala-workflow-steps tala-workflow-steps--three" aria-label="Faculty tasks">
-                <li @class(['tala-workflow-step', 'tala-workflow-step--priority' => $priorityCard === 'schedule'])>
-                    <div class="tala-workflow-step__body">
-                        <div class="tala-workflow-step__head">
-                            <span class="tala-workspace-card__icon size-8" aria-hidden="true">
-                                <x-filament::icon icon="heroicon-o-calendar-days" class="h-5 w-5" />
-                            </span>
-                        </div>
-                        <h2 class="tala-workflow-step__title">My schedule</h2>
-                        @if (($scheduleCard['totalClassCount'] ?? 0) > 0)
-                            <div class="tala-workflow-step__figure">
-                                <x-workspace-figure :value="$scheduleCard['totalClassCount']" :label="\Illuminate\Support\Str::plural('class', $scheduleCard['totalClassCount'])" />
-                            </div>
-                            @if ($scheduleCard['meetingCount'] > 0)
-                                <p class="tala-workflow-step__desc">
-                                    {{ $scheduleCard['meetingCount'] }} weekly {{ \Illuminate\Support\Str::plural('meeting', $scheduleCard['meetingCount']) }}@if (($scheduleCard['externallyArrangedCount'] ?? 0) > 0) · {{ $scheduleCard['externallyArrangedCount'] }} externally arranged @endif
-                                </p>
-                            @else
-                                <p class="tala-workflow-step__desc">{{ $scheduleCard['externallyArrangedCount'] }} externally arranged {{ \Illuminate\Support\Str::plural('class', $scheduleCard['externallyArrangedCount']) }}</p>
-                                <p class="tala-workflow-step__meta">OJT, practicum, or externally arranged subjects with no fixed weekly room slot.</p>
-                            @endif
-                        @else
-                            <p class="tala-workflow-step__desc">Not published yet</p>
-                            <p class="tala-workflow-step__meta">Your weekly teaching meetings appear here once the timetable is published.</p>
+            <section class="tala-task-surface tala-faculty-overview-calendar overflow-hidden" aria-labelledby="faculty-overview-schedule-heading">
+                <header class="p-4 sm:px-5 border-b border-gray-200 dark:border-gray-800 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                    <div class="min-w-0">
+                        <h2 id="faculty-overview-schedule-heading" class="text-base font-semibold text-gray-950 dark:text-white">
+                            Weekly schedule
+                        </h2>
+                        @if (($scheduleSummary['totalClassCount'] ?? 0) > 0)
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5 tabular-nums">
+                                {{ $scheduleSummary['totalClassCount'] }} {{ \Illuminate\Support\Str::plural('class', $scheduleSummary['totalClassCount']) }}
+                                @if ($scheduleSummary['meetingCount'] > 0)
+                                    · {{ $scheduleSummary['meetingCount'] }} weekly {{ \Illuminate\Support\Str::plural('meeting', $scheduleSummary['meetingCount']) }}
+                                @endif
+                                @if ($scheduleSummary['externallyArrangedCount'] > 0)
+                                    · {{ $scheduleSummary['externallyArrangedCount'] }} externally arranged
+                                @endif
+                            </p>
                         @endif
-                        @if ($scheduleCard['examPeriodLabel'] !== null)
-                            <p class="tala-workflow-step__meta">Exam period: {{ $scheduleCard['examPeriodLabel'] }}</p>
-                        @endif
-                        @if ($scheduleCard['affectedCount'] > 0)
-                            <p class="tala-workflow-step__meta">{{ $scheduleCard['affectedCount'] }} {{ \Illuminate\Support\Str::plural('meeting', $scheduleCard['affectedCount']) }} affected by recent changes</p>
+                        @if (($scheduleSummary['examPeriodLabel'] ?? null) !== null)
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5 tabular-nums">Exam period: {{ $scheduleSummary['examPeriodLabel'] }}</p>
                         @endif
                     </div>
-                    <div class="tala-workflow-step__action">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <x-filament::link
+                            :href="$scheduleSummary['academicCalendarUrl']"
+                            color="gray"
+                            size="sm"
+                        >
+                            Academic calendar
+                        </x-filament::link>
                         <x-filament::button
                             tag="a"
-                            :href="$scheduleCard['url']"
-                            :color="$priorityCard === 'schedule' ? 'primary' : 'gray'"
+                            :href="$scheduleSummary['url']"
+                            color="gray"
+                            size="sm"
                             icon="heroicon-m-arrow-right"
                             icon-position="after"
                         >
-                            Open schedule
+                            Open full schedule
                         </x-filament::button>
                     </div>
-                </li>
+                </header>
 
-                <li @class(['tala-workflow-step', 'tala-workflow-step--priority' => $priorityCard === 'availability'])>
-                    <div class="tala-workflow-step__body">
-                        <div class="tala-workflow-step__head">
-                            <span class="tala-workspace-card__icon size-8" aria-hidden="true">
-                                <x-filament::icon icon="heroicon-o-clock" class="h-5 w-5" />
-                            </span>
-                        </div>
-                        <h2 class="tala-workflow-step__title">My availability</h2>
-                        <p class="tala-workflow-step__desc font-semibold text-gray-950 dark:text-white">{{ $availabilityCard['statusLabel'] }}</p>
-                        <p class="tala-workflow-step__meta">{{ $availabilityCard['description'] }}</p>
-                        @if ($availabilityCard['replyBy'] !== null)
-                            <p class="tala-workflow-step__meta">Reply by {{ $availabilityCard['replyBy'] }}</p>
-                        @endif
+                @if ($schedulePresentation !== null)
+                    <div class="p-3 sm:p-4">
+                        <x-tala-timetable
+                            :presentation="$schedulePresentation"
+                            focused
+                            controlled
+                            embedded
+                            :show-window="false"
+                        />
                     </div>
-                    <div class="tala-workflow-step__action">
-                        <x-filament::button
-                            tag="a"
-                            :href="$availabilityCard['url']"
-                            :color="$priorityCard === 'availability' ? 'primary' : 'gray'"
-                            icon="heroicon-m-arrow-right"
-                            icon-position="after"
-                        >
-                            {{ $availabilityCard['ctaLabel'] }}
-                        </x-filament::button>
+                @elseif ($externallyArrangedClasses === [])
+                    <div class="p-4 sm:p-6">
+                        <x-servitech-empty-state
+                            icon="heroicon-o-calendar-days"
+                            heading="Schedule not published yet"
+                            description="Your weekly teaching timetable appears here once the Registrar publishes the official schedule for this term."
+                        />
                     </div>
-                </li>
+                @endif
 
-                <li @class(['tala-workflow-step', 'tala-workflow-step--priority' => $priorityCard === 'grades'])>
-                    <div class="tala-workflow-step__body">
-                        <div class="tala-workflow-step__head">
-                            <span class="tala-workspace-card__icon size-8" aria-hidden="true">
-                                <x-filament::icon icon="heroicon-o-academic-cap" class="h-5 w-5" />
-                            </span>
+                @if ($externallyArrangedClasses !== [])
+                    <div @class(['p-4 sm:px-5 space-y-2.5', 'border-t border-gray-200 dark:border-gray-800' => $schedulePresentation !== null])>
+                        <div class="flex flex-wrap items-baseline justify-between gap-2">
+                            <h3 class="text-sm font-semibold text-gray-950 dark:text-white">Externally arranged classes</h3>
+                            <x-filament::badge color="gray" size="sm" class="tabular-nums">
+                                {{ count($externallyArrangedClasses) }} externally arranged {{ \Illuminate\Support\Str::plural('class', count($externallyArrangedClasses)) }}
+                            </x-filament::badge>
                         </div>
-                        <h2 class="tala-workflow-step__title">Class grades</h2>
-                        <div class="tala-workflow-step__figure">
-                            <x-workspace-figure :value="$gradesCard['actionableCount']" :label="\Illuminate\Support\Str::plural('class', $gradesCard['actionableCount']).' needing action'" />
-                        </div>
-                        <p class="tala-workflow-step__meta">{{ $gradesCard['assignedCount'] }} assigned {{ \Illuminate\Support\Str::plural('class', $gradesCard['assignedCount']) }}</p>
-                        @if ($gradesCard['openIncCount'] > 0)
-                            <p class="tala-workflow-step__meta">{{ $gradesCard['openIncCount'] }} open INC {{ \Illuminate\Support\Str::plural('completion', $gradesCard['openIncCount']) }}</p>
-                        @endif
-                        @if ($gradesCard['otherTermActionableCount'] > 0)
-                            <p class="tala-workflow-step__meta">{{ $gradesCard['otherTermActionableCount'] }} {{ \Illuminate\Support\Str::plural('class', $gradesCard['otherTermActionableCount']) }} needing action in earlier terms</p>
-                        @endif
+                        <ul class="list-none m-0 p-0 divide-y divide-gray-200 dark:divide-gray-800">
+                            @foreach ($externallyArrangedClasses as $external)
+                                <li class="py-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-sm">
+                                    <div class="min-w-0">
+                                        <span class="font-medium text-gray-950 dark:text-white">{{ $external['course_title'] }}</span>
+                                        <span class="text-xs text-gray-500 dark:text-gray-400"> · {{ $external['course_code'] }} · {{ $external['section_code'] }}</span>
+                                    </div>
+                                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ $external['role'] }} · No fixed weekly room</span>
+                                </li>
+                            @endforeach
+                        </ul>
                     </div>
-                    <div class="tala-workflow-step__action">
-                        <x-filament::button
-                            tag="a"
-                            :href="$gradesCard['url']"
-                            :color="$priorityCard === 'grades' ? 'primary' : 'gray'"
-                            icon="heroicon-m-arrow-right"
-                            icon-position="after"
-                        >
-                            Open class grades
-                        </x-filament::button>
-                    </div>
-                </li>
-            </ul>
+                @endif
+            </section>
+
+            <nav class="tala-faculty-overview-actions" aria-label="Quick actions">
+                <x-workspace-card
+                    compact
+                    :href="$availabilityCard['url']"
+                    icon="heroicon-o-clock"
+                    label="My availability"
+                    :description="$availabilityCard['statusLabel']"
+                    :note="$availabilityCard['note']"
+                />
+                <x-workspace-card
+                    compact
+                    :href="$gradesCard['url']"
+                    icon="heroicon-o-academic-cap"
+                    label="Class list & grades"
+                    :description="$gradesCard['description']"
+                    :note="$gradesCard['note']"
+                    :count="$gradesCard['actionableCount'] > 0 ? $gradesCard['actionableCount'] : null"
+                />
+            </nav>
         @endif
     </div>
 </x-filament-panels::page>

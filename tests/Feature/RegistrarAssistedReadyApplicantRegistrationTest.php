@@ -1173,8 +1173,9 @@ class RegistrarAssistedReadyApplicantRegistrationTest extends TestCase
         $this->assertNotContains('startEnrollment', collect($page->instance()->getCachedHeaderActions())->map->getName()->all());
         $page->assertActionVisible('startEnrollment');
         $steps = collect($page->instance()->processEvaluation())->keyBy('key');
-        $this->assertSame('current', $steps['readiness']['state']);
-        $this->assertSame('startEnrollment', $steps['readiness']['action']);
+        $this->assertArrayNotHasKey('readiness', $steps->all());
+        $this->assertSame('done', $steps['clearance']['state']);
+        $this->assertSame(['startEnrollment'], array_column($steps['clearance']['choices'], 'action'));
         $this->assertNull($steps['payment']['action']);
 
         $page->callAction('startEnrollment')->assertNotified('Enrollment started');
@@ -1189,18 +1190,15 @@ class RegistrarAssistedReadyApplicantRegistrationTest extends TestCase
             ->assertActionHidden('startEnrollment')
             ->assertActionVisible('openEnrollment');
         $steps = collect($after->instance()->processEvaluation())->keyBy('key');
-        $this->assertSame('done', $steps['readiness']['state']);
+        $this->assertSame(['openEnrollment'], array_column($steps['clearance']['choices'], 'action'));
         $this->assertSame('upcoming', $steps['payment']['state']);
-        $this->assertSame('openEnrollment', $steps['readiness']['action']);
-        $this->assertSame('Open enrollment', $steps['readiness']['action_label']);
         $this->assertSame('Payment verification', $steps['payment']['label']);
         $this->assertNull($steps['payment']['action']);
 
         $proposal = RegistrationProposalVersion::factory()->create(['enrollment_id' => $enrollment->id, 'state' => RegistrationProposalVersion::StateConfirmed]);
         $enrollment->update(['current_proposal_version_id' => $proposal->id]);
         $steps = collect(Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])->instance()->processEvaluation())->keyBy('key');
-        $this->assertSame('done', $steps['readiness']['state']);
-        $this->assertSame('openEnrollment', $steps['readiness']['action']);
+        $this->assertSame('done', $steps['clearance']['state']);
         $this->assertSame('current', $steps['payment']['state']);
     }
 
