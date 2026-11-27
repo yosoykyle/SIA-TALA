@@ -5,14 +5,14 @@ namespace Tests\Feature\Auth;
 use App\Filament\Pages\Auth\ContextualLogin;
 use App\Models\User;
 use Filament\Facades\Filament;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class ApplicantDisabledAccountLoginTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     public function test_disabled_applicant_with_correct_password_sees_disabled_access_not_the_generic_failure(): void
     {

@@ -35,6 +35,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Queue;
 use RuntimeException;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
@@ -53,7 +54,7 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
         $this->clearPersistedAcceptanceBaselineInsideTestTransaction();
     }
 
-    public function test_guarded_command_builds_the_complete_client_aligned_acceptance_baseline(): void
+    public function test_guarded_command_builds_reruns_inspects_and_snapshots_the_complete_client_aligned_acceptance_baseline(): void
     {
         $exitCode = Artisan::call('acceptance:seed-client-baseline');
         $output = Artisan::output();
@@ -256,30 +257,55 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
         foreach (['schedule_runs', 'section_meetings', 'enrollments', 'assessments', 'ledger_entries', 'payments'] as $table) {
             $this->assertSame(0, DB::table($table)->count(), $table);
         }
-    }
 
-    public function test_complete_baseline_rerun_is_an_exact_no_op(): void
-    {
-        $this->assertSame(Command::SUCCESS, Artisan::call('acceptance:seed-client-baseline'));
+        // Complete baseline rerun is an exact no-op.
         $before = $this->baselineCounts();
         $latestUpdate = DB::table('scheduling_demands')->max('updated_at');
 
-        $exitCode = Artisan::call('acceptance:seed-client-baseline');
-        $output = Artisan::output();
+        $rerunExitCode = Artisan::call('acceptance:seed-client-baseline');
+        $rerunOutput = Artisan::output();
 
-        $this->assertSame(Command::SUCCESS, $exitCode, $output);
-        $this->assertStringContainsString('outcome=already_present', $output);
+        $this->assertSame(Command::SUCCESS, $rerunExitCode, $rerunOutput);
+        $this->assertStringContainsString('outcome=already_present', $rerunOutput);
         $this->assertSame($before, $this->baselineCounts());
         $this->assertSame($latestUpdate, DB::table('scheduling_demands')->max('updated_at'));
-    }
 
-    public function test_solver_snapshot_maps_course_specific_delivery_groups_to_six_shared_cohorts(): void
-    {
+        // Read-only inspection reports complete state as ready without writes.
+        $checkExitCode = Artisan::call('acceptance:seed-client-baseline', ['--check' => true]);
+        $checkOutput = Artisan::output();
+
+        $this->assertSame(Command::SUCCESS, $checkExitCode, $checkOutput);
+        $this->assertStringContainsString('outcome=inspection_only', $checkOutput);
+        $this->assertStringContainsString('database=test_tala_db', $checkOutput);
+        $this->assertStringContainsString('baseline_state=complete', $checkOutput);
+        $this->assertStringContainsString('readiness=PASS', $checkOutput);
+        $this->assertStringContainsString('students=47', $checkOutput);
+        $this->assertStringContainsString('cohorts=6', $checkOutput);
+        $this->assertStringContainsString('scheduling_demands=54', $checkOutput);
+        $this->assertStringContainsString('ready_scheduling_demands=54', $checkOutput);
+        $this->assertStringContainsString('standing_regular=40', $checkOutput);
+        $this->assertStringContainsString('standing_irregular=2', $checkOutput);
+        $this->assertStringContainsString('standing_probationary=1', $checkOutput);
+        $this->assertStringContainsString('standing_deficient=1', $checkOutput);
+        $this->assertStringContainsString('standing_blocked_by_prerequisite=1', $checkOutput);
+        $this->assertStringContainsString('standing_must_repeat_year_level=1', $checkOutput);
+        $this->assertStringContainsString('standing_completion_candidate=0', $checkOutput);
+        $this->assertStringContainsString('standing_graduation_candidate=0', $checkOutput);
+        $this->assertStringContainsString('standing_not_yet_evaluated=1', $checkOutput);
+        $this->assertStringContainsString('scenario_anchors=10/10', $checkOutput);
+        $this->assertStringContainsString('downstream_state=EMPTY', $checkOutput);
+        $this->assertStringContainsString('downstream_schedule_runs=0', $checkOutput);
+        $this->assertStringContainsString('downstream_section_meetings=0', $checkOutput);
+        $this->assertStringContainsString('downstream_enrollments=0', $checkOutput);
+        $this->assertStringContainsString('downstream_assessments=0', $checkOutput);
+        $this->assertStringContainsString('downstream_ledger_entries=0', $checkOutput);
+        $this->assertStringContainsString('downstream_payments=0', $checkOutput);
+        $this->assertSame($before, $this->baselineCounts());
+        $this->assertSame($latestUpdate, DB::table('scheduling_demands')->max('updated_at'));
+
+        // Solver snapshot maps course-specific delivery groups to six shared cohorts.
         Queue::fake();
 
-        $this->assertSame(Command::SUCCESS, Artisan::call('acceptance:seed-client-baseline'));
-
-        $term = Term::query()->where('type', Term::TypeSecondSemester)->sole();
         $registrar = User::query()->where('email', 'registrar.demo@example.test')->sole();
         $run = app(ScheduleGenerationService::class)->generate($term, $registrar);
         $snapshot = $run->getAttribute('input_snapshot');
@@ -308,177 +334,154 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
         }
     }
 
-    public function test_complete_baseline_with_extra_master_data_fails_closed_without_writes(): void
+    public function test_complete_baseline_drift_mutations_fail_closed_without_writes(): void
     {
         $this->assertSame(Command::SUCCESS, Artisan::call('acceptance:seed-client-baseline'));
-        Program::query()->create([
-            'code' => 'OTHER',
-            'name' => 'Unexpected Program',
-            'duration_years' => 4,
-            'is_active' => true,
-        ]);
-        $before = $this->baselineCounts();
 
-        $exitCode = Artisan::call('acceptance:seed-client-baseline');
-        $output = Artisan::output();
-
-        $this->assertSame(Command::FAILURE, $exitCode);
-        $this->assertStringContainsString('partial or conflicting operational data', $output);
-        $this->assertSame($before, $this->baselineCounts());
-    }
-
-    public function test_complete_baseline_with_mutated_term_state_fails_closed_without_writes(): void
-    {
-        $this->assertSame(Command::SUCCESS, Artisan::call('acceptance:seed-client-baseline'));
-        $term = Term::query()
-            ->where('label', 'Second Semester')
-            ->where('state', Term::StateActive)
-            ->sole();
-        $term->update(['state' => Term::StateClosed]);
-        $before = $this->baselineCounts();
-
-        $exitCode = Artisan::call('acceptance:seed-client-baseline');
-        $output = Artisan::output();
-
-        $this->assertSame(Command::FAILURE, $exitCode);
-        $this->assertStringContainsString('partial or conflicting operational data', $output);
-        $this->assertSame(Term::StateClosed, $term->fresh()?->state);
-        $this->assertSame($before, $this->baselineCounts());
-    }
-
-    public function test_complete_baseline_with_unverified_account_fails_closed_without_writes(): void
-    {
-        $this->assertSame(Command::SUCCESS, Artisan::call('acceptance:seed-client-baseline'));
-        $user = User::query()->where('email', 'student.demo@example.test')->sole();
-        $user->forceFill(['email_verified_at' => null])->save();
-        $before = $this->baselineCounts();
-
-        $exitCode = Artisan::call('acceptance:seed-client-baseline');
-        $output = Artisan::output();
-
-        $this->assertSame(Command::FAILURE, $exitCode);
-        $this->assertStringContainsString('partial or conflicting operational data', $output);
-        $this->assertFalse($user->fresh()?->hasVerifiedEmail());
-        $this->assertSame($before, $this->baselineCounts());
-    }
-
-    public function test_complete_baseline_with_broken_faculty_readiness_fails_closed_without_writes(): void
-    {
-        $this->assertSame(Command::SUCCESS, Artisan::call('acceptance:seed-client-baseline'));
-        $qualification = FacultyQualification::query()->orderBy('id')->firstOrFail();
-        $qualification->update(['is_active' => false]);
-        $before = $this->baselineCounts();
-
-        $exitCode = Artisan::call('acceptance:seed-client-baseline');
-        $output = Artisan::output();
-
-        $this->assertSame(Command::FAILURE, $exitCode);
-        $this->assertStringContainsString('partial or conflicting operational data', $output);
-        $this->assertFalse((bool) $qualification->fresh()?->is_active);
-        $this->assertSame($before, $this->baselineCounts());
-    }
-
-    public function test_rerun_after_operator_edit_preserves_the_change_without_writes(): void
-    {
-        $this->assertSame(Command::SUCCESS, Artisan::call('acceptance:seed-client-baseline'));
-        $specification = CourseSpecification::query()
-            ->whereBelongsTo(Course::query()->where('code', 'BME09')->sole())
-            ->where('revision_code', 'not like', '%-S1')
-            ->sole();
-        $specification->update(['title' => 'Changed Acceptance Label']);
-        $before = $this->baselineCounts();
-
-        $exitCode = Artisan::call('acceptance:seed-client-baseline');
-        $output = Artisan::output();
-
-        $this->assertSame(Command::FAILURE, $exitCode);
-        $this->assertStringContainsString('partial or conflicting operational data', $output);
-        $this->assertSame('Changed Acceptance Label', $specification->fresh()?->title);
-        $this->assertSame($before, $this->baselineCounts());
-    }
-
-    public function test_complete_baseline_with_changed_curriculum_content_fails_closed_without_writes(): void
-    {
-        $this->assertSame(Command::SUCCESS, Artisan::call('acceptance:seed-client-baseline'));
-        $entry = CurriculumEntry::query()->orderBy('id')->firstOrFail();
-        $entry->update(['term_label' => 'Changed Semester']);
-        $before = $this->baselineCounts();
-
-        $exitCode = Artisan::call('acceptance:seed-client-baseline');
-        $output = Artisan::output();
-
-        $this->assertSame(Command::FAILURE, $exitCode);
-        $this->assertStringContainsString('partial or conflicting operational data', $output);
-        $this->assertSame('Changed Semester', $entry->fresh()?->term_label);
-        $this->assertSame($before, $this->baselineCounts());
-    }
-
-    public function test_complete_baseline_with_changed_room_content_fails_closed_without_writes(): void
-    {
-        $this->assertSame(Command::SUCCESS, Artisan::call('acceptance:seed-client-baseline'));
-        $room = Room::query()->where('code', 'LEC-101')->sole();
-        $room->update(['capacity' => 39]);
-        $before = $this->baselineCounts();
-
-        $exitCode = Artisan::call('acceptance:seed-client-baseline');
-        $output = Artisan::output();
-
-        $this->assertSame(Command::FAILURE, $exitCode);
-        $this->assertStringContainsString('partial or conflicting operational data', $output);
-        $this->assertSame(39, $room->fresh()?->capacity);
-        $this->assertSame($before, $this->baselineCounts());
-    }
-
-    public function test_complete_baseline_with_changed_student_association_fails_closed_without_writes(): void
-    {
-        $this->assertSame(Command::SUCCESS, Artisan::call('acceptance:seed-client-baseline'));
-        $student = StudentProfile::query()->where('student_number', 'DBM-1A-001')->sole();
-        $unexpectedProgram = Program::query()->where('code', 'DIT')->sole();
-        $student->update(['program_id' => $unexpectedProgram->id]);
-        $before = $this->baselineCounts();
-
-        $exitCode = Artisan::call('acceptance:seed-client-baseline');
-        $output = Artisan::output();
-
-        $this->assertSame(Command::FAILURE, $exitCode);
-        $this->assertStringContainsString('partial or conflicting operational data', $output);
-        $this->assertTrue($student->fresh()?->program()->is($unexpectedProgram));
-        $this->assertSame($before, $this->baselineCounts());
-    }
-
-    public function test_complete_baseline_with_changed_academic_standing_fails_closed_without_writes(): void
-    {
-        $this->assertSame(Command::SUCCESS, Artisan::call('acceptance:seed-client-baseline'));
-        $student = StudentProfile::query()->where('student_number', 'DBM-1A-002')->sole();
-        $student->update(['academic_standing' => StudentProfile::StandingRegular]);
-        $before = $this->baselineCounts();
-
-        $exitCode = Artisan::call('acceptance:seed-client-baseline');
-        $output = Artisan::output();
-
-        $this->assertSame(Command::FAILURE, $exitCode);
-        $this->assertStringContainsString('partial or conflicting operational data', $output);
-        $this->assertSame(StudentProfile::StandingRegular, $student->fresh()?->academic_standing);
-        $this->assertSame($before, $this->baselineCounts());
-    }
-
-    public function test_complete_baseline_with_changed_staff_role_set_fails_closed_without_writes(): void
-    {
-        $this->assertSame(Command::SUCCESS, Artisan::call('acceptance:seed-client-baseline'));
-        $registrar = User::query()->where('email', 'registrar.demo@example.test')->sole();
-        $registrar->syncRoles([User::StaffRoleRegistrar, User::StaffRoleAcademicHead]);
-        $before = $this->baselineCounts();
-
-        $exitCode = Artisan::call('acceptance:seed-client-baseline');
-        $output = Artisan::output();
-
-        $this->assertSame(Command::FAILURE, $exitCode);
-        $this->assertStringContainsString('partial or conflicting operational data', $output);
-        $this->assertSame(
-            [User::StaffRoleAcademicHead, User::StaffRoleRegistrar],
-            $registrar->fresh()?->roles()->orderBy('name')->pluck('name')->all(),
+        $this->assertDriftMutationFailsClosed(
+            label: 'extra master data',
+            mutate: function (): void {
+                Program::query()->create([
+                    'code' => 'OTHER',
+                    'name' => 'Unexpected Program',
+                    'duration_years' => 4,
+                    'is_active' => true,
+                ]);
+            },
+            assertMutationPreserved: function (): void {
+                $this->assertTrue(Program::query()->where('code', 'OTHER')->exists());
+            },
         );
-        $this->assertSame($before, $this->baselineCounts());
+
+        $this->assertDriftMutationFailsClosed(
+            label: 'mutated term state',
+            mutate: function (): Term {
+                $term = Term::query()
+                    ->where('label', 'Second Semester')
+                    ->where('state', Term::StateActive)
+                    ->sole();
+                $term->update(['state' => Term::StateClosed]);
+
+                return $term;
+            },
+            assertMutationPreserved: function (Term $term): void {
+                $this->assertSame(Term::StateClosed, $term->fresh()?->state);
+            },
+        );
+
+        $this->assertDriftMutationFailsClosed(
+            label: 'unverified account',
+            mutate: function (): User {
+                $user = User::query()->where('email', 'student.demo@example.test')->sole();
+                $user->forceFill(['email_verified_at' => null])->save();
+
+                return $user;
+            },
+            assertMutationPreserved: function (User $user): void {
+                $this->assertFalse($user->fresh()?->hasVerifiedEmail());
+            },
+        );
+
+        $this->assertDriftMutationFailsClosed(
+            label: 'broken faculty readiness',
+            mutate: function (): FacultyQualification {
+                $qualification = FacultyQualification::query()->orderBy('id')->firstOrFail();
+                $qualification->update(['is_active' => false]);
+
+                return $qualification;
+            },
+            assertMutationPreserved: function (FacultyQualification $qualification): void {
+                $this->assertFalse((bool) $qualification->fresh()?->is_active);
+            },
+        );
+
+        $this->assertDriftMutationFailsClosed(
+            label: 'operator edit to course specification',
+            mutate: function (): CourseSpecification {
+                $specification = CourseSpecification::query()
+                    ->whereBelongsTo(Course::query()->where('code', 'BME09')->sole())
+                    ->where('revision_code', 'not like', '%-S1')
+                    ->sole();
+                $specification->update(['title' => 'Changed Acceptance Label']);
+
+                return $specification;
+            },
+            assertMutationPreserved: function (CourseSpecification $specification): void {
+                $this->assertSame('Changed Acceptance Label', $specification->fresh()?->title);
+            },
+        );
+
+        $this->assertDriftMutationFailsClosed(
+            label: 'changed curriculum content',
+            mutate: function (): CurriculumEntry {
+                $entry = CurriculumEntry::query()->orderBy('id')->firstOrFail();
+                $entry->update(['term_label' => 'Changed Semester']);
+
+                return $entry;
+            },
+            assertMutationPreserved: function (CurriculumEntry $entry): void {
+                $this->assertSame('Changed Semester', $entry->fresh()?->term_label);
+            },
+        );
+
+        $this->assertDriftMutationFailsClosed(
+            label: 'changed room content',
+            mutate: function (): Room {
+                $room = Room::query()->where('code', 'LEC-101')->sole();
+                $room->update(['capacity' => 39]);
+
+                return $room;
+            },
+            assertMutationPreserved: function (Room $room): void {
+                $this->assertSame(39, $room->fresh()?->capacity);
+            },
+        );
+
+        $this->assertDriftMutationFailsClosed(
+            label: 'changed student association',
+            mutate: function (): array {
+                $student = StudentProfile::query()->where('student_number', 'DBM-1A-001')->sole();
+                $unexpectedProgram = Program::query()->where('code', 'DIT')->sole();
+                $student->update(['program_id' => $unexpectedProgram->id]);
+
+                return [$student, $unexpectedProgram];
+            },
+            assertMutationPreserved: function (array $state): void {
+                /** @var StudentProfile $student */
+                /** @var Program $unexpectedProgram */
+                [$student, $unexpectedProgram] = $state;
+                $this->assertTrue($student->fresh()?->program()->is($unexpectedProgram));
+            },
+        );
+
+        $this->assertDriftMutationFailsClosed(
+            label: 'changed academic standing',
+            mutate: function (): StudentProfile {
+                $student = StudentProfile::query()->where('student_number', 'DBM-1A-002')->sole();
+                $student->update(['academic_standing' => StudentProfile::StandingRegular]);
+
+                return $student;
+            },
+            assertMutationPreserved: function (StudentProfile $student): void {
+                $this->assertSame(StudentProfile::StandingRegular, $student->fresh()?->academic_standing);
+            },
+        );
+
+        $this->assertDriftMutationFailsClosed(
+            label: 'changed staff role set',
+            mutate: function (): User {
+                $registrar = User::query()->where('email', 'registrar.demo@example.test')->sole();
+                $registrar->syncRoles([User::StaffRoleRegistrar, User::StaffRoleAcademicHead]);
+
+                return $registrar;
+            },
+            assertMutationPreserved: function (User $registrar): void {
+                $this->assertSame(
+                    [User::StaffRoleAcademicHead, User::StaffRoleRegistrar],
+                    $registrar->fresh()?->roles()->orderBy('name')->pluck('name')->all(),
+                );
+            },
+        );
     }
 
     public function test_partial_or_conflicting_operational_state_fails_without_writes(): void
@@ -519,45 +522,6 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
         $this->assertStringContainsString('scenario_anchors=0/10', $output);
         $this->assertStringContainsString('downstream_state=EMPTY', $output);
         $this->assertSame($before, $this->baselineCounts());
-    }
-
-    public function test_read_only_inspection_reports_complete_state_as_ready_without_writes(): void
-    {
-        $this->assertSame(Command::SUCCESS, Artisan::call('acceptance:seed-client-baseline'));
-        $before = $this->baselineCounts();
-        $latestUpdate = DB::table('scheduling_demands')->max('updated_at');
-
-        $exitCode = Artisan::call('acceptance:seed-client-baseline', ['--check' => true]);
-        $output = Artisan::output();
-
-        $this->assertSame(Command::SUCCESS, $exitCode, $output);
-        $this->assertStringContainsString('outcome=inspection_only', $output);
-        $this->assertStringContainsString('database=test_tala_db', $output);
-        $this->assertStringContainsString('baseline_state=complete', $output);
-        $this->assertStringContainsString('readiness=PASS', $output);
-        $this->assertStringContainsString('students=47', $output);
-        $this->assertStringContainsString('cohorts=6', $output);
-        $this->assertStringContainsString('scheduling_demands=54', $output);
-        $this->assertStringContainsString('ready_scheduling_demands=54', $output);
-        $this->assertStringContainsString('standing_regular=40', $output);
-        $this->assertStringContainsString('standing_irregular=2', $output);
-        $this->assertStringContainsString('standing_probationary=1', $output);
-        $this->assertStringContainsString('standing_deficient=1', $output);
-        $this->assertStringContainsString('standing_blocked_by_prerequisite=1', $output);
-        $this->assertStringContainsString('standing_must_repeat_year_level=1', $output);
-        $this->assertStringContainsString('standing_completion_candidate=0', $output);
-        $this->assertStringContainsString('standing_graduation_candidate=0', $output);
-        $this->assertStringContainsString('standing_not_yet_evaluated=1', $output);
-        $this->assertStringContainsString('scenario_anchors=10/10', $output);
-        $this->assertStringContainsString('downstream_state=EMPTY', $output);
-        $this->assertStringContainsString('downstream_schedule_runs=0', $output);
-        $this->assertStringContainsString('downstream_section_meetings=0', $output);
-        $this->assertStringContainsString('downstream_enrollments=0', $output);
-        $this->assertStringContainsString('downstream_assessments=0', $output);
-        $this->assertStringContainsString('downstream_ledger_entries=0', $output);
-        $this->assertStringContainsString('downstream_payments=0', $output);
-        $this->assertSame($before, $this->baselineCounts());
-        $this->assertSame($latestUpdate, DB::table('scheduling_demands')->max('updated_at'));
     }
 
     public function test_read_only_inspection_reports_conflict_without_writes(): void
@@ -621,21 +585,32 @@ final class TAL96B1ClientAlignedAcceptanceBaselineTest extends TestCase
         $this->assertSame(0, SchedulingDemand::query()->count());
     }
 
-    public function test_capacity_authority_rejects_a_universal_student_ceiling(): void
-    {
-        $baseline = file_get_contents(base_path('00_Project_Documents/prd_modules/00_system_definition_baseline.md'));
-        $academicSetup = file_get_contents(base_path('00_Project_Documents/prd_modules/03_academic_setup_offerings_published_timetable.md'));
+    /**
+     * @param  callable(): mixed  $mutate
+     * @param  callable(mixed): void  $assertMutationPreserved
+     */
+    private function assertDriftMutationFailsClosed(
+        string $label,
+        callable $mutate,
+        callable $assertMutationPreserved,
+    ): void {
+        DB::beginTransaction();
 
-        $this->assertIsString($baseline);
-        $this->assertIsString($academicSetup);
-        $this->assertStringContainsString(
-            'Capacity does not control admission and has no universal institutional ceiling',
-            $academicSetup,
-        );
-        $this->assertStringContainsString(
-            'Any larger population is labelled a synthetic structural or capacity test, not a Servitech forecast',
-            $baseline,
-        );
+        try {
+            $state = $mutate();
+            $before = $this->baselineCounts();
+
+            $exitCode = Artisan::call('acceptance:seed-client-baseline');
+            $output = Artisan::output();
+
+            $this->assertSame(Command::FAILURE, $exitCode, $label);
+            $this->assertStringContainsString('partial or conflicting operational data', $output, $label);
+            $assertMutationPreserved($state);
+            $this->assertSame($before, $this->baselineCounts(), $label);
+        } finally {
+            DB::rollBack();
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
+        }
     }
 
     /** @return array<string, string> */

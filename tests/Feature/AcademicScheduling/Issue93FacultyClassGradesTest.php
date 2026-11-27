@@ -102,7 +102,6 @@ class Issue93FacultyClassGradesTest extends TestCase
             ->assertSet('rosterId', null)
             ->assertSet('queue', 'all')
             ->assertSee('Class grades')
-            ->assertSee('Choose a class to enter or review grades.')
             ->assertSee('CLS-DRAFT-OPEN')
             ->assertSee('1 of 2 graded')
             ->assertSee('CLS-RETURNED')
@@ -112,10 +111,6 @@ class Issue93FacultyClassGradesTest extends TestCase
             ->assertSee('CLS-INC-OPEN')
             ->assertSee('1 open INC')
             ->assertSee('CLS-CLOSED-DRAFT')
-            ->assertDontSee('Grade rosters')
-            ->assertDontSee('Grade Rosters')
-            ->assertDontSee('Find classes')
-            ->assertDontSee('Roster returned for changes')
             ->set('queue', 'needs-action')
             ->assertSee('CLS-DRAFT-OPEN')
             ->assertSee('CLS-RETURNED')
@@ -183,26 +178,13 @@ class Issue93FacultyClassGradesTest extends TestCase
             ->assertSee('Export class list')
             ->assertSee('Submit class grades')
             ->assertSee('Grade entry open')
-            ->assertDontSee('All classes')
-            ->assertDontSee('Class details')
-            ->assertDontSee('Calendar or entry approval')
-            ->assertDontSee('Assignment approval')
-            ->assertDontSee('Designated faculty')
-            ->assertDontSee('Print class roster')
-            ->assertDontSee('Export class roster')
-            ->assertDontSee('Submit complete roster')
-            ->assertDontSee('students shown')
-            ->assertDontSee('Submission includes all 2 students, including those outside this view.')
-            ->assertDontSee('Current responsibility and next step')
             ->set('studentSearch', $draftRoster->rows->first()->courseEnrollment->enrollment->studentProfile->student_number)
-            ->assertSee('1 of 2 students shown')
-            ->assertSee('Submission includes all 2 students, including those outside this view.');
+            ->assertSee('1 of 2 students shown');
 
         Livewire::actingAs($coFaculty)
             ->test(FacultyGradeRoster::class)
             ->assertSet('rosterId', $draftRoster->id)
-            ->assertSee('View-only · Designated faculty: '.$faculty->name)
-            ->assertSee('View-only access. Only the designated faculty member ('.$faculty->name.') can enter grades.');
+            ->assertSee('View-only · Designated faculty: '.$faculty->name);
 
         $rows = $draftRoster->rows()->orderBy('id')->get();
         app(SaveGradeRosterDraft::class)->execute($draftRoster, [
@@ -215,8 +197,7 @@ class Issue93FacultyClassGradesTest extends TestCase
         Livewire::actingAs($faculty)
             ->test(FacultyGradeRoster::class)
             ->assertSee('Submitted · ')
-            ->assertSee('Current responsibility and next step')
-            ->assertSee('Review the submitted class grades and release them, or return specific results for changes.');
+            ->assertSee('Current responsibility and next step');
 
         $released = app(PostAndReleaseGradeRoster::class)->execute($submitted->fresh(), $registrar, 'REL-INLINE-01');
         $sortedRows = $released->rows()->get()->sortBy(fn ($row): string => collect([

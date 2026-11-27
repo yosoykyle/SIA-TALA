@@ -5,7 +5,7 @@ namespace Tests\Feature\Auth;
 use App\Filament\Clusters\Admissions;
 use App\Models\StudentProfile;
 use App\Models\User;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -13,7 +13,7 @@ use Tests\TestCase;
 
 class RoleAwareLoginLandingTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {
@@ -135,6 +135,34 @@ class RoleAwareLoginLandingTest extends TestCase
         $this->assertGuest();
     }
 
+    /**
+     * @return array<string, array{0: string, 1: string}>
+     */
+    public static function blockedLoginStatuses(): array
+    {
+        return [
+            'inactive applicant' => ['applicant', User::StatusInactive],
+            'archived applicant' => ['applicant', User::StatusArchived],
+            'inactive student' => ['student', User::StatusInactive],
+            'archived student' => ['student', User::StatusArchived],
+            'inactive registrar' => [User::StaffRoleRegistrar, User::StatusInactive],
+            'archived registrar' => [User::StaffRoleRegistrar, User::StatusArchived],
+        ];
+    }
+
+    #[DataProvider('blockedLoginStatuses')]
+    public function test_inactive_or_archived_users_cannot_authenticate(string $role, string $status): void
+    {
+        $user = $this->userWithRole($role, $status);
+
+        $this->assertFalse($user->canAuthenticate());
+
+        $this->post('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ])->assertSessionHasErrors('email');
+    }
+
     private function userWithRole(string $role, string $status): User
     {
         $user = User::factory()->create([
@@ -157,6 +185,10 @@ class RoleAwareLoginLandingTest extends TestCase
             StudentProfile::factory()->create(['user_id' => $user->id]);
         }
 
-        return $user;
+        if ($user->status !== $status) {
+            $user->forceFill(['status' => $status])->save();
+        }
+
+        return $user->fresh();
     }
 }

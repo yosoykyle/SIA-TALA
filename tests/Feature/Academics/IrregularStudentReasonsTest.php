@@ -12,7 +12,7 @@ use App\Models\GradeRosterRow;
 use App\Models\Program;
 use App\Models\Term;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Spatie\Permission\Models\Role;
 use Tests\BuildsIrregularStudents;
 use Tests\TestCase;
@@ -20,7 +20,7 @@ use Tests\TestCase;
 class IrregularStudentReasonsTest extends TestCase
 {
     use BuildsIrregularStudents;
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     private User $registrar;
 

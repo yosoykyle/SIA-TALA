@@ -7,7 +7,7 @@ use App\Models\AdmissionRequirementPolicy;
 use App\Models\ApplicantIntake;
 use App\Models\ChecklistItem;
 use Database\Seeders\AdmissionRequirementPolicySeeder;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
@@ -20,7 +20,7 @@ use Tests\TestCase;
  */
 final class TAL93IAdmissionRequirementPolicySeederTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     /**
      * @var list<array{0: string, 1: string, 2: int}>

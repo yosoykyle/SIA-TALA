@@ -22,6 +22,7 @@ use App\Models\AcademicDecision;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
 use App\Models\AdmissionDecision;
+use App\Models\AdmissionRequirementSet;
 use App\Models\ApplicationSubmissionVersion;
 use App\Models\ClassOfferingTeachingAssignment;
 use App\Models\Course;
@@ -36,6 +37,7 @@ use App\Models\GradeOutcomeEvent;
 use App\Models\GradeRoster;
 use App\Models\GradeRosterRow;
 use App\Models\Program;
+use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
 use App\Models\RegistrationCreditEvaluation;
 use App\Models\RegistrationProposalItem;
@@ -44,10 +46,13 @@ use App\Models\Section;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
+use App\Models\TermCalendarWindow;
 use App\Models\TermOffering;
 use App\Models\User;
 use Filament\Facades\Filament;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
@@ -56,7 +61,7 @@ use Tests\TestCase;
 
 class Issue93Checkpoint2PrereqAndExplainTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {
@@ -718,6 +723,142 @@ class Issue93Checkpoint2PrereqAndExplainTest extends TestCase
         }
 
         return $courseEnrollment->fresh(['gradeRosterRow.outcomeEvents']);
+    }
+
+    #[Test]
+    public function view_enrollment_section_options_handle_or_groups_corequisites_earlier_pass_and_current_transferee_credits(): void
+    {
+        Mail::fake();
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $faculty = $this->staff(User::StaffRoleFaculty);
+
+        $program = Program::factory()->create(['is_active' => true]);
+        $curriculum = CurriculumVersion::factory()->for($program)->create(['state' => CurriculumVersion::StateActive]);
+        $priorTerm = Term::factory()->create(['state' => Term::StateClosed, 'starts_on' => now()->subMonths(8)->toDateString(), 'ends_on' => now()->subMonths(4)->toDateString()]);
+        $retakeTerm = Term::factory()->create(['state' => Term::StateClosed, 'starts_on' => now()->subMonths(3)->toDateString(), 'ends_on' => now()->subMonth()->toDateString()]);
+        $currentTerm = Term::factory()->create(['state' => Term::StateActive, 'starts_on' => now()->subWeek()->toDateString(), 'ends_on' => now()->addMonths(3)->toDateString()]);
+
+        foreach ([$priorTerm, $retakeTerm, $currentTerm] as $term) {
+            $package = TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive, 'activated_at' => now()]);
+            TermCalendarWindow::factory()->for($package, 'package')->create([
+                'window_type' => TermCalendarWindow::TypeEnrollment,
+                'opens_on' => now()->subDay()->toDateString(),
+                'closes_on' => now()->addWeek()->toDateString(),
+                'cutoff_at' => '23:59:59',
+            ]);
+        }
+
+        $courseA = Course::factory()->create(['code' => 'IT-101']);
+        $courseB = Course::factory()->create(['code' => 'IT-102']);
+        $courseC = Course::factory()->create(['code' => 'IT-201']);
+        $courseD = Course::factory()->create(['code' => 'IT-202']);
+        $courseE = Course::factory()->create(['code' => 'IT-203']);
+
+        $specA = CourseSpecification::factory()->for($courseA)->create(['credit_units' => '3.0', 'scheduling_treatment' => CourseSpecification::SchedulingRecurring]);
+        $specB = CourseSpecification::factory()->for($courseB)->create(['credit_units' => '3.0', 'scheduling_treatment' => CourseSpecification::SchedulingRecurring]);
+        $specC = CourseSpecification::factory()->for($courseC)->create(['credit_units' => '3.0', 'scheduling_treatment' => CourseSpecification::SchedulingRecurring]);
+        $specD = CourseSpecification::factory()->for($courseD)->create(['credit_units' => '3.0', 'scheduling_treatment' => CourseSpecification::SchedulingRecurring]);
+        $specE = CourseSpecification::factory()->for($courseE)->create(['credit_units' => '3.0', 'scheduling_treatment' => CourseSpecification::SchedulingRecurring]);
+
+        CourseRequirement::query()->create(['course_specification_id' => $specC->id, 'related_course_id' => $courseA->id, 'rule_type' => CourseRequirement::TypePrerequisite, 'group_key' => 'OR-AB', 'state' => CourseRequirement::StateActive, 'sequence' => 1]);
+        CourseRequirement::query()->create(['course_specification_id' => $specC->id, 'related_course_id' => $courseB->id, 'rule_type' => CourseRequirement::TypePrerequisite, 'group_key' => 'OR-AB', 'state' => CourseRequirement::StateActive, 'sequence' => 2]);
+        CourseRequirement::query()->create(['course_specification_id' => $specD->id, 'related_course_id' => $courseE->id, 'rule_type' => CourseRequirement::TypeCorequisite, 'group_key' => 'COREQ-E', 'state' => CourseRequirement::StateActive, 'sequence' => 1]);
+
+        $entryA = CurriculumEntry::factory()->for($curriculum, 'curriculumVersion')->for($specA)->create(['year_level' => 1, 'term_label' => 'First', 'term_type' => 'Regular']);
+        $entryB = CurriculumEntry::factory()->for($curriculum, 'curriculumVersion')->for($specB)->create(['year_level' => 1, 'term_label' => 'First', 'term_type' => 'Regular']);
+        $entryC = CurriculumEntry::factory()->for($curriculum, 'curriculumVersion')->for($specC)->create(['year_level' => 2, 'term_label' => 'First', 'term_type' => 'Regular']);
+        $entryD = CurriculumEntry::factory()->for($curriculum, 'curriculumVersion')->for($specD)->create(['year_level' => 2, 'term_label' => 'First', 'term_type' => 'Regular']);
+        $entryE = CurriculumEntry::factory()->for($curriculum, 'curriculumVersion')->for($specE)->create(['year_level' => 2, 'term_label' => 'First', 'term_type' => 'Regular']);
+
+        $timetable = PublishedTimetableVersion::factory()->for($currentTerm)->create(['state' => PublishedTimetableVersion::StatePublished]);
+        $sections = collect([$entryA, $entryB, $entryC, $entryD, $entryE])->mapWithKeys(function (CurriculumEntry $entry, int $idx) use ($currentTerm, $timetable, $courseA, $courseB, $courseC, $courseD, $courseE): array {
+            $offering = TermOffering::factory()->for($currentTerm)->for($entry)->create(['state' => TermOffering::StateScheduled]);
+            $section = Section::factory()->for($offering, 'termOffering')->create(['state' => Section::StateOpen, 'capacity' => 30]);
+            PublishedTimetableMeeting::factory()->for($timetable, 'timetableVersion')->create(['section_id' => $section->id]);
+            $code = [$courseA->code, $courseB->code, $courseC->code, $courseD->code, $courseE->code][$idx];
+
+            return [$code => $section];
+        });
+
+        $studentUser = User::factory()->create(['status' => User::StatusActive]);
+        $studentUser->assignRole('student');
+        $profile = StudentProfile::factory()->for($studentUser, 'user')->for($program)->for($curriculum)->create();
+
+        foreach ([[$priorTerm, '1.75'], [$retakeTerm, '5.00']] as [$pastTerm, $grade]) {
+            $pastOffering = TermOffering::factory()->for($pastTerm)->for($entryA)->create(['state' => TermOffering::StateScheduled]);
+            $pastSection = Section::factory()->for($pastOffering, 'termOffering')->create(['state' => Section::StateOpen]);
+            $pastEnrollment = Enrollment::factory()->for($pastTerm)->for($studentUser, 'credentialUser')->for($profile)->create(['officially_enrolled_at' => now()->subMonths(4), 'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled]);
+            $courseEnrollment = CourseEnrollment::query()->create(['enrollment_id' => $pastEnrollment->id, 'term_offering_id' => $pastOffering->id, 'section_id' => $pastSection->id, 'units_snapshot' => 3, 'is_current' => true, 'status' => CourseEnrollment::StatusActive]);
+            $roster = GradeRoster::factory()->for($pastOffering, 'termOffering')->for($pastSection)->for($faculty, 'faculty')->create(['state' => GradeRoster::StateReleased]);
+            $row = GradeRosterRow::query()->create(['grade_roster_id' => $roster->id, 'course_enrollment_id' => $courseEnrollment->id, 'is_current_membership' => true, 'final_result' => $grade, 'current_outcome_code' => $grade, 'released_at' => now()]);
+            GradeOutcomeEvent::factory()->create(['grade_roster_row_id' => $row->id, 'event_type' => GradeOutcomeEvent::TypeInitialRelease, 'result_code' => $grade, 'recorded_by' => $faculty->id, 'released_at' => now(), 'source_key' => 'test-'.$row->id]);
+        }
+
+        $currentCase = Enrollment::factory()->for($currentTerm)->for($studentUser, 'credentialUser')->for($profile)->create([
+            'selection_basis' => Enrollment::SelectionIndividuallyAdvised,
+            'canonical_outcome' => Enrollment::OutcomeInProgress,
+        ]);
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $page = Livewire::actingAs($registrar)->test(ViewEnrollment::class, ['record' => $currentCase->id])->instance();
+
+        $initialOptions = (fn (): array => $this->sectionOptions())->call($page);
+        $this->assertStringContainsString('Already passed', $initialOptions[$sections['IT-101']->id]);
+        $this->assertStringNotContainsString('Prereq unmet', $initialOptions[$sections['IT-201']->id]);
+        $this->assertStringContainsString('Coreq unmet', $initialOptions[$sections['IT-202']->id]);
+
+        $withCoreqSelected = (fn (): array => $this->sectionOptions([$sections['IT-203']->id]))->call($page);
+        $this->assertStringNotContainsString('Coreq unmet', $withCoreqSelected[$sections['IT-202']->id]);
+
+        $cycle = AdmissionCycle::factory()->create();
+        $reqSet = AdmissionRequirementSet::factory()->for($cycle)->create();
+        $applicant = User::factory()->create(['status' => User::StatusActive]);
+        $applicant->assignRole('applicant');
+        $application = AdmissionApplication::factory()->for($applicant, 'user')->for($cycle)->for($program)->create([
+            'application_path' => AdmissionApplication::PathTransferee,
+            'application_state' => AdmissionApplication::StateAdmitted,
+        ]);
+        $staleSubmission = ApplicationSubmissionVersion::factory()->for($application, 'application')->for($reqSet, 'requirementSet')->create(['version' => 1]);
+        $currentSubmission = ApplicationSubmissionVersion::factory()->for($application, 'application')->for($reqSet, 'requirementSet')->create(['version' => 2]);
+        $application->update(['current_submission_version_id' => $currentSubmission->id]);
+        AdmissionDecision::factory()->for($application, 'application')->create(['decision' => AdmissionApplication::StateAdmitted]);
+
+        $transfereeCase = Enrollment::factory()->for($currentTerm)->for($application, 'admissionApplication')->for($applicant, 'credentialUser')->create([
+            'student_profile_id' => null,
+            'selection_basis' => Enrollment::SelectionIndividuallyAdvised,
+            'canonical_outcome' => Enrollment::OutcomeInProgress,
+        ]);
+        RegistrationCreditEvaluation::query()->create([
+            'enrollment_id' => $transfereeCase->id,
+            'application_submission_version_id' => $staleSubmission->id,
+            'curriculum_version_id' => $curriculum->id,
+            'credited_curriculum_entry_ids' => [$entryA->id],
+            'authority_reference' => 'STALE-EVAL',
+            'approved_on' => now()->toDateString(),
+            'recorded_by' => $registrar->id,
+            'recorded_at' => now()->subDay(),
+        ]);
+
+        $transfereePage = Livewire::actingAs($registrar)->test(ViewEnrollment::class, ['record' => $transfereeCase->id])->instance();
+        $staleOptions = (fn (): array => $this->sectionOptions())->call($transfereePage);
+        $this->assertStringNotContainsString('Already passed', $staleOptions[$sections['IT-101']->id]);
+        $this->assertStringContainsString('Prereq unmet', $staleOptions[$sections['IT-201']->id]);
+
+        RegistrationCreditEvaluation::query()->create([
+            'enrollment_id' => $transfereeCase->id,
+            'application_submission_version_id' => $currentSubmission->id,
+            'curriculum_version_id' => $curriculum->id,
+            'credited_curriculum_entry_ids' => [$entryA->id],
+            'authority_reference' => 'CURRENT-EVAL',
+            'approved_on' => now()->toDateString(),
+            'recorded_by' => $registrar->id,
+            'recorded_at' => now(),
+        ]);
+
+        $freshTransfereePage = Livewire::actingAs($registrar)->test(ViewEnrollment::class, ['record' => $transfereeCase->id])->instance();
+        $currentOptions = (fn (): array => $this->sectionOptions())->call($freshTransfereePage);
+        $this->assertArrayNotHasKey($sections['IT-101']->id, $currentOptions);
+        $this->assertStringNotContainsString('Prereq unmet', $currentOptions[$sections['IT-201']->id]);
     }
 
     private function staff(string $role): User

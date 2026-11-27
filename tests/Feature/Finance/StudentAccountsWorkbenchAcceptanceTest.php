@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Finance;
 
+use App\Actions\Enrollment\PlaceRegistrationProposal;
+use App\Actions\Enrollment\PrepareRegistrationProposal;
 use App\Actions\Finance\CreateContextualFinanceExport;
 use App\Actions\Finance\RecordApprovedCoverage;
 use App\Actions\Finance\TermAccountProjection;
@@ -12,9 +14,14 @@ use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\Enrollments\Pages\AccountingAccountInspector;
 use App\Filament\Resources\Enrollments\Pages\ListEnrollments;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
+use App\Filament\Resources\FeePlans\Pages\ListFeePlans;
 use App\Filament\Resources\StudentLifecycleChanges\Pages\ListStudentLifecycleChanges;
 use App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResource;
 use App\Models\AdmissionApplication;
+use App\Models\AdmissionCycle;
+use App\Models\AdmissionDecision;
+use App\Models\AdmissionRequirementSet;
+use App\Models\ApplicationSubmissionVersion;
 use App\Models\ApprovedCoverage;
 use App\Models\Assessment;
 use App\Models\AssessmentEffectRevalidation;
@@ -22,6 +29,9 @@ use App\Models\AssessmentObligation;
 use App\Models\CorVersion;
 use App\Models\CourseDropRecord;
 use App\Models\CourseEnrollment;
+use App\Models\CourseSpecification;
+use App\Models\CurriculumEntry;
+use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
 use App\Models\FinanceExport;
 use App\Models\OperationalEvent;
@@ -29,24 +39,34 @@ use App\Models\Payment;
 use App\Models\PaymentAllocation;
 use App\Models\PaymentEvidenceVersion;
 use App\Models\Program;
+use App\Models\PublishedTimetableMeeting;
+use App\Models\PublishedTimetableVersion;
+use App\Models\RegistrarEnrollmentClearance;
 use App\Models\RegistrationProposalConfirmation;
 use App\Models\RegistrationProposalVersion;
+use App\Models\Section;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\TermAccount;
+use App\Models\TermCalendarPackage;
+use App\Models\TermCalendarWindow;
+use App\Models\TermOffering;
 use App\Models\TranscriptRequest;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\Select;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -228,7 +248,18 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
             ->assertSee(e(EnrollmentResource::getUrl('index', [
                 'tab' => 'payment_proof', 'account' => $fixture['enrollment']->id,
                 'search' => 'Santos', 'proof' => $other->id, 'view' => 'proof',
-            ])), false);
+            ])), false)
+            ->assertSee('Verify payment')
+            ->assertSee('Reject receipt');
+        $html = $page->html();
+        $cardStart = strpos($html, 'accounting-source-comparison');
+        $footerPos = strpos($html, 'accounting-comparison-actions');
+        $notePos = strpos($html, 'The receipt has not been recorded as a payment.');
+        $this->assertNotFalse($cardStart);
+        $this->assertNotFalse($footerPos);
+        $this->assertNotFalse($notePos);
+        $this->assertGreaterThan($cardStart, $footerPos);
+        $this->assertLessThan($notePos, $footerPos);
         $this->assertSame('12000.30', $page->instance()->paymentProofViewData()['targetBalance']);
 
         $page->mountAction('verifyPaymentEvidence')->assertMountedActionModalSee('Record verified payment')
@@ -1274,6 +1305,174 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
         $this->assertNull($failed->path);
         $this->assertNull($failed->checksum);
         $this->assertFalse($disk->exists('finance-exports/'.$failed->reference.'.csv'));
+    }
+
+    public function test_tuition_calculator_in_individual_assessment_prefills_enrolled_units_and_applies_tuition_charge(): void
+    {
+        Mail::fake();
+        $accounting = $this->accounting();
+        [$case, , , , $section, $registrar] = $this->advisedEnrollmentFixture(Enrollment::SelectionIndividuallyAdvised, creditUnits: '4.0');
+
+        $proposal = app(PrepareRegistrationProposal::class)->execute($case, $registrar, [$section->id], $case->lock_version);
+        app(PlaceRegistrationProposal::class)->execute($proposal, $registrar);
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $component = Livewire::actingAs($accounting)
+            ->test(ViewEnrollment::class, ['record' => $case->id])
+            ->mountAction('recordIndividualAssessment');
+
+        $this->assertSame('4', (string) $component->get('mountedActions.0.data.tuition_units'));
+
+        $component
+            ->setActionData([
+                'tuition_rate_per_unit' => '1500',
+                'tuition_units' => '4',
+            ])
+            ->assertMountedActionModalSee('Computed tuition: PHP 6,000.00 · Tuition Fee (4 units @ PHP 1,500.00/unit)')
+            ->callAction(TestAction::make('applyTuitionToCharges')->schemaComponent(schema: 'mountedActionSchema0'));
+
+        $charges = array_values($component->get('mountedActions.0.data.charges') ?? []);
+        $this->assertCount(1, $charges);
+        $this->assertSame('Tuition Fee (4 units @ PHP 1,500.00/unit)', $charges[0]['label']);
+        $this->assertSame('6000.00', $charges[0]['amount']);
+
+        $chargeKey = array_key_first($component->get('mountedActions.0.data.charges'));
+        $component->setActionData([
+            'authority_reference' => 'SYN-CALC-93',
+            'authority_date' => '2026-08-20',
+            'charges' => [$chargeKey => $charges[0]],
+            'enrollment_payment' => ['amount' => '6000.00', 'due_at' => '2026-08-25 17:00'],
+        ])->callMountedAction()->assertHasNoActionErrors()->assertNotified('Assessment recorded');
+
+        $assessment = Assessment::query()->where('enrollment_id', $case->id)->sole();
+        $this->assertSame('6000.00', $assessment->total);
+        $this->assertSame('Tuition Fee (4 units @ PHP 1,500.00/unit)', $assessment->lines()->sole()->description_snapshot);
+    }
+
+    public function test_tuition_calculator_in_fee_plan_form_applies_and_updates_tuition_row_without_duplication(): void
+    {
+        $accounting = $this->accounting();
+        $program = Program::factory()->create(['is_active' => true]);
+        $term = Term::factory()->create(['state' => Term::StateActive]);
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $component = Livewire::actingAs($accounting)
+            ->test(ListFeePlans::class)
+            ->mountAction('createDraft')
+            ->setActionData([
+                'program_id' => $program->id,
+                'term_id' => $term->id,
+                'tuition_rate_per_unit' => '1200',
+                'tuition_units' => '18',
+            ])
+            ->assertMountedActionModalSee('Computed tuition: PHP 21,600.00 · Tuition Fee (18 units @ PHP 1,200.00/unit)')
+            ->callAction(TestAction::make('applyTuitionToCharges')->schemaComponent(schema: 'mountedActionSchema0'));
+
+        $charges = array_values($component->get('mountedActions.0.data.charges') ?? []);
+        $this->assertCount(1, $charges);
+        $this->assertSame('Tuition Fee (18 units @ PHP 1,200.00/unit)', $charges[0]['label']);
+        $this->assertSame('21600.00', $charges[0]['amount']);
+
+        $component
+            ->setActionData([
+                'tuition_rate_per_unit' => '1250',
+                'tuition_units' => '18',
+            ])
+            ->callAction(TestAction::make('applyTuitionToCharges')->schemaComponent(schema: 'mountedActionSchema0'));
+
+        $updatedCharges = array_values($component->get('mountedActions.0.data.charges') ?? []);
+        $this->assertCount(1, $updatedCharges);
+        $this->assertSame('Tuition Fee (18 units @ PHP 1,250.00/unit)', $updatedCharges[0]['label']);
+        $this->assertSame('22500.00', $updatedCharges[0]['amount']);
+    }
+
+    public function test_enrollment_history_view_uses_clear_excel_csv_label_for_verified_payments_export(): void
+    {
+        $accounting = $this->accounting();
+        $fixture = $this->accountFixture('history-export-label@example.test');
+        Payment::factory()->create([
+            'term_account_id' => $fixture['account']->id,
+            'student_profile_id' => $fixture['enrollment']->student_profile_id,
+            'term_id' => $fixture['term']->id,
+            'state' => Payment::StatePosted,
+            'amount' => '3000.00',
+            'channel' => 'bank_transfer',
+            'paid_at' => now()->subHour(),
+            'provider_reference' => 'OR-EXPORT-LABEL-93',
+        ]);
+        $fixture['enrollment']->update([
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+            'officially_enrolled_at' => now(),
+        ]);
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        Livewire::actingAs($accounting)
+            ->withQueryParams(['view' => 'history'])
+            ->test(ViewEnrollment::class, ['record' => $fixture['enrollment']->id])
+            ->assertSee('Export verified payments (Excel CSV)');
+    }
+
+    /** @return array{Enrollment,Program,Term,CurriculumVersion,Section,User} */
+    private function advisedEnrollmentFixture(string $selectionBasis, string $creditUnits = '3.0'): array
+    {
+        Role::findOrCreate('applicant', 'web');
+        $registrarRole = Role::findOrCreate(User::StaffRoleRegistrar, 'web');
+        $registrarRole->givePermissionTo(Permission::findOrCreate('approve-documents', 'web'));
+        $registrar = User::factory()->create(['status' => User::StatusActive]);
+        $registrar->assignRole($registrarRole);
+
+        $term = Term::factory()->create(['state' => Term::StateActive]);
+        $package = TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive, 'activated_at' => now()]);
+        TermCalendarWindow::factory()->for($package, 'package')->create([
+            'window_type' => TermCalendarWindow::TypeEnrollment,
+            'opens_on' => now()->subDay()->toDateString(),
+            'closes_on' => now()->addWeek()->toDateString(),
+            'cutoff_at' => '23:59:59',
+        ]);
+
+        $program = Program::factory()->create(['is_active' => true]);
+        $curriculum = CurriculumVersion::factory()->for($program)->create(['state' => CurriculumVersion::StateActive]);
+        $spec = CourseSpecification::factory()->create([
+            'credit_units' => $creditUnits,
+            'scheduling_treatment' => CourseSpecification::SchedulingRecurring,
+        ]);
+        $entry = CurriculumEntry::factory()->for($curriculum, 'curriculumVersion')->for($spec)->create();
+        $offering = TermOffering::factory()->for($term)->for($entry)->create(['state' => TermOffering::StateScheduled]);
+        $section = Section::factory()->for($offering, 'termOffering')->create(['state' => Section::StateOpen, 'capacity' => 30]);
+        $timetable = PublishedTimetableVersion::factory()->for($term)->create(['state' => PublishedTimetableVersion::StatePublished]);
+        PublishedTimetableMeeting::factory()->for($timetable, 'timetableVersion')->create(['section_id' => $section->id]);
+
+        $cycle = AdmissionCycle::factory()->for($term)->create();
+        $reqSet = AdmissionRequirementSet::factory()->published()->for($cycle)->create([
+            'application_path' => AdmissionApplication::PathFirstYear,
+        ]);
+        $applicant = User::factory()->create(['status' => User::StatusActive]);
+        $applicant->assignRole('applicant');
+        $application = AdmissionApplication::factory()->for($applicant, 'user')->for($cycle, 'admissionCycle')->for($program)->create([
+            'term_id' => $term->id,
+            'application_path' => AdmissionApplication::PathFirstYear,
+            'application_state' => AdmissionApplication::StateAdmitted,
+        ]);
+        $submission = ApplicationSubmissionVersion::factory()->for($application, 'application')->for($reqSet, 'requirementSet')->create([
+            'submitted_by' => $applicant->id,
+        ]);
+        $application->update(['current_submission_version_id' => $submission->id]);
+        $decision = AdmissionDecision::factory()->admitted()->for($application, 'application')->create([
+            'application_submission_version_id' => $submission->id,
+        ]);
+        RegistrarEnrollmentClearance::factory()->forAdmittedApplication($application)->create([
+            'result' => RegistrarEnrollmentClearance::ResultCleared,
+            'external_checks_confirmed' => true,
+            'recorded_by' => $decision->decided_by,
+        ]);
+
+        $case = Enrollment::factory()->for($term)->for($application, 'admissionApplication')->for($applicant, 'credentialUser')->create([
+            'student_profile_id' => null,
+            'selection_basis' => $selectionBasis,
+            'canonical_outcome' => Enrollment::OutcomeInProgress,
+        ]);
+
+        return [$case, $program, $term, $curriculum, $section, $registrar];
     }
 
     /** @return array{learner:User,enrollment:Enrollment,account:TermAccount,assessment:Assessment,term:Term} */

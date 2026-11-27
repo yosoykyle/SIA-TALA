@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\AcademicScheduling;
 
-use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Actions\Scheduling\TermCoverageProjection;
 use App\Filament\Pages\CatalogCurriculaWorkbench;
 use App\Filament\Pages\SchoolResources;
@@ -45,14 +44,13 @@ use Filament\Navigation\NavigationItem;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
-use Spatie\Permission\PermissionRegistrar;
+use Tests\Feature\AcademicScheduling\Concerns\InteractsWithAcademicSchedulingFixtures;
 use Tests\TestCase;
 
 final class Issue93GuidedPlanningAndProgramsCurriculaTest extends TestCase
 {
     use DatabaseTransactions;
+    use InteractsWithAcademicSchedulingFixtures;
 
     protected function setUp(): void
     {
@@ -320,9 +318,6 @@ final class Issue93GuidedPlanningAndProgramsCurriculaTest extends TestCase
 
         Livewire::withQueryParams(['academicYearId' => $term->academic_year_id])->test(TermOverview::class)
             ->assertSeeHtml('href="'.e($expectedCalendarUrl).'"')
-            ->assertDontSee($ulidCode);
-
-        Livewire::withQueryParams(['termId' => $term->id])->test(TermClasses::class)
             ->assertDontSee($ulidCode);
 
         Livewire::withQueryParams(['termId' => $term->id])->test(ViewSection::class, ['record' => $section->id])
@@ -637,20 +632,9 @@ final class Issue93GuidedPlanningAndProgramsCurriculaTest extends TestCase
 
     private function staff(string $roleName): User
     {
-        Role::findOrCreate(User::StaffRoleFaculty, 'web');
-        $role = Role::findOrCreate($roleName, 'web');
-        if ($roleName === User::StaffRoleRegistrar) {
-            $role->syncPermissions([
-                Permission::findOrCreate('manage-schedules', 'web'),
-                Permission::findOrCreate('approve-documents', 'web'),
-            ]);
-        }
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
-
-        $user = User::factory()->create(['status' => User::StatusActive]);
-        $user->assignRole($role);
-        $this->actingAs($user)->withSession([WorkspaceContextResolver::SessionKey => $roleName]);
-
-        return $user;
+        return $this->createSchedulingStaff(
+            $roleName,
+            $roleName === User::StaffRoleRegistrar ? ['manage-schedules', 'approve-documents'] : [],
+        );
     }
 }

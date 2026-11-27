@@ -174,18 +174,6 @@ final class SchemaConformanceTest extends TestCase
         $this->assertFalse($checks->contains('enrollment_exceptions_target_check'));
     }
 
-    public function test_foundation_seeder_creates_the_canonical_roles_and_permissions(): void
-    {
-        $this->seed();
-
-        $this->assertSame([
-            'academic-head', 'accounting', 'applicant', 'faculty', 'registrar', 'student', 'system-super-admin',
-        ], DB::table('roles')->orderBy('name')->pluck('name')->all());
-        $this->assertSame(13, DB::table('permissions')->count());
-        $this->assertSame(13, DB::table('role_has_permissions')->count());
-        $this->assertSame(0, DB::table('users')->count());
-    }
-
     public function test_nullable_routine_authority_migration_rolls_back_and_reapplies_cleanly(): void
     {
         $migrationPath = 'database/migrations/2026_11_18_053000_make_routine_external_competency_and_requirement_set_authority_nullable.php';

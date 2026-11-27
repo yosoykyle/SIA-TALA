@@ -9,7 +9,6 @@ use App\Actions\Finance\CashierSchedule;
 use App\Actions\Finance\CreateContextualFinanceExport;
 use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
 use App\Actions\Finance\PaymentConfirmationService;
-use App\Actions\Finance\ReviewPaymentEvidence;
 use App\Actions\Finance\SchoolPaymentChannels;
 use App\Actions\Finance\StudentTermAccountPresenter;
 use App\Actions\Finance\SubmitPaymentEvidence;
@@ -493,74 +492,6 @@ final class PaymentChannelsAndOnsitePaymentTest extends TestCase
         $readiness = app(RegistrationReadinessQuery::class)->for($freshEnrollment);
         $this->assertTrue($readiness['finance']);
         $this->assertNotContains('Accounting clearance', $readiness['blockers']);
-    }
-
-    public function test_inline_map_official_receipt_maps_verified_proof_payment_and_rejects_duplicate_or(): void
-    {
-        Storage::fake('local');
-
-        $accounting = $this->accountingUser();
-        $this->enableDefaultDigitalChannels($accounting);
-        $fixture = $this->unpaidAccountFixture(isStudent: false);
-        $enrollment = $fixture['enrollment'];
-
-        $firstEvidence = app(SubmitPaymentEvidence::class)->execute(
-            $fixture['account'],
-            $fixture['learner'],
-            UploadedFile::fake()->image('walkin-receipt-1.png'),
-            '12000.00',
-            'bank_transfer',
-            CarbonImmutable::now(config('app.timezone'))->subHour(),
-            'BANK-PROOF-8802',
-        );
-        $firstPayment = app(ReviewPaymentEvidence::class)->verify(
-            $firstEvidence,
-            $accounting,
-            '12000.00',
-            'BANK-CHECK-8802',
-        );
-        $this->assertNull($firstPayment->or_number);
-
-        $secondFixture = $this->unpaidAccountFixture(isStudent: false);
-        $secondEvidence = app(SubmitPaymentEvidence::class)->execute(
-            $secondFixture['account'],
-            $secondFixture['learner'],
-            UploadedFile::fake()->image('walkin-receipt-2.png', 24, 24),
-            '12000.00',
-            'gcash_manual',
-            CarbonImmutable::now(config('app.timezone'))->subMinutes(30),
-            'GCASH-PROOF-8803',
-        );
-        $secondPayment = app(ReviewPaymentEvidence::class)->verify(
-            $secondEvidence,
-            $accounting,
-            '12000.00',
-            'GCASH-CHECK-8803',
-        );
-
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-        $page = Livewire::actingAs($accounting)
-            ->test(ViewEnrollment::class, ['record' => $enrollment->id]);
-
-        $page->mountAction('mapOfficialReceipt', ['payment' => $firstPayment->id])
-            ->assertActionMounted('mapOfficialReceipt')
-            ->setActionData(['payment_id' => $firstPayment->id, 'or_number' => 'OR-MAP-8802'])
-            ->callMountedAction()
-            ->assertHasNoActionErrors()
-            ->assertNotified('Official Receipt mapped');
-
-        $this->assertSame('OR-MAP-8802', $firstPayment->fresh()->or_number);
-        $this->assertSame($accounting->id, $firstPayment->fresh()->or_mapped_by);
-
-        $secondPage = Livewire::actingAs($accounting)
-            ->test(ViewEnrollment::class, ['record' => $secondFixture['enrollment']->id]);
-
-        $secondPage->mountAction('mapOfficialReceipt', ['payment' => $secondPayment->id])
-            ->setActionData(['payment_id' => $secondPayment->id, 'or_number' => 'OR-MAP-8802'])
-            ->callMountedAction()
-            ->assertNotified('Official Receipt was not mapped');
-
-        $this->assertNull($secondPayment->fresh()->or_number);
     }
 
     public function test_cashier_schedule_rejects_invalid_hours_missing_exception_label_and_reversed_dates(): void

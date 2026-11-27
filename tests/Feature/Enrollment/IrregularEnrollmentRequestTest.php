@@ -17,7 +17,7 @@ use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\TermOffering;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Role;
@@ -27,7 +27,7 @@ use Tests\TestCase;
 class IrregularEnrollmentRequestTest extends TestCase
 {
     use BuildsIrregularStudents;
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     private User $registrar;
 

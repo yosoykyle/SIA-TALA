@@ -12,7 +12,7 @@ use App\Providers\Filament\ApplicantPanelProvider;
 use App\Providers\Filament\StudentPanelProvider;
 use Filament\Panel;
 use Filament\Support\Colors\Color;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use ReflectionMethod;
@@ -20,7 +20,7 @@ use Tests\TestCase;
 
 class PublicLandingAndFilamentAuthTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     public function test_public_landing_page_renders_with_filament_auth_ctas(): void
     {

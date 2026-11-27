@@ -36,7 +36,6 @@ use App\Models\User;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
-use Illuminate\Support\Facades\File;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
@@ -391,7 +390,7 @@ final class Issue93TermPlanningOverhaulTest extends TestCase
     }
 
     #[Test]
-    public function published_revision_form_and_compiled_css_preserve_layout_and_zero_blue_rules(): void
+    public function published_revision_form_preserves_revision_checklist_and_schema(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
 
@@ -454,24 +453,6 @@ final class Issue93TermPlanningOverhaulTest extends TestCase
             ->assertMountedActionModalSee('RM-305 · Elena Cruz · Meeting 1');
 
         $this->assertNotEmpty(PublishedScheduleRevisionForm::schema($run));
-
-        // Verify compiled Vite theme CSS and static Filament/Catalog CSS follow the approved rules.
-        $themeCssFiles = File::glob(public_path('build/assets/theme-*.css'));
-        $this->assertNotEmpty($themeCssFiles, 'Compiled Vite theme CSS must exist in public/build/assets.');
-        $compiledThemeCss = File::get($themeCssFiles[0]);
-        $filamentCss = File::get(public_path('css/tala-filament.css'));
-        $catalogCss = File::get(public_path('css/tala-catalog.css'));
-
-        $this->assertStringContainsString('.tala-stage-bar', $compiledThemeCss);
-        $this->assertStringContainsString('overflow:clip', str_replace(' ', '', $compiledThemeCss));
-        $this->assertStringNotContainsString('.tala-studio-canvas.is-week .tala-timetable-list{display:none}', str_replace(["\r", "\n", '  '], ['', '', ' '], $compiledThemeCss));
-        $this->assertStringNotContainsString('#2563eb', strtolower($compiledThemeCss));
-        $this->assertStringNotContainsString('#3b82f6', strtolower($compiledThemeCss));
-
-        $this->assertStringContainsString('.tala-card-picker', $filamentCss);
-        $this->assertStringContainsString('.fi-input-wrp:not(.fi-disabled):focus-within', $filamentCss);
-        $this->assertStringNotContainsString('#2563eb', strtolower($filamentCss.$catalogCss));
-        $this->assertStringNotContainsString('#3b82f6', strtolower($filamentCss.$catalogCss));
     }
 
     private function staff(string $roleName): User

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Tests\Feature;
+namespace Tests\Unit;
 
 use App\Actions\StudentLifecycle\Exceptions\StudentLifecycleRuleViolation;
 use App\Models\User;

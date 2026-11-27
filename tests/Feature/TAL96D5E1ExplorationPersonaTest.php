@@ -17,6 +17,7 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\Attributes\Test;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 use Throwable;
 
@@ -32,12 +33,18 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
         $this->assertSame('testing', app()->environment());
         $this->assertSame('mysql', DB::connection()->getDriverName());
         $this->assertSame('test_tala_db', DB::connection()->getDatabaseName());
-        $this->artisan('acceptance:seed-client-baseline')->assertSuccessful();
     }
 
     #[Test]
-    public function exploration_overlay_builds_the_exact_sign_in_persona_catalog(): void
+    public function exploration_overlay_builds_exact_persona_catalog_is_idempotent_and_validates_check_modes(): void
     {
+        $this->artisan('acceptance:seed-client-baseline')->assertSuccessful();
+
+        $term = $this->presentationTerm();
+        $beforeFingerprint = $this->schedulingFingerprint($term);
+        $beforeScheduleRuns = ScheduleGenerationRun::query()->count();
+        $beforeMeetings = SectionMeeting::query()->count();
+
         try {
             $this->artisan('acceptance:seed-tal96d5e1-exploration')
                 ->expectsOutputToContain('coverage_state=PASS')
@@ -55,6 +62,8 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
         } catch (Throwable $exception) {
             $this->fail('The guarded D5E1 exploration command must exist and succeed: '.$exception->getMessage());
         }
+
+        $firstCounts = $this->explorationCounts();
 
         $activeStaff = [
             'registrar.demo@example.test',
@@ -115,7 +124,7 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
 
         foreach ($applicants as $email => [$applicationState, $category, $basis, $userStatus]) {
             $applicant = User::query()->where('email', $email)->sole();
-            $application = AdmissionApplication::query()->canonical()->whereBelongsTo($applicant, 'user')->where('term_id', $this->presentationTerm()->id)->sole();
+            $application = AdmissionApplication::query()->canonical()->whereBelongsTo($applicant, 'user')->where('term_id', $term->id)->sole();
 
             $this->assertNotNull($applicant->email_verified_at);
             $this->assertTrue($applicant->hasRole('applicant'));
@@ -175,19 +184,8 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
         $this->assertSame(User::StatusInactive, $denied->status);
         $this->assertFalse($denied->canAuthenticate());
         $this->assertTrue($denied->hasRole(User::StaffRoleRegistrar));
-    }
 
-    #[Test]
-    public function exploration_overlay_is_idempotent_and_preserves_the_min_scheduling_contract(): void
-    {
-        $term = $this->presentationTerm();
-        $beforeFingerprint = $this->schedulingFingerprint($term);
-        $beforeScheduleRuns = ScheduleGenerationRun::query()->count();
-        $beforeMeetings = SectionMeeting::query()->count();
-
-        $this->artisan('acceptance:seed-tal96d5e1-exploration')->assertSuccessful();
-        $firstCounts = $this->explorationCounts();
-
+        // Re-running exploration overlay is idempotent and preserves the minimum scheduling contract.
         $this->artisan('acceptance:seed-tal96d5e1-exploration')->assertSuccessful();
 
         $this->assertSame($firstCounts, $this->explorationCounts());
@@ -202,32 +200,9 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
         $this->assertSame($beforeMeetings, SectionMeeting::query()->count());
         $this->assertSame(0, DB::table('jobs')->count());
         $this->assertSame(0, DB::table('failed_jobs')->count());
-    }
 
-    #[Test]
-    public function check_mode_reports_an_incomplete_overlay_without_writing(): void
-    {
-        $this->artisan('acceptance:seed-tal96d5e1-exploration')->assertSuccessful();
-
-        $boundary = User::query()
-            ->where('email', 'registrar.unverified.demo@example.test')
-            ->sole();
-        $boundary->forceFill(['email_verified_at' => now()])->save();
-        $before = $this->explorationCounts();
-
-        $this->artisan('acceptance:seed-tal96d5e1-exploration --check')
-            ->expectsOutputToContain('outcome=inspection_only')
-            ->expectsOutputToContain('coverage_state=FAIL')
-            ->assertFailed();
-
-        $this->assertSame($before, $this->explorationCounts());
-    }
-
-    #[Test]
-    public function check_mode_rejects_an_unknown_or_mismatched_checkpoint_without_writing(): void
-    {
-        $this->artisan('acceptance:seed-tal96d5e1-exploration')->assertSuccessful();
-        $before = $this->explorationCounts();
+        // Check mode rejects an unknown or mismatched checkpoint without writing.
+        $beforeCheckpointChecks = $this->explorationCounts();
 
         $this->artisan('acceptance:seed-tal96d5e1-exploration --check --checkpoint=unknown')
             ->expectsOutputToContain('Checkpoint must be auto, pristine, accepted-candidate, or published.')
@@ -241,25 +216,48 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
             ->expectsOutputToContain('checkpoint_ready=no')
             ->assertFailed();
 
-        $this->assertSame($before, $this->explorationCounts());
-    }
+        $this->assertSame($beforeCheckpointChecks, $this->explorationCounts());
 
-    #[Test]
-    public function check_mode_rejects_a_persona_whose_documented_local_password_changed(): void
-    {
-        $this->artisan('acceptance:seed-tal96d5e1-exploration')->assertSuccessful();
+        // Check mode reports an incomplete overlay without writing.
+        DB::beginTransaction();
 
-        $persona = User::query()
-            ->where('email', 'student.demo@example.test')
-            ->sole();
-        $persona->forceFill(['password' => 'changed-password'])->save();
-        $before = $this->explorationCounts();
+        try {
+            $boundary = User::query()
+                ->where('email', 'registrar.unverified.demo@example.test')
+                ->sole();
+            $boundary->forceFill(['email_verified_at' => now()])->save();
+            $before = $this->explorationCounts();
 
-        $this->artisan('acceptance:seed-tal96d5e1-exploration --check')
-            ->expectsOutputToContain('coverage_state=FAIL')
-            ->assertFailed();
+            $this->artisan('acceptance:seed-tal96d5e1-exploration --check')
+                ->expectsOutputToContain('outcome=inspection_only')
+                ->expectsOutputToContain('coverage_state=FAIL')
+                ->assertFailed();
 
-        $this->assertSame($before, $this->explorationCounts());
+            $this->assertSame($before, $this->explorationCounts());
+        } finally {
+            DB::rollBack();
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
+        }
+
+        // Check mode rejects a persona whose documented local password changed.
+        DB::beginTransaction();
+
+        try {
+            $persona = User::query()
+                ->where('email', 'student.demo@example.test')
+                ->sole();
+            $persona->forceFill(['password' => 'changed-password'])->save();
+            $before = $this->explorationCounts();
+
+            $this->artisan('acceptance:seed-tal96d5e1-exploration --check')
+                ->expectsOutputToContain('coverage_state=FAIL')
+                ->assertFailed();
+
+            $this->assertSame($before, $this->explorationCounts());
+        } finally {
+            DB::rollBack();
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
+        }
     }
 
     #[Test]
@@ -274,24 +272,6 @@ final class TAL96D5E1ExplorationPersonaTest extends TestCase
         } finally {
             $this->app->detectEnvironment(fn (): string => 'testing');
         }
-    }
-
-    #[Test]
-    public function documentation_keeps_acceptance_fixtures_non_authoritative(): void
-    {
-        $readme = file_get_contents(base_path('README.md'));
-        $baseline = file_get_contents(base_path('00_Project_Documents/prd_modules/00_system_definition_baseline.md'));
-
-        $this->assertIsString($readme);
-        $this->assertIsString($baseline);
-        $this->assertStringContainsString(
-            'Historical fixture-building, provider rehearsal, demonstration, and acceptance instructions are preserved as non-authoritative evidence',
-            $readme,
-        );
-        $this->assertStringContainsString(
-            'All PRD acceptance data uses one coordinated, wholly synthetic institution',
-            $baseline,
-        );
     }
 
     /**

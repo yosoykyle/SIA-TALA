@@ -12,14 +12,14 @@ use App\Models\Term;
 use App\Models\User;
 use App\Support\AuthBannerMedia;
 use Illuminate\Database\QueryException;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use RuntimeException;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class PublicGatewayProjectionTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     public function test_missing_and_unavailable_admissions_are_not_reported_as_closed(): void
     {

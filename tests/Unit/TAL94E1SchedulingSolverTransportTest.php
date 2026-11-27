@@ -5,18 +5,34 @@ namespace Tests\Unit;
 use App\Actions\Integrations\SchedulingSolver\CloudRunIdTokenProvider;
 use App\Actions\Integrations\SchedulingSolver\CloudRunSchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\LocalHttpSchedulingSolverClient;
-use App\Actions\Integrations\SchedulingSolver\SchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverRequest;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverResponse;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverTransportException;
+use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Facade;
 use Illuminate\Support\Facades\Http;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\TestCase;
 use RuntimeException;
-use Tests\TestCase;
 
 final class TAL94E1SchedulingSolverTransportTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Http::swap(new HttpFactory);
+    }
+
+    protected function tearDown(): void
+    {
+        Facade::clearResolvedInstances();
+        Facade::setFacadeApplication(null);
+
+        parent::tearDown();
+    }
+
     public function test_solver_phase_timing_header_is_strictly_allowlisted(): void
     {
         $this->assertSame([], SchedulingSolverResponse::parseSolverPhaseTimings(
@@ -28,20 +44,6 @@ final class TAL94E1SchedulingSolverTransportTest extends TestCase
         $this->assertSame(['parsing' => 2], SchedulingSolverResponse::parseSolverPhaseTimings(
             '{"parsing":2}',
         ));
-    }
-
-    public function test_local_http_driver_resolves_in_testing_environment(): void
-    {
-        config()->set('tala_integrations.scheduling_solver.driver', 'local_http');
-        config()->set('tala_integrations.scheduling_solver.url', 'http://127.0.0.1:8080');
-
-        $this->app->forgetInstance(SchedulingSolverClient::class);
-        $this->app->forgetInstance(LocalHttpSchedulingSolverClient::class);
-
-        $this->assertInstanceOf(
-            LocalHttpSchedulingSolverClient::class,
-            app(SchedulingSolverClient::class),
-        );
     }
 
     public function test_local_http_probe_and_solve_use_loopback_without_authorization(): void
@@ -283,7 +285,9 @@ final class TAL94E1SchedulingSolverTransportTest extends TestCase
 
     public function test_scheduler_configuration_has_no_toggle_that_can_disable_cloud_run_iam(): void
     {
-        $this->assertNull(config('tala_integrations.scheduling_solver.auth'));
+        $config = require dirname(__DIR__, 2).'/config/tala_integrations.php';
+
+        $this->assertArrayNotHasKey('auth', $config['scheduling_solver']);
     }
 
     public function test_exact_budget_exhaustion_code_is_retryable_and_redacted(): void

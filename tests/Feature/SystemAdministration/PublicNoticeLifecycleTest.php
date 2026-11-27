@@ -6,27 +6,33 @@ use App\Actions\PublicContent\ManagePublicContent;
 use App\Models\FaqEntry;
 use App\Models\PublicNotice;
 use App\Models\User;
-use Database\Seeders\DatabaseSeeder;
 use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Spatie\Activitylog\Models\Activity;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\TestCase;
 
 class PublicNoticeLifecycleTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     private User $administrator;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->seed(DatabaseSeeder::class);
-        Role::findOrCreate(User::StaffRoleSystemSuperAdmin, 'web');
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        foreach (['manage-faqs', 'manage-public-notices'] as $permission) {
+            Permission::findOrCreate($permission, 'web');
+        }
+        Role::findOrCreate(User::StaffRoleSystemSuperAdmin, 'web')->syncPermissions(['manage-faqs', 'manage-public-notices']);
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
         $this->administrator = User::factory()->create(['status' => User::StatusActive]);
         $this->administrator->assignRole(User::StaffRoleSystemSuperAdmin);
         $this->actingAs($this->administrator);

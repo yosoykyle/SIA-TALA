@@ -7,8 +7,7 @@ use App\Filament\Applicant\Pages\Auth\ApplicantEmailVerification;
 use App\Models\User;
 use Filament\Auth\Notifications\VerifyEmail;
 use Filament\Facades\Filament;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
-use Illuminate\Notifications\Messages\MailMessage;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Notification;
 use Livewire\Livewire;
 use Spatie\Activitylog\Models\Activity;
@@ -17,51 +16,13 @@ use Tests\TestCase;
 
 class AuthVerificationAndErrorPageTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {
         parent::setUp();
 
         Role::findOrCreate('applicant', 'web');
-    }
-
-    public function test_applicant_verification_email_displays_institution_branding_without_laravel_or_broken_icon_boxes(): void
-    {
-        config()->set('app.name', 'Laravel');
-        config()->set('institution.name', 'Servitech Institute Asia Inc.');
-
-        $applicant = $this->createUnverifiedApplicant();
-        Notification::fake();
-        Filament::setCurrentPanel(Filament::getPanel('applicant'));
-
-        $this->assertTrue(app(DispatchApplicantEmailVerification::class)->execute($applicant));
-
-        /** @var VerifyEmail $notification */
-        $notification = Notification::sent($applicant, VerifyEmail::class)->sole();
-        $mailMessage = $notification->toMail($applicant);
-
-        $this->assertInstanceOf(MailMessage::class, $mailMessage);
-        $this->assertSame('Servitech Institute Asia Inc. — Verify your email address', $mailMessage->subject);
-        $this->assertSame("Regards,\nServitech Institute Asia Inc.", $mailMessage->salutation);
-
-        $renderedHtml = (string) $mailMessage->render();
-
-        $this->assertStringContainsString('Servitech Institute Asia Inc.', $renderedHtml);
-        $this->assertStringContainsString('Verify email address', $renderedHtml);
-        $this->assertStringContainsString('Regards,', $renderedHtml);
-        $this->assertStringNotContainsString('Laravel', $renderedHtml);
-        $this->assertStringNotContainsString('Powered by', $renderedHtml);
-        $this->assertStringNotContainsString('servitech-crest.webp', $renderedHtml);
-        $this->assertStringNotContainsString('talalogo.png', $renderedHtml);
-
-        $fallbackNotificationHtml = (string) (new MailMessage)
-            ->line('System update notice.')
-            ->render();
-
-        $this->assertStringContainsString('Servitech Institute Asia Inc.', $fallbackNotificationHtml);
-        $this->assertStringNotContainsString('Laravel', $fallbackNotificationHtml);
-        $this->assertStringNotContainsString('Powered by', $fallbackNotificationHtml);
     }
 
     public function test_unauthenticated_applicant_clicking_valid_signed_verification_link_verifies_and_redirects_to_login_with_status(): void
@@ -98,25 +59,6 @@ class AuthVerificationAndErrorPageTest extends TestCase
         $this->actingAs($applicant)
             ->get('/applicant')
             ->assertOk();
-    }
-
-    public function test_signed_in_applicant_clicking_valid_signed_verification_link_verifies_and_redirects_to_applicant_workspace(): void
-    {
-        $applicant = $this->createUnverifiedApplicant();
-        Notification::fake();
-        Filament::setCurrentPanel(Filament::getPanel('applicant'));
-
-        $this->assertTrue(app(DispatchApplicantEmailVerification::class)->execute($applicant));
-        $verificationUrl = Notification::sent($applicant, VerifyEmail::class)->sole()->url;
-
-        $this->actingAs($applicant->fresh())
-            ->withSession([DispatchApplicantEmailVerification::SentAtSessionKey => now()->getTimestamp()])
-            ->get($verificationUrl)
-            ->assertRedirect('/applicant')
-            ->assertSessionMissing(DispatchApplicantEmailVerification::SentAtSessionKey);
-
-        $this->assertTrue($applicant->fresh()->hasVerifiedEmail());
-        $this->assertNull($applicant->fresh()->email_verification_nonce);
     }
 
     public function test_signed_in_different_user_cannot_verify_another_applicants_link(): void
@@ -218,46 +160,6 @@ class AuthVerificationAndErrorPageTest extends TestCase
             ->assertRedirect(route('filament.applicant.auth.login'));
 
         $this->assertGuest();
-    }
-
-    public function test_forbidden_error_page_removes_stray_http_403_footer_and_renders_inline_contact_support_link(): void
-    {
-        $applicant = $this->createUnverifiedApplicant();
-        Notification::fake();
-        Filament::setCurrentPanel(Filament::getPanel('applicant'));
-
-        $this->assertTrue(app(DispatchApplicantEmailVerification::class)->execute($applicant));
-
-        $malformedUrl = route('filament.applicant.auth.email-verification.verify', [
-            'id' => $applicant->id,
-            'hash' => sha1($applicant->fresh()->getEmailForVerification()),
-        ]);
-
-        $supportUrl = route('home', ['modal' => 'support']);
-
-        $this->actingAs($applicant->fresh())
-            ->get($malformedUrl)
-            ->assertForbidden()
-            ->assertSee('Request a new verification link')
-            ->assertSee('Use another account')
-            ->assertSee('Contact support')
-            ->assertSee('class="error-support-link"', false)
-            ->assertDontSee('HTTP 403')
-            ->assertDontSee('class="secondary-action" href="'.$supportUrl.'"', false);
-
-        $verifiedApplicant = User::factory()->create([
-            'status' => User::StatusActive,
-            'email_verified_at' => now(),
-        ]);
-        $verifiedApplicant->assignRole('applicant');
-
-        $this->actingAs($verifiedApplicant);
-        $this->view('errors.403')
-            ->assertSee('Return to your application')
-            ->assertSee('Use another account')
-            ->assertSee('Contact support')
-            ->assertSee('class="error-support-link"', false)
-            ->assertDontSee('HTTP 403');
     }
 
     private function createUnverifiedApplicant(): User

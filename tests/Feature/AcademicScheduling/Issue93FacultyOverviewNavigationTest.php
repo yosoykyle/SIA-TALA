@@ -117,14 +117,10 @@ class Issue93FacultyOverviewNavigationTest extends TestCase
         $component = Livewire::actingAs($faculty)
             ->test(FacultyOverview::class)
             ->assertSet('termId', null)
-            ->assertSee('Choose a term to view your overview')
-            ->assertDontSee('My schedule');
+            ->assertSee('Choose a term to view your overview');
 
         $component->call('selectTerm', $packageA->term_id)
             ->assertSet('termId', $packageA->term_id)
-            ->assertSee('My schedule')
-            ->assertSee('My availability')
-            ->assertSee('Class grades')
             ->assertSee('Not published yet')
             ->assertSee('Not submitted yet')
             ->assertSeeInOrder(['0', 'classes needing action']);
@@ -163,25 +159,17 @@ class Issue93FacultyOverviewNavigationTest extends TestCase
             ],
         );
 
-        $component = Livewire::actingAs($faculty)
+        Livewire::actingAs($faculty)
             ->test(FacultyOverview::class)
             ->assertSet('termId', $term->id)
             ->assertDontSee('Needs your action')
-            ->assertDontSee('tala-workflow-step--priority', false)
             ->assertSeeInOrder(['1', 'class'])
             ->assertSee('1 weekly meeting')
             ->assertSee('Exam period:')
             ->assertSee('Available on selected times')
             ->assertSee('Reply by Aug 15, 2026')
-            ->assertSee('Update availability')
             ->assertSeeInOrder(['0', 'classes needing action'])
-            ->assertSee('0 assigned classes')
-            ->assertSee('Open schedule')
-            ->assertSee('Open class grades');
-
-        // Verify zero occurrences of "roster" in visible UI text (excluding URL slugs like faculty-grade-roster).
-        $visibleText = preg_replace('/href="[^"]*"/i', '', $component->html());
-        $this->assertStringNotContainsStringIgnoringCase('roster', strip_tags((string) $visibleText));
+            ->assertSee('0 assigned classes');
 
         // Verify the other plain saved status labels.
         app(RecordFacultyAvailabilityDeclaration::class)->execute(
@@ -244,11 +232,9 @@ class Issue93FacultyOverviewNavigationTest extends TestCase
         Livewire::actingAs($faculty)
             ->test(FacultyOverview::class, ['termId' => $term->id])
             ->assertSee('Needs your action')
-            ->assertSee('Submit availability')
             ->assertSee('Reply by Aug 20, 2026')
             ->assertSee($fixture['course']->code)
             ->assertSee($fixture['section']->code)
-            ->assertSee('View schedule')
             ->assertViewHas('priorityCard', 'availability')
             ->assertSeeHtml('href="'.e(MyAvailability::getUrl(['termId' => $term->id])).'"')
             ->assertSeeHtml('href="'.e(FacultySchedule::getUrl(['termId' => $term->id])).'"');

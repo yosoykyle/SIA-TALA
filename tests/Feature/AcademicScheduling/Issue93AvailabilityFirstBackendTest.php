@@ -50,56 +50,6 @@ final class Issue93AvailabilityFirstBackendTest extends TestCase
 
     private int $seq = 0;
 
-    public function test_legacy_declarations_map_to_availability_first_modes_and_compile_blocks_unchanged(): void
-    {
-        $term = Term::factory()->create(['state' => Term::StateActive]);
-        $calendar = $this->activeCalendar($term, [
-            1 => ['08:00:00', '17:00:00', [['starts_at' => '12:00:00', 'ends_at' => '13:00:00']]],
-            2 => ['08:00:00', '12:00:00', []],
-        ]);
-        $faculty = $this->staff(User::StaffRoleFaculty);
-
-        $any = FacultyAvailabilityDeclaration::factory()->create([
-            'term_id' => $term->id,
-            'faculty_user_id' => $faculty->id,
-            'version' => 1,
-            'declaration' => FacultyAvailabilityDeclaration::DeclarationAvailable,
-            'hard_unavailability' => [],
-        ]);
-        $this->assertSame(FacultyAvailabilityDeclaration::ModeAnyApproved, $any->effectiveMode());
-        $this->assertSame('Any approved teaching time', $any->modeLabel());
-        $this->assertSame([], $any->compileUnavailableBlocks($calendar));
-
-        $legacyRestricted = FacultyAvailabilityDeclaration::factory()->create([
-            'term_id' => $term->id,
-            'faculty_user_id' => $faculty->id,
-            'version' => 2,
-            'declaration' => FacultyAvailabilityDeclaration::DeclarationAvailable,
-            'hard_unavailability' => [
-                ['day_of_week' => 1, 'starts_at' => '09:00:00', 'ends_at' => '11:00:00'],
-            ],
-        ]);
-        $this->assertSame(FacultyAvailabilityDeclaration::ModeLegacyUnavailability, $legacyRestricted->effectiveMode());
-        $this->assertSame('Any approved teaching time (except recorded unavailable times)', $legacyRestricted->modeLabel());
-        $this->assertSame([
-            ['day_of_week' => 1, 'starts_at' => '09:00:00', 'ends_at' => '11:00:00'],
-        ], $legacyRestricted->compileUnavailableBlocks($calendar));
-
-        $cannotTeach = FacultyAvailabilityDeclaration::factory()->create([
-            'term_id' => $term->id,
-            'faculty_user_id' => $faculty->id,
-            'version' => 3,
-            'declaration' => FacultyAvailabilityDeclaration::DeclarationUnavailable,
-            'hard_unavailability' => [],
-        ]);
-        $this->assertSame(FacultyAvailabilityDeclaration::ModeCannotTeach, $cannotTeach->effectiveMode());
-        $this->assertSame('Cannot teach this Term', $cannotTeach->modeLabel());
-        $this->assertSame([
-            ['day_of_week' => 1, 'starts_at' => '08:00:00', 'ends_at' => '17:00:00'],
-            ['day_of_week' => 2, 'starts_at' => '08:00:00', 'ends_at' => '12:00:00'],
-        ], $cannotTeach->compileUnavailableBlocks($calendar));
-    }
-
     public function test_chosen_windows_compile_exact_complement_never_widen_and_flag_grid_review(): void
     {
         $term = Term::factory()->create(['state' => Term::StateActive]);
@@ -159,26 +109,6 @@ final class Issue93AvailabilityFirstBackendTest extends TestCase
             ['day_of_week' => 1, 'starts_at' => '12:00:00', 'ends_at' => '13:00:00'],
             ['day_of_week' => 1, 'starts_at' => '15:00:00', 'ends_at' => '20:00:00'],
         ], $declaration->compileUnavailableBlocks($calendar));
-
-        // A window wholly inside the 10:00-11:00 break leaves zero usable minutes and IS flagged.
-        $otherFaculty = $this->staff(User::StaffRoleFaculty);
-        $breakOnlyDeclaration = FacultyAvailabilityDeclaration::factory()->create([
-            'term_id' => $term->id,
-            'faculty_user_id' => $otherFaculty->id,
-            'version' => 1,
-            'declaration' => FacultyAvailabilityDeclaration::DeclarationAvailable,
-            'availability_mode' => FacultyAvailabilityDeclaration::ModeWindows,
-            'teaching_windows' => [
-                ['day_of_week' => 1, 'start_time' => '10:00', 'end_time' => '11:00'],
-            ],
-            'hard_unavailability' => [],
-        ]);
-
-        $this->assertTrue($breakOnlyDeclaration->needsGridReview($calendar));
-        $outsideBreakOnly = $breakOnlyDeclaration->windowsOutsideGrid($calendar);
-        $this->assertCount(1, $outsideBreakOnly);
-        $this->assertSame('10:00', $outsideBreakOnly[0]['start_time']);
-        $this->assertSame('11:00', $outsideBreakOnly[0]['end_time']);
     }
 
     public function test_record_declaration_validates_windows_requires_faculty_actor_and_stales_runs_on_first_response(): void

@@ -2,7 +2,6 @@
 
 namespace Tests\Feature\AcademicScheduling;
 
-use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Filament\Pages\TermCalendar;
 use App\Filament\Pages\TermOverview;
 use App\Filament\Pages\TermResources;
@@ -17,21 +16,19 @@ use App\Models\CourseSpecification;
 use App\Models\FacultyQualification;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
-use App\Models\TermTeachingGridRow;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
-use Spatie\Permission\PermissionRegistrar;
+use Tests\Feature\AcademicScheduling\Concerns\InteractsWithAcademicSchedulingFixtures;
 use Tests\TestCase;
 
 final class Issue93S03S08RuntimeVerificationTest extends TestCase
 {
     use DatabaseTransactions;
+    use InteractsWithAcademicSchedulingFixtures;
 
     protected function setUp(): void
     {
@@ -253,56 +250,34 @@ final class Issue93S03S08RuntimeVerificationTest extends TestCase
 
     private function asStaff(User $user, string $role): static
     {
-        return $this->actingAs($user)->withSession([WorkspaceContextResolver::SessionKey => $role]);
+        return $this->withStaffSession($user, $role);
     }
 
     private function staff(string $role): User
     {
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
-
-        $roleModel = Role::findOrCreate($role, 'web');
-
         $permissions = match ($role) {
             User::StaffRoleRegistrar => ['manage-schedules', 'manage-sections'],
             User::StaffRoleAcademicHead => ['authorize-overrides', 'view-global-records'],
             default => [],
         };
 
-        foreach ($permissions as $permission) {
-            $roleModel->givePermissionTo(Permission::findOrCreate($permission, 'web'));
-        }
-
-        $user = User::factory()->create([
-            'status' => User::StatusActive,
-            'two_factor_secret' => encrypt('JBSWY3DPEHPK3PXP'),
-            'two_factor_recovery_codes' => encrypt(json_encode(['code-1', 'code-2'])),
-            'two_factor_confirmed_at' => now(),
-            'two_factor_recovery_codes_acknowledged_at' => now(),
-        ]);
-        $user->assignRole($roleModel);
-
-        return $user;
+        return $this->createSchedulingStaff($role, $permissions, actAs: false, withMfa: true);
     }
 
     private function activeCalendar(Term $term, User $recorder): TermCalendarPackage
     {
-        $calendar = TermCalendarPackage::factory()->for($term)->create([
-            'state' => TermCalendarPackage::StateActive,
-            'version' => 1,
-            'classes_start_on' => $term->starts_on,
-            'classes_end_on' => $term->ends_on,
-            'authority_reference' => 'MEMO-93-S03',
-            'recorded_by' => $recorder->id,
-        ]);
-
-        TermTeachingGridRow::query()->create([
-            'term_calendar_package_id' => $calendar->id,
-            'day_of_week' => 1,
-            'starts_at' => '07:30:00',
-            'ends_at' => '19:00:00',
-            'breaks' => [['starts_at' => '12:00:00', 'ends_at' => '13:00:00']],
-        ]);
-
-        return $calendar;
+        return $this->createActiveTermCalendar(
+            term: $term,
+            recorder: $recorder,
+            days: [1],
+            startsAt: '07:30:00',
+            endsAt: '19:00:00',
+            packageOverrides: [
+                'version' => 1,
+                'classes_start_on' => $term->starts_on,
+                'classes_end_on' => $term->ends_on,
+                'authority_reference' => 'MEMO-93-S03',
+            ],
+        );
     }
 }

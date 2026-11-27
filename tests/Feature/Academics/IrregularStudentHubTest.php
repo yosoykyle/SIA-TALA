@@ -13,7 +13,7 @@ use App\Models\Program;
 use App\Models\StudentProfile;
 use App\Models\User;
 use Filament\Facades\Filament;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 use Tests\BuildsIrregularStudents;
@@ -22,7 +22,7 @@ use Tests\TestCase;
 class IrregularStudentHubTest extends TestCase
 {
     use BuildsIrregularStudents;
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     private User $registrar;
 

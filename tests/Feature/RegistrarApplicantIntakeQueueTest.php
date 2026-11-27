@@ -7,7 +7,7 @@ use App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications
 use App\Models\AdmissionApplication;
 use App\Models\User;
 use Filament\Facades\Filament;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -15,7 +15,7 @@ use Tests\TestCase;
 
 class RegistrarApplicantIntakeQueueTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {

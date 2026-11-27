@@ -6,12 +6,12 @@ use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
 use App\Models\StudentProfile;
 use App\Models\User;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Tests\TestCase;
 
 class TAL96D2AAdmissionsHardeningTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     public function test_application_state_does_not_mutate_account_identity_or_create_student_records(): void
     {

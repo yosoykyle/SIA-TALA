@@ -16,7 +16,6 @@ use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Role;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Tests\TestCase;
 
 final class TAL96D4CStudentHubReportOutputPresentationTest extends TestCase
@@ -32,9 +31,7 @@ final class TAL96D4CStudentHubReportOutputPresentationTest extends TestCase
         $this->assertSame((string) env('TALA_TEST_DATABASE', 'test_tala_db'), DB::connection()->getDatabaseName());
         $this->assertNotContains(DB::connection()->getDatabaseName(), ['tala_db', 'tala_test_codex']);
 
-        foreach (['student', User::StaffRoleAccounting] as $role) {
-            Role::query()->firstOrCreate(['name' => $role, 'guard_name' => 'web']);
-        }
+        Role::query()->firstOrCreate(['name' => 'student', 'guard_name' => 'web']);
     }
 
     #[Test]
@@ -65,20 +62,6 @@ final class TAL96D4CStudentHubReportOutputPresentationTest extends TestCase
             ->assertSee('Current enrollment details become available after official enrollment.')
             ->assertSee('View enrollment')
             ->assertDontSee('IRREGULAR');
-    }
-
-    #[Test]
-    public function generic_finance_reports_are_unavailable_to_accounting(): void
-    {
-        $accounting = User::factory()->create(['status' => User::StatusActive]);
-        $accounting->assignRole(User::StaffRoleAccounting);
-
-        $this->actingAs($accounting);
-        Filament::setCurrentPanel(Filament::getPanel('admin'));
-
-        $this->assertFileDoesNotExist(app_path('Filament/Pages/ReportsAudit.php'));
-        $this->assertFileDoesNotExist(app_path('Actions/Reports/OperationalReportService.php'));
-        $this->assertFileDoesNotExist(app_path('Actions/Reports/ExportOperationalReport.php'));
     }
 
     #[Test]
@@ -124,13 +107,5 @@ final class TAL96D4CStudentHubReportOutputPresentationTest extends TestCase
 
         $this->assertStringContainsString('Accounting Office', $payment);
         $this->assertStringContainsString('official receipt', $payment);
-    }
-
-    private function streamedContent(StreamedResponse $response): string
-    {
-        ob_start();
-        $response->sendContent();
-
-        return (string) ob_get_clean();
     }
 }

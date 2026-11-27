@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use App\Actions\Integrations\SchedulingSolver\CloudRunIdTokenProvider;
 use App\Actions\Integrations\SchedulingSolver\CloudRunSchedulingSolverClient;
+use App\Actions\Integrations\SchedulingSolver\LocalHttpSchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\SchedulingSolverRequest;
 use App\Models\ScheduleGenerationRun;
@@ -85,5 +86,19 @@ final class TAL65CloudRunSchedulingSolverClientTest extends TestCase
             && $request['scheduling_demands'][0]['scheduling_demand_id'] === 501
             && $request['optimization_settings']['publish_after_solver'] === false);
         Http::assertSentCount(1);
+    }
+
+    public function test_local_http_driver_resolves_in_testing_environment(): void
+    {
+        config()->set('tala_integrations.scheduling_solver.driver', 'local_http');
+        config()->set('tala_integrations.scheduling_solver.url', 'http://127.0.0.1:8080');
+
+        $this->app->forgetInstance(SchedulingSolverClient::class);
+        $this->app->forgetInstance(LocalHttpSchedulingSolverClient::class);
+
+        $this->assertInstanceOf(
+            LocalHttpSchedulingSolverClient::class,
+            app(SchedulingSolverClient::class),
+        );
     }
 }

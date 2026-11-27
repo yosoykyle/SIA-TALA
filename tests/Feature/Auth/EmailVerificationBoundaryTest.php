@@ -8,7 +8,7 @@ use App\Http\Responses\RoleAwareLoginResponse;
 use App\Models\StudentProfile;
 use App\Models\User;
 use Filament\Facades\Filament;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -18,7 +18,7 @@ use Tests\TestCase;
 
 class EmailVerificationBoundaryTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {

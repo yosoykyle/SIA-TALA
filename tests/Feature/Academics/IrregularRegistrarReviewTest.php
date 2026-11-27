@@ -14,7 +14,7 @@ use App\Models\StudentProfile;
 use App\Models\User;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
@@ -24,7 +24,7 @@ use Tests\TestCase;
 class IrregularRegistrarReviewTest extends TestCase
 {
     use BuildsIrregularStudents;
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     private User $registrar;
 

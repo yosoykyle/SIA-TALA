@@ -75,6 +75,10 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
         $this->assertTrue(class_exists(GovernanceAudit::class));
         $this->assertContains(SystemHealth::class, Filament::getPanel('admin')->getPages());
         $this->assertContains(GovernanceAudit::class, Filament::getPanel('admin')->getPages());
+        $this->assertFileDoesNotExist(app_path('Filament/Pages/IntegrationStatus.php'));
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/OperationalEvents/OperationalEventResource.php'));
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/SystemSettings/SystemSettingResource.php'));
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/Activities/ActivityResource.php'));
 
         $this->actingAs($this->staff(User::StaffRoleSystemSuperAdmin));
         Filament::setCurrentPanel(Filament::getPanel('admin'));
@@ -109,6 +113,8 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
     public function system_health_projects_four_live_operational_cards_with_canonical_statuses(): void
     {
         Config::set('mail.default', 'array');
+        Config::set('mail.mailers.smtp.password', 'smtp_secret_hidden');
+        Config::set('tala_integrations.scheduling_solver.credentials', 'solver_secret_hidden');
 
         $capture = app(SystemHealthPresenter::class)->capture();
         $rows = collect($capture['rows']);
@@ -128,6 +134,8 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
         $html = Livewire::test(SystemHealth::class)->html();
 
         $this->assertStringContainsString('Automated database backups and disaster recovery are managed at the hosting infrastructure level.', $html);
+        $this->assertStringNotContainsString('smtp_secret_hidden', $html);
+        $this->assertStringNotContainsString('solver_secret_hidden', $html);
         $this->assertStringNotContainsString('Not checked by TALA', $html);
         $this->assertStringNotContainsString('planning target, not achieved evidence', $html);
         $this->assertStringNotContainsString('<details', $html);
@@ -653,7 +661,15 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
         $component = Livewire::test(GovernanceAudit::class);
 
         $this->assertSame(array_keys(GovernanceEvidenceProjection::tabs()), array_keys($component->get('tabs')));
-        $component->assertSee('Institutional changes')->assertSee('Updated');
+        $component->assertSee('Institutional changes')
+            ->assertSee('Updated')
+            ->assertSee('Export CSV')
+            ->assertSee('When')
+            ->assertSee('Event')
+            ->assertSee('Who')
+            ->assertSee('Target')
+            ->assertSee('Summary')
+            ->assertDontSee('—');
         $this->assertSafeGovernanceHtml($component->html());
 
         $component->call('setActiveTab', GovernanceEvidenceProjection::SystemEvents)->assertSee('Safe Fixture Event')->assertSee('Login Failed');
@@ -938,11 +954,18 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
     #[Test]
     public function governance_privacy_tab_contains_canonical_disposal_notice(): void
     {
+        $this->assertFalse(Schema::hasTable('disposal_reviews'));
+        $this->assertFileDoesNotExist(app_path('Models/DisposalReview.php'));
+        $this->assertFileDoesNotExist(app_path('Enums/RetentionCategory.php'));
+        $this->assertFileDoesNotExist(app_path('Filament/Resources/DisposalReviews/DisposalReviewResource.php'));
+        $this->assertFileDoesNotExist(config_path('tala_retention.php'));
+
         $this->actingAs($this->staff(User::StaffRoleSystemSuperAdmin));
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         Livewire::test(GovernanceAudit::class)
             ->call('setActiveTab', GovernanceEvidenceProjection::PrivacyRetention)
+            ->assertSee('performs no disposal action')
             ->assertSee("Automatic record disposal is not available in TALA. Follow the institution's approved privacy and records procedure.", escape: false);
     }
 
@@ -1482,6 +1505,7 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
             ->assertSee('Job Queue')
             ->assertSee('Mail / SMTP')
             ->assertSee('Scheduling Solver')
+            ->assertSee('Refresh status')
             ->assertSee('Technical details')
             ->assertSee('Inspect failed jobs')
             ->assertSee('Send test email')
@@ -1489,6 +1513,7 @@ final class SystemHealthAndGovernanceJourneyTest extends TestCase
             ->assertSee('Automated database backups and disaster recovery are managed at the hosting infrastructure level.')
             ->assertDontSee('Not checked by TALA')
             ->assertDontSee('Prospective RPO target')
+            ->assertDontSee('Prospective RTO target')
             ->assertDontSee('PDO connection check');
 
         $component

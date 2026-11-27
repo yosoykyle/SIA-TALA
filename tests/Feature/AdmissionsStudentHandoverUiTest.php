@@ -11,7 +11,7 @@ use App\Models\ChecklistItem;
 use App\Models\Hold;
 use App\Models\StudentProfile;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
 use Spatie\Permission\Models\Permission;
@@ -20,7 +20,7 @@ use Tests\TestCase;
 
 class AdmissionsStudentHandoverUiTest extends TestCase
 {
-    use RefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {

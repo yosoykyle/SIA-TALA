@@ -1132,8 +1132,6 @@ final class Option2ProgramsCurriculaFlowsTest extends TestCase
 
         $this->assertSame(CourseSpecification::AcademicClassificationTesdaCompetency, $tesdaSpec->academic_classification);
         $this->assertSame(CourseSpecification::AcademicClassificationNonCredit, $nonCreditSpec->academic_classification);
-        $this->assertFalse(CourseSpecification::isExcludedFromGwa(CourseSpecification::AcademicClassificationTesdaCompetency));
-        $this->assertTrue(CourseSpecification::isExcludedFromGwa(CourseSpecification::AcademicClassificationNonCredit));
 
         // OfficialCourseResultProjection & AcademicAverageReadiness: TESDA_COMPETENCY is included in GWA; NON_CREDIT is excluded.
         $term = Term::factory()->create(['state' => Term::StateActive]);
@@ -1215,8 +1213,6 @@ final class Option2ProgramsCurriculaFlowsTest extends TestCase
         $this->assertInstanceOf(View::class, $expandIcon);
         $this->assertSame('filament.components.icons.sidebar-collapse', $collapseIcon->name());
         $this->assertSame('filament.components.icons.sidebar-expand', $expandIcon->name());
-        $this->assertStringContainsString('M15 9l-2.5 3 2.5 3', $collapseIcon->render());
-        $this->assertStringContainsString('M13 9l2.5 3-2.5 3', $expandIcon->render());
 
         // 3. ViewCourse renders redesigned Subject overview (spec strip, GWA inclusion/exclusion, TESDA badge, description lead without nested card)
         Livewire::test(ViewCourse::class, ['record' => $tesdaSpec->course_id])

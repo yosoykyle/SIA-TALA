@@ -34,7 +34,7 @@ use App\Models\TermCohort;
 use App\Models\TermDatedException;
 use App\Models\TermOffering;
 use App\Models\User;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Validation\ValidationException;
 use Spatie\Permission\Models\Permission;
@@ -43,7 +43,7 @@ use Tests\TestCase;
 
 final class Slice3ConformanceGapsTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     protected function setUp(): void
     {

@@ -15,7 +15,7 @@ use App\Models\User;
 use Filament\Auth\Notifications\VerifyEmail;
 use Filament\Facades\Filament;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Notification;
@@ -28,7 +28,7 @@ use Tests\TestCase;
 
 class ApplicantAccountEntryJourneyTest extends TestCase
 {
-    use LazilyRefreshDatabase;
+    use DatabaseTransactions;
 
     public function test_open_admissions_exposes_registration_without_an_invented_mail_readiness_toggle(): void
     {
@@ -520,8 +520,10 @@ class ApplicantAccountEntryJourneyTest extends TestCase
             ->assertSee($applicant->getFilamentName());
 
         $this->actingAs($applicant->fresh())
+            ->withSession([DispatchApplicantEmailVerification::SentAtSessionKey => now()->getTimestamp()])
             ->get($secondUrl)
-            ->assertRedirect('/applicant');
+            ->assertRedirect('/applicant')
+            ->assertSessionMissing(DispatchApplicantEmailVerification::SentAtSessionKey);
 
         $this->assertNotNull($applicant->fresh()->email_verified_at);
         $this->assertNull($applicant->fresh()->email_verification_nonce);

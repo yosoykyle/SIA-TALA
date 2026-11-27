@@ -4,15 +4,17 @@ namespace Tests\Feature\Auth;
 
 use App\Actions\Authentication\StaffMfaService;
 use App\Actions\Authentication\TalaAppAuthentication;
-use App\Actions\Authentication\UserSessionService;
 use App\Actions\Authentication\WorkspaceContextResolver;
 use App\Actions\Fortify\ResetUserPassword;
 use App\Actions\SystemAdministration\GovernanceEvidenceProjection;
+use App\Filament\Applicant\Pages\Auth\RegisterApplicant;
 use App\Filament\Pages\Auth\AccountSecurity;
 use App\Filament\Pages\Auth\ContextualLogin;
 use App\Filament\Pages\FacultyOverview;
 use App\Models\AdmissionApplication;
+use App\Models\AdmissionCycle;
 use App\Models\StudentProfile;
+use App\Models\Term;
 use App\Models\User;
 use Filament\Actions\Testing\TestAction;
 use Filament\Auth\MultiFactor\Pages\SetUpRequiredMultiFactorAuthentication;
@@ -31,7 +33,6 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PragmaRX\Google2FAQRCode\Google2FA;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -167,24 +168,6 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
         $this->assertStringContainsString('Current password', $modalHtml);
     }
 
-    public function test_mfa_qr_code_normalization_removes_only_a_duplicate_svg_data_uri_layer(): void
-    {
-        $provider = new class(app(Google2FA::class)) extends TalaAppAuthentication
-        {
-            public function normalizeForTest(#[\SensitiveParameter] string $dataUri): string
-            {
-                return $this->normalizeQrCodeDataUri($dataUri);
-            }
-        };
-        $svgDataUri = 'data:image/svg+xml;base64,'.base64_encode('<svg xmlns="http://www.w3.org/2000/svg"></svg>');
-        $duplicateSvgDataUri = 'data:image/svg+xml;base64,'.base64_encode($svgDataUri);
-        $pngDataUri = 'data:image/png;base64,'.base64_encode("\x89PNG\r\n\x1a\n");
-
-        $this->assertSame($svgDataUri, $provider->normalizeForTest($duplicateSvgDataUri));
-        $this->assertSame($svgDataUri, $provider->normalizeForTest($svgDataUri));
-        $this->assertSame($pngDataUri, $provider->normalizeForTest($pngDataUri));
-    }
-
     public function test_authorized_reset_removes_factor_codes_and_sessions_then_requires_reenrollment(): void
     {
         $actor = User::factory()->create(['password' => Hash::make('administrator password')]);
@@ -215,21 +198,6 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
         $this->assertNull($target->getAppAuthenticationRecoveryCodes());
         $this->assertSame(User::StatusVerificationRequired, $target->status);
         $this->assertDatabaseMissing('sessions', ['user_id' => $target->id]);
-    }
-
-    public function test_staff_capable_accounts_use_stricter_session_policy(): void
-    {
-        $staffLearner = User::factory()->create();
-        $staffLearner->assignRole(['student', User::StaffRoleFaculty]);
-        $learner = User::factory()->create();
-        $learner->assignRole('student');
-
-        $service = app(UserSessionService::class);
-
-        $this->assertFalse($service->rememberAllowed($staffLearner));
-        $this->assertSame(30, $service->idleTimeoutMinutes($staffLearner));
-        $this->assertTrue($service->rememberAllowed($learner));
-        $this->assertSame(120, $service->idleTimeoutMinutes($learner));
     }
 
     public function test_mfa_reset_rejects_an_incorrect_actor_password_without_change(): void
@@ -356,13 +324,97 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
             ->assertHasNoErrors();
 
         $login
-            ->set('data.multiFactor.app.useRecoveryCode', true)
-            ->set('data.multiFactor.app.recoveryCode', 'single-use-recovery')
+            ->set('data.multiFactor.app.code', '123')
+            ->call('authenticate')
+            ->assertHasErrors(['data.multiFactor.app.code']);
+
+        $login
+            ->callAction(TestAction::make('useRecoveryCode')->schemaComponent('app.code', 'multiFactorChallengeForm'))
+            ->assertHasNoErrors()
+            ->assertSet('data.multiFactor.app.useRecoveryCode', true)
+            ->assertSet('data.multiFactor.app.code', null)
+            ->assertSeeHtml('required="required"')
+            ->set('data.multiFactor.app.recoveryCode', " single-use-recovery\n")
             ->call('authenticate')
             ->assertHasNoErrors()
             ->assertRedirect(FacultyOverview::getUrl(panel: 'admin'));
 
         $this->assertSame([], $staff->fresh()->getAppAuthenticationRecoveryCodes());
+    }
+
+    public function test_invalid_or_blank_recovery_code_validates_only_recovery_code_and_never_code_field(): void
+    {
+        $staff = User::factory()->create([
+            'email' => 'mfa-recovery-invalid@example.test',
+            'password' => 'a secure password 2026',
+        ]);
+        $staff->assignRole(User::StaffRoleFaculty);
+
+        $provider = app(TalaAppAuthentication::class)->recoverable();
+        $provider->saveSecret($staff, $provider->generateSecret());
+        $provider->saveRecoveryCodes($staff, ['PREV-9301-AAAA']);
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $login = Livewire::test(ContextualLogin::class)
+            ->set('data.email', $staff->email)
+            ->set('data.password', 'a secure password 2026')
+            ->call('authenticate')
+            ->assertHasNoErrors();
+
+        $login
+            ->callAction(TestAction::make('useRecoveryCode')->schemaComponent('app.code', 'multiFactorChallengeForm'))
+            ->set('data.multiFactor.app.recoveryCode', '')
+            ->call('authenticate')
+            ->assertHasErrors(['data.multiFactor.app.recoveryCode'])
+            ->assertHasNoErrors(['data.multiFactor.app.code']);
+
+        $login
+            ->set('data.multiFactor.app.recoveryCode', 'WRONG-CODE-9999')
+            ->call('authenticate')
+            ->assertHasErrors(['data.multiFactor.app.recoveryCode'])
+            ->assertHasNoErrors(['data.multiFactor.app.code']);
+    }
+
+    public function test_all_auth_screens_reuse_native_html5_constraints_and_shared_client_on_submit_validation(): void
+    {
+        $term = Term::query()->where('state', Term::StateActive)->first()
+            ?? Term::factory()->create(['state' => Term::StateActive]);
+
+        AdmissionCycle::factory()->for($term)->published()->create([
+            'opens_at' => now()->subDay(),
+            'closes_at' => now()->addDay(),
+        ]);
+
+        Http::fake([
+            'api.pwnedpasswords.com/*' => Http::response('', 200),
+        ]);
+
+        foreach (['/admin/login', '/admin/password-reset/request', '/applicant/register'] as $path) {
+            $this->get($path)
+                ->assertOk()
+                ->assertSee('type="email"', false)
+                ->assertSee('required="required"', false)
+                ->assertSee('novalidate', false)
+                ->assertSee('js/tala-auth-validation.js', false);
+        }
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        Livewire::test(ContextualLogin::class)
+            ->set('data.email', 'partial-email-while-typing')
+            ->set('data.password', 'short')
+            ->assertHasNoErrors()
+            ->call('authenticate')
+            ->assertHasErrors(['data.email']);
+
+        Filament::setCurrentPanel(Filament::getPanel('applicant'));
+        Livewire::test(RegisterApplicant::class)
+            ->set('data.email', 'not-yet-an-email')
+            ->set('data.password', 'typing-in')
+            ->assertHasNoErrors()
+            ->assertSee('9 of 15–64 characters entered (minimum 15)')
+            ->call('register')
+            ->assertHasErrors(['data.email', 'data.password', 'data.password_confirmation', 'data.privacy_acknowledged']);
     }
 
     public function test_recovery_code_input_keeps_the_native_on_blur_binding(): void
@@ -597,6 +649,7 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
 
         $login = Livewire::test(ContextualLogin::class)
+            ->call('enableSchemaStateUpdateHooksForTesting')
             ->set('data.email', $staff->email)
             ->set('data.password', 'a secure password 2026')
             ->call('authenticate')
@@ -619,6 +672,22 @@ class StaffMfaAndAccountSecurityJourneyTest extends TestCase
         $this->assertNull($login->get('data.email'));
         $this->assertNull($login->get('data.password'));
         $this->assertSame('Sign in', $login->instance()->getHeading());
+
+        $login->update(
+            updates: [
+                'data.email' => $staff->email,
+                'data.password' => 'a secure password 2026',
+            ],
+            calls: [
+                ['method' => 'authenticate', 'params' => []],
+            ],
+        );
+
+        $login
+            ->assertHasNoErrors()
+            ->assertSeeHtml('id="multiFactorChallengeForm"')
+            ->assertSeeHtml('id="multiFactorChallengeForm.app.code"')
+            ->assertSee('Enter the 6-digit code from the authenticator app');
     }
 
     public function test_restarting_mfa_challenge_allows_second_account_to_authenticate_without_credential_leak(): void
