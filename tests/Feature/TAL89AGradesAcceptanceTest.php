@@ -283,18 +283,36 @@ class TAL89AGradesAcceptanceTest extends TestCase
     }
 
     #[Test]
+    public function empty_class_grades_uses_unified_card_without_filter_toolbar(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Livewire::actingAs($registrar)->test(GradesAndCompletion::class, ['viewTab' => 'grade-review'])
+            ->assertSeeHtml('tala-class-card-shell tala-task-surface')
+            ->assertSee('No class grades yet')
+            ->assertSee('Class grades appear here after teaching assignments and official enrollments are recorded.')
+            ->assertDontSeeHtml('tala-inc-toolbar')
+            ->assertDontSee('All statuses');
+    }
+
+    #[Test]
     public function class_queue_shows_all_states_and_clears_filtered_empty_results(): void
     {
         [, $row, $registrar] = $this->rosterFixture();
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $queue = Livewire::actingAs($registrar)->test(GradesAndCompletion::class, ['viewTab' => 'grade-review'])
             ->assertCanSeeTableRecords([$row->roster])
+            ->assertSeeHtml('tala-inc-toolbar')
+            ->assertSee('All statuses · All terms')
             ->assertSet('tableFilters.state.value', null)
             ->assertDontSee('Reset search and filters')
             ->filterTable('state', GradeRoster::StateReturned)
-            ->assertSee('No classes match your search or filters')
-            ->assertDontSee('No class rosters yet')
+            ->assertSee('No class grades match')
+            ->assertSee('Clear filters')
+            ->assertDontSee('No class grades yet')
             ->searchTable('No matching faculty')
+            ->assertSee('Clear search')
             ->call('clearClassQueue')
             ->assertSet('tableSearch', '')
             ->assertSet('tableFilters.state.value', null)

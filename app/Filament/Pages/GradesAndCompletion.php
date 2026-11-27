@@ -22,7 +22,6 @@ use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\ViewAction;
 use Filament\Pages\Page;
-use Filament\Schemas\Components\View as SchemaView;
 use Filament\Support\Enums\Width;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\ViewColumn;
@@ -284,15 +283,14 @@ class GradesAndCompletion extends Page implements HasTable
 
         $table = GradeRostersTable::configure($table->query(GradeRosterResource::getEloquentQuery()));
         $table->getFilter('term')->placeholder('All terms');
-        $table->getFilter('state')->label('Status');
+        $table->getFilter('state')->label('Status')->placeholder('All statuses');
 
         return $table
             ->filtersLayout(FiltersLayout::AboveContent)
-            ->filtersFormColumns(['default' => 1, 'sm' => 3])
+            ->filtersFormColumns(1)
             ->filtersFormSchema(fn (array $filters): array => [
-                $filters['term'],
-                SchemaView::make('filament.admin.grade-rosters.class-search'),
                 $filters['state'],
+                $filters['term'],
             ])
             ->deferFilters(false)
             ->defaultPaginationPageOption(6)
@@ -300,16 +298,16 @@ class GradesAndCompletion extends Page implements HasTable
             ->recordUrl(fn (GradeRoster $record): string => $this->classReviewUrl($record))
             ->recordActions([
                 ViewAction::make('reviewRoster')
-                    ->label(fn (GradeRoster $record): string => $record->state === GradeRoster::StateSubmitted ? 'Review roster' : 'View roster')
+                    ->label(fn (GradeRoster $record): string => $record->state === GradeRoster::StateSubmitted ? 'Review grades' : 'View grades')
                     ->button()->color(fn (GradeRoster $record): string => $record->state === GradeRoster::StateSubmitted ? 'primary' : 'gray')
                     ->url(fn (GradeRoster $record): string => $this->classReviewUrl($record)),
             ])
             ->emptyState(view('filament.partials.collection-empty-state'))
-            ->emptyStateHeading(fn (): string => $this->hasClassQueueFilters() ? 'No classes match your search or filters' : 'No class rosters yet')
+            ->emptyStateHeading(fn (): string => $this->hasClassQueueFilters() ? 'No class grades match' : 'No class grades yet')
             ->emptyStateDescription(fn (): string => $this->hasClassQueueFilters()
-                ? 'Clear your search or change the term and status to find a class.'
-                : 'Class rosters appear after the teaching assignment and official enrollment are recorded.')
-            ->searchPlaceholder('Course, class or Faculty');
+                ? 'Clear your search or adjust the status and term filters.'
+                : 'Class grades appear here after teaching assignments and official enrollments are recorded.')
+            ->searchPlaceholder('Course, class or faculty');
     }
 
     public function studentSectionScopeDescription(): string
