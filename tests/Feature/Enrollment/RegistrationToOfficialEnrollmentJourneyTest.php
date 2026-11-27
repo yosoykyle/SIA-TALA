@@ -3815,6 +3815,63 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         }
     }
 
+    public function test_registrar_dashboard_payment_queue_card_reports_live_counts_without_import_option(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $accounting = $this->staff(User::StaffRoleAccounting);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Livewire::actingAs($registrar)->test(ListEnrollments::class)
+            ->assertSee('Start enrollment')
+            ->assertSee('Continuing student')
+            ->assertSee('Shiftee (Program shift)')
+            ->assertSee('Approved late enrollment')
+            ->assertDontSee('Import continuing students')
+            ->assertDontSee('Waiting on others')
+            ->assertSee('Students Payment in Queue')
+            ->assertSee('No students currently awaiting payment or verification.')
+            ->assertSee('Open payment queue')
+            ->assertSeeHtml(e(EnrollmentResource::getUrl('index', ['tab' => 'finance_pending'])));
+
+        foreach (range(0, 1) as $index) {
+            [$application, $term] = $this->readyApplicant();
+            [$section] = $this->publishedOffering($application, $term);
+            $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $application->user);
+            $this->recordApprovedTransferEvaluation($case);
+            $proposal = app(PrepareRegistrationProposal::class)->execute($case, $registrar, [$section->id], $case->lock_version);
+            app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
+            $plan = $this->createFeePlanDraft($application->program, $term, [
+                ['code' => 'ENROLLMENT', 'label' => 'Authorized enrollment requirement', 'amount' => '1000.00'],
+            ], $accounting);
+            $this->publishFeePlan($plan, $accounting, 'SYN-PQ-CARD-'.$index);
+            app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
+            app(IssueRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
+            app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);
+
+            if ($index === 0) {
+                $case->load('termAccount');
+                PaymentEvidenceVersion::factory()->create([
+                    'term_account_id' => $case->termAccount->id,
+                    'state' => PaymentEvidenceVersion::StateSubmitted,
+                    'submitted_by' => $application->user_id,
+                    'submitted_at' => now()->subHour(),
+                ]);
+            }
+        }
+
+        $page = Livewire::actingAs($registrar)->test(ListEnrollments::class)
+            ->assertSee('Students Payment in Queue')
+            ->assertSee('students awaiting payment or verification')
+            ->assertSee('1 for Accounting verification · 1 pending payment')
+            ->assertSee('Open payment queue');
+
+        $this->assertSame([
+            'total' => 2,
+            'for_verification' => 1,
+            'pending_payment' => 1,
+        ], $page->instance()->paymentQueueSummary());
+    }
+
     /** @return array<string, array{string, string, string}> */
     public static function registrarQueueContexts(): array
     {

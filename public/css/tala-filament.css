@@ -723,6 +723,8 @@
 .tala-record-query .fi-ta-search-field { min-inline-size:0; }
 .tala-record-query .fi-ta-search-field .fi-input-wrp { inline-size:100%; }
 .tala-record-query-summary { grid-column:1/-1; font-size:.8125rem; line-height:1.5; color:var(--tala-muted); overflow-wrap:anywhere; }
+.tala-record-query-meta { grid-column:1/-1; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.25rem .75rem; min-inline-size:0; }
+.tala-record-query-meta .tala-record-query-summary { grid-column:auto; margin:0; }
 .tala-inc-workspace { padding:0; }
 .tala-record-context-row { display:grid; justify-items:start; gap:.375rem 1rem; min-inline-size:0; overflow-wrap:anywhere; }
 .tala-record-context-row > .fi-btn { margin-block-start:.25rem; }
@@ -1822,9 +1824,11 @@ table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
 .tala-catalog-workspace:not(:has(> .tala-catalog-rail)) { grid-template-columns:minmax(0,1fr); }
 
 /* INC & Corrections card toolbar, Term Planning setup links, Enrollments hub hierarchy, and Applicant Home inline actions. */
-.tala-inc-card { border-radius:var(--tala-card-radius); overflow:visible; }
+.tala-inc-card, .tala-class-card-shell { border-radius:var(--tala-card-radius); overflow:visible; }
 .tala-inc-toolbar { padding:var(--tala-card-pad-compact) var(--tala-card-pad); border-block-end:1px solid var(--tala-edge); background:var(--tala-surface-sunken); border-start-start-radius:inherit; border-start-end-radius:inherit; }
 .tala-inc-card > .tala-inc-workspace { padding:.75rem; }
+.tala-class-worklist-body { padding:var(--tala-card-pad); }
+.tala-class-card-shell .tala-class-pagination { margin-block-start:0; padding:var(--tala-card-pad-compact) var(--tala-card-pad); border-block-start:1px solid var(--tala-edge); }
 .tala-planning-setup-links { display:grid; gap:.75rem; }
 .tala-planning-setup-links > h2 { margin:0; color:var(--tala-text); font-size:var(--tala-type-section); font-weight:var(--tala-weight-heading); }
 .tala-planning-setup-links > .tala-planning-reveal { margin:0; }

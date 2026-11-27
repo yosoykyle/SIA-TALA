@@ -28,7 +28,7 @@
         <p><strong>{{ number_format($roster->recorded_results_count) }} / {{ number_format($roster->current_members_count) }}</strong><span>results entered</span></p>
         @if ($roster->incomplete_results_count > 0)<p>{{ number_format($roster->incomplete_results_count) }} INC</p>@endif
     </div>
-    <x-filament::button tag="a" :href="$href" :color="$submitted ? 'primary' : 'gray'" icon="heroicon-o-eye" :aria-label="($submitted ? 'Review roster for ' : 'View roster for ').$title.', '.$class">
-        {{ $submitted ? 'Review roster' : 'View roster' }}
+    <x-filament::button tag="a" :href="$href" :color="$submitted ? 'primary' : 'gray'" icon="heroicon-o-eye" :aria-label="($submitted ? 'Review grades for ' : 'View grades for ').$title.', '.$class">
+        {{ $submitted ? 'Review grades' : 'View grades' }}
     </x-filament::button>
 </article>

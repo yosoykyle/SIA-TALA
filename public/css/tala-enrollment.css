@@ -2462,3 +2462,29 @@ button.tala-cashier-calendar__day:focus-visible{outline:3px solid var(--tala-foc
     .registrar-continuation-table-wrap,.registrar-continuation-breakdown__table-wrap,.registrar-continuation-breakdown__empty{border:1px solid CanvasText;background:Canvas;color:CanvasText;}
     .registrar-continuation-breakdown__table thead{background:Canvas;}
 }
+/* Registrar workbench split row: equal two-column layout, compact Start enrollment grouping, and inline-header Payment Queue card parity. */
+.registrar-workbench .tala-workspace-launcher__split{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--tala-card-gap);align-items:stretch;}
+@container (min-width:40rem){
+    .registrar-workbench .tala-workspace-launcher__split{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+.registrar-workbench .tala-workspace-launcher__split>section.registrar-start-panel.tala-task-surface{display:flex;flex-direction:column;justify-content:flex-start;gap:1rem;min-inline-size:0;}
+.registrar-workbench .registrar-start-panel__header{display:grid;gap:.25rem;min-inline-size:0;}
+.registrar-workbench .registrar-start-panel__header h2{margin:0;font-size:var(--tala-type-section);font-weight:var(--tala-weight-heading);line-height:1.25;letter-spacing:-.015em;text-wrap:balance;}
+.registrar-workbench .registrar-start-panel__header p{margin:0;color:var(--tala-muted);font-size:var(--tala-type-caption);line-height:1.5;}
+.registrar-workbench .registrar-start-panel .registrar-start-actions{display:grid;gap:.625rem;margin-block-start:0;}
+.registrar-workbench .tala-workspace-launcher__split>section.tala-workspace-feature.tala-task-surface{display:flex;flex-direction:column;justify-content:flex-start;min-inline-size:0;}
+.registrar-workbench .tala-workspace-launcher__split .tala-workspace-feature__body{display:grid;grid-template-columns:2.5rem minmax(0,1fr);align-content:start;align-items:center;gap:.75rem;flex:1 1 auto;padding:var(--tala-card-pad);min-inline-size:0;}
+.registrar-workbench .tala-workspace-launcher__split .tala-workspace-feature__body :is(h2,h3){margin:0;font-size:var(--tala-type-section);font-weight:var(--tala-weight-heading);line-height:1.25;letter-spacing:-.015em;text-wrap:balance;}
+.registrar-workbench .tala-workspace-launcher__split .tala-workspace-feature__body>:not(.tala-workspace-card__icon):not(h2):not(h3){grid-column:1/-1;}
+.registrar-workbench .tala-workspace-launcher__split .tala-workspace-card__icon{inline-size:2.5rem;block-size:2.5rem;}
+.registrar-workbench .tala-workspace-launcher__split .tala-workspace-card__icon>.fi-icon{inline-size:1.5rem;block-size:1.5rem;}
+.registrar-workbench .tala-workspace-launcher__split .tala-workspace-figure{display:flex;align-items:center;gap:.875rem;min-inline-size:0;}
+.registrar-workbench .tala-workspace-launcher__split .tala-workspace-figure>strong{font-size:var(--tala-type-value);flex:none;}
+.registrar-workbench .tala-workspace-launcher__split .tala-workspace-figure>span{flex:1 1 auto;min-inline-size:0;max-inline-size:none;padding-inline-start:.875rem;font-size:var(--tala-type-body);line-height:1.35;text-wrap:pretty;}
+.registrar-workbench .tala-workspace-launcher__split .tala-workspace-feature__body>p{margin:0;max-inline-size:62ch;font-size:var(--tala-type-caption);line-height:1.5;color:var(--tala-muted);text-wrap:pretty;}
+.registrar-workbench .tala-workspace-launcher__split .tala-workspace-feature__body>p:not(.tala-workspace-card__note){color:var(--tala-text);font-variant-numeric:tabular-nums;}
+.registrar-workbench .tala-workspace-launcher__split .tala-workspace-feature__action{display:flex;align-items:stretch;padding:var(--tala-card-pad-compact) var(--tala-card-pad);}
+@media(forced-colors:active){
+    .registrar-workbench .tala-workspace-launcher__split .tala-workspace-feature__body>p,
+    .registrar-workbench .tala-workspace-launcher__split .tala-workspace-feature__body>p:not(.tala-workspace-card__note){color:CanvasText;}
+}

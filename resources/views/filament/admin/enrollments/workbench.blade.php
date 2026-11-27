@@ -19,6 +19,20 @@
     $didNotProceedCount = (int) ($continuation['did_not_proceed_count'] ?? 0);
     $inProgressCount = (int) ($continuation['in_progress_count'] ?? 0);
     $progressions = $continuation['progressions'] ?? [];
+    $paymentQueueSummary = $paymentQueueSummary ?? [
+        'total' => (int) ($counts['finance'] ?? 0),
+        'for_verification' => 0,
+        'pending_payment' => (int) ($counts['finance'] ?? 0),
+    ];
+    $paymentQueueTotal = (int) ($paymentQueueSummary['total'] ?? 0);
+    $forVerificationCount = (int) ($paymentQueueSummary['for_verification'] ?? 0);
+    $pendingPaymentCount = (int) ($paymentQueueSummary['pending_payment'] ?? 0);
+    $paymentQueueBreakdown = $paymentQueueTotal > 0
+        ? collect([
+            $forVerificationCount > 0 ? $forVerificationCount.' for Accounting verification' : null,
+            $pendingPaymentCount > 0 ? $pendingPaymentCount.' pending payment' : null,
+        ])->filter()->implode(' · ')
+        : 'No students currently awaiting payment or verification.';
 @endphp
 <div class="registrar-workbench tala-workspace-launcher">
     <section aria-labelledby="registrar-work-heading">
@@ -75,31 +89,27 @@
     </section>
     <div class="tala-workspace-launcher__split">
         <section class="registrar-start-panel tala-task-surface" aria-labelledby="registrar-start-heading">
-            <h2 id="registrar-start-heading">Start enrollment</h2>
-            <p>Choose who is enrolling.</p>
+            <header class="registrar-start-panel__header">
+                <h2 id="registrar-start-heading">Start enrollment</h2>
+                <p>Choose who is enrolling.</p>
+            </header>
             <div class="registrar-start-actions">
                 {{ $continuingAction }} {{ $shiftProgramAction }} {{ $lateContinuingAction }}
-                <x-filament::button
-                    tag="a"
-                    :href="\App\Filament\Resources\StudentProfiles\StudentProfileResource::getUrl('import')"
-                    color="gray"
-                    icon="heroicon-o-arrow-up-tray"
-                >
-                    Import continuing students
-                </x-filament::button>
             </div>
         </section>
-        <section class="registrar-progress-panel tala-task-surface" aria-labelledby="registrar-progress-heading">
-            <header class="registrar-progress-panel__header">
-                <h2 id="registrar-progress-heading">Waiting on others</h2>
-                <p class="tala-workspace-launcher__scope">Payment and fee review</p>
-            </header>
-            <nav class="registrar-work-list" aria-label="Enrollments waiting for the next step">
-                <x-workspace-link :href="$queueUrl('finance_pending')" icon="heroicon-o-banknotes" label="Waiting for payment or fee review" description="Learner payment or Accounting review is pending.">
-                    <x-slot name="status"><span class="registrar-work-count">{{ $counts['finance'] }}</span></x-slot>
-                </x-workspace-link>
-            </nav>
-        </section>
+        <x-workspace-card
+            class="registrar-payment-queue-card"
+            :href="$queueUrl('finance_pending')"
+            icon="heroicon-o-banknotes"
+            label="Students Payment in Queue"
+            :figure="$paymentQueueTotal"
+            :figure-label="\Illuminate\Support\Str::plural('student', $paymentQueueTotal).' awaiting payment or verification'"
+            :description="$paymentQueueBreakdown"
+            note="Review enrollments waiting for learner payment or Accounting fee verification."
+            action="Open payment queue"
+            action-color="gray"
+            :heading-level="2"
+        />
     </div>
     <section class="registrar-records-entry tala-task-surface" aria-labelledby="registrar-records-heading">
         <div><h2 id="registrar-records-heading">Enrollment records</h2><p>Find an enrollment, registration certificate, or previous change.</p></div>
