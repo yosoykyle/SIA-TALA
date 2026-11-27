@@ -178,7 +178,7 @@
 
                         <x-filament::dropdown placement="bottom-end" width="xs">
                             <x-slot name="trigger">
-                                <x-filament::button color="gray" size="sm" icon="heroicon-o-ellipsis-horizontal" aria-label="More timetable actions">More</x-filament::button>
+                                <x-filament::button color="gray" size="sm" icon="heroicon-o-ellipsis-vertical" aria-label="More timetable actions" title="More timetable actions" />
                             </x-slot>
                             <x-filament::dropdown.list>
                                 @if ($showOfficial && $selectedVersion)
@@ -679,58 +679,6 @@
                                         </p>
                                     @endif
                                 </div>
-
-                                @if ($hasConflictGuideItems ?? false)
-                                    <section class="tala-conflict-guide" aria-label="Conflict resolution guide">
-                                        <header class="tala-conflict-guide__head">
-                                            <h2>{{ count($resolvedConflictDiagnosis['items']) === 1 ? 'Conflict found and how to fix it' : 'Conflicts found and how to fix them' }}</h2>
-                                            @if (($resolvedConflictDiagnosis['summary'] ?? '') !== '')
-                                                <p class="tala-conflict-guide__summary">{{ $resolvedConflictDiagnosis['summary'] }}</p>
-                                            @endif
-                                        </header>
-                                        @foreach ($resolvedConflictDiagnosis['items'] as $conflictItem)
-                                            <article @class([
-                                                'tala-conflict-card',
-                                                'is-danger' => ($conflictItem['severity'] ?? 'danger') === 'danger',
-                                                'is-warning' => ($conflictItem['severity'] ?? '') === 'warning',
-                                            ])>
-                                                <header class="tala-conflict-card__head">
-                                                    <h3>{{ $conflictItem['title'] }}</h3>
-                                                    <x-filament::badge :color="($conflictItem['severity'] ?? 'danger') === 'danger' ? 'danger' : 'warning'" size="sm">{{ $conflictItem['category'] }}</x-filament::badge>
-                                                </header>
-                                                @if (! empty($conflictItem['involved']))
-                                                    <ul class="tala-conflict-card__chips" aria-label="Involved people, classes, rooms, or times">
-                                                        @foreach ($conflictItem['involved'] as $entityChip)
-                                                            <li class="tala-conflict-card__chip">{{ $entityChip }}</li>
-                                                        @endforeach
-                                                    </ul>
-                                                @endif
-                                                <p class="tala-conflict-card__why"><strong>Why:</strong> {{ $conflictItem['why'] }}</p>
-                                                @if (! empty($conflictItem['how_to_fix']))
-                                                    <ul class="tala-conflict-card__fixes" aria-label="What you can do">
-                                                        @foreach ($conflictItem['how_to_fix'] as $fixStep)
-                                                            <li>@if ($loop->first)<strong>What you can do:</strong> @endif{{ $fixStep }}</li>
-                                                        @endforeach
-                                                    </ul>
-                                                @endif
-                                                @if (! empty($conflictItem['action_url']) && ! empty($conflictItem['action_label']))
-                                                    <div class="tala-conflict-card__action">
-                                                        <x-filament::button
-                                                            tag="a"
-                                                            size="sm"
-                                                            :color="($conflictItem['severity'] ?? 'danger') === 'danger' ? 'primary' : 'gray'"
-                                                            icon="heroicon-m-arrow-right"
-                                                            icon-position="after"
-                                                            :href="$conflictItem['action_url']"
-                                                        >
-                                                            {{ $conflictItem['action_label'] }}
-                                                        </x-filament::button>
-                                                    </div>
-                                                @endif
-                                            </article>
-                                        @endforeach
-                                    </section>
-                                @endif
                             @else
                                 <x-servitech-empty-state
                                     :illustrated="true"
@@ -798,6 +746,58 @@
                                         @endforeach
                                     </ul>
                                 </div>
+                            @endif
+
+                            @if ($isDraftEmptyHero && ($hasConflictGuideItems ?? false))
+                                <section class="tala-conflict-guide" aria-label="Conflict resolution guide">
+                                    <header class="tala-conflict-guide__head">
+                                        <h2>{{ count($resolvedConflictDiagnosis['items']) === 1 ? 'Conflict found and how to fix it' : 'Conflicts found and how to fix them' }}</h2>
+                                        @if (($resolvedConflictDiagnosis['summary'] ?? '') !== '')
+                                            <p class="tala-conflict-guide__summary">{{ $resolvedConflictDiagnosis['summary'] }}</p>
+                                        @endif
+                                    </header>
+                                    @foreach ($resolvedConflictDiagnosis['items'] as $conflictItem)
+                                        <article @class([
+                                            'tala-conflict-card',
+                                            'is-danger' => ($conflictItem['severity'] ?? 'danger') === 'danger',
+                                            'is-warning' => ($conflictItem['severity'] ?? '') === 'warning',
+                                        ])>
+                                            <header class="tala-conflict-card__head">
+                                                <h3>{{ $conflictItem['title'] }}</h3>
+                                                <x-filament::badge :color="($conflictItem['severity'] ?? 'danger') === 'danger' ? 'danger' : 'warning'" size="sm">{{ $conflictItem['category'] }}</x-filament::badge>
+                                            </header>
+                                            @if (! empty($conflictItem['involved']))
+                                                <ul class="tala-conflict-card__chips" aria-label="Involved people, classes, rooms, or times">
+                                                    @foreach ($conflictItem['involved'] as $entityChip)
+                                                        <li class="tala-conflict-card__chip">{{ $entityChip }}</li>
+                                                    @endforeach
+                                                </ul>
+                                            @endif
+                                            <p class="tala-conflict-card__why"><strong>Why:</strong> {{ $conflictItem['why'] }}</p>
+                                            @if (! empty($conflictItem['how_to_fix']))
+                                                <ul class="tala-conflict-card__fixes" aria-label="What you can do">
+                                                    @foreach ($conflictItem['how_to_fix'] as $fixStep)
+                                                        <li>@if ($loop->first)<strong>What you can do:</strong> @endif{{ $fixStep }}</li>
+                                                    @endforeach
+                                                </ul>
+                                            @endif
+                                            @if (! empty($conflictItem['action_url']) && ! empty($conflictItem['action_label']))
+                                                <div class="tala-conflict-card__action">
+                                                    <x-filament::button
+                                                        tag="a"
+                                                        size="sm"
+                                                        :color="($conflictItem['severity'] ?? 'danger') === 'danger' ? 'primary' : 'gray'"
+                                                        icon="heroicon-m-arrow-right"
+                                                        icon-position="after"
+                                                        :href="$conflictItem['action_url']"
+                                                    >
+                                                        {{ $conflictItem['action_label'] }}
+                                                    </x-filament::button>
+                                                </div>
+                                            @endif
+                                        </article>
+                                    @endforeach
+                                </section>
                             @endif
                         </div>
                     </div>

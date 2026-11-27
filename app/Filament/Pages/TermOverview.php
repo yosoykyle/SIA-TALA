@@ -373,6 +373,7 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
                         'timetableVersions',
                         'scheduleGenerationRuns' => fn ($query) => $query->select(['id', 'term_id', 'status', 'candidate_state']),
                     ])
+                    ->orderByRaw("CASE state WHEN '".Term::StateActive."' THEN 0 WHEN '".Term::StateDraft."' THEN 1 ELSE 2 END")
                     ->orderByDesc('starts_on')
                     ->orderByDesc('id')
             )

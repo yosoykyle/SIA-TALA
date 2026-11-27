@@ -1055,8 +1055,8 @@ class TermResources extends TermPlanningWorkbench implements HasTable
 
         return match ($mode) {
             FacultyAvailabilityDeclaration::ModeWindows => $this->formatTeachingWindows($row['teaching_windows'] ?? [], $dayNames),
-            FacultyAvailabilityDeclaration::ModeAnyApproved => 'All approved hours',
-            FacultyAvailabilityDeclaration::ModeCannotTeach => 'Not scheduled this term',
+            FacultyAvailabilityDeclaration::ModeAnyApproved => null,
+            FacultyAvailabilityDeclaration::ModeCannotTeach => null,
             FacultyAvailabilityDeclaration::ModeLegacyUnavailability => $this->formatLegacyUnavailability($row['hard_unavailability'] ?? [], $dayNames),
             default => null,
         };
@@ -1289,6 +1289,7 @@ class TermResources extends TermPlanningWorkbench implements HasTable
             ->toolbarActions([
                 $this->assignSubjectsAction(),
             ])
+            ->recordActionsColumnLabel('Actions')
             ->recordActions([
                 Action::make('reviseAffectedSchedule')
                     ->label('Revise')
@@ -1971,7 +1972,11 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                 TextColumn::make('room_type')
                     ->label('Type')
                     ->badge()
-                    ->color('gray')
+                    ->color(fn (string $state): string => match ($state) {
+                        Room::TypeComputerLaboratory => 'info',
+                        Room::TypeLaboratory => 'warning',
+                        default => 'gray',
+                    })
                     ->formatStateUsing(fn (string $state): string => Room::typeOptions()[$state] ?? $state)
                     ->sortable(),
                 TextColumn::make('capacity')
@@ -2088,6 +2093,7 @@ class TermResources extends TermPlanningWorkbench implements HasTable
             ->toolbarActions([
                 $this->addRoomAction(),
             ])
+            ->recordActionsColumnLabel('Actions')
             ->recordActions([
                 EditAction::make('editRoom')
                     ->label('Edit')

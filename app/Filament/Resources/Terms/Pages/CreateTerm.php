@@ -4,12 +4,16 @@ namespace App\Filament\Resources\Terms\Pages;
 
 use App\Filament\Pages\TermPlanningWorkbench;
 use App\Filament\Resources\Terms\TermResource;
+use App\Models\AcademicYear;
 use App\Models\Term;
 use App\Support\ReturnsToTermPlanning;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Resources\Pages\CreateRecord;
 use Filament\Support\Enums\Alignment;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Url;
 
 class CreateTerm extends CreateRecord
@@ -68,6 +72,21 @@ class CreateTerm extends CreateRecord
             'scheduling_slot_minutes' => 30,
             'scheduling_days' => null,
         ];
+    }
+
+    protected function handleRecordCreation(array $data): Model
+    {
+        return DB::transaction(function () use ($data): Term {
+            $academicYearId = (int) ($data['academic_year_id'] ?? 0);
+            AcademicYear::query()->whereKey($academicYearId)->lockForUpdate()->first();
+
+            $duplicateError = Term::duplicateTypeError($academicYearId, (string) ($data['type'] ?? ''));
+            if ($duplicateError !== null) {
+                throw ValidationException::withMessages(['type' => $duplicateError]);
+            }
+
+            return parent::handleRecordCreation($data);
+        }, attempts: 3);
     }
 
     protected function getRedirectUrl(): string

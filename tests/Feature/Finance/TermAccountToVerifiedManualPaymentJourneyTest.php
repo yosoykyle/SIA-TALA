@@ -544,7 +544,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
             ->assertOk()->assertSee('Actual verified amount')->assertSee('Account effect')
             ->assertSee(route('filament.student.pages.finance'))
             ->assertSee('Independent Source Check')->assertDontSee('SYN-BANK-CHECK-OUTPUT');
-        $this->assertSame(1, substr_count($acknowledgement->getContent(), $payment->provider_reference));
+        $this->assertSame(0, substr_count($acknowledgement->getContent(), $payment->provider_reference));
 
         $this->assertSame(1, OutputAccessLog::query()->where('output_type', 'SOA')->where('source_record_id', $fixture['assessment']->id)->count());
         $this->assertSame(1, OutputAccessLog::query()->where('output_type', 'PAYMENT_ACKNOWLEDGEMENT')->where('source_record_id', $payment->id)->count());
@@ -552,7 +552,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         $this->actingAs($fixture['accounting'])->get(route('finance.statement', $fixture['assessment']))
             ->assertOk()->assertSee($accountingBackUrl);
         $this->actingAs($fixture['accounting'])->get(route('finance.payments.acknowledgement', $payment))
-            ->assertOk()->assertSee($accountingBackUrl);
+            ->assertOk()->assertSee($accountingBackUrl)->assertSee($payment->provider_reference);
         app(RecordApprovedCoverage::class)->execute($fixture['account'], $fixture['obligations'][0], [
             'category' => ApprovedCoverage::CategoryScholarship, 'safe_source_description' => 'Approved study grant',
             'authority_reference' => 'COVERAGE-AUTHORITY', 'authority_date' => '2026-08-24',

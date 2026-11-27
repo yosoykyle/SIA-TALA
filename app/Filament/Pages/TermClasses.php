@@ -242,7 +242,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                     'curriculumVersion.academicYears',
                     'classOfferings' => fn (BelongsToMany $query): BelongsToMany => $query
                         ->where('sections.state', '!=', Section::StateCancelled)
-                        ->with(['courseRevision', 'termOffering.curriculumEntry.courseSpecification']),
+                        ->with(['courseRevision.components', 'termOffering.curriculumEntry.courseSpecification.components']),
                 ])
                 ->withCount([
                     'classOfferings as active_class_offerings_count' => fn (Builder $query): Builder => $query
@@ -283,23 +283,48 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                     })
                         ->formatStateUsing(fn (string $state): HtmlString => new HtmlString('<span class="inline-block whitespace-nowrap">'.e($state).'</span>'))
                         ->extraCellAttributes(['class' => 'tabular-nums whitespace-nowrap']),
-                    TextColumn::make('classOfferings.code')->label('Linked classes')->listWithLineBreaks()
-                        ->placeholder(function (TermCohort $record): string {
-                            if ($this->confirmableSubjectCountForCohort($record) === 0) {
-                                return '0 '.$this->selectedTerm()->typeLabel().' subjects in curriculum';
-                            }
-
-                            return 'No classes linked';
-                        })
-                        ->extraCellAttributes(['class' => 'tabular-nums'])
-                        ->description(function (TermCohort $record): string {
+                    TextColumn::make('linked_classes_summary')
+                        ->label('Linked classes')
+                        ->badge()
+                        ->state(function (TermCohort $record): string {
                             $activeCount = $record->relationLoaded('classOfferings')
                                 ? $record->classOfferings->where('state', '!=', Section::StateCancelled)->count()
                                 : (int) ($record->active_class_offerings_count ?? $record->classOfferings()->where('sections.state', '!=', Section::StateCancelled)->count());
 
                             if ($activeCount === 0) {
+                                if ($this->confirmableSubjectCountForCohort($record) === 0) {
+                                    return '0 '.$this->selectedTerm()->typeLabel().' subjects in curriculum';
+                                }
+
+                                return 'No classes linked';
+                            }
+
+                            return $activeCount.' '.Str::plural('linked class', $activeCount);
+                        })
+                        ->color(function (TermCohort $record): string {
+                            $activeCount = $record->relationLoaded('classOfferings')
+                                ? $record->classOfferings->where('state', '!=', Section::StateCancelled)->count()
+                                : (int) ($record->active_class_offerings_count ?? 0);
+
+                            if ($activeCount > 0) {
+                                return 'success';
+                            }
+
+                            return $this->confirmableSubjectCountForCohort($record) === 0 ? 'warning' : 'gray';
+                        })
+                        ->extraCellAttributes(['class' => 'tabular-nums'])
+                        ->description(function (TermCohort $record): ?string {
+                            $activeClasses = $record->relationLoaded('classOfferings')
+                                ? $record->classOfferings->where('state', '!=', Section::StateCancelled)
+                                : $record->classOfferings()
+                                    ->where('sections.state', '!=', Section::StateCancelled)
+                                    ->with(['courseRevision.components', 'termOffering.curriculumEntry.courseSpecification.components'])
+                                    ->get();
+                            $activeCount = $activeClasses->count();
+
+                            if ($activeCount === 0) {
                                 if ($this->hasPublishedTimetable() || $this->isTermClosed() || ($this->getViewData()['readOnly'] ?? false)) {
-                                    return 'No classes linked';
+                                    return null;
                                 }
 
                                 if ($this->confirmableSubjectCountForCohort($record) === 0) {
@@ -314,7 +339,35 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                                 return 'Use Load subjects to add classes for this student section.';
                             }
 
-                            return $activeCount.' '.Str::plural('linked class', $activeCount);
+                            $lectureCount = 0;
+                            $labCount = 0;
+                            $totalUnits = 0.0;
+
+                            foreach ($activeClasses as $class) {
+                                $spec = $class->courseRevision ?? $class->termOffering?->curriculumEntry?->courseSpecification;
+                                $totalUnits += (float) ($spec?->credit_units ?? 0);
+                                $components = $spec?->components ?? collect();
+                                if ($components->contains(fn (CourseComponent $c): bool => $c->component_type === CourseComponent::TypeLecture)) {
+                                    $lectureCount++;
+                                }
+                                if ($components->contains(fn (CourseComponent $c): bool => $c->component_type === CourseComponent::TypeLaboratory)) {
+                                    $labCount++;
+                                }
+                            }
+
+                            $parts = [];
+                            if ($lectureCount > 0) {
+                                $parts[] = $lectureCount.' LEC';
+                            }
+                            if ($labCount > 0) {
+                                $parts[] = $labCount.' LAB';
+                            }
+                            if ($totalUnits > 0.0) {
+                                $formattedUnits = rtrim(rtrim(number_format($totalUnits, 2, '.', ''), '0'), '.');
+                                $parts[] = $formattedUnits.' '.Str::plural('unit', abs($totalUnits - 1.0) < 0.0001 ? 1 : 2);
+                            }
+
+                            return $parts !== [] ? implode(' · ', $parts) : null;
                         }),
                 ])->defaultSort('reference')
                 ->filters([

@@ -97,6 +97,13 @@ class EditTerm extends EditRecord
                         throw ValidationException::withMessages(['label' => 'This Term has activated calendar history. Retain its recorded identity and dates; record updated calendars in Term Planning.']);
                     }
                 }
+            } else {
+                $targetAcademicYearId = (int) ($data['academic_year_id'] ?? $term->academic_year_id);
+                $targetType = (string) ($data['type'] ?? $term->type);
+                $duplicateError = Term::duplicateTypeError($targetAcademicYearId, $targetType, $term->id);
+                if ($duplicateError !== null) {
+                    throw ValidationException::withMessages(['type' => $duplicateError]);
+                }
             }
 
             $oldDefaultMaxUnits = (float) ($term->default_max_units ?? 24);

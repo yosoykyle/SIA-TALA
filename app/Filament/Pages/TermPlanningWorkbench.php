@@ -403,6 +403,13 @@ class TermPlanningWorkbench extends Page
                     ->preload()
                     ->live()
                     ->default(fn (): ?int => $this->defaultCreateTermAcademicYearId())
+                    ->afterStateUpdated(function (Get $get, Set $set, mixed $state): void {
+                        $available = Term::availableTypeOptionsForAcademicYear(filled($state) ? (int) $state : null);
+                        $currentType = (string) ($get('type') ?? '');
+                        if ($currentType !== '' && ! array_key_exists($currentType, $available)) {
+                            $set('type', array_key_first($available));
+                        }
+                    })
                     ->createOptionAction(fn (Action $action): Action => $action->label('Add academic year')->modalHeading('Add academic year')->modalSubmitActionLabel('Create academic year'))
                     ->createOptionForm([
                         TextInput::make('label')
@@ -465,7 +472,15 @@ class TermPlanningWorkbench extends Page
                     ->required(),
                 Select::make('type')
                     ->label('Term')
-                    ->options(Term::typeOptions())
+                    ->options(fn (Get $get): array => Term::availableTypeOptionsForAcademicYear(filled($get('academic_year_id')) ? (int) $get('academic_year_id') : null))
+                    ->placeholder(fn (Get $get): string => filled($get('academic_year_id')) && Term::availableTypeOptionsForAcademicYear((int) $get('academic_year_id')) === []
+                        ? 'All 3 term types already exist for this academic year'
+                        : 'Select an option')
+                    ->helperText(fn (Get $get): ?string => filled($get('academic_year_id')) && Term::availableTypeOptionsForAcademicYear((int) $get('academic_year_id')) === []
+                        ? 'This academic year already has First Semester, Second Semester, and Special Term. Open an existing term or choose another academic year.'
+                        : null)
+                    ->disabled(fn (Get $get): bool => filled($get('academic_year_id')) && Term::availableTypeOptionsForAcademicYear((int) $get('academic_year_id')) === [])
+                    ->in(array_keys(Term::typeOptions()))
                     ->required()
                     ->live()
                     ->unique(
@@ -505,24 +520,28 @@ class TermPlanningWorkbench extends Page
                 abort_unless($actor instanceof User, 403);
                 Gate::forUser($actor)->authorize('create', Term::class);
 
-                $this->assertTermDateGuards(
-                    (int) $data['academic_year_id'],
-                    (string) $data['type'],
-                    (string) $data['starts_on'],
-                    (string) $data['ends_on'],
-                );
+                $term = DB::transaction(function () use ($data): Term {
+                    AcademicYear::query()->whereKey((int) $data['academic_year_id'])->lockForUpdate()->first();
 
-                $term = Term::query()->create([
-                    'academic_year_id' => $data['academic_year_id'],
-                    'type' => $data['type'],
-                    'label' => Term::typeOptions()[$data['type']] ?? (string) $data['type'],
-                    'starts_on' => $data['starts_on'],
-                    'ends_on' => $data['ends_on'],
-                    'default_max_units' => 24,
-                    'state' => Term::StateDraft,
-                    'scheduling_slot_minutes' => 30,
-                    'scheduling_days' => null,
-                ]);
+                    $this->assertTermDateGuards(
+                        (int) $data['academic_year_id'],
+                        (string) $data['type'],
+                        (string) $data['starts_on'],
+                        (string) $data['ends_on'],
+                    );
+
+                    return Term::query()->create([
+                        'academic_year_id' => $data['academic_year_id'],
+                        'type' => $data['type'],
+                        'label' => Term::typeOptions()[$data['type']] ?? (string) $data['type'],
+                        'starts_on' => $data['starts_on'],
+                        'ends_on' => $data['ends_on'],
+                        'default_max_units' => 24,
+                        'state' => Term::StateDraft,
+                        'scheduling_slot_minutes' => 30,
+                        'scheduling_days' => null,
+                    ]);
+                }, attempts: 3);
 
                 Notification::make()
                     ->title('Term created')
@@ -881,11 +900,31 @@ class TermPlanningWorkbench extends Page
                                 ->preload()
                                 ->live()
                                 ->required()
+                                ->afterStateUpdated(function (Get $get, Set $set, mixed $state) use ($term): void {
+                                    $available = Term::availableTypeOptionsForAcademicYear(filled($state) ? (int) $state : null, $term->id);
+                                    $currentType = (string) ($get('type') ?? '');
+                                    if ($currentType !== '' && ! array_key_exists($currentType, $available)) {
+                                        $set('type', array_key_first($available));
+                                    }
+                                })
                                 ->disabled($identityLocked)
                                 ->validatedWhenNotDehydrated(false),
                             Select::make('type')
                                 ->label('Term')
-                                ->options(Term::typeOptions())
+                                ->options(fn (Get $get): array => Term::availableTypeOptionsForAcademicYear(
+                                    filled($get('academic_year_id')) ? (int) $get('academic_year_id') : null,
+                                    $term->id,
+                                ))
+                                ->placeholder(fn (Get $get): string => filled($get('academic_year_id'))
+                                    && Term::availableTypeOptionsForAcademicYear((int) $get('academic_year_id'), $term->id) === []
+                                    ? 'All 3 term types already exist for this academic year'
+                                    : 'Select an option')
+                                ->helperText(fn (Get $get): ?string => ! $identityLocked
+                                    && filled($get('academic_year_id'))
+                                    && Term::availableTypeOptionsForAcademicYear((int) $get('academic_year_id'), $term->id) === []
+                                    ? 'This academic year already has First Semester, Second Semester, and Special Term.'
+                                    : null)
+                                ->in(array_keys(Term::typeOptions()))
                                 ->required()
                                 ->live()
                                 ->unique(
@@ -1534,6 +1573,11 @@ class TermPlanningWorkbench extends Page
         string $endsOn,
         ?int $ignoreTermId = null,
     ): void {
+        $duplicateTypeError = Term::duplicateTypeError($academicYearId, $type, $ignoreTermId);
+        if ($duplicateTypeError !== null) {
+            throw ValidationException::withMessages(['type' => $duplicateTypeError]);
+        }
+
         if ($ignoreTermId === null) {
             $pastError = $this->termPastEndDateError($endsOn);
             if ($pastError !== null) {

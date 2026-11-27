@@ -42,9 +42,9 @@
     </section>
     <div class="official-output-notice">{{ $acknowledgement['disclaimer'] }}</div>
     <section class="finance-source"><h2>{{ $isAccounting ? 'Source details' : 'Acknowledgment details' }}</h2><dl class="finance-source-facts">
+        <div><dt>Verification basis</dt><dd>{{ $payment->verification_basis ? str($payment->verification_basis)->headline() : 'Not recorded' }}</dd></div>
         @if ($isAccounting)
             <div><dt>Account</dt><dd>TERM-ACCOUNT-{{ $payment->term_account_id }}</dd></div>
-            <div><dt>Verification basis</dt><dd>{{ $payment->verification_basis ? str($payment->verification_basis)->headline() : 'Not recorded' }}</dd></div>
             <div><dt>Posting reference</dt><dd>{{ $payment->provider_reference ?: 'Not recorded' }}</dd></div>
             <div><dt>Verified by</dt><dd>{{ $verifierName }}</dd></div>
         @else
