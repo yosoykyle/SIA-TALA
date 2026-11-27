@@ -324,7 +324,7 @@ final class AutoOfficialEnrollmentTest extends TestCase
     #[Test]
     public function trigger_6_early_payment_defers_until_learner_confirms_then_auto_finalizes(): void
     {
-        $fixture = $this->confirmedPaidReadyFixture(amount: '1800.00', confirmProposal: false);
+        $fixture = $this->confirmedPaidReadyFixture(amount: '1800.00', confirmProposal: false, selectionBasis: Enrollment::SelectionIndividuallyAdvised);
         $accounting = $fixture['accounting'];
         $registrar = $fixture['registrar'];
         $case = $fixture['case'];

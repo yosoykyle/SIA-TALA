@@ -1472,7 +1472,7 @@ class ViewEnrollment extends ViewRecord
                     if ($service->wasSentToStudent($prepared)) {
                         Notification::make()
                             ->title('Subjects prepared and sent to the student')
-                            ->body('Seats are reserved and the assessment is ready. The student can now confirm their subjects.')
+                            ->body('Seats are reserved, the subjects are confirmed and the assessment is ready. Payment completes enrollment.')
                             ->success()
                             ->send();
                         $this->redirect($this->enrollmentUrl());

@@ -23,9 +23,14 @@
         $showProgressStepper = $enrollment !== null
             && ! $terminal
             && ! (! $confirmed && ($irregularReview['is_irregular'] ?? false) && ! $proposal);
+        // #110: regular (Standard Curriculum) subjects are confirmed automatically, so there is no confirm step.
+        $subjectsAutoConfirmed = $enrollment?->selection_basis === \App\Models\Enrollment::SelectionStandardCurriculum;
+        $enrollmentSteps = $subjectsAutoConfirmed
+            ? ['Prepare subjects', 'Pay fees', 'Officially enrolled']
+            : ['Prepare subjects', 'Confirm subjects', 'Pay fees', 'Officially enrolled'];
         $enrollmentStepIndex = match (true) {
-            $official => 3,
-            $confirmed => 2,
+            $official => count($enrollmentSteps) - 1,
+            $confirmed => count($enrollmentSteps) - 2,
             $canConfirm => 1,
             default => 0,
         };
@@ -36,7 +41,7 @@
         </div>
         @if ($showProgressStepper)
             <ol class="tala-irregular-progress" aria-label="Enrollment progress">
-                @foreach (['Prepare subjects', 'Confirm subjects', 'Pay fees', 'Officially enrolled'] as $index => $stepLabel)
+                @foreach ($enrollmentSteps as $index => $stepLabel)
                     <li @class(['is-done' => $official || $index < $enrollmentStepIndex]) @if (! $official && $index === $enrollmentStepIndex) aria-current="step" @endif>{{ $stepLabel }}</li>
                 @endforeach
             </ol>

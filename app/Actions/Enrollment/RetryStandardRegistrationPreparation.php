@@ -66,7 +66,8 @@ class RetryStandardRegistrationPreparation
 
     public function wasSentToStudent(Enrollment $enrollment): bool
     {
-        return $enrollment->currentProposalVersion?->state === RegistrationProposalVersion::StateIssued;
+        // #110: regular subjects are confirmed automatically when sent, so Confirmed also counts.
+        return in_array($enrollment->currentProposalVersion?->state, [RegistrationProposalVersion::StateIssued, RegistrationProposalVersion::StateConfirmed], true);
     }
 
     /**

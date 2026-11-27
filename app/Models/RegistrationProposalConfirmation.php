@@ -21,6 +21,9 @@ class RegistrationProposalConfirmation extends Model
 
     public const MethodRegistrarAssisted = 'RegistrarAssisted';
 
+    /** Standard-curriculum subjects TALA prepared itself are confirmed without a learner click (#110). */
+    public const MethodAutomatic = 'Automatic';
+
     protected $fillable = [
         'registration_proposal_version_id', 'method', 'learner_user_id', 'assisted_by',
         'assisted_evidence_reference', 'confirmed_at',

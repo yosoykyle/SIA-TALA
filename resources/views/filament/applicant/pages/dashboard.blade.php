@@ -41,10 +41,12 @@
                 </section>
             @endif
             <div class="tala-home">
-                <x-filament::section class="tala-journey-card tala-home__journey">
+                <x-filament::section class="tala-journey-card tala-home__journey" icon="heroicon-o-map" icon-color="primary">
                     <x-slot name="heading">Your application journey</x-slot>
-
-                    <p class="tala-journey-step-top">Step {{ $stepNumber }} of {{ count($stages) }} · {{ $stages[$stepNumber - 1]['label'] }}</p>
+                    {{-- #110: the step position sits in the header instead of a coloured kicker above the stepper. --}}
+                    <x-slot name="afterHeader">
+                        <x-filament::badge color="gray" class="tala-journey-step-badge tabular-nums">Step {{ $stepNumber }} of {{ count($stages) }} · {{ $stages[$stepNumber - 1]['label'] }}</x-filament::badge>
+                    </x-slot>
 
                     <ol class="tala-journey" aria-label="Application journey">
                         @foreach ($stages as $index => $stage)
