@@ -42,6 +42,12 @@ class IssueRegistrationProposal
         $issued = DB::transaction(function () use ($proposal, $actor): RegistrationProposalVersion {
             $enrollment = Enrollment::query()->whereKey($proposal->enrollment_id)->lockForUpdate()->firstOrFail();
             $locked = RegistrationProposalVersion::query()->with('items')->whereKey($proposal->id)->lockForUpdate()->firstOrFail();
+            // Sending again after an automatic confirmation is a no-op, like re-sending an issued proposal (#110).
+            if ($locked->state === RegistrationProposalVersion::StateConfirmed
+                && (int) $enrollment->current_proposal_version_id === (int) $locked->id) {
+                return $locked;
+            }
+
             $expectedOutcome = $locked->purpose === RegistrationProposalVersion::PurposeAdjustment
                 ? Enrollment::OutcomeOfficiallyEnrolled
                 : Enrollment::OutcomeInProgress;
@@ -67,13 +73,43 @@ class IssueRegistrationProposal
             return $locked->refresh();
         }, attempts: 3);
 
-        if ($this->confirmForRegistrarStartedCase($issued, $actor)) {
+        if ($this->confirmForRegistrarStartedCase($issued, $actor)
+            || $this->confirmStandardCurriculumCase($issued)) {
             return $issued->refresh();
         }
 
         $this->notifications->recordProposalReady($issued);
 
         return $issued;
+    }
+
+    /**
+     * A regular (standard-curriculum) learner's subjects come straight from the block schedule,
+     * so TALA records the confirmation itself and payment alone completes enrollment (#110).
+     * Individually Advised cases are confirmed by the Registrar's review instead, and fall
+     * through to ordinary learner confirmation if the automatic record cannot be made.
+     */
+    private function confirmStandardCurriculumCase(RegistrationProposalVersion $proposal): bool
+    {
+        if ($proposal->purpose !== RegistrationProposalVersion::PurposeInitial) {
+            return false;
+        }
+
+        $enrollment = Enrollment::query()->with('credentialUser')->find($proposal->enrollment_id);
+
+        if (! $enrollment instanceof Enrollment
+            || $enrollment->selection_basis !== Enrollment::SelectionStandardCurriculum
+            || $enrollment->credentialUser === null) {
+            return false;
+        }
+
+        try {
+            $this->confirm->execute($proposal, $enrollment->credentialUser, automatic: true);
+        } catch (AuthorizationException|ValidationException) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

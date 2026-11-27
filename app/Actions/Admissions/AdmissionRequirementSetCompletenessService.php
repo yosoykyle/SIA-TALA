@@ -64,6 +64,20 @@ class AdmissionRequirementSetCompletenessService
                     : 'Transfer Credential or Certificate of Transfer';
                 $errors[] = "Add the non-waivable {$pathLabel} classification due at Enrollment Readiness.";
             }
+
+            // #110 item 14: one main admission credential per list, and only the one for its own student type.
+            $mainCredentials = $requirementSet->requirements->filter(fn (AdmissionRequirement $requirement): bool => in_array($requirement->credential_classification, [
+                AdmissionRequirement::ClassificationCoreFirstYearCompletionCredential,
+                AdmissionRequirement::ClassificationCoreTransferCredential,
+            ], true));
+
+            if ($mainCredentials->count() > 1) {
+                $errors[] = 'A requirement list can have only one main admission credential.';
+            }
+
+            if ($mainCredentials->contains(fn (AdmissionRequirement $requirement): bool => $requirement->credential_classification !== $requiredClassification)) {
+                $errors[] = 'The main admission credential does not match this student type.';
+            }
         }
 
         return array_values(array_unique($errors));

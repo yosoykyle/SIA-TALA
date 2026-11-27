@@ -122,10 +122,19 @@ class WorkspaceNavigationSearchTest extends TestCase
         $items = collect(Filament::getNavigation())->flatMap(fn ($group) => $group->getItems());
         $accounts = $items->first(fn ($item): bool => $item->getLabel() === 'Student accounts');
 
+        $this->assertSame([
+            'All student accounts',
+            'Assessment reviews',
+            'Review receipts',
+            'Waiting for payment',
+            'Student status changes',
+        ], collect($accounts->getChildItems())->map->getLabel()->values()->all());
+
         foreach ([
             'All student accounts' => 'accounts',
-            'Review receipts' => 'payment_proof',
             'Assessment reviews' => 'assessment_required',
+            'Review receipts' => 'payment_proof',
+            'Waiting for payment' => 'awaiting_payment',
             'Student status changes' => 'student_changes',
         ] as $label => $queue) {
             $item = collect($accounts->getChildItems())->first(fn ($item): bool => $item->getLabel() === $label);

@@ -227,15 +227,23 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             $case->refresh();
         }
         $proposal = $case->currentProposalVersion;
-        $this->assertSame(RegistrationProposalVersion::StateIssued, $proposal->state, (string) $case->status_reason);
         $this->assertNotNull($proposal->items()->firstOrFail()->reservation);
         $assessment = $case->termAccount->assessments()->where('state', Assessment::StateActive)->firstOrFail();
         $this->assertSame($proposal->id, $assessment->source_proposal_version_id);
         Filament::setCurrentPanel(Filament::getPanel('applicant'));
-        $review = Livewire::actingAs($application->user->fresh())->test(ApplicantEnrollment::class)
-            ->assertSee('Proposed subjects')->assertSee('Enrollment payment')
-            ->mountAction('confirmProposal')->assertActionMounted('confirmProposal');
-        $this->assertStringContainsString('PHP 1,000.00', $review->instance()->getMountedAction()->getModalContent()->render());
+        if ($path === AdmissionApplication::PathTransferee) {
+            $this->assertSame(RegistrationProposalVersion::StateIssued, $proposal->state, (string) $case->status_reason);
+            $review = Livewire::actingAs($application->user->fresh())->test(ApplicantEnrollment::class)
+                ->assertSee('Proposed subjects')->assertSee('Enrollment payment')
+                ->mountAction('confirmProposal')->assertActionMounted('confirmProposal');
+            $this->assertStringContainsString('PHP 1,000.00', $review->instance()->getMountedAction()->getModalContent()->render());
+        } else {
+            // #110: a regular learner's block subjects are confirmed by TALA; no Confirm subjects step.
+            $this->assertSame(RegistrationProposalVersion::StateConfirmed, $proposal->state, (string) $case->status_reason);
+            $this->assertSame(RegistrationProposalConfirmation::MethodAutomatic, $proposal->confirmation->method);
+            Livewire::actingAs($application->user->fresh())->test(ApplicantEnrollment::class)
+                ->assertSee('Enrollment payment')->assertActionHidden('confirmProposal');
+        }
         $proposal = app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);
         $proposal = app(PlaceRegistrationProposal::class)->execute($proposal, $registrar);
         app(PlaceRegistrationProposal::class)->execute($proposal, $registrar);
@@ -312,7 +320,8 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->assertSame($roster->rows()->sole()->id, collect($facultyPage->get('data.rows'))->sole()['id']);
 
         Mail::assertQueued(OfficialEnrollmentMail::class);
-        $this->assertSame(1, OperationalEvent::query()->where('event_type', OperationalEvent::TypeRegistrationProposalEmail)->count());
+        // #110: only an advised (transferee) case gets the review-your-subjects email.
+        $this->assertSame($path === AdmissionApplication::PathTransferee ? 1 : 0, OperationalEvent::query()->where('event_type', OperationalEvent::TypeRegistrationProposalEmail)->count());
         $this->assertSame(1, OperationalEvent::query()->where('event_type', OperationalEvent::TypeRegistrationPaymentActionEmail)->count());
         $this->assertSame(1, OperationalEvent::query()->where('event_type', OperationalEvent::TypeOfficialEnrollmentEmail)->count());
 
@@ -483,7 +492,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->assertStringNotContainsString('Pending subject must remain proposed', $officialSubjects->textContent);
         $this->assertSame(1, $xpath->query('.//tbody/tr', $officialSubjects)->length);
         $this->assertSame(1, $xpath->query('//section[h2[normalize-space()="Published class schedule"]]//li')->length);
-        $this->assertSame('Self Service · '.$issuedProposal->confirmation->confirmed_at->timezone('Asia/Manila')->format('j M Y, g:i A'),
+        $this->assertSame('Automatic · '.$issuedProposal->confirmation->confirmed_at->timezone('Asia/Manila')->format('j M Y, g:i A'),
             trim($xpath->query('//div[dt[normalize-space()="Issued subject confirmation"]]/dd')->item(0)->textContent));
         $this->assertSame($before, [$official->fresh()->getAttributes(), $official->courseEnrollments()->get()->toArray(), $official->corVersions()->get()->toArray(), RegistrationCaseEvent::query()->count()]);
     }
@@ -495,6 +504,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $head = $this->staff(User::StaffRoleAcademicHead);
         $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $application->user);
+        $case = $this->asIndividuallyAdvised($case);
         $this->recordApprovedTransferEvaluation($case);
         $unprepared = Enrollment::factory()->create(['term_id' => $term->id]);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
@@ -1309,6 +1319,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         [$section] = $this->publishedOffering($application, $term);
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $application->user);
+        $case = $this->asIndividuallyAdvised($case);
         $this->recordApprovedTransferEvaluation($case);
         $proposal = app(PrepareRegistrationProposal::class)->execute($case->fresh(), $registrar, [$section->id], $case->fresh()->lock_version);
         $this->reserveAndAssessPaidProposal($proposal, $registrar);
@@ -2407,6 +2418,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         [$section] = $this->publishedOffering($application, $term);
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $application->user);
+        $case = $this->asIndividuallyAdvised($case);
         $this->recordApprovedTransferEvaluation($case);
         $proposal = app(PrepareRegistrationProposal::class)->execute($case, $registrar, [$section->id], $case->lock_version);
 
@@ -2434,6 +2446,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         [$section] = $this->publishedOffering($application, $term);
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $application->user);
+        $case = $this->asIndividuallyAdvised($case);
         $this->recordApprovedTransferEvaluation($case);
         $proposal = app(PrepareRegistrationProposal::class)->execute($case, $registrar, [$section->id], $case->lock_version);
         $this->reserveAndAssessNoPaymentProposal($proposal, $registrar);
@@ -2990,7 +3003,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             ->assertNotified('Subjects prepared and sent to the student');
 
         $case->refresh();
-        $this->assertSame(RegistrationProposalVersion::StateIssued, $case->currentProposalVersion->state);
+        $this->assertSame(RegistrationProposalVersion::StateConfirmed, $case->currentProposalVersion->state);
         $this->assertSame($case->current_proposal_version_id, $case->termAccount->assessments()->where('state', Assessment::StateActive)->sole()->source_proposal_version_id);
         $this->assertSame(RetryStandardRegistrationPreparation::PreparedReason, $case->status_reason);
         Livewire::actingAs($this->staff(User::StaffRoleRegistrar))->test(RegistrarEnrollment::class, ['record' => $case->id])
@@ -3018,7 +3031,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->assertNull($case->fresh()->current_proposal_version_id);
 
         $this->assertSame(['prepared' => 1, 'waiting' => 0], $retry->retryForTerm($term->id, $registrar));
-        $this->assertSame(RegistrationProposalVersion::StateIssued, $case->fresh()->currentProposalVersion->state);
+        $this->assertSame(RegistrationProposalVersion::StateConfirmed, $case->fresh()->currentProposalVersion->state);
         $this->assertNull($advised->fresh()->current_proposal_version_id);
         $this->assertNull($retry->blocker($advised->fresh()));
     }
@@ -3749,6 +3762,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         [$section] = $this->publishedOffering($application, $term);
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $application->user);
+        $case = $this->asIndividuallyAdvised($case);
         $this->recordApprovedTransferEvaluation($case);
         $proposal = app(PrepareRegistrationProposal::class)->execute($case, $registrar, [$section->id], $case->lock_version);
         $this->reserveAndAssessNoPaymentProposal($proposal, $registrar);
@@ -3889,6 +3903,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         [$section] = $this->publishedOffering($application, $term);
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $application->user);
+        $case = $this->asIndividuallyAdvised($case);
         $this->recordApprovedTransferEvaluation($case);
         $proposal = app(PrepareRegistrationProposal::class)->execute($case, $registrar, [$section->id], $case->lock_version);
         $this->reserveAndAssessNoPaymentProposal($proposal, $registrar);
@@ -4119,11 +4134,12 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             $accounting,
         );
         $this->publishFeePlan($plan, $accounting, 'Synthetic no-payment authority');
-        app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
-        app(IssueRegistrationProposal::class)->execute($proposal, $registrar);
+        // #110: a no-cost regular case finalizes as soon as it is assessed, so break the email first.
         if ($invalidRecipientEmail) {
             $application->user->update(['email' => 'invalid-recipient']);
         }
+        app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
+        app(IssueRegistrationProposal::class)->execute($proposal, $registrar);
         app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);
         $official = $case->fresh()->load(['studentProfile.user', 'courseEnrollments.section', 'currentCorVersion']);
         if ($official->canonical_outcome !== Enrollment::OutcomeOfficiallyEnrolled) {
@@ -4546,5 +4562,16 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             'due_at' => ($index === 0 ? now()->subMinute() : now()->addMonth())->toDateTimeString(),
             'required_for_enrollment' => $index === 0,
         ])->all();
+    }
+
+    /**
+     * #110: regular (Standard Curriculum) subjects are confirmed automatically, so tests of the
+     * learner's own Confirm subjects or pre-confirmation steps use an Individually Advised case.
+     */
+    private function asIndividuallyAdvised(Enrollment $case): Enrollment
+    {
+        $case->forceFill(['selection_basis' => Enrollment::SelectionIndividuallyAdvised])->save();
+
+        return $case->refresh();
     }
 }

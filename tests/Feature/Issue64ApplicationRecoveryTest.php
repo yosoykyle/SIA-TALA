@@ -105,8 +105,8 @@ class Issue64ApplicationRecoveryTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('applicant'));
         $url = SubmissionReceipt::getUrl(['application' => $application->id, 'version' => $version->id]);
         $this->actingAs($applicant)->get($url)->assertOk()->assertSee('Retained source name')
-            ->assertSee('Synthetic Program')->assertSee('Synthetic source instruction')
-            ->assertSee('Earlier submitted version')->assertSee('Instructions issued with version 1')
+            ->assertSee('Synthetic Program')->assertDontSee('Synthetic source instruction')
+            ->assertSee('Earlier submitted version')->assertDontSee('Instructions issued with version 1')
             ->assertSee('Copies received with this version')->assertSee('Received private copy')
             ->assertDontSee('Upload the private copy again')
             ->assertSee($application->application_reference)->assertDontSee('Later current facts');

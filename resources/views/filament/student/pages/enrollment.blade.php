@@ -23,9 +23,14 @@
         $showProgressStepper = $enrollment !== null
             && ! $terminal
             && ! (! $confirmed && ($irregularReview['is_irregular'] ?? false) && ! $proposal);
+        // #110: regular (Standard Curriculum) subjects are confirmed automatically, so there is no confirm step.
+        $subjectsAutoConfirmed = $enrollment?->selection_basis === \App\Models\Enrollment::SelectionStandardCurriculum;
+        $enrollmentSteps = $subjectsAutoConfirmed
+            ? ['Prepare subjects', 'Pay fees', 'Officially enrolled']
+            : ['Prepare subjects', 'Confirm subjects', 'Pay fees', 'Officially enrolled'];
         $enrollmentStepIndex = match (true) {
-            $official => 3,
-            $confirmed => 2,
+            $official => count($enrollmentSteps) - 1,
+            $confirmed => count($enrollmentSteps) - 2,
             $canConfirm => 1,
             default => 0,
         };
@@ -36,7 +41,7 @@
         </div>
         @if ($showProgressStepper)
             <ol class="tala-irregular-progress" aria-label="Enrollment progress">
-                @foreach (['Prepare subjects', 'Confirm subjects', 'Pay fees', 'Officially enrolled'] as $index => $stepLabel)
+                @foreach ($enrollmentSteps as $index => $stepLabel)
                     <li @class(['is-done' => $official || $index < $enrollmentStepIndex]) @if (! $official && $index === $enrollmentStepIndex) aria-current="step" @endif>{{ $stepLabel }}</li>
                 @endforeach
             </ol>
@@ -152,11 +157,11 @@
                 @endif
                 @if ($proposal && $proposal->items->isNotEmpty())
                     @include('filament.student.pages.enrollment-subjects', ['preparing' => ! $confirmed, 'subjectsHeading' => $confirmed ? 'Confirmed subjects' : 'Proposed subjects'])
-                    @if ($schedulePresentation && $schedulePresentation['meetings'] !== [])
+                    @if ($isStudent && $schedulePresentation && $schedulePresentation['meetings'] !== [])
                         <details class="learner-disclosure"><summary>{{ $confirmed ? 'Confirmed schedule' : 'Preview schedule' }}</summary><div><p class="student-registration-help">Seats remain temporary until official enrollment.@if ($reservationDeadline) Reserved until {{ $reservationDeadline->timezone(config('app.display_timezone'))->format('M j, Y · g:i A') }}.@endif</p><x-enrollment-schedule :presentation="$schedulePresentation" :source-key="'proposal-'.$proposal->id" /></div></details>
                     @endif
-                @elseif ($enrollment)
-                    <x-enrollment-proposal-explanation :enrollment="$enrollment" :proposal="$proposal" :audience="$isStudent ? 'student' : 'applicant'" />
+                @elseif ($enrollment && $isStudent)
+                    <x-enrollment-proposal-explanation :enrollment="$enrollment" :proposal="$proposal" audience="student" />
                 @endif
                 @include('filament.student.pages.enrollment-help')
                 @if ($isStudent && $corHistory !== [])<p class="student-registration-help"><x-filament::link :href="\App\Filament\Student\Pages\CorView::getUrl(panel: 'student')">View earlier registrations</x-filament::link></p>@endif

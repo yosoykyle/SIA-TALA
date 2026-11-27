@@ -1,5 +1,5 @@
 <x-filament-panels::page class="tala-term-workspace tala-faculty-calendar-page">
-    <div class="tala-faculty-workflow space-y-4">
+    <div class="tala-faculty-workflow">
         @if (! $term)
             <x-servitech-empty-state
                 illustrated
@@ -8,7 +8,7 @@
                 description="The active term calendar appears here once the Registrar activates a term."
             />
         @else
-            <x-record-scope-bar
+            <x-record-scope-bar class="tala-faculty-term-card"
                 label="Active term"
                 icon="heroicon-o-calendar-days"
                 :scope-title="$scopeTitle"

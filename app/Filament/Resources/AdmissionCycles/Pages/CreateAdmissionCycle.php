@@ -36,16 +36,24 @@ class CreateAdmissionCycle extends CreateRecord
         return $data;
     }
 
-    protected function getCreateFormAction(): Action
+    /**
+     * The wizard footer carries Save & continue and Cancel (#110 item 11), so no separate action row is rendered.
+     *
+     * @return array<Action>
+     */
+    protected function getFormActions(): array
     {
-        return parent::getCreateFormAction()->label('Save & continue to requirements');
+        return [];
     }
 
+    /**
+     * After the draft is saved, setup continues on the same wizard where requirements sit below the form (#110 item 12).
+     */
     protected function getRedirectUrl(): string
     {
-        return AdmissionCycleResource::getUrl('view', [
+        return AdmissionCycleResource::getUrl('edit', [
             'record' => $this->getRecord(),
-            'relation' => '0',
+            'step' => 'form.programs-student-types::data::wizard-step',
         ]);
     }
 

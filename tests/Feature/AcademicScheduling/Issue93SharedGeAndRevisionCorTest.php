@@ -222,7 +222,7 @@ final class Issue93SharedGeAndRevisionCorTest extends TestCase
         $preparedStandard = app(PrepareStandardRegistration::class)->execute($standardCase, $registrar);
         $standardProposal = $preparedStandard->currentProposalVersion;
         $this->assertNotNull($standardProposal);
-        $this->assertSame(RegistrationProposalVersion::StateIssued, $standardProposal->state, (string) $preparedStandard->status_reason);
+        $this->assertSame(RegistrationProposalVersion::StateConfirmed, $standardProposal->state, (string) $preparedStandard->status_reason);
         $this->assertSame($bshmCurriculum->id, $standardProposal->curriculum_version_id);
         $this->assertSame('First Year', data_get($standardProposal->source_snapshot, 'unit_load.year_level'));
         $this->assertSame('6.00', data_get($standardProposal->source_snapshot, 'unit_load.normal_total'));

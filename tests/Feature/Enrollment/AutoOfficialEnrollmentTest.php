@@ -324,7 +324,7 @@ final class AutoOfficialEnrollmentTest extends TestCase
     #[Test]
     public function trigger_6_early_payment_defers_until_learner_confirms_then_auto_finalizes(): void
     {
-        $fixture = $this->confirmedPaidReadyFixture(amount: '1800.00', confirmProposal: false);
+        $fixture = $this->confirmedPaidReadyFixture(amount: '1800.00', confirmProposal: false, selectionBasis: Enrollment::SelectionIndividuallyAdvised);
         $accounting = $fixture['accounting'];
         $registrar = $fixture['registrar'];
         $case = $fixture['case'];
@@ -471,7 +471,7 @@ final class AutoOfficialEnrollmentTest extends TestCase
         Livewire::actingAs($learner->fresh())
             ->test(StudentEnrollmentPage::class)
             ->assertSee('Prepare subjects')
-            ->assertSee('Confirm subjects')
+            ->assertDontSee('Confirm subjects')
             ->assertSee('Pay fees')
             ->assertSee('Officially enrolled')
             ->assertSee('your enrollment becomes official automatically and your COR will be ready immediately')

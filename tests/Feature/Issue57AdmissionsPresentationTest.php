@@ -709,7 +709,7 @@ class Issue57AdmissionsPresentationTest extends TestCase
             'admission_application_id' => $application->id, 'credential_user_id' => $applicant->id,
             'term_id' => $application->term_id, 'student_profile_id' => null,
         ]);
-        $assertSurfaces('Registrar', 'existing Registration Case', 'Registration Case started');
+        $assertSurfaces('Registrar', 'Your enrollment has started.', 'Registration Case started');
     }
 
     public function test_guardian_ui_requiredness_changes_at_the_manila_birthday(): void

@@ -45,6 +45,31 @@ class AdmissionCycleReadinessService
             );
         }
 
+        if ($cycle->state === AdmissionCycle::StateDraft
+            && filled($cycle->code)
+            && AdmissionCycle::codeIsReservedByAnotherCycle($cycle->code, $cycle->id)) {
+            $blockers[] = $this->blocker(
+                'cycle_code_reserved',
+                'Admission Cycle internal code',
+                'Registrar',
+                'A published admission cycle already uses this internal cycle code.',
+                'Choose a different internal cycle code.',
+                'Open Continue setup, change the internal cycle code, save, and rerun readiness.',
+            );
+        }
+
+        if ($cycle->state === AdmissionCycle::StateDraft
+            && ($cycle->requirements_due_at === null || $cycle->payment_due_at === null || $cycle->period_ends_at === null)) {
+            $blockers[] = $this->blocker(
+                'post_admission_deadlines',
+                'Admission Cycle post-admission deadlines',
+                'Registrar',
+                'Physical papers due, Enrollment payment due, and Final admission cutoff are required.',
+                'Set all three post-admission deadlines.',
+                'Open Continue setup, set the three post-admission deadlines, save, and rerun readiness.',
+            );
+        }
+
         $enabledPaths = $this->enabledPaths($cycle);
 
         if ($enabledPaths === []) {

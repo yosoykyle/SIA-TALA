@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
 use App\Actions\Finance\IndividualAssessmentSources;
 use App\Actions\Finance\TermAccountProjection;
 use App\Actions\Grades\GradeWindowService;
@@ -39,7 +40,7 @@ use Throwable;
  */
 class NavigationBadgeCounts
 {
-    /** @var array{assessment: int, proof: int, student_changes: int, unique_total: int}|null */
+    /** @var array{assessment: int, proof: int, payment: int, student_changes: int, unique_total: int}|null */
     private ?array $accountingMemo = null;
 
     /** @var array{needs_review: int, waiting_for_applicant: int, official_credentials: int, ready_for_enrollment: int, action: int}|null */
@@ -73,7 +74,7 @@ class NavigationBadgeCounts
     private ?array $systemAdminHealthMemo = null;
 
     /**
-     * @return array{assessment: int, proof: int, student_changes: int, unique_total: int}
+     * @return array{assessment: int, proof: int, payment: int, student_changes: int, unique_total: int}
      */
     public function accounting(): array
     {
@@ -91,14 +92,18 @@ class NavigationBadgeCounts
 
         $studentChangeIds = app(LifecycleAccountingReview::class)->pendingEnrollmentIds();
         $assessmentIds = $this->accountingAssessmentIds();
+        $paymentIds = $this->accountingAwaitingPaymentIds(
+            array_values(array_unique([...$assessmentIds, ...$proofIds])),
+        );
 
-        $uniqueTotal = collect([...$assessmentIds, ...$proofIds, ...$studentChangeIds])
+        $uniqueTotal = collect([...$assessmentIds, ...$proofIds, ...$paymentIds, ...$studentChangeIds])
             ->unique()
             ->count();
 
         return $this->accountingMemo = [
             'assessment' => count($assessmentIds),
             'proof' => count($proofIds),
+            'payment' => count($paymentIds),
             'student_changes' => count($studentChangeIds),
             'unique_total' => $uniqueTotal,
         ];
@@ -110,6 +115,7 @@ class NavigationBadgeCounts
         $parts = array_values(array_filter([
             $counts['assessment'] > 0 ? $counts['assessment'].' '.Str::plural('assessment review', $counts['assessment']) : null,
             $counts['proof'] > 0 ? $counts['proof'].' '.Str::plural('receipt', $counts['proof']) : null,
+            $counts['payment'] > 0 ? $counts['payment'].' waiting for payment' : null,
             $counts['student_changes'] > 0 ? $counts['student_changes'].' '.Str::plural('status change', $counts['student_changes']) : null,
         ]));
 
@@ -589,5 +595,51 @@ class NavigationBadgeCounts
         }
 
         return array_values($ids);
+    }
+
+    /**
+     * @param  list<int>  $excludedIds
+     * @return list<int>
+     */
+    private function accountingAwaitingPaymentIds(array $excludedIds): array
+    {
+        $candidates = Enrollment::query()
+            ->where('canonical_outcome', Enrollment::OutcomeInProgress)
+            ->whereHas('termAccount')
+            ->when($excludedIds !== [], fn (Builder $query): Builder => $query->whereNotIn('id', $excludedIds))
+            ->with([
+                'termAccount.enrollment',
+                'termAccount.assessments.obligations.paymentAllocations.payment',
+                'termAccount.assessments.obligations.coverages',
+            ])
+            ->get();
+
+        if ($candidates->isEmpty()) {
+            return [];
+        }
+
+        $projection = app(EnrollmentPaymentRequirementProjection::class);
+        $ids = [];
+
+        foreach ($candidates as $case) {
+            $assessment = $case->termAccount?->assessments
+                ->where('state', Assessment::StateActive)
+                ->sortByDesc('version')
+                ->first();
+
+            if ($case->termAccount === null
+                || $assessment === null
+                || (int) $assessment->source_proposal_version_id !== (int) $case->current_proposal_version_id) {
+                continue;
+            }
+
+            $requirement = $projection->forEnrollment($case, activeAssessment: $assessment, useLoadedRelations: true);
+
+            if ($requirement['state'] === 'ActionNeeded') {
+                $ids[] = (int) $case->id;
+            }
+        }
+
+        return $ids;
     }
 }

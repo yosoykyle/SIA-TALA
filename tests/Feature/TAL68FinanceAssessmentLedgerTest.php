@@ -290,7 +290,7 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
         Livewire::actingAs($registrar)->test(ViewEnrollment::class, ['record' => $case->getRouteKey()])
             ->assertSee('Enrollment payment')
             ->assertSee('PHP 1,500.00')
-            ->assertSee('Total charges')
+            ->assertSee('Total term charges')
             ->assertSee('PHP 5,800.00')
             ->assertActionHidden('createAssessment')
             ->assertActionHidden('recordIndividualAssessment');

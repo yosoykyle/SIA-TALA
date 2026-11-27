@@ -58,6 +58,7 @@ class SaveAdmissionApplication
         }
 
         $validated = Validator::make($data, $this->draftRules($application))->validate();
+        $this->assertGuardianIsNotApplicant($validated, $application);
 
         $expectedSubmissionVersionId = $expectedSubmissionVersionId === 0 ? null : ($expectedSubmissionVersionId ?? $application?->current_submission_version_id);
         $storedEvidence = [];
@@ -334,6 +335,28 @@ class SaveAdmissionApplication
         if (! $activeRequest instanceof ApplicationCorrectionRequest || $unscoped !== []) {
             throw ValidationException::withMessages([
                 'correction_scope' => 'Only fields named by the active Registrar correction request may be edited.',
+            ]);
+        }
+    }
+
+    /**
+     * Rejects a guardian or emergency contact that names the Applicant themself (#110 item 1).
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    private function assertGuardianIsNotApplicant(array $validated, ?AdmissionApplication $application): void
+    {
+        $value = fn (string $key): ?string => array_key_exists($key, $validated) ? $validated[$key] : $application?->getAttribute($key);
+
+        if (AdmissionApplication::guardianNameMatchesApplicant(
+            $value('guardian_full_name'),
+            $value('first_name'),
+            $value('middle_name'),
+            $value('last_name'),
+            $value('extension_name'),
+        )) {
+            throw ValidationException::withMessages([
+                'guardian_full_name' => AdmissionApplication::GuardianIsApplicantMessage,
             ]);
         }
     }

@@ -8,9 +8,9 @@
     @endphp
 
     @if ($roster === null)
-        <section class="faculty-class-worklist tala-faculty-workflow space-y-4" aria-label="Subjects and sections">
+        <section class="faculty-class-worklist tala-faculty-workflow" aria-label="Subjects and sections">
             @if (filled($scopeTitle) || filled($scopeMeta))
-                <x-record-scope-bar
+                <x-record-scope-bar class="tala-faculty-term-card"
                     :scope-title="$scopeTitle"
                     :scope-meta="$scopeMeta"
                     icon="heroicon-o-calendar-days"
@@ -132,40 +132,8 @@
                                 </td>
                                 <td role="cell">
                                     <span class="tala-data-table-mobile-label" aria-hidden="true">Actions</span>
+                                    {{-- #110: Grades stays visible; the secondary class actions live in one "More" menu. --}}
                                     <div class="faculty-class-row-actions">
-                                        @if ($classRow['current'])
-                                            <x-filament::button
-                                                type="button"
-                                                size="sm"
-                                                color="gray"
-                                                icon="heroicon-o-users"
-                                                wire:click="mountAction('viewMasterlist', { roster: {{ $classRoster->id }} })"
-                                            >
-                                                View masterlist<span class="sr-only"> for {{ $subjectLabel }}</span>
-                                            </x-filament::button>
-                                        @endif
-                                        @if ($canOutputMasterlist)
-                                            <x-filament::button
-                                                tag="a"
-                                                size="sm"
-                                                color="gray"
-                                                icon="heroicon-o-printer"
-                                                :href="route('grade-rosters.print', $classRoster)"
-                                                target="_blank"
-                                                rel="noopener"
-                                            >
-                                                Print<span class="sr-only"> masterlist for {{ $subjectLabel }}</span>
-                                            </x-filament::button>
-                                            <x-filament::button
-                                                tag="a"
-                                                size="sm"
-                                                color="gray"
-                                                icon="heroicon-o-arrow-down-tray"
-                                                :href="route('grade-rosters.csv', $classRoster)"
-                                            >
-                                                Export CSV<span class="sr-only"> for {{ $subjectLabel }}</span>
-                                            </x-filament::button>
-                                        @endif
                                         <x-filament::button
                                             tag="a"
                                             size="sm"
@@ -175,6 +143,44 @@
                                         >
                                             Grades<span class="sr-only"> for {{ $subjectLabel }}</span>
                                         </x-filament::button>
+                                        @if ($classRow['current'] || $canOutputMasterlist)
+                                            <x-filament::dropdown placement="bottom-end" width="xs">
+                                                <x-slot name="trigger">
+                                                    <x-filament::button type="button" size="sm" color="gray" icon="heroicon-m-chevron-down" icon-position="after">
+                                                        More<span class="sr-only"> actions for {{ $subjectLabel }}</span>
+                                                    </x-filament::button>
+                                                </x-slot>
+                                                <x-filament::dropdown.list>
+                                                    @if ($classRow['current'])
+                                                        <x-filament::dropdown.list.item
+                                                            icon="heroicon-o-users"
+                                                            x-on:click="close()"
+                                                            wire:click="mountAction('viewMasterlist', { roster: {{ $classRoster->id }} })"
+                                                        >
+                                                            View masterlist<span class="sr-only"> for {{ $subjectLabel }}</span>
+                                                        </x-filament::dropdown.list.item>
+                                                    @endif
+                                                    @if ($canOutputMasterlist)
+                                                        <x-filament::dropdown.list.item
+                                                            tag="a"
+                                                            icon="heroicon-o-printer"
+                                                            :href="route('grade-rosters.print', $classRoster)"
+                                                            target="_blank"
+                                                            rel="noopener"
+                                                        >
+                                                            Print masterlist<span class="sr-only"> for {{ $subjectLabel }}</span>
+                                                        </x-filament::dropdown.list.item>
+                                                        <x-filament::dropdown.list.item
+                                                            tag="a"
+                                                            icon="heroicon-o-arrow-down-tray"
+                                                            :href="route('grade-rosters.csv', $classRoster)"
+                                                        >
+                                                            Export CSV<span class="sr-only"> for {{ $subjectLabel }}</span>
+                                                        </x-filament::dropdown.list.item>
+                                                    @endif
+                                                </x-filament::dropdown.list>
+                                            </x-filament::dropdown>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -252,7 +258,9 @@
             </div>
         @endif
 
-        <form wire:submit="saveDraft" class="faculty-result-workspace" aria-label="Class result workspace"
+        {{-- #110: a div, not a <form>, so Filament's action modals (also forms) are not nested and keep their window. Enter in a grade field still saves the draft. --}}
+        <div role="form" class="faculty-result-workspace" aria-label="Class result workspace"
+            x-on:keydown.enter="if ($event.target.matches('input') && ! $event.target.closest('.fi-modal')) { $event.preventDefault(); $wire.saveDraft() }"
             x-data="{
                 pending: false, editRevision: 0, transportFailed: false, unsubscribe: null,
                 init() {
@@ -408,6 +416,6 @@
                 @endif
             </x-slot:footer>
             </x-record-workspace>
-        </form>
+        </div>
     @endif
 </x-filament-panels::page>

@@ -348,6 +348,18 @@ class SubmitAdmissionApplication
                 'guardian_mobile' => ['required', 'regex:/^09\d{9}$/'],
             ])->validate();
         }
+
+        if (AdmissionApplication::guardianNameMatchesApplicant(
+            $application->guardian_full_name,
+            $application->first_name,
+            $application->middle_name,
+            $application->last_name,
+            $application->extension_name,
+        )) {
+            throw ValidationException::withMessages([
+                'guardian_full_name' => AdmissionApplication::GuardianIsApplicantMessage,
+            ]);
+        }
     }
 
     private function assertRequiredEvidenceExists(

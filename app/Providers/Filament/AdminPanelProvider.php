@@ -821,12 +821,14 @@ class AdminPanelProvider extends PanelProvider
             $badgeKey = [
                 'assessment_required' => 'assessment',
                 'payment_proof' => 'proof',
+                'awaiting_payment' => 'payment',
                 'student_changes' => 'student_changes',
             ];
             $children = collect([
                 'accounts' => ['All student accounts', Heroicon::OutlinedFolderOpen],
                 'assessment_required' => ['Assessment reviews', Heroicon::OutlinedDocumentCurrencyDollar],
                 'payment_proof' => ['Review receipts', Heroicon::OutlinedDocumentMagnifyingGlass],
+                'awaiting_payment' => ['Waiting for payment', Heroicon::OutlinedBanknotes],
                 'student_changes' => ['Student status changes', Heroicon::OutlinedClipboardDocumentCheck],
             ])->map(function (array $area, string $key) use ($inside, $selected, $badgeCounts, $badgeKey): NavigationItem {
                 $child = NavigationItem::make($area[0])

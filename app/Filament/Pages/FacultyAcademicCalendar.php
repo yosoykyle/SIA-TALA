@@ -263,11 +263,8 @@ class FacultyAcademicCalendar extends Page
                     ? $cutoffVerb.' '.$bounds['closes_at']->format('g:i A').' (Asia/Manila)'
                     : null;
 
-                $note = match ($type) {
-                    TermCalendarWindow::TypeExaminationPeriod => 'Calendar notice · Does not pause classes or lock grades.',
-                    TermCalendarWindow::TypeGradeEntry => 'Official grades are released by the Registrar after review.',
-                    default => null,
-                };
+                // #110: the examination and grade-entry rows show their dates only.
+                $note = null;
 
                 return [
                     'type' => $type,

@@ -33,8 +33,8 @@
             current-area="Record assessment"
             current-task="Accounting records the approved charges and payment schedule for this selection."
             next-owner="Student"
-            next-area="Confirm subjects"
-            next-task="Confirm subjects (auto-sent after assessment)."
+            :next-area="$case->selection_basis === \App\Models\Enrollment::SelectionStandardCurriculum ? 'Pay fees' : 'Confirm subjects'"
+            :next-task="$case->selection_basis === \App\Models\Enrollment::SelectionStandardCurriculum ? 'Pay fees (subjects are sent and confirmed automatically after assessment).' : 'Confirm subjects (auto-sent after assessment).'"
         />
     @endif
     <div class="registrar-case-grid">

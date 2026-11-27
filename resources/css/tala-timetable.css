@@ -2505,10 +2505,11 @@
 }
 .tala-timetable-mobile-meeting:focus-visible { outline: 3px solid var(--tala-focus); outline-offset: 2px; }
 .tala-timetable-mobile-meeting .tala-timetable-list-time {
+    /* #110: day and time always stack (day on top, time below) so every row reads the same. */
     display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 0.15rem 0.4rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
     color: var(--tala-muted);
     font-size: 0.785rem;
     line-height: 1.3;

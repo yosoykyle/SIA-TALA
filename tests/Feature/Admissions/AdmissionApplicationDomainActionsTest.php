@@ -471,6 +471,39 @@ class AdmissionApplicationDomainActionsTest extends TestCase
         $this->assertSame(AdmissionApplication::StateSubmitted, app(SubmitAdmissionApplication::class)->execute($draft, $applicant)->application_state);
     }
 
+    public function test_guardian_naming_the_applicant_themself_is_rejected_on_save_and_submit(): void
+    {
+        [$cycle, $program] = $this->openCycle();
+        $applicant = $this->applicant();
+        $contact = ['guardian_relationship' => 'Parent', 'guardian_mobile' => '09123456789'];
+
+        foreach (['Alma Adult', '  alma   ADULT ', 'Adult, Alma'] as $ownName) {
+            try {
+                app(SaveAdmissionApplication::class)->execute($applicant, $cycle, [
+                    ...$this->applicationData($program), ...$contact, 'guardian_full_name' => $ownName,
+                ]);
+                $this->fail("Saving the Applicant's own name ({$ownName}) as guardian must be refused.");
+            } catch (ValidationException $exception) {
+                $this->assertSame([AdmissionApplication::GuardianIsApplicantMessage], $exception->errors()['guardian_full_name']);
+            }
+        }
+
+        $draft = app(SaveAdmissionApplication::class)->execute($applicant, $cycle, [
+            ...$this->applicationData($program), ...$contact, 'guardian_full_name' => 'Rosa Adult',
+        ]);
+        $draft->forceFill(['guardian_full_name' => 'Alma Adult'])->save();
+
+        try {
+            app(SubmitAdmissionApplication::class)->execute($draft->fresh(), $applicant);
+            $this->fail("Submitting the Applicant's own name as guardian must be refused.");
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('guardian_full_name', $exception->errors());
+        }
+
+        $draft->forceFill(['guardian_full_name' => 'Rosa Adult'])->save();
+        $this->assertSame(AdmissionApplication::StateSubmitted, app(SubmitAdmissionApplication::class)->execute($draft->fresh(), $applicant)->application_state);
+    }
+
     public function test_manila_eighteenth_birthday_allows_no_contact_but_requires_a_complete_optional_contact(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-10-04 00:30:00', 'Asia/Manila'));

@@ -252,6 +252,7 @@ Each requirement defines:
 - Applicable path (Freshman, Transferee, or duplicated across both).
 - Submission mode covering preliminary online upload, face-to-face (`InPerson`), both online upload and face-to-face, or school-to-school official submission.
 - Due stage (`PreliminaryReview`, `EnrollmentReadiness`, or `PostEnrollmentFollowUp`).
+- Requirement type (owner decision, November 27, 2026, #110): each list carries exactly one **main admission credential** for its Student type (Form 138 for Freshman, Transfer Credential for Transferee), pre-filled as the first row, due at Enrollment Readiness and never held. Every other paper is either **Required, can't be held** (stored as core other official credential) or **Can be held with approval** (non-core, with the approving authority). Publication refuses a second main credential or one that does not match the Student type.
 - Plain applicant and Registrar instructions and any source-backed digital deadline.
 - Display order maintained automatically by drag-and-drop ordering.
 
@@ -482,6 +483,7 @@ Contextual Registrar pages provide:
 
 - Admission Cycle list and derived readiness.
 - Guided multi-step Draft cycle setup wizard with typeable Asia/Manila date/time inputs, auto-assigned Registrar owner and institutional guidance defaults, auto-detected eligible programs (active + open curriculum batch), and upfront step validation (#105).
+- The wizard (#110) labels the term picker **Academic Year**, requires the three post-admission deadlines, shows its steps as stage cards, saves with **Save & continue** beside **Cancel**, and embeds requirement setup in the **Programs & student types** step; a Draft cycle reserves its internal code only once published.
 - Requirement setup (`RequirementSetsRelationManager`) with auto-managed version/replacement linking, auto-generated requirement codes, drag-and-drop display order, optional source reference, explicit Online/F2F/Both submission modes, and Freshman/Transferee duplication (#105).
 - Publish, extend, close, cancel, and publish-replacement actions for the Admission Cycle with reason, authority, and audit evidence.
 - **Set admission deadlines** on a published cycle for the physical papers, enrollment payment and final admission cutoff (`Admission period ends`) dates (Section 7.4), audited and required to fit the period. The Draft cycle form groups these under **Post-admission deadlines (Optional)** separately from the Application window.

@@ -21,8 +21,13 @@ class ConfirmRegistrationProposal
         User $learner,
         ?User $assistedBy = null,
         ?string $assistedEvidenceReference = null,
+        bool $automatic = false,
     ): RegistrationProposalVersion {
         $proposal->loadMissing('enrollment');
+
+        if ($automatic && $assistedBy !== null) {
+            throw new AuthorizationException('An automatic confirmation cannot also be Registrar-assisted.');
+        }
 
         if (! $learner->canAuthenticate()) {
             throw new AuthorizationException('Only an active learner may confirm this proposal.');
@@ -37,9 +42,17 @@ class ConfirmRegistrationProposal
             throw new AuthorizationException('Assisted confirmation requires authorized Registrar staff.');
         }
 
-        return DB::transaction(function () use ($proposal, $learner, $assistedBy, $assistedEvidenceReference): RegistrationProposalVersion {
+        return DB::transaction(function () use ($proposal, $learner, $assistedBy, $assistedEvidenceReference, $automatic): RegistrationProposalVersion {
             $enrollment = Enrollment::query()->whereKey($proposal->enrollment_id)->lockForUpdate()->firstOrFail();
             $locked = RegistrationProposalVersion::query()->whereKey($proposal->id)->lockForUpdate()->firstOrFail();
+
+            // A proposal TALA already confirmed (and may have finalized) stays confirmed; asking again is a no-op (#110).
+            if ($locked->state === RegistrationProposalVersion::StateConfirmed
+                && (int) $enrollment->current_proposal_version_id === (int) $locked->id
+                && $enrollment->canonical_outcome === Enrollment::OutcomeOfficiallyEnrolled
+                && $locked->confirmation()->exists()) {
+                return $locked->load('confirmation');
+            }
 
             $expectedOutcome = $locked->purpose === RegistrationProposalVersion::PurposeAdjustment
                 ? Enrollment::OutcomeOfficiallyEnrolled
@@ -60,7 +73,11 @@ class ConfirmRegistrationProposal
 
             RegistrationProposalConfirmation::query()->create([
                 'registration_proposal_version_id' => $locked->id,
-                'method' => $assistedBy === null ? RegistrationProposalConfirmation::MethodSelfService : RegistrationProposalConfirmation::MethodRegistrarAssisted,
+                'method' => match (true) {
+                    $automatic => RegistrationProposalConfirmation::MethodAutomatic,
+                    $assistedBy !== null => RegistrationProposalConfirmation::MethodRegistrarAssisted,
+                    default => RegistrationProposalConfirmation::MethodSelfService,
+                },
                 'learner_user_id' => $learner->id,
                 'assisted_by' => $assistedBy?->id,
                 'assisted_evidence_reference' => $assistedEvidenceReference,
