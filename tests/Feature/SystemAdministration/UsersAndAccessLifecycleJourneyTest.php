@@ -689,6 +689,236 @@ class UsersAndAccessLifecycleJourneyTest extends TestCase
         $this->assertTrue($readOnlyAction->isModalClosedByClickingAway());
     }
 
+    public function test_invite_staff_modal_omits_reason_field_and_invites_cleanly(): void
+    {
+        $administrator = $this->administrator();
+        $administrator->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+        $administrator->saveAppAuthenticationRecoveryCodes(['admin-code']);
+
+        $this->actingAs($administrator)
+            ->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleSystemSuperAdmin]);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Livewire::test(ListUsers::class)
+            ->mountAction(TestAction::make('inviteStaff')->table())
+            ->assertMountedActionModalDontSee('Note / Reason')
+            ->assertMountedActionModalDontSee('Approval memo or reference')
+            ->assertMountedActionModalDontSee('Evidence reference')
+            ->setActionData([
+                'email' => 'new.registrar@example.test',
+                'staff_identifier' => 'STF-2026-404',
+                'first_name' => 'Nora',
+                'last_name' => 'Velasco',
+                'roles' => [User::StaffRoleRegistrar],
+            ])
+            ->callMountedAction()
+            ->assertHasNoActionErrors()
+            ->assertNotified('Staff invitation sent');
+
+        $invited = User::query()->where('email', 'new.registrar@example.test')->firstOrFail();
+        $this->assertSame(User::StatusInvitationPending, $invited->status);
+        $this->assertNull($invited->staffInvitations()->latest('id')->firstOrFail()->reason);
+    }
+
+    public function test_reset_mfa_modal_uses_crimson_danger_controls_and_surfaces_validation_errors_in_list_and_view(): void
+    {
+        $administrator = $this->administrator();
+        $administrator->forceFill(['password' => Hash::make('administrator password')])->save();
+        $administrator->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+        $administrator->saveAppAuthenticationRecoveryCodes(['admin-code']);
+
+        $target = User::factory()->create([
+            ...User::staffNamePayload('Marco', null, 'Dela Cruz'),
+            'email' => 'marco.staff@example.test',
+            'status' => User::StatusActive,
+        ]);
+        $target->assignRole(User::StaffRoleRegistrar);
+        $target->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+        $target->saveAppAuthenticationRecoveryCodes(['target-code']);
+        DB::table('sessions')->insert([
+            'id' => 'target-mfa-session-1',
+            'user_id' => $target->id,
+            'ip_address' => '127.0.0.1',
+            'user_agent' => 'PHPUnit',
+            'payload' => '',
+            'last_activity' => now()->timestamp,
+        ]);
+
+        $this->actingAs($administrator)
+            ->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleSystemSuperAdmin]);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $listModal = Livewire::test(ListUsers::class)
+            ->mountAction(TestAction::make('resetMfa')->table($target));
+
+        $modalHtml = $listModal->getMountedActionModalHtml();
+        $this->assertStringContainsString('fi-align-start', $modalHtml);
+        $this->assertStringContainsString('tala-user-access-context', $modalHtml);
+        $this->assertStringContainsString('tala-record-identity', $modalHtml);
+        $this->assertStringContainsString('Marco Dela Cruz', $modalHtml);
+        $this->assertStringContainsString('marco.staff@example.test', $modalHtml);
+        $this->assertStringContainsString('Registrar', $modalHtml);
+        $this->assertStringContainsString('fi-color-danger', $modalHtml);
+        $this->assertStringContainsString('autocomplete="current-password"', $modalHtml);
+        $this->assertStringNotContainsString('Approval memo or reference', $modalHtml);
+        $this->assertStringNotContainsString('Evidence reference', $modalHtml);
+
+        $listModal
+            ->setActionData([
+                'current_password' => 'wrong password',
+                'reason' => 'Verified lost phone during in-person identity check.',
+            ])
+            ->callMountedAction()
+            ->assertHasActionErrors(['current_password']);
+
+        $this->assertSame('JBSWY3DPEHPK3PXP', $target->fresh()->getAppAuthenticationSecret());
+
+        // Whitespace-only reason bypasses minLength(10) and must map StaffMfaService validation onto the reason field.
+        $listModal
+            ->setActionData([
+                'current_password' => 'administrator password',
+                'reason' => str_repeat(' ', 12),
+            ])
+            ->callMountedAction()
+            ->assertHasActionErrors(['reason']);
+
+        $this->assertSame('JBSWY3DPEHPK3PXP', $target->fresh()->getAppAuthenticationSecret());
+
+        // Successful reset from ListUsers table action.
+        $listModal
+            ->setActionData([
+                'current_password' => 'administrator password',
+                'reason' => 'Verified lost phone during in-person identity check.',
+            ])
+            ->callMountedAction()
+            ->assertHasNoActionErrors()
+            ->assertNotified('MFA reset; re-enrollment required');
+
+        $target->refresh();
+        $this->assertNull($target->getAppAuthenticationSecret());
+        $this->assertNull($target->getAppAuthenticationRecoveryCodes());
+        $this->assertSame(User::StatusVerificationRequired, $target->status);
+        $this->assertDatabaseMissing('sessions', ['user_id' => $target->id]);
+
+        $activity = Activity::query()
+            ->where('subject_type', User::class)
+            ->where('subject_id', $target->id)
+            ->where('event', 'staff_mfa_reset')
+            ->latest('id')
+            ->firstOrFail();
+        $this->assertSame('', $activity->properties->get('authority'));
+        $this->assertNull($activity->properties->get('evidence_reference'));
+
+        // Re-enroll target MFA and verify ViewUser resetMfaAction + self-MFA reset redirect cleanly.
+        $target->forceFill(['status' => User::StatusActive])->save();
+        $target->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+        $target->saveAppAuthenticationRecoveryCodes(['target-code-2']);
+
+        Livewire::test(ViewUser::class, ['record' => $target->getRouteKey()])
+            ->callAction('resetMfa', data: [
+                'current_password' => 'administrator password',
+                'reason' => 'Staff member replaced mobile authenticator device.',
+            ])
+            ->assertHasNoActionErrors()
+            ->assertNotified('MFA reset; re-enrollment required')
+            ->assertActionHidden('resetMfa');
+
+        $this->assertNull($target->fresh()->getAppAuthenticationSecret());
+
+        Livewire::test(ViewUser::class, ['record' => $administrator->getRouteKey()])
+            ->callAction('resetMfa', data: [
+                'current_password' => 'administrator password',
+                'reason' => 'Administrator resetting own authenticator after device replacement.',
+            ])
+            ->assertHasNoActionErrors()
+            ->assertRedirect(Filament::getLoginUrl());
+
+        $this->assertNull($administrator->fresh()->getAppAuthenticationSecret());
+        $this->assertGuest();
+    }
+
+    public function test_streamlined_disable_reactivate_edit_and_email_change_surface_service_errors_without_authority_fields(): void
+    {
+        $administrator = $this->administrator();
+        $administrator->forceFill(['password' => Hash::make('administrator password')])->save();
+        $administrator->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
+        $administrator->saveAppAuthenticationRecoveryCodes(['admin-code']);
+
+        $otherAdmin = $this->administrator();
+        $otherAdmin->forceFill(['status' => User::StatusDisabled])->save();
+
+        $staff = User::factory()->create([
+            'name' => 'Camille Santos',
+            'email' => 'camille@example.test',
+            'status' => User::StatusActive,
+        ]);
+        $staff->assignRole(User::StaffRoleFaculty);
+
+        $learner = User::factory()->create([
+            'name' => 'Lester Learner',
+            'email' => 'lester@example.test',
+            'status' => User::StatusActive,
+        ]);
+        $learner->assignRole('student');
+
+        $this->actingAs($administrator)
+            ->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleSystemSuperAdmin]);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        Livewire::test(ViewUser::class, ['record' => $staff->getRouteKey()])
+            ->mountAction('disable')
+            ->assertMountedActionModalDontSee('Approval memo or reference')
+            ->assertMountedActionModalDontSee('Evidence reference')
+            ->assertMountedActionModalSee('Reference (optional)')
+            ->setActionData([
+                'reason' => 'Temporary suspension while employment clearance is reviewed.',
+            ])
+            ->callMountedAction()
+            ->assertHasNoActionErrors()
+            ->assertNotified('Account disabled');
+
+        $this->assertSame(User::StatusDisabled, $staff->fresh()->status);
+
+        Livewire::test(ViewUser::class, ['record' => $staff->getRouteKey()])
+            ->mountAction('reactivate')
+            ->assertMountedActionModalDontSee('Approval memo or reference')
+            ->assertMountedActionModalDontSee('Evidence reference')
+            ->assertMountedActionModalSee('Reference (optional)')
+            ->setActionData([
+                'reason' => 'Employment clearance completed and access approved to resume.',
+            ])
+            ->callMountedAction()
+            ->assertHasNoActionErrors()
+            ->assertNotified('Account reactivated');
+
+        $this->assertSame(User::StatusActive, $staff->fresh()->status);
+
+        Livewire::test(ViewUser::class, ['record' => $staff->getRouteKey()])
+            ->mountAction('editRoleAndDetails')
+            ->assertMountedActionModalDontSee('Approval memo or reference')
+            ->assertMountedActionModalDontSee('Evidence reference')
+            ->assertMountedActionModalSee('Reference (optional)')
+            ->setActionData([
+                'roles' => [User::StaffRoleFaculty, User::StaffRoleRegistrar],
+                'staff_identifier' => 'STF-2026-990',
+                'reason' => 'Assigned registrar support duties for enrollment week.',
+            ])
+            ->callMountedAction()
+            ->assertHasNoActionErrors()
+            ->assertNotified('Staff details updated');
+
+        $this->assertTrue($staff->fresh()->hasRole(User::StaffRoleRegistrar));
+
+        // Unmapped service ValidationException (duplicate email maps to new_email) surfaces on the live field instead of silent failure.
+        Livewire::test(ViewUser::class, ['record' => $learner->getRouteKey()])
+            ->callAction('changeSignInEmail', data: [
+                'new_email' => 'camille@example.test',
+                'current_password' => 'administrator password',
+                'reason' => 'Testing duplicate email conflict mapping onto new_email.',
+            ])
+            ->assertHasActionErrors(['new_email']);
+    }
+
     private function administrator(): User
     {
         $user = User::factory()->create();

@@ -23,7 +23,7 @@ class UserAccessService
 {
     public function __construct(private readonly UserSessionService $sessions) {}
 
-    public function disable(User $actor, User $target, string $reason, string $authority, ?string $evidenceReference = null): User
+    public function disable(User $actor, User $target, string $reason, ?string $authority = null, ?string $evidenceReference = null): User
     {
         $this->authorizeAdministrator($actor);
 
@@ -34,7 +34,7 @@ class UserAccessService
         return DB::transaction(function () use ($actor, $target, $reason, $authority, $evidenceReference): User {
             $this->lockAdministrators();
             $locked = User::query()->lockForUpdate()->findOrFail($target->id);
-            $this->validateReasonAndAuthority($reason, $authority);
+            $this->validateReason($reason);
 
             if ($locked->hasRole(User::StaffRoleSystemSuperAdmin) && $this->activeAdministratorCount() <= 1) {
                 throw ValidationException::withMessages([
@@ -42,19 +42,22 @@ class UserAccessService
                 ]);
             }
 
+            $normalizedAuthority = filled($authority) ? trim((string) $authority) : '';
+            $normalizedEvidence = filled($evidenceReference) ? trim((string) $evidenceReference) : null;
+
             $locked->forceFill([
                 'status' => User::StatusDisabled,
                 'disabled_at' => now(),
                 'disabled_by' => $actor->id,
                 'disabled_reason' => trim($reason),
-                'disabled_authority' => trim($authority),
-                'disabled_evidence_reference' => $evidenceReference,
+                'disabled_authority' => $normalizedAuthority !== '' ? $normalizedAuthority : null,
+                'disabled_evidence_reference' => $normalizedEvidence,
             ])->save();
             $this->sessions->revokeAll($locked);
 
-            $this->audit($actor, $locked, 'staff_account_disabled', $reason, $authority, [
+            $this->audit($actor, $locked, 'staff_account_disabled', $reason, $normalizedAuthority, [
                 'contexts_preserved' => $locked->roles()->pluck('name')->all(),
-                'evidence_reference' => $evidenceReference,
+                'evidence_reference' => $normalizedEvidence,
             ]);
             $this->notifyAccessChangeAfterCommit($locked, 'All TALA workspaces for this account were disabled. Existing roles and records were preserved.');
 
@@ -62,19 +65,22 @@ class UserAccessService
         });
     }
 
-    public function reactivate(User $actor, User $target, string $reason, string $authority, ?string $evidenceReference = null): User
+    public function reactivate(User $actor, User $target, string $reason, ?string $authority = null, ?string $evidenceReference = null): User
     {
         $this->authorizeAdministrator($actor);
 
         return DB::transaction(function () use ($actor, $target, $reason, $authority, $evidenceReference): User {
             $locked = User::query()->lockForUpdate()->findOrFail($target->id);
-            $this->validateReasonAndAuthority($reason, $authority);
+            $this->validateReason($reason);
 
             if ($locked->status !== User::StatusDisabled) {
                 throw ValidationException::withMessages([
                     'status' => 'Only a disabled account can be reactivated.',
                 ]);
             }
+
+            $normalizedAuthority = filled($authority) ? trim((string) $authority) : '';
+            $normalizedEvidence = filled($evidenceReference) ? trim((string) $evidenceReference) : null;
 
             $locked->forceFill([
                 'status' => User::StatusActive,
@@ -85,9 +91,9 @@ class UserAccessService
                 'disabled_evidence_reference' => null,
             ])->save();
 
-            $this->audit($actor, $locked, 'staff_account_reactivated', $reason, $authority, [
+            $this->audit($actor, $locked, 'staff_account_reactivated', $reason, $normalizedAuthority, [
                 'contexts_restored' => $locked->roles()->pluck('name')->all(),
-                'evidence_reference' => $evidenceReference,
+                'evidence_reference' => $normalizedEvidence,
             ]);
             $this->notifyAccessChangeAfterCommit($locked, 'Your TALA account was reactivated with its previously authorized contexts.');
 
@@ -96,7 +102,7 @@ class UserAccessService
     }
 
     /** @param list<string> $roles */
-    public function changeStaffRoles(User $actor, User $target, array $roles, string $reason, string $authority, ?string $evidenceReference = null): User
+    public function changeStaffRoles(User $actor, User $target, array $roles, string $reason, ?string $authority = null, ?string $evidenceReference = null): User
     {
         $this->authorizeAdministrator($actor);
         $roles = array_values(array_unique($roles));
@@ -110,7 +116,7 @@ class UserAccessService
         return DB::transaction(function () use ($actor, $target, $roles, $reason, $authority, $evidenceReference): User {
             $this->lockAdministrators();
             $locked = User::query()->lockForUpdate()->findOrFail($target->id);
-            $this->validateReasonAndAuthority($reason, $authority);
+            $this->validateReason($reason);
 
             if (! $locked->isStaffCapable()) {
                 throw ValidationException::withMessages([
@@ -135,10 +141,13 @@ class UserAccessService
             $learnerRoles = $locked->roles()->whereIn('name', ['applicant', 'student'])->pluck('name')->all();
             $locked->syncRoles([...$learnerRoles, ...$roles]);
 
-            $this->audit($actor, $locked, 'staff_access_changed', $reason, $authority, [
+            $normalizedAuthority = filled($authority) ? trim((string) $authority) : '';
+            $normalizedEvidence = filled($evidenceReference) ? trim((string) $evidenceReference) : null;
+
+            $this->audit($actor, $locked, 'staff_access_changed', $reason, $normalizedAuthority, [
                 'before_contexts' => $before,
                 'after_contexts' => $roles,
-                'evidence_reference' => $evidenceReference,
+                'evidence_reference' => $normalizedEvidence,
             ]);
             $this->notifyAccessChangeAfterCommit($locked, 'Your authorized TALA Staff contexts changed. Review your Profile after signing in.');
 
@@ -151,11 +160,11 @@ class UserAccessService
         User $target,
         ?string $staffIdentifier,
         string $reason,
-        string $authority,
+        ?string $authority = null,
         ?string $evidenceReference = null,
     ): User {
         $this->authorizeAdministrator($actor);
-        $this->validateReasonAndAuthority($reason, $authority);
+        $this->validateReason($reason);
 
         $normalized = filled($staffIdentifier) ? Str::squish((string) $staffIdentifier) : null;
 
@@ -199,10 +208,13 @@ class UserAccessService
                 ],
             );
 
-            $this->audit($actor, $locked, 'staff_identifier_updated', $reason, $authority, [
+            $normalizedAuthority = filled($authority) ? trim((string) $authority) : '';
+            $normalizedEvidence = filled($evidenceReference) ? trim((string) $evidenceReference) : null;
+
+            $this->audit($actor, $locked, 'staff_identifier_updated', $reason, $normalizedAuthority, [
                 'before_staff_identifier' => $before,
                 'after_staff_identifier' => $normalized,
-                'evidence_reference' => $evidenceReference,
+                'evidence_reference' => $normalizedEvidence,
             ]);
 
             return $locked->refresh();
@@ -240,7 +252,7 @@ class UserAccessService
         ])->validate();
         if (mb_strlen(trim($reason)) < 10) {
             throw ValidationException::withMessages([
-                'reason' => 'A specific reason is required.',
+                'reason' => 'Enter a specific reason of at least 10 characters.',
             ]);
         }
 
@@ -265,7 +277,7 @@ class UserAccessService
                 'expires_at' => now()->addMinutes(60),
             ]);
 
-            $this->audit($actor, $locked, 'staff_email_change_requested', $reason, (string) ($authority ?? ''), [
+            $this->audit($actor, $locked, 'staff_email_change_requested', $reason, $authority, [
                 'new_email_domain' => Str::after($newEmail, '@'),
             ]);
 
@@ -289,11 +301,11 @@ class UserAccessService
         }
     }
 
-    private function validateReasonAndAuthority(string $reason, string $authority): void
+    private function validateReason(string $reason): void
     {
-        if (mb_strlen(trim($reason)) < 10 || trim($authority) === '') {
+        if (mb_strlen(trim($reason)) < 10) {
             throw ValidationException::withMessages([
-                'reason' => 'A specific reason and authority are required.',
+                'reason' => 'Enter a specific reason of at least 10 characters.',
             ]);
         }
     }
@@ -316,7 +328,7 @@ class UserAccessService
     }
 
     /** @param array<string, mixed> $extra */
-    private function audit(User $actor, User $target, string $event, string $reason, string $authority, array $extra): void
+    private function audit(User $actor, User $target, string $event, string $reason, ?string $authority, array $extra): void
     {
         activity()
             ->performedOn($target)
@@ -324,7 +336,7 @@ class UserAccessService
             ->event($event)
             ->withProperties([
                 'reason' => trim($reason),
-                'authority' => trim($authority),
+                'authority' => filled($authority) ? trim((string) $authority) : '',
                 ...$extra,
             ])
             ->log(str($event)->replace('_', ' ')->headline()->toString());

@@ -2890,3 +2890,136 @@ table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
         outline: 1px solid Highlight;
     }
 }
+
+/* System Admin Users & Access modals: crimson danger submission, left-aligned hierarchy, target-account context banner, and scroll containment. */
+@media (forced-colors: none) {
+    .fi-body .fi-modal .fi-btn.fi-color-danger:not(.fi-outlined):not(label) {
+        background-color: var(--danger-700, #b91c1c);
+        background-image: none;
+        color: #ffffff;
+    }
+
+    .fi-body .fi-modal .fi-btn.fi-color-danger:not(.fi-outlined):not(label):hover:not(:disabled, .fi-disabled, [aria-disabled='true']) {
+        background-color: var(--danger-800, #991b1b);
+        color: #ffffff;
+    }
+
+    .dark .fi-body .fi-modal .fi-btn.fi-color-danger:not(.fi-outlined):not(label) {
+        background-color: var(--danger-700, #b91c1c);
+        color: #ffffff;
+    }
+
+    .dark .fi-body .fi-modal .fi-btn.fi-color-danger:not(.fi-outlined):not(label):hover:not(:disabled, .fi-disabled, [aria-disabled='true']) {
+        background-color: var(--danger-600, #dc2626);
+        color: #ffffff;
+    }
+
+    .fi-body .fi-modal .fi-btn.fi-color-danger:not(.fi-outlined):not(label) > .fi-icon {
+        color: currentColor;
+    }
+}
+
+.fi-body .fi-modal > .fi-modal-window-ctn > .fi-modal-window.tala-user-access-modal > .fi-modal-content {
+    overscroll-behavior: contain;
+}
+
+.fi-body .fi-modal > .fi-modal-window-ctn > .fi-modal-window.tala-user-access-modal > .fi-modal-content > .fi-sc,
+.fi-body .fi-modal > .fi-modal-window-ctn > .fi-modal-window.tala-user-access-modal .fi-sc-form {
+    gap: 1rem;
+}
+
+.tala-user-access-modal .tala-user-access-context {
+    border: 1px solid var(--tala-edge-strong);
+    border-radius: var(--tala-card-radius);
+    background: var(--tala-surface);
+    box-shadow: var(--tala-material-detail);
+    overflow: clip;
+}
+
+.tala-user-access-modal .tala-user-access-context .tala-record-identity {
+    margin: 0;
+    padding: 0.875rem 1rem;
+    border: 0;
+    border-radius: 0;
+    gap: 0.75rem;
+}
+
+.tala-user-access-modal .tala-user-access-context .tala-record-identity .student-identity-art {
+    inline-size: min(36%, 10rem);
+    opacity: 0.28;
+}
+
+.dark .tala-user-access-modal .tala-user-access-context .tala-record-identity .student-identity-art {
+    opacity: 0.24;
+}
+
+.tala-user-access-modal .tala-user-access-context .tala-record-identity-person {
+    gap: 0.875rem;
+    flex: 1 1 100%;
+}
+
+.tala-user-access-modal .tala-user-access-context .tala-record-identity .student-profile-avatar {
+    inline-size: 3rem;
+    block-size: 3rem;
+    border-width: 0.1875rem;
+    font-size: 1rem;
+}
+
+.tala-user-access-modal .tala-user-access-context .tala-record-identity-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem 0.625rem;
+}
+
+.tala-user-access-modal .tala-user-access-context .tala-record-identity h2 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: var(--tala-weight-heading);
+    line-height: 1.3;
+    color: var(--tala-text);
+    overflow-wrap: anywhere;
+}
+
+.tala-user-access-modal .tala-user-access-context .tala-record-identity-person p {
+    margin: 0.1875rem 0 0;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--tala-muted);
+    overflow-wrap: anywhere;
+}
+
+.tala-user-access-modal .tala-user-access-context__badges,
+.tala-user-access-modal .tala-user-access-context__roles {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem;
+}
+
+.tala-user-access-modal .tala-user-access-context__roles {
+    margin-block-start: 0.4375rem;
+}
+
+.tala-user-access-modal .tala-user-access-context__footer {
+    padding: 0.625rem 1rem;
+    border-block-start: 1px solid var(--tala-edge);
+    background: var(--tala-surface-sunken);
+}
+
+.tala-user-access-modal .tala-user-access-context__consequence {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    color: var(--tala-muted);
+    overflow-wrap: anywhere;
+}
+
+@media (forced-colors: active) {
+    .tala-user-access-modal .tala-user-access-context,
+    .tala-user-access-modal .tala-user-access-context__footer {
+        background: Canvas;
+        border-color: CanvasText;
+        box-shadow: none;
+    }
+}

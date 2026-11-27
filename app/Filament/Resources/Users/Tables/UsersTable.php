@@ -10,6 +10,7 @@ use App\Support\DisplayDateTime;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\ViewAction;
+use Filament\Facades\Filament;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -17,6 +18,9 @@ use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\View as SchemaView;
+use Filament\Schemas\Schema;
+use Filament\Support\Enums\Alignment;
 use Filament\Support\Enums\IconPosition;
 use Filament\Support\Enums\Size;
 use Filament\Support\Enums\Width;
@@ -27,11 +31,14 @@ use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\Indicator;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class UsersTable
 {
@@ -385,9 +392,13 @@ class UsersTable
             ->modalHeading('Invite a staff member')
             ->modalDescription('TALA emails an activation link so this staff member sets their own password and MFA.')
             ->modalSubmitActionLabel('Send staff invitation')
+            ->modalCancelActionLabel('Cancel')
+            ->modalAlignment(Alignment::Start)
+            ->modalFooterActionsAlignment(Alignment::End)
             ->modalWidth(Width::TwoExtraLarge)
             ->stickyModalHeader()
             ->stickyModalFooter()
+            ->extraModalWindowAttributes(['class' => 'tala-user-access-modal'], merge: true)
             ->schema([
                 Grid::make(['default' => 1, 'md' => 2])->schema([
                     TextInput::make('email')
@@ -415,17 +426,23 @@ class UsersTable
                     ->multiple()
                     ->required()
                     ->helperText('Select one or more workspaces this staff member is approved to access.'),
-                Textarea::make('reason')
-                    ->label('Note / Reason')
-                    ->placeholder('Optional note for audit records')
-                    ->rows(2)
-                    ->maxLength(500)
-                    ->columnSpanFull(),
             ])
-            ->action(function (array $data): void {
+            ->action(function (array $data, Action $action, ?Schema $schema = null): void {
                 $actor = auth()->user();
                 abort_unless($actor instanceof User, 403);
-                app(StaffInvitationService::class)->invite($actor, $data);
+
+                $succeeded = self::runAccessAction(
+                    $action,
+                    $schema,
+                    static function () use ($actor, $data): void {
+                        app(StaffInvitationService::class)->invite($actor, $data);
+                    },
+                    failureTitle: 'Invitation could not be sent',
+                );
+
+                if (! $succeeded) {
+                    return;
+                }
 
                 Notification::make()
                     ->title('Staff invitation sent')
@@ -440,20 +457,43 @@ class UsersTable
         return Action::make('resendInvitation')
             ->label('Resend invitation')
             ->icon(Heroicon::OutlinedEnvelope)
+            ->color('primary')
             ->requiresConfirmation()
             ->modalWidth(Width::Large)
+            ->modalAlignment(Alignment::Start)
+            ->modalFooterActionsAlignment(Alignment::End)
             ->stickyModalHeader()
             ->stickyModalFooter()
+            ->extraModalWindowAttributes(['class' => 'tala-user-access-modal'], merge: true)
             ->modalHeading('Resend staff invitation')
             ->modalDescription('This will invalidate the prior activation link and send a new link to the recorded staff email. The account, assigned roles, and invitation history stay unchanged if delivery fails; resend again or contact the account owner after checking the recorded state.')
             ->modalSubmitActionLabel('Invalidate and resend')
+            ->modalCancelActionLabel('Cancel')
+            ->modalContent(fn (?User $record, $livewire): ?View => self::targetContextView(
+                $record,
+                $livewire,
+                'Invalidates the prior activation link and emails a fresh activation link to this pending account.',
+            ))
             ->visible(fn (?User $record, $livewire): bool => self::resolveUserRecord($record, $livewire)?->status === User::StatusInvitationPending)
-            ->action(function (?User $record, $livewire): void {
+            ->action(function (?User $record, $livewire, Action $action): void {
                 $actor = auth()->user();
                 $target = self::resolveUserRecord($record, $livewire);
                 abort_unless($actor instanceof User && $target instanceof User, 403);
-                $invitation = $target->staffInvitations()->latest()->firstOrFail();
-                app(StaffInvitationService::class)->resend($invitation, $actor);
+
+                $succeeded = self::runAccessAction(
+                    $action,
+                    null,
+                    static function () use ($actor, $target): void {
+                        $invitation = $target->staffInvitations()->latest()->firstOrFail();
+                        app(StaffInvitationService::class)->resend($invitation, $actor);
+                    },
+                    failureTitle: 'Invitation could not be resent',
+                );
+
+                if (! $succeeded) {
+                    return;
+                }
+
                 Notification::make()->title('Invitation resent')->success()->send();
             });
     }
@@ -465,11 +505,15 @@ class UsersTable
             ->icon(Heroicon::OutlinedPencilSquare)
             ->color('gray')
             ->modalWidth(Width::Large)
+            ->modalAlignment(Alignment::Start)
+            ->modalFooterActionsAlignment(Alignment::End)
             ->stickyModalHeader()
             ->stickyModalFooter()
+            ->extraModalWindowAttributes(['class' => 'tala-user-access-modal'], merge: true)
             ->modalHeading('Correct pending invitation email')
             ->modalDescription('Update the sign-in email for this unactivated staff invitation, invalidate the prior activation link, and send a fresh link to the corrected address.')
             ->modalSubmitActionLabel('Update email and resend')
+            ->modalCancelActionLabel('Cancel')
             ->visible(function (?User $record, $livewire): bool {
                 $target = self::resolveUserRecord($record, $livewire);
 
@@ -482,22 +526,35 @@ class UsersTable
                 'new_email' => self::resolveUserRecord($record, $livewire)?->email,
             ])
             ->schema([
+                self::targetContextSchemaView('Updates the sign-in email for this unactivated invitation and emails a fresh link.'),
                 TextInput::make('new_email')
                     ->label('Corrected institutional email')
                     ->email()
                     ->required()
                     ->maxLength(255),
             ])
-            ->action(function (array $data, ?User $record, $livewire): void {
+            ->action(function (array $data, ?User $record, $livewire, Action $action, ?Schema $schema = null): void {
                 $actor = auth()->user();
                 $target = self::resolveUserRecord($record, $livewire);
                 abort_unless($actor instanceof User && $target instanceof User, 403);
 
-                app(StaffInvitationService::class)->correctPendingEmailAndResend(
-                    $target,
-                    (string) $data['new_email'],
-                    $actor,
+                $succeeded = self::runAccessAction(
+                    $action,
+                    $schema,
+                    static function () use ($actor, $target, $data): void {
+                        app(StaffInvitationService::class)->correctPendingEmailAndResend(
+                            $target,
+                            (string) $data['new_email'],
+                            $actor,
+                        );
+                    },
+                    failureTitle: 'Invitation email could not be updated',
+                    fieldMap: ['email' => 'new_email'],
                 );
+
+                if (! $succeeded) {
+                    return;
+                }
 
                 Notification::make()
                     ->title('Invitation email updated and resent')
@@ -513,13 +570,18 @@ class UsersTable
             ->label('Cancel invitation')
             ->icon(Heroicon::OutlinedTrash)
             ->color('danger')
+            ->modalSubmitAction(fn (Action $action): Action => $action->color('danger'))
             ->requiresConfirmation()
             ->modalWidth(Width::Large)
+            ->modalAlignment(Alignment::Start)
+            ->modalFooterActionsAlignment(Alignment::End)
             ->stickyModalHeader()
             ->stickyModalFooter()
+            ->extraModalWindowAttributes(['class' => 'tala-user-access-modal'], merge: true)
             ->modalHeading('Cancel pending staff invitation')
             ->modalDescription('Cancelling removes this never-activated pending invitation and its placeholder account so the email can be invited cleanly later. An audit entry is preserved. Cancel this dialog to leave the pending invitation active.')
             ->modalSubmitActionLabel('Cancel invitation')
+            ->modalCancelActionLabel('Keep invitation')
             ->visible(function (?User $record, $livewire): bool {
                 $target = self::resolveUserRecord($record, $livewire);
 
@@ -529,22 +591,34 @@ class UsersTable
                     && $target->last_successful_sign_in_at === null;
             })
             ->schema([
+                self::targetContextSchemaView('Removes this pending invitation and placeholder account while preserving an audit entry.'),
                 Textarea::make('reason')
                     ->label('Reason (optional)')
                     ->placeholder('e.g., Entered wrong email address or invitation no longer needed')
                     ->rows(2)
                     ->maxLength(500),
             ])
-            ->action(function (array $data, ?User $record, $livewire): void {
+            ->action(function (array $data, ?User $record, $livewire, Action $action, ?Schema $schema = null): void {
                 $actor = auth()->user();
                 $target = self::resolveUserRecord($record, $livewire);
                 abort_unless($actor instanceof User && $target instanceof User, 403);
 
-                app(StaffInvitationService::class)->cancelPendingInvitation(
-                    $target,
-                    $actor,
-                    filled($data['reason'] ?? null) ? (string) $data['reason'] : null,
+                $succeeded = self::runAccessAction(
+                    $action,
+                    $schema,
+                    static function () use ($actor, $target, $data): void {
+                        app(StaffInvitationService::class)->cancelPendingInvitation(
+                            $target,
+                            $actor,
+                            filled($data['reason'] ?? null) ? (string) $data['reason'] : null,
+                        );
+                    },
+                    failureTitle: 'Invitation could not be cancelled',
                 );
+
+                if (! $succeeded) {
+                    return;
+                }
 
                 Notification::make()
                     ->title('Pending invitation cancelled')
@@ -559,13 +633,23 @@ class UsersTable
         return Action::make('resendVerification')
             ->label('Resend verification')
             ->icon(Heroicon::OutlinedEnvelopeOpen)
+            ->color('primary')
             ->requiresConfirmation()
             ->modalWidth(Width::Large)
+            ->modalAlignment(Alignment::Start)
+            ->modalFooterActionsAlignment(Alignment::End)
             ->stickyModalHeader()
             ->stickyModalFooter()
+            ->extraModalWindowAttributes(['class' => 'tala-user-access-modal'], merge: true)
             ->modalHeading('Resend email verification')
             ->modalDescription('Send a fresh verification email to this account’s recorded address. Assigned roles and account status stay unchanged until the account owner completes verification.')
             ->modalSubmitActionLabel('Send verification email')
+            ->modalCancelActionLabel('Cancel')
+            ->modalContent(fn (?User $record, $livewire): ?View => self::targetContextView(
+                $record,
+                $livewire,
+                'Sends a fresh email verification link without changing roles or account status.',
+            ))
             ->visible(function (?User $record, $livewire): bool {
                 $target = self::resolveUserRecord($record, $livewire);
 
@@ -594,11 +678,20 @@ class UsersTable
             ->color('gray')
             ->requiresConfirmation()
             ->modalWidth(Width::Large)
+            ->modalAlignment(Alignment::Start)
+            ->modalFooterActionsAlignment(Alignment::End)
             ->stickyModalHeader()
             ->stickyModalFooter()
+            ->extraModalWindowAttributes(['class' => 'tala-user-access-modal'], merge: true)
             ->modalHeading('Send password reset link')
             ->modalDescription('Send a password reset email to the recorded sign-in address. This does not change the password, roles, or account state; the account owner completes recovery from the valid link or requests another link if it expires.')
             ->modalSubmitActionLabel('Send password reset link')
+            ->modalCancelActionLabel('Cancel')
+            ->modalContent(fn (?User $record, $livewire): ?View => self::targetContextView(
+                $record,
+                $livewire,
+                'Sends a password reset email without changing current credentials, roles, or account state.',
+            ))
             ->visible(fn (?User $record, $livewire): bool => self::resolveUserRecord($record, $livewire)?->password !== null)
             ->action(function (?User $record, $livewire): void {
                 $target = self::resolveUserRecord($record, $livewire);
@@ -623,12 +716,17 @@ class UsersTable
             })
             ->requiresConfirmation()
             ->modalWidth(Width::TwoExtraLarge)
+            ->modalAlignment(Alignment::Start)
+            ->modalFooterActionsAlignment(Alignment::End)
             ->stickyModalHeader()
             ->stickyModalFooter()
+            ->extraModalWindowAttributes(['class' => 'tala-user-access-modal'], merge: true)
             ->modalHeading('Change sign-in email')
             ->modalDescription('Send a verification link to confirm a new sign-in email for this account. The current verified email remains active and receives a security alert until the new address is verified. Cancel or let the link expire to keep the current address.')
             ->modalSubmitActionLabel('Send verification link')
+            ->modalCancelActionLabel('Cancel')
             ->schema([
+                self::targetContextSchemaView('Current verified email stays active and receives a security alert until the new address is verified.'),
                 Grid::make(['default' => 1, 'md' => 2])->schema([
                     TextInput::make('new_email')
                         ->label('New sign-in email')
@@ -638,6 +736,9 @@ class UsersTable
                     TextInput::make('current_password')
                         ->label('Your current password')
                         ->password()
+                        ->revealable()
+                        ->autocomplete('current-password')
+                        ->currentPassword()
                         ->required(),
                 ]),
                 Textarea::make('reason')
@@ -645,20 +746,33 @@ class UsersTable
                     ->placeholder('State why this sign-in email replacement is being requested (minimum 10 characters).')
                     ->required()
                     ->minLength(10)
+                    ->rows(3)
                     ->columnSpanFull(),
             ])
-            ->action(function (array $data, ?User $record, $livewire): void {
+            ->action(function (array $data, ?User $record, $livewire, Action $action, ?Schema $schema = null): void {
                 $actor = auth()->user();
                 $target = self::resolveUserRecord($record, $livewire);
                 abort_unless($actor instanceof User && $target instanceof User, 403);
 
-                app(UserAccessService::class)->requestEmailChange(
-                    $actor,
-                    $target,
-                    (string) $data['new_email'],
-                    (string) $data['current_password'],
-                    (string) $data['reason'],
+                $succeeded = self::runAccessAction(
+                    $action,
+                    $schema,
+                    static function () use ($actor, $target, $data): void {
+                        app(UserAccessService::class)->requestEmailChange(
+                            $actor,
+                            $target,
+                            (string) $data['new_email'],
+                            (string) $data['current_password'],
+                            (string) $data['reason'],
+                        );
+                    },
+                    failureTitle: 'Email change request blocked',
+                    fieldMap: ['email' => 'new_email'],
                 );
+
+                if (! $succeeded) {
+                    return;
+                }
 
                 Notification::make()
                     ->title('Email verification sent')
@@ -677,11 +791,15 @@ class UsersTable
             ->visible(fn (?User $record, $livewire): bool => (bool) self::resolveUserRecord($record, $livewire)?->isStaffCapable())
             ->requiresConfirmation()
             ->modalWidth(Width::TwoExtraLarge)
+            ->modalAlignment(Alignment::Start)
+            ->modalFooterActionsAlignment(Alignment::End)
             ->stickyModalHeader()
             ->stickyModalFooter()
+            ->extraModalWindowAttributes(['class' => 'tala-user-access-modal'], merge: true)
             ->modalHeading('Edit role & details')
             ->modalDescription('Update assigned Staff workspaces, Staff ID, or request a sign-in email change under recorded approval. If you enter a new email, the current verified email remains active until the new address is verified. Learner roles, linked records, and access history stay intact; cancel to preserve the current Staff access.')
             ->modalSubmitActionLabel('Save changes')
+            ->modalCancelActionLabel('Cancel')
             ->fillForm(function (?User $record, $livewire): array {
                 $target = self::resolveUserRecord($record, $livewire);
 
@@ -690,9 +808,11 @@ class UsersTable
                     'staff_identifier' => $target?->staffAccessProfile?->staff_identifier,
                     'new_email' => null,
                     'current_password' => null,
+                    'authority' => null,
                 ];
             })
             ->schema([
+                self::targetContextSchemaView('Updates Staff workspaces, Staff ID, or requests a verified sign-in email change.'),
                 Grid::make(['default' => 1, 'md' => 2])->schema([
                     Select::make('roles')
                         ->label('Assigned staff roles')
@@ -728,25 +848,26 @@ class UsersTable
                     TextInput::make('current_password')
                         ->label('Your current password')
                         ->password()
+                        ->revealable()
+                        ->autocomplete('current-password')
+                        ->currentPassword(fn (Get $get): bool => filled($get('new_email')))
                         ->required(fn (Get $get): bool => filled($get('new_email')))
                         ->helperText('Required only when requesting a new sign-in email.'),
                 ]),
                 Textarea::make('reason')
                     ->label('Reason')
+                    ->placeholder('State why these account details or roles are changing (minimum 10 characters).')
                     ->required()
                     ->minLength(10)
+                    ->rows(3)
                     ->columnSpanFull(),
-                Grid::make(['default' => 1, 'md' => 2])->schema([
-                    TextInput::make('authority')
-                        ->label('Approval memo or reference')
-                        ->placeholder('e.g., Memo 2026-014 or approving office')
-                        ->required(),
-                    TextInput::make('evidence_reference')
-                        ->label('Evidence reference')
-                        ->placeholder('Optional supporting document reference'),
-                ]),
+                TextInput::make('authority')
+                    ->label('Reference (optional)')
+                    ->placeholder('Optional memo, ticket, or approval note')
+                    ->maxLength(255)
+                    ->columnSpanFull(),
             ])
-            ->action(function (array $data, ?User $record, $livewire): void {
+            ->action(function (array $data, ?User $record, $livewire, Action $action, ?Schema $schema = null): void {
                 $actor = auth()->user();
                 $target = self::resolveUserRecord($record, $livewire);
                 abort_unless($actor instanceof User && $target instanceof User, 403);
@@ -789,42 +910,49 @@ class UsersTable
                 }
 
                 $reason = (string) $data['reason'];
-                $authority = (string) $data['authority'];
-                $evidenceReference = filled($data['evidence_reference'] ?? null)
-                    ? (string) $data['evidence_reference']
-                    : null;
+                $authority = filled($data['authority'] ?? null) ? trim((string) $data['authority']) : null;
 
-                if ($rolesChanged) {
-                    $service->changeStaffRoles(
-                        $actor,
-                        $target,
-                        $requestedRoles,
-                        $reason,
-                        $authority,
-                        $evidenceReference,
-                    );
-                }
+                $succeeded = self::runAccessAction(
+                    $action,
+                    $schema,
+                    static function () use ($service, $actor, $target, $rolesChanged, $requestedRoles, $staffIdChanged, $requestedStaffId, $emailChanged, $requestedEmail, $data, $reason, $authority): void {
+                        if ($rolesChanged) {
+                            $service->changeStaffRoles(
+                                $actor,
+                                $target,
+                                $requestedRoles,
+                                $reason,
+                                $authority,
+                            );
+                        }
 
-                if ($staffIdChanged) {
-                    $service->updateStaffIdentifier(
-                        $actor,
-                        $target,
-                        $requestedStaffId,
-                        $reason,
-                        $authority,
-                        $evidenceReference,
-                    );
-                }
+                        if ($staffIdChanged) {
+                            $service->updateStaffIdentifier(
+                                $actor,
+                                $target,
+                                $requestedStaffId,
+                                $reason,
+                                $authority,
+                            );
+                        }
 
-                if ($emailChanged) {
-                    $service->requestEmailChange(
-                        $actor,
-                        $target,
-                        $requestedEmail,
-                        (string) ($data['current_password'] ?? ''),
-                        $reason,
-                        $authority,
-                    );
+                        if ($emailChanged) {
+                            $service->requestEmailChange(
+                                $actor,
+                                $target,
+                                $requestedEmail,
+                                (string) ($data['current_password'] ?? ''),
+                                $reason,
+                                $authority,
+                            );
+                        }
+                    },
+                    failureTitle: 'Staff details could not be updated',
+                    fieldMap: ['email' => 'new_email'],
+                );
+
+                if (! $succeeded) {
+                    return;
                 }
 
                 $summary = array_values(array_filter([
@@ -846,7 +974,8 @@ class UsersTable
         return Action::make('resetMfa')
             ->label('Reset MFA')
             ->icon(Heroicon::OutlinedDevicePhoneMobile)
-            ->color('warning')
+            ->color('danger')
+            ->modalSubmitAction(fn (Action $action): Action => $action->color('danger'))
             ->visible(function (?User $record, $livewire): bool {
                 $target = self::resolveUserRecord($record, $livewire);
 
@@ -854,32 +983,70 @@ class UsersTable
             })
             ->requiresConfirmation()
             ->modalWidth(Width::TwoExtraLarge)
+            ->modalAlignment(Alignment::Start)
+            ->modalFooterActionsAlignment(Alignment::End)
             ->stickyModalHeader()
             ->stickyModalFooter()
+            ->extraModalWindowAttributes(['class' => 'tala-user-access-modal'], merge: true)
             ->modalHeading('Reset staff MFA')
             ->modalDescription('Confirm the approved external identity check is complete before proceeding. Resetting ends active sessions, invalidates the current authenticator and recovery codes, and requires staff MFA re-enrollment at next sign-in. Cancel to preserve the current factor.')
             ->modalSubmitActionLabel('Reset MFA and end sessions')
+            ->modalCancelActionLabel('Cancel')
             ->schema([
-                TextInput::make('current_password')->label('Your current password')->password()->required(),
-                Textarea::make('reason')->label('Reason')->required()->minLength(10),
-                Grid::make(['default' => 1, 'md' => 2])->schema([
-                    TextInput::make('authority')->label('Approval memo or reference')->placeholder('e.g., Memo 2026-014 or approving office')->required(),
-                    TextInput::make('evidence_reference')->label('Evidence reference'),
-                ]),
+                self::targetContextSchemaView('Ends all active sessions, invalidates existing authenticator and recovery codes, and requires MFA re-enrollment.'),
+                TextInput::make('current_password')
+                    ->label('Your current password')
+                    ->password()
+                    ->revealable()
+                    ->autocomplete('current-password')
+                    ->currentPassword()
+                    ->required(),
+                Textarea::make('reason')
+                    ->label('Reason')
+                    ->placeholder('State why Staff MFA is being reset (minimum 10 characters).')
+                    ->required()
+                    ->minLength(10)
+                    ->rows(3),
             ])
-            ->action(function (array $data, ?User $record, $livewire): void {
+            ->action(function (array $data, ?User $record, $livewire, Action $action, ?Schema $schema = null): void {
                 $actor = auth()->user();
                 $target = self::resolveUserRecord($record, $livewire);
                 abort_unless($actor instanceof User && $target instanceof User, 403);
-                app(StaffMfaService::class)->reset(
-                    $actor,
-                    $target,
-                    $data['current_password'],
-                    $data['reason'],
-                    $data['authority'],
-                    $data['evidence_reference'] ?? null,
+
+                $succeeded = self::runAccessAction(
+                    $action,
+                    $schema,
+                    static function () use ($actor, $target, $data): void {
+                        app(StaffMfaService::class)->reset(
+                            $actor,
+                            $target,
+                            (string) ($data['current_password'] ?? ''),
+                            (string) ($data['reason'] ?? ''),
+                        );
+                    },
+                    failureTitle: 'MFA reset blocked',
                 );
-                Notification::make()->title('MFA reset; re-enrollment required')->success()->send();
+
+                if (! $succeeded) {
+                    return;
+                }
+
+                Notification::make()
+                    ->title('MFA reset; re-enrollment required')
+                    ->body('Active sessions were ended and the prior authenticator and recovery codes were invalidated.')
+                    ->success()
+                    ->send();
+
+                if ($actor->is($target)) {
+                    Filament::auth()->logout();
+
+                    if (request()->hasSession()) {
+                        request()->session()->invalidate();
+                        request()->session()->regenerateToken();
+                    }
+
+                    $action->successRedirectUrl(Filament::getLoginUrl());
+                }
             });
     }
 
@@ -889,17 +1056,25 @@ class UsersTable
             ->label('Disable account')
             ->icon(Heroicon::OutlinedNoSymbol)
             ->color('danger')
+            ->modalSubmitAction(fn (Action $action): Action => $action->color('danger'))
             ->modalWidth(Width::TwoExtraLarge)
+            ->modalAlignment(Alignment::Start)
+            ->modalFooterActionsAlignment(Alignment::End)
+            ->extraModalWindowAttributes(['class' => 'tala-user-access-modal'], merge: true)
             ->schema([
+                self::targetContextSchemaView('Immediately ends active sessions and blocks sign-in across every workspace while preserving roles and records.'),
                 Textarea::make('reason')
                     ->label('Reason')
+                    ->placeholder('State why this account is being disabled (minimum 10 characters).')
                     ->required()
                     ->minLength(10)
+                    ->rows(3)
                     ->columnSpanFull(),
-                Grid::make(['default' => 1, 'md' => 2])->schema([
-                    TextInput::make('authority')->label('Approval memo or reference')->placeholder('e.g., Memo 2026-014 or approving office')->required(),
-                    TextInput::make('evidence_reference')->label('Evidence reference'),
-                ]),
+                TextInput::make('authority')
+                    ->label('Reference (optional)')
+                    ->placeholder('Optional memo, ticket, or approval note')
+                    ->maxLength(255)
+                    ->columnSpanFull(),
             ])
             ->requiresConfirmation()
             ->stickyModalHeader()
@@ -907,6 +1082,7 @@ class UsersTable
             ->modalHeading('Disable account')
             ->modalDescription('Disabling immediately ends active sessions and blocks every authorized workspace while preserving roles, linked records, and access history. An authorized reactivation is the recovery path. Cancel to leave the account active.')
             ->modalSubmitActionLabel('Disable account and end sessions')
+            ->modalCancelActionLabel('Cancel')
             ->visible(function (?User $record, $livewire): bool {
                 $target = self::resolveUserRecord($record, $livewire);
                 $actor = auth()->user();
@@ -915,11 +1091,29 @@ class UsersTable
                     && $target->status !== User::StatusDisabled
                     && ! ($actor instanceof User && $actor->is($target));
             })
-            ->action(function (array $data, ?User $record, $livewire): void {
+            ->action(function (array $data, ?User $record, $livewire, Action $action, ?Schema $schema = null): void {
                 $actor = auth()->user();
                 $target = self::resolveUserRecord($record, $livewire);
                 abort_unless($actor instanceof User && $target instanceof User, 403);
-                app(UserAccessService::class)->disable($actor, $target, $data['reason'], $data['authority'], $data['evidence_reference'] ?? null);
+
+                $succeeded = self::runAccessAction(
+                    $action,
+                    $schema,
+                    static function () use ($actor, $target, $data): void {
+                        app(UserAccessService::class)->disable(
+                            $actor,
+                            $target,
+                            (string) $data['reason'],
+                            filled($data['authority'] ?? null) ? (string) $data['authority'] : null,
+                        );
+                    },
+                    failureTitle: 'Account could not be disabled',
+                );
+
+                if (! $succeeded) {
+                    return;
+                }
+
                 Notification::make()->title('Account disabled')->success()->send();
             });
     }
@@ -931,12 +1125,23 @@ class UsersTable
             ->icon(Heroicon::OutlinedArrowUturnLeft)
             ->color('success')
             ->modalWidth(Width::TwoExtraLarge)
+            ->modalAlignment(Alignment::Start)
+            ->modalFooterActionsAlignment(Alignment::End)
+            ->extraModalWindowAttributes(['class' => 'tala-user-access-modal'], merge: true)
             ->schema([
-                Textarea::make('reason')->label('Reason')->required()->minLength(10),
-                Grid::make(['default' => 1, 'md' => 2])->schema([
-                    TextInput::make('authority')->label('Approval memo or reference')->placeholder('e.g., Memo 2026-014 or approving office')->required(),
-                    TextInput::make('evidence_reference')->label('Evidence reference'),
-                ]),
+                self::targetContextSchemaView('Restores sign-in with preserved roles and linked records. Staff MFA and session rules still apply.'),
+                Textarea::make('reason')
+                    ->label('Reason')
+                    ->placeholder('State why this account is being reactivated (minimum 10 characters).')
+                    ->required()
+                    ->minLength(10)
+                    ->rows(3)
+                    ->columnSpanFull(),
+                TextInput::make('authority')
+                    ->label('Reference (optional)')
+                    ->placeholder('Optional memo, ticket, or approval note')
+                    ->maxLength(255)
+                    ->columnSpanFull(),
             ])
             ->requiresConfirmation()
             ->stickyModalHeader()
@@ -944,14 +1149,189 @@ class UsersTable
             ->modalHeading('Reactivate account')
             ->modalDescription('Reactivation restores sign-in through the account\'s preserved roles and linked records without broadening access. Staff MFA and session rules still apply. You can disable again through the recorded process if approval is withdrawn.')
             ->modalSubmitActionLabel('Reactivate account')
+            ->modalCancelActionLabel('Cancel')
             ->visible(fn (?User $record, $livewire): bool => self::resolveUserRecord($record, $livewire)?->status === User::StatusDisabled)
-            ->action(function (array $data, ?User $record, $livewire): void {
+            ->action(function (array $data, ?User $record, $livewire, Action $action, ?Schema $schema = null): void {
                 $actor = auth()->user();
                 $target = self::resolveUserRecord($record, $livewire);
                 abort_unless($actor instanceof User && $target instanceof User, 403);
-                app(UserAccessService::class)->reactivate($actor, $target, $data['reason'], $data['authority'], $data['evidence_reference'] ?? null);
+
+                $succeeded = self::runAccessAction(
+                    $action,
+                    $schema,
+                    static function () use ($actor, $target, $data): void {
+                        app(UserAccessService::class)->reactivate(
+                            $actor,
+                            $target,
+                            (string) $data['reason'],
+                            filled($data['authority'] ?? null) ? (string) $data['authority'] : null,
+                        );
+                    },
+                    failureTitle: 'Account could not be reactivated',
+                );
+
+                if (! $succeeded) {
+                    return;
+                }
+
                 Notification::make()->title('Account reactivated')->success()->send();
             });
+    }
+
+    private static function targetContextSchemaView(?string $consequenceSummary = null): SchemaView
+    {
+        return SchemaView::make('filament.admin.users.action-target-context')
+            ->viewData(fn (?User $record, $livewire): array => self::targetContextData($record, $livewire, $consequenceSummary));
+    }
+
+    private static function targetContextView(?User $record, mixed $livewire, ?string $consequenceSummary = null): ?View
+    {
+        $data = self::targetContextData($record, $livewire, $consequenceSummary);
+
+        if (! $data['target'] instanceof User) {
+            return null;
+        }
+
+        return view('filament.admin.users.action-target-context', $data);
+    }
+
+    /**
+     * @return array{
+     *     target: ?User,
+     *     displayName: string,
+     *     initials: string,
+     *     email: string,
+     *     identityPill: ?string,
+     *     statusLabel: string,
+     *     statusColor: string,
+     *     showMfaBadge: bool,
+     *     mfaLabel: string,
+     *     mfaColor: string,
+     *     roles: list<array{label: string, color: string, icon: ?string}>,
+     *     consequenceSummary: ?string,
+     * }
+     */
+    private static function targetContextData(?User $record, mixed $livewire, ?string $consequenceSummary = null): array
+    {
+        $target = self::resolveUserRecord($record, $livewire);
+
+        if (! $target instanceof User) {
+            return [
+                'target' => null,
+                'displayName' => '',
+                'initials' => '',
+                'email' => '',
+                'identityPill' => null,
+                'statusLabel' => '',
+                'statusColor' => 'gray',
+                'showMfaBadge' => false,
+                'mfaLabel' => '',
+                'mfaColor' => 'gray',
+                'roles' => [],
+                'consequenceSummary' => $consequenceSummary,
+            ];
+        }
+
+        $target->loadMissing(['roles', 'staffAccessProfile', 'studentProfile', 'currentAdmissionApplication']);
+
+        $identity = self::institutionalIdentity($target);
+
+        $roles = $target->roles
+            ->pluck('name')
+            ->values()
+            ->map(fn (string $role): array => [
+                'label' => self::roleLabel($role),
+                'color' => self::roleColor($role),
+                'icon' => self::roleIcon($role),
+            ])
+            ->all();
+
+        return [
+            'target' => $target,
+            'displayName' => self::displayName($target),
+            'initials' => self::initials($target),
+            'email' => (string) $target->email,
+            'identityPill' => $identity['value'] !== null ? $identity['pill'] : null,
+            'statusLabel' => User::statusLabel($target->status),
+            'statusColor' => User::statusColor($target->status),
+            'showMfaBadge' => $target->isStaffCapable(),
+            'mfaLabel' => self::mfaStatusLabel($target),
+            'mfaColor' => self::mfaStatusColor($target),
+            'roles' => $roles,
+            'consequenceSummary' => $consequenceSummary,
+        ];
+    }
+
+    /**
+     * Execute a user-access service call and translate ValidationException / AuthorizationException
+     * onto the live mounted action fields or a danger notification instead of failing silently.
+     *
+     * @param  array<string, string>  $fieldMap
+     */
+    private static function runAccessAction(
+        Action $action,
+        ?Schema $schema,
+        callable $operation,
+        string $failureTitle = 'Action could not be completed',
+        array $fieldMap = [],
+    ): bool {
+        try {
+            $operation();
+
+            return true;
+        } catch (AuthorizationException $exception) {
+            Notification::make()
+                ->title($failureTitle)
+                ->body(filled($exception->getMessage()) ? $exception->getMessage() : 'You are not authorized to perform this action.')
+                ->danger()
+                ->send();
+
+            $action->halt();
+
+            return false;
+        } catch (ValidationException $exception) {
+            $statePath = $schema?->getStatePath() ?? "mountedActions.{$action->getNestingIndex()}.data";
+            $visibleFields = $schema !== null ? array_keys($schema->getFlatFields(withHidden: false)) : [];
+
+            $mappedErrors = [];
+            $unmappedMessages = [];
+
+            foreach ($exception->errors() as $key => $messages) {
+                $targetField = $fieldMap[$key] ?? $key;
+
+                if (in_array($targetField, $visibleFields, true)) {
+                    $mappedErrors["{$statePath}.{$targetField}"] = $messages;
+                } else {
+                    foreach ($messages as $message) {
+                        $unmappedMessages[] = $message;
+                    }
+                }
+            }
+
+            if ($unmappedMessages !== []) {
+                Notification::make()
+                    ->title($failureTitle)
+                    ->body($unmappedMessages[0])
+                    ->danger()
+                    ->send();
+            }
+
+            if ($mappedErrors !== []) {
+                throw ValidationException::withMessages($mappedErrors);
+            }
+
+            if ($unmappedMessages === []) {
+                Notification::make()
+                    ->title($failureTitle)
+                    ->body('Please review your entries and try again.')
+                    ->danger()
+                    ->send();
+            }
+
+            $action->halt();
+
+            return false;
+        }
     }
 
     private static function resolveUserRecord(?User $record, mixed $livewire): ?User

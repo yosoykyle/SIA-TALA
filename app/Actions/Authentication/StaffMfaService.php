@@ -24,7 +24,7 @@ class StaffMfaService
         User $target,
         #[\SensitiveParameter] string $actorPassword,
         string $reason,
-        string $authority,
+        ?string $authority = null,
         ?string $evidenceReference = null,
     ): User {
         if (! $actor->hasRole(User::StaffRoleSystemSuperAdmin)) {
@@ -38,11 +38,12 @@ class StaffMfaService
         }
 
         $reason = trim($reason);
-        $authority = trim($authority);
+        $authority = filled($authority) ? trim((string) $authority) : '';
+        $evidenceReference = filled($evidenceReference) ? trim((string) $evidenceReference) : null;
 
-        if (mb_strlen($reason) < 10 || $authority === '') {
+        if (mb_strlen($reason) < 10) {
             throw ValidationException::withMessages([
-                'reason' => 'A specific recovery reason and authority are required.',
+                'reason' => 'Enter a recovery reason of at least 10 characters.',
             ]);
         }
 
