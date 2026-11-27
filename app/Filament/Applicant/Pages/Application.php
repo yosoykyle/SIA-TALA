@@ -485,6 +485,7 @@ class Application extends Page
                         ->icon(Heroicon::OutlinedPaperClip)
                         ->schema(fn (Get $get): array => [
                             Section::make('Upload review copies')
+                                ->extraAttributes(['class' => 'tala-evidence-list'])
                                 ->description(fn (): ?string => $this->isCorrectionMode()
                                     ? 'Review the marked copies and replace those requested by the Registrar. Other submitted copies stay unchanged.'
                                     : null)
@@ -1034,42 +1035,50 @@ class Application extends Page
         }
 
         $fields = $requirements
-            ->map(fn (AdmissionRequirement $requirement): Section => Section::make($requirement->label)->schema([
-                TextEntry::make('retained_copy_'.$requirement->id)->label('Current copy')
-                    ->state(function () use ($requirement): string {
-                        $copy = $this->currentEvidence($requirement);
-                        if ($copy !== null && $this->isStudentTypeCorrection()) {
-                            return 'Retained private copy. Registrar will review it against the corrected application.';
-                        }
-                        $review = $copy?->preliminaryReviews()->whereDoesntHave('successor')->first();
+            ->map(fn (AdmissionRequirement $requirement): Section => Section::make($requirement->label)
+                ->icon(str_contains(strtolower($requirement->label), 'photo') ? Heroicon::OutlinedPhoto : Heroicon::OutlinedDocumentText)
+                ->description($requirement->purpose)
+                ->compact()
+                ->extraAttributes(['class' => 'tala-evidence-card'])
+                ->schema([
+                    TextEntry::make('retained_copy_'.$requirement->id)->label('Current copy')
+                        ->extraEntryWrapperAttributes(['class' => 'tala-evidence-status-row'])
+                        ->state(function () use ($requirement): string {
+                            $copy = $this->currentEvidence($requirement);
+                            if ($copy !== null && $this->isStudentTypeCorrection()) {
+                                return 'Retained private copy. Registrar will review it against the corrected application.';
+                            }
+                            $review = $copy?->preliminaryReviews()->whereDoesntHave('successor')->first();
 
-                        return $copy === null ? 'No copy saved yet.'
-                            : ($review === null ? 'Retained — awaiting Registrar review' : ($review->result === PreliminaryEvidenceReview::ResultAccepted ? 'Retained — review copy accepted' : ucfirst(str($review->result)->headline()->lower()->toString())));
-                    }),
-                Actions::make([
-                    Action::make('viewCurrentCopy'.$requirement->id)->label('View current copy')->icon(Heroicon::OutlinedEye)
-                        ->extraAttributes(['aria-label' => 'View '.$requirement->label.' current private copy'])
-                        ->url(fn (): ?string => ($copy = $this->currentEvidence($requirement)) ? route('admissions.evidence.view', $copy) : null)->openUrlInNewTab(),
-                    Action::make('downloadCurrentCopy'.$requirement->id)->label('Download')->icon(Heroicon::OutlinedArrowDownTray)
-                        ->extraAttributes(['aria-label' => 'Download '.$requirement->label.' current private copy'])
-                        ->url(fn (): ?string => ($copy = $this->currentEvidence($requirement)) ? route('admissions.evidence.download', $copy) : null),
-                ])->visible(fn (): bool => $this->currentEvidence($requirement) !== null),
-                FileUpload::make("evidence.{$requirement->id}")
-                    ->label(fn (): string => $this->hasEvidence($requirement) ? 'Replacement copy' : 'Upload copy')
-                    ->hint(fn (): ?string => $this->isCorrectionMode() ? 'Correction requested' : ($this->hasEvidence($requirement) ? 'Keep the current copy, or choose a replacement.' : null))
-                    ->hintColor(fn (): string => $this->isCorrectionMode() ? 'warning' : 'gray')
-                    ->placeholder('Drop a file or <span class="filepond--label-action">Choose '.e($requirement->label).'</span>')
-                    ->helperText($requirement->purpose.' '.(str_contains(strtolower($requirement->label), 'photo') ? 'JPEG or PNG' : 'PDF, JPEG, or PNG').'; maximum 10 MiB.')
-                    ->acceptedFileTypes(str_contains(strtolower($requirement->label), 'photo')
-                        ? ['image/jpeg', 'image/png']
-                        : ['application/pdf', 'image/jpeg', 'image/png'])
-                    ->maxSize(10240)
-                    ->maxFiles(1)
-                    ->disabled(fn (): bool => ! $this->draftWorkIsAvailable() || ($this->data['privacy_acknowledged'] ?? false) !== true
-                        || ($this->isCorrectionMode() && ! in_array($requirement->id, $this->editableEvidenceRequirementIds(), true)))
-                    ->storeFiles(false)
-                    ->required(fn (): bool => ! $this->savingDraft && ! $this->hasEvidence($requirement)),
-            ]))
+                            return $copy === null ? 'No copy saved yet.'
+                                : ($review === null ? 'Retained — awaiting Registrar review' : ($review->result === PreliminaryEvidenceReview::ResultAccepted ? 'Retained — review copy accepted' : ucfirst(str($review->result)->headline()->lower()->toString())));
+                        }),
+                    Actions::make([
+                        Action::make('viewCurrentCopy'.$requirement->id)->label('View current copy')->icon(Heroicon::OutlinedEye)
+                            ->color('gray')->outlined()->size('sm')
+                            ->extraAttributes(['aria-label' => 'View '.$requirement->label.' current private copy'])
+                            ->url(fn (): ?string => ($copy = $this->currentEvidence($requirement)) ? route('admissions.evidence.view', $copy) : null)->openUrlInNewTab(),
+                        Action::make('downloadCurrentCopy'.$requirement->id)->label('Download')->icon(Heroicon::OutlinedArrowDownTray)
+                            ->color('gray')->outlined()->size('sm')
+                            ->extraAttributes(['aria-label' => 'Download '.$requirement->label.' current private copy'])
+                            ->url(fn (): ?string => ($copy = $this->currentEvidence($requirement)) ? route('admissions.evidence.download', $copy) : null),
+                    ])->visible(fn (): bool => $this->currentEvidence($requirement) !== null),
+                    FileUpload::make("evidence.{$requirement->id}")
+                        ->label(fn (): string => $this->hasEvidence($requirement) ? 'Replacement copy' : 'Upload copy')
+                        ->hint(fn (): ?string => $this->isCorrectionMode() ? 'Correction requested' : ($this->hasEvidence($requirement) ? 'Keep the current copy, or choose a replacement.' : null))
+                        ->hintColor(fn (): string => $this->isCorrectionMode() ? 'warning' : 'gray')
+                        ->placeholder('Drop a file or <span class="filepond--label-action">Choose '.e($requirement->label).'</span>')
+                        ->helperText((str_contains(strtolower($requirement->label), 'photo') ? 'JPEG or PNG' : 'PDF, JPEG, or PNG').'; maximum 10 MiB.')
+                        ->acceptedFileTypes(str_contains(strtolower($requirement->label), 'photo')
+                            ? ['image/jpeg', 'image/png']
+                            : ['application/pdf', 'image/jpeg', 'image/png'])
+                        ->maxSize(10240)
+                        ->maxFiles(1)
+                        ->disabled(fn (): bool => ! $this->draftWorkIsAvailable() || ($this->data['privacy_acknowledged'] ?? false) !== true
+                            || ($this->isCorrectionMode() && ! in_array($requirement->id, $this->editableEvidenceRequirementIds(), true)))
+                        ->storeFiles(false)
+                        ->required(fn (): bool => ! $this->savingDraft && ! $this->hasEvidence($requirement)),
+                ]))
             ->values()
             ->all();
 

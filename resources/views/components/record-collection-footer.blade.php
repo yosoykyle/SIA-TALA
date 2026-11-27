@@ -5,7 +5,7 @@
     $total = $paginator?->total() ?? ($pageState['total'] ?? 0);
     $page = $paginator?->currentPage() ?? ($pageState['page'] ?? 1);
     $lastPage = $paginator?->lastPage() ?? ($pageState['lastPage'] ?? 1);
-    $pageNameArgument = $paginator && $method === 'gotoPage' ? ', '.json_encode($paginator->getPageName(), JSON_THROW_ON_ERROR) : '';
+    $pageNameArgument = $paginator && $method === 'gotoPage' ? ", '".str_replace('"', '\u0022', addcslashes($paginator->getPageName(), "\\'"))."'" : '';
 @endphp
 <footer {{ $attributes->class(['tala-profile-collection-footer']) }}>
     <p role="status">{{ $from }}–{{ $to }} of {{ $total }} {{ $total === 1 ? \Illuminate\Support\Str::singular($label) : $label }}</p>

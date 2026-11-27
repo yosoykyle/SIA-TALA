@@ -90,6 +90,7 @@ class NavigationBadgeCountsTest extends TestCase
         $baselineChildren = $this->flattenNavigationItems($this->staffNavigation());
         $baselineAssessment = (int) ($baselineChildren['Assessment reviews']->getBadge() ?? 0);
         $baselineProof = (int) ($baselineChildren['Review receipts']->getBadge() ?? 0);
+        $baselinePayment = (int) ($baselineChildren['Waiting for payment']->getBadge() ?? 0);
         $baselineChanges = (int) ($baselineChildren['Student status changes']->getBadge() ?? 0);
         $this->assertNull($baselineChildren['All student accounts']->getBadge());
 
@@ -124,22 +125,55 @@ class NavigationBadgeCountsTest extends TestCase
         ]);
         app(LifecycleFinanceAction::class)->execute($change, $accounting);
 
+        // Case 3: assessed in-progress enrollment waiting for enrollment payment (no submitted receipt)
+        $paymentCase = Enrollment::factory()->create([
+            'canonical_outcome' => Enrollment::OutcomeInProgress,
+        ]);
+        $paymentProposal = RegistrationProposalVersion::factory()->create([
+            'enrollment_id' => $paymentCase->id,
+            'state' => RegistrationProposalVersion::StateConfirmed,
+        ]);
+        $paymentCase->update(['current_proposal_version_id' => $paymentProposal->id]);
+        $paymentAccount = TermAccount::factory()->create(['enrollment_id' => $paymentCase->id]);
+        $paymentAssessment = Assessment::factory()->create([
+            'enrollment_id' => $paymentCase->id,
+            'term_account_id' => $paymentAccount->id,
+            'state' => Assessment::StateActive,
+            'version' => 1,
+            'source_proposal_version_id' => $paymentProposal->id,
+        ]);
+        AssessmentObligation::factory()->create([
+            'assessment_id' => $paymentAssessment->id,
+            'amount' => '5000.00',
+            'due_at' => now()->addWeek(),
+            'required_for_enrollment' => true,
+        ]);
+
         $this->resolveCurrentAdminPage(ListEnrollments::getRouteName());
         $overviewItems = $this->flattenNavigationItems($this->staffNavigation());
-        $this->assertSame((string) ($baselineUnique + 2), $overviewItems['Student accounts']->getBadge());
+        $this->assertSame((string) ($baselineUnique + 3), $overviewItems['Student accounts']->getBadge());
         $this->assertSame('warning', $overviewItems['Student accounts']->getBadgeColor());
-        $this->assertNotNull($overviewItems['Student accounts']->getBadgeTooltip());
+        $this->assertStringContainsString('waiting for payment', (string) $overviewItems['Student accounts']->getBadgeTooltip());
         $this->assertNull($overviewItems['Overview']->getBadge());
         $this->assertNull($overviewItems['Fee plans']->getBadge());
         $this->assertNull($overviewItems['Payment channels']->getBadge());
 
-        $this->resolveCurrentAdminPage(ListEnrollments::getRouteName(), ['tab' => 'accounts']);
+        $this->resolveCurrentAdminPage(ListEnrollments::getRouteName(), ['tab' => 'awaiting_payment']);
         $expandedItems = $this->flattenNavigationItems($this->staffNavigation());
+        $this->assertTrue($expandedItems['Student accounts']->isActive());
+        $this->assertTrue($expandedItems['Waiting for payment']->isActive());
+        $this->assertFalse($expandedItems['Overview']->isActive());
+        $this->assertFalse($expandedItems['All student accounts']->isActive());
+        $this->assertFalse($expandedItems['Assessment reviews']->isActive());
+        $this->assertFalse($expandedItems['Review receipts']->isActive());
+        $this->assertFalse($expandedItems['Student status changes']->isActive());
         $this->assertNull($expandedItems['All student accounts']->getBadge());
         $this->assertSame((string) ($baselineAssessment + 1), $expandedItems['Assessment reviews']->getBadge());
         $this->assertSame('warning', $expandedItems['Assessment reviews']->getBadgeColor());
         $this->assertSame((string) ($baselineProof + 1), $expandedItems['Review receipts']->getBadge());
         $this->assertSame('warning', $expandedItems['Review receipts']->getBadgeColor());
+        $this->assertSame((string) ($baselinePayment + 1), $expandedItems['Waiting for payment']->getBadge());
+        $this->assertSame('warning', $expandedItems['Waiting for payment']->getBadgeColor());
         $this->assertSame((string) ($baselineChanges + 1), $expandedItems['Student status changes']->getBadge());
         $this->assertSame('warning', $expandedItems['Student status changes']->getBadgeColor());
     }

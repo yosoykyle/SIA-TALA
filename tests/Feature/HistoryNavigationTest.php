@@ -220,8 +220,15 @@ class HistoryNavigationTest extends TestCase
         ])->assertSee('1–5 of 11 students')->assertSee('Page 1 of 3');
 
         $pageName = $page->instance()->getTableRecords()->getPageName();
+        $expectedCall = "gotoPage(2, '".str_replace('"', '\u0022', addcslashes($pageName, "\\'"))."')";
 
-        $page->assertSeeHtml(e('gotoPage(2, '.json_encode($pageName).')'))
+        $page->assertSeeHtml('wire:click="'.e($expectedCall).'"')
+
+            ->assertSeeHtml('wire:target="'.$expectedCall.'"')
+
+            ->assertDontSeeHtml('wire:target="gotoPage(2, \\"')
+
+            ->assertDontSeeHtml('wire:target="gotoPage(2, "')
 
             ->call('gotoPage', 2, $pageName)
 
