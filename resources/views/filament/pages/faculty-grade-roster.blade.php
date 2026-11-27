@@ -8,24 +8,18 @@
     @endphp
 
     @if ($roster === null)
-        <section class="faculty-class-worklist tala-faculty-workflow space-y-4" aria-label="Assigned classes">
-            @if ($classTerms->isNotEmpty())
+        <section class="faculty-class-worklist tala-faculty-workflow space-y-4" aria-label="Subjects and sections">
+            @if (filled($scopeTitle) || filled($scopeMeta))
+                <x-record-scope-bar
+                    :scope-title="$scopeTitle"
+                    :scope-meta="$scopeMeta"
+                    icon="heroicon-o-calendar-days"
+                />
+            @endif
+
+            @if ($classTerms->isNotEmpty() || $hasActiveClassFilters)
                 <x-record-scope-bar class="faculty-class-scope" label="Filter assigned classes">
                     <div class="faculty-class-scope-fields">
-                        <div class="faculty-class-scope-field">
-                            <label for="faculty-class-term">Academic year and term</label>
-                            <x-filament::input.wrapper>
-                                <x-filament::input.select id="faculty-class-term" wire:model.live="classTerm">
-                                    <option value="">All assigned terms</option>
-                                    @if ($classTermFilter > 0 && ! $classTerms->contains('id', $classTermFilter))
-                                        <option value="{{ $classTermFilter }}" selected>Term no longer assigned</option>
-                                    @endif
-                                    @foreach ($classTerms as $classTermOption)
-                                        <option value="{{ $classTermOption->id }}">{{ $classTermOption->academicYear?->label }} · {{ $classTermOption->label }}</option>
-                                    @endforeach
-                                </x-filament::input.select>
-                            </x-filament::input.wrapper>
-                        </div>
                         <div class="faculty-class-scope-field">
                             <label for="faculty-class-queue">Class queue</label>
                             <x-filament::input.wrapper>
@@ -39,30 +33,37 @@
                         <div class="faculty-class-scope-field faculty-class-scope-field--search">
                             <label for="faculty-class-search">Find a class</label>
                             <x-filament::input.wrapper prefix-icon="heroicon-m-magnifying-glass">
-                                <x-filament::input id="faculty-class-search" type="search" wire:model.live.debounce.300ms="classSearch" placeholder="Course title or class code" />
+                                <x-filament::input id="faculty-class-search" type="search" wire:model.live.debounce.300ms="classSearch" placeholder="Subject title or section code" />
                             </x-filament::input.wrapper>
                         </div>
                     </div>
                 </x-record-scope-bar>
             @endif
 
-            @forelse ($classRows->groupBy(fn (array $classRow): int => $classRow['roster']->termOffering->term_id) as $termId => $termRows)
+            @if ($classRows->isNotEmpty())
                 @php
-                    $groupTerm = $termRows->first()['roster']->termOffering->term;
+                    $showTermPerRow = $queue === 'inc' || $classRows->pluck('roster.termOffering.term_id')->unique()->count() > 1;
                 @endphp
-                <section class="faculty-class-term-group" aria-labelledby="faculty-class-term-{{ $termId }}">
-                    <header>
-                        <h2 id="faculty-class-term-{{ $termId }}">
-                            <x-filament::icon icon="heroicon-o-calendar-days" />
-                            <span>{{ $groupTerm->academicYear?->label }} · {{ $groupTerm->label }}</span>
-                        </h2>
-                        <span>{{ $termRows->count() }} shown</span>
-                    </header>
-                    <ul class="faculty-class-grid">
-                        @foreach ($termRows as $classRow)
+                <x-data-table label="Subjects and sections" class="faculty-class-table-wrap tala-task-surface" records>
+                    <thead>
+                        <tr role="row">
+                            <th scope="col" role="columnheader">Subject</th>
+                            <th scope="col" role="columnheader">Section</th>
+                            <th scope="col" role="columnheader" class="tala-data-table-number">Students</th>
+                            <th scope="col" role="columnheader">Grade status</th>
+                            <th scope="col" role="columnheader">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($classRows as $classRow)
                             @php
                                 $classRoster = $classRow['roster'];
                                 $course = $classRoster->termOffering?->curriculumEntry?->courseSpecification;
+                                $courseCode = $course?->course?->code;
+                                $sectionCode = $classRoster->section?->code;
+                                $subjectLabel = collect([$courseCode, $sectionCode])->filter()->implode(' ') ?: ($course?->title ?? 'class');
+                                $rowTerm = $classRoster->termOffering?->term;
+                                $rowTermLabel = collect([$rowTerm?->academicYear?->label, $rowTerm?->label])->filter()->implode(' · ');
                                 $cardWindow = $classRow['entryWindow'] ?? null;
                                 $rosterStatus = $classRow['current'] ? match ($classRoster->state) {
                                     \App\Models\GradeRoster::StateReturned => 'Changes requested',
@@ -87,52 +88,116 @@
                                 } elseif ($cardWindow && $cardWindow['closes_at']) {
                                     $dateCue = 'Closed '.$cardWindow['closes_at']->copy()->timezone('Asia/Manila')->format('M j');
                                 }
+                                $statusSecondary = $classRow['current']
+                                    ? collect([
+                                        ($classRow['openIncCount'] ?? 0) > 0 ? $classRow['openIncCount'].' open INC' : null,
+                                        $dateCue,
+                                    ])->filter()->implode(' · ')
+                                    : '';
+                                $canOutputMasterlist = $classRow['current'] && ($classRow['count'] ?? 0) > 0;
                             @endphp
-                            <li>
-                                <a class="faculty-class-card tala-task-surface" {{ \Filament\Support\generate_href_html($this::getUrl(['roster' => $classRoster->id])) }}>
-                                    <div class="faculty-class-card-identity">
-                                        <h3>{{ $course?->title }}</h3>
-                                        <p>{{ collect([$course?->course?->code, $classRoster->section?->code])->filter()->implode(' · ') }}</p>
-                                    </div>
-                                    <x-filament::icon icon="heroicon-m-chevron-right" class="faculty-class-card-arrow" />
-                                    <div class="faculty-class-card-summary">
-                                        <x-filament::badge :color="$rosterColor">{{ $rosterStatus }}</x-filament::badge>
-                                        @if ($classRow['current'])
-                                            <span class="faculty-class-card-progress">
-                                                @if ($classRow['count'] > 0)
-                                                    {{ $classRow['graded'] }} of {{ $classRow['count'] }} graded
-                                                @else
-                                                    0 students
-                                                @endif
-                                                @if (($classRow['openIncCount'] ?? 0) > 0)
-                                                    · {{ $classRow['openIncCount'] }} open INC
-                                                @endif
-                                                @if ($dateCue)
-                                                    · {{ $dateCue }}
-                                                @endif
-                                            </span>
+                            <tr wire:key="faculty-class-row-{{ $classRoster->id }}" role="row">
+                                <th scope="row" role="rowheader">
+                                    <strong>{{ $course?->title }}</strong>
+                                    @if (filled($courseCode))
+                                        <span class="tala-data-table-secondary">{{ $courseCode }}</span>
+                                    @endif
+                                </th>
+                                <td role="cell">
+                                    <span class="tala-data-table-mobile-label" aria-hidden="true">Section</span>
+                                    <span>{{ $sectionCode }}</span>
+                                    @if ($showTermPerRow && filled($rowTermLabel))
+                                        <span class="tala-data-table-secondary">{{ $rowTermLabel }}</span>
+                                    @endif
+                                </td>
+                                <td role="cell" class="tala-data-table-number">
+                                    <span class="tala-data-table-mobile-label" aria-hidden="true">Students</span>
+                                    @if ($classRow['current'])
+                                        @if (($classRow['count'] ?? 0) > 0)
+                                            <strong>{{ number_format($classRow['count']) }}</strong>
+                                            <span class="tala-data-table-secondary">{{ $classRow['graded'] }} of {{ $classRow['count'] }} graded</span>
+                                        @else
+                                            <span>0 students</span>
                                         @endif
+                                    @else
+                                        <span class="tala-data-table-secondary">Update needed</span>
+                                    @endif
+                                </td>
+                                <td role="cell">
+                                    <span class="tala-data-table-mobile-label" aria-hidden="true">Grade status</span>
+                                    <x-filament::badge :color="$rosterColor">{{ $rosterStatus }}</x-filament::badge>
+                                    @if ($statusSecondary !== '')
+                                        <span class="tala-data-table-secondary">{{ $statusSecondary }}</span>
+                                    @endif
+                                </td>
+                                <td role="cell">
+                                    <span class="tala-data-table-mobile-label" aria-hidden="true">Actions</span>
+                                    <div class="faculty-class-row-actions">
+                                        @if ($classRow['current'])
+                                            <x-filament::button
+                                                type="button"
+                                                size="sm"
+                                                color="gray"
+                                                icon="heroicon-o-users"
+                                                wire:click="mountAction('viewMasterlist', { roster: {{ $classRoster->id }} })"
+                                            >
+                                                View masterlist<span class="sr-only"> for {{ $subjectLabel }}</span>
+                                            </x-filament::button>
+                                        @endif
+                                        @if ($canOutputMasterlist)
+                                            <x-filament::button
+                                                tag="a"
+                                                size="sm"
+                                                color="gray"
+                                                icon="heroicon-o-printer"
+                                                :href="route('grade-rosters.print', $classRoster)"
+                                                target="_blank"
+                                                rel="noopener"
+                                            >
+                                                Print<span class="sr-only"> masterlist for {{ $subjectLabel }}</span>
+                                            </x-filament::button>
+                                            <x-filament::button
+                                                tag="a"
+                                                size="sm"
+                                                color="gray"
+                                                icon="heroicon-o-arrow-down-tray"
+                                                :href="route('grade-rosters.csv', $classRoster)"
+                                            >
+                                                Export CSV<span class="sr-only"> for {{ $subjectLabel }}</span>
+                                            </x-filament::button>
+                                        @endif
+                                        <x-filament::button
+                                            tag="a"
+                                            size="sm"
+                                            color="primary"
+                                            icon="heroicon-o-pencil-square"
+                                            :href="$this::getUrl(['roster' => $classRoster->id])"
+                                        >
+                                            Grades<span class="sr-only"> for {{ $subjectLabel }}</span>
+                                        </x-filament::button>
                                     </div>
-                                </a>
-                            </li>
+                                </td>
+                            </tr>
                         @endforeach
-                    </ul>
-                </section>
-            @empty
+                    </tbody>
+                </x-data-table>
+            @else
                 @php
                     $emptyHeading = match (true) {
                         $classTerms->isEmpty() => 'No assigned classes yet',
                         $classPaginator->total() > 0 => 'No classes on this page',
                         $queue === 'inc' && $classTermFilter === 0 && $classSearch === '' => 'No open INC follow-ups',
                         $queue === 'needs-action' && $classTermFilter === 0 && $classSearch === '' => 'No classes need action',
+                        $classTermFilter === 0 && $classSearch === '' && $queue === 'all' && $activeScopeTerm !== null => 'No assigned classes in this term',
                         default => 'No classes match your filters',
                     };
                     $emptyDescription = match (true) {
                         $classTerms->isEmpty() => 'Your classes will appear here after the Registrar sets up the term and teaching assignments. Expecting a class? Ask the Registrar to check your teaching assignment.',
                         $classPaginator->total() > 0 => 'The class list has changed. Return to the first page to continue.',
                         $queue === 'inc' && $classTermFilter === 0 && $classSearch === '' => 'None of your released classes currently have open Faculty INC completions.',
-                        $queue === 'needs-action' && $classTermFilter === 0 && $classSearch === '' => 'You have no returned, overdue, or open draft classes right now.',
-                        default => 'Try another course title, class code, queue or term.',
+                        $queue === 'needs-action' && $classTermFilter === 0 && $classSearch === '' => 'You have no returned, overdue, or open draft classes in the active term right now.',
+                        $classTermFilter === 0 && $classSearch === '' && $queue === 'all' && $activeScopeTerm !== null => 'You have no classes assigned in the active term. Switch to INC follow-up if you need to submit a prior-term INC completion.',
+                        default => 'Try another subject title, section code, or queue.',
                     };
                 @endphp
                 <x-servitech-empty-state :illustrated="$classTerms->isEmpty()" :heading="$emptyHeading" :description="$emptyDescription" icon="heroicon-o-magnifying-glass">
@@ -144,7 +209,7 @@
                         <x-filament::button type="button" color="gray" wire:click="clearClassFilters">{{ $queue !== 'all' && $classTermFilter === 0 && $classSearch === '' ? 'Show all classes' : 'Clear filters' }}</x-filament::button>
                     @endif
                 </x-servitech-empty-state>
-            @endforelse
+            @endif
 
             @if ($classRows->isNotEmpty())
                 <footer class="faculty-class-pagination">
@@ -270,7 +335,7 @@
                     @endphp
                     @if ($selected['returned'])
                         <div class="tala-review-feedback faculty-result-feedback">
-                            <x-filament::icon icon="heroicon-o-arrow-uturn-left" class="size-5" />
+                            <x-filament::icon icon="heroicon-o-arrow-uturn-left" class="size-5" aria-hidden="true" />
                             <div><h3>Changes requested by Registrar</h3><p>{{ $selected['return_reason'] }}</p></div>
                         </div>
                     @endif
@@ -290,14 +355,14 @@
                     @endif
                     @if (!$incContext)
                         @if (!$designated)
-                            <div class="faculty-result-entry-state"><x-filament::icon icon="heroicon-o-lock-closed" class="size-5" /><p>View-only access. Only the designated faculty member ({{ $designatedName }}) can enter grades.</p></div>
+                            <div class="faculty-result-entry-state"><x-filament::icon icon="heroicon-o-lock-closed" class="size-5" aria-hidden="true" /><p>View-only access. Only the designated faculty member ({{ $designatedName }}) can enter grades.</p></div>
                         @elseif ($this->canEditSelectedRoster() && !in_array($selected['id'], $editableRowIds, true))
-                            <div class="faculty-result-entry-state"><x-filament::icon icon="heroicon-o-lock-closed" class="size-5" /><p>This result is unchanged. Only results returned by the Registrar can be edited.</p></div>
+                            <div class="faculty-result-entry-state"><x-filament::icon icon="heroicon-o-lock-closed" class="size-5" aria-hidden="true" /><p>This result is unchanged. Only results returned by the Registrar can be edited.</p></div>
                         @endif
                     @endif
                 @else
                     <div class="faculty-result-empty-editor">
-                        <x-filament::icon icon="heroicon-o-user-group" class="size-8" />
+                        <x-filament::icon icon="heroicon-o-user-group" class="size-8" aria-hidden="true" />
                         <h2 id="faculty-result-heading">{{ $membership['count'] === 0 ? 'No students enrolled yet' : 'Choose a student' }}</h2>
                         <p>{{ $membership['count'] === 0 ? 'Officially enrolled students appear after the Registrar finalizes their enrollment.' : 'Use the student list to review a result. Searching and filtering keep your draft edits.' }}</p>
                     </div>
@@ -319,11 +384,11 @@
                             <span wire:offline>Offline · Changes are not saved. Keep this page open.</span>
                             <div wire:offline.class="hidden">
                                 <span x-cloak x-show="transportFailed || $wire.draftSaveError"><span x-text="transportFailed ? 'Save not confirmed' : 'Not saved'"></span> · <span x-text="transportFailed ? 'Check your connection and retry.' : $wire.draftSaveError"></span></span>
-                                <span x-show="!transportFailed && !$wire.draftSaveError" class="faculty-result-save-confirmation"><x-filament::icon icon="heroicon-m-check-circle" class="size-4" x-show="!pending" /><span x-cloak x-show="pending">Saving draft…</span><span x-show="!pending">{{ $workspace['hasUnsavedChanges'] ? 'Changes are not saved' : 'Draft saved' }}</span></span>
+                                <span x-show="!transportFailed && !$wire.draftSaveError" class="faculty-result-save-confirmation"><x-filament::icon icon="heroicon-m-check-circle" class="size-4" x-show="!pending" aria-hidden="true" /><span x-cloak x-show="pending">Saving draft…</span><span x-show="!pending">{{ $workspace['hasUnsavedChanges'] ? 'Changes are not saved' : 'Draft saved' }}</span></span>
                                 <x-filament::button type="button" color="gray" size="sm" x-cloak x-show="transportFailed || $wire.draftSaveError" wire:click="saveDraft" wire:loading.attr="disabled" wire:target="saveDraft">Retry save</x-filament::button>
                             </div>
                         </div>
-                        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;" role="status" aria-live="polite">
+                        <div class="faculty-result-readiness-badges" role="status" aria-live="polite">
                             @if ($rosterReadyToSubmit)
                                 <x-filament::badge color="success" icon="heroicon-m-check-circle">Ready to submit</x-filament::badge>
                             @else

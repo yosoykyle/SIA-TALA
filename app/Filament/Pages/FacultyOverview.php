@@ -14,17 +14,18 @@ use App\Models\GradeRoster;
 use App\Models\GradeRosterRow;
 use App\Models\IncCompletionSubmission;
 use App\Models\LateGradeAuthorization;
+use App\Models\PublishedTimetableVersion;
 use App\Models\Section;
 use App\Models\SectionMeeting;
 use App\Models\Term;
-use App\Models\TermCalendarPackage;
-use App\Models\TermCalendarWindow;
 use App\Models\TermOffering;
 use App\Models\User;
-use App\Support\HasSearchableTermSelection;
+use App\Support\FacultyActiveTermResolver;
+use App\Support\TimetablePresentation;
 use BackedEnum;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Url;
@@ -32,8 +33,6 @@ use UnitEnum;
 
 class FacultyOverview extends Page
 {
-    use HasSearchableTermSelection;
-
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedHome;
 
     protected static string|UnitEnum|null $navigationGroup = 'Faculty';
@@ -84,50 +83,8 @@ class FacultyOverview extends Page
             return;
         }
 
-        $activeCalendarTermIds = TermCalendarPackage::query()
-            ->where('state', TermCalendarPackage::StateActive)
-            ->distinct()
-            ->pluck('term_id');
-
-        if ($activeCalendarTermIds->count() === 1) {
-            $this->termId = (int) $activeCalendarTermIds->sole();
-
-            return;
-        }
-
-        $facultyId = auth()->id();
-
-        if ($facultyId !== null) {
-            $publishedTermIds = SectionMeeting::query()
-                ->activeOfficial()
-                ->where('faculty_user_id', $facultyId)
-                ->with('schedulingDemand.termOffering')
-                ->get()
-                ->pluck('schedulingDemand.termOffering.term_id')
-                ->filter()
-                ->unique()
-                ->values();
-
-            if ($publishedTermIds->count() === 1) {
-                $this->termId = (int) $publishedTermIds->sole();
-
-                return;
-            }
-        }
-
-        $activeStateTermIds = Term::query()
-            ->where('state', Term::StateActive)
-            ->pluck('id');
-
-        if ($activeStateTermIds->count() === 1) {
-            $this->termId = (int) $activeStateTermIds->sole();
-        }
-    }
-
-    public function selectTerm(int $termId): void
-    {
-        abort_unless(Term::query()->whereKey($termId)->exists(), 404);
-        $this->termId = $termId;
+        $user = auth()->user();
+        $this->termId = app(FacultyActiveTermResolver::class)->resolveId($user instanceof User ? $user : null);
     }
 
     /** @return array<string, mixed> */
@@ -136,8 +93,10 @@ class FacultyOverview extends Page
         $user = auth()->user();
         abort_unless($user instanceof User, 403);
 
-        $terms = Term::query()->with('academicYear')->latest('starts_on')->get();
-        $term = $this->termId !== null ? $terms->firstWhere('id', $this->termId) : null;
+        $termResolver = app(FacultyActiveTermResolver::class);
+        $term = $this->termId !== null
+            ? Term::query()->with('academicYear')->find($this->termId)
+            : $termResolver->resolve($user);
 
         $allRosters = GradeRoster::query()
             ->whereIn('section_id', ClassOfferingTeachingAssignment::query()
@@ -166,12 +125,14 @@ class FacultyOverview extends Page
 
         if (! $term instanceof Term) {
             return [
-                'terms' => $terms,
                 'term' => null,
-                'termGateAttention' => $this->termGateAttentionItems($allRosters, $openIncClasses, $gradeWindow),
+                'scopeTitle' => null,
+                'scopeMeta' => null,
+                'noTermAttention' => $this->noTermAttentionItems($allRosters, $openIncClasses, $gradeWindow),
                 'actionItems' => [],
-                'priorityCard' => null,
-                'scheduleCard' => null,
+                'schedulePresentation' => null,
+                'scheduleSummary' => null,
+                'externallyArrangedClasses' => [],
                 'availabilityCard' => null,
                 'gradesCard' => null,
             ];
@@ -191,15 +152,13 @@ class FacultyOverview extends Page
         $isTermClosed = $term->state === Term::StateClosed;
         $registrarNotTeaching = (bool) ($availabilityStatus['registrar_not_teaching'] ?? false);
         $registrarNotTeachingReason = $availabilityStatus['registrar_not_teaching_reason'] ?? null;
-        $canSubmitAvailability = $hasActiveCoreCalendar && ! $isTermClosed && ! $registrarNotTeaching;
         $hasDeclaration = (bool) ($availabilityStatus['has_declaration'] ?? false);
         $needsGridReview = (bool) ($availabilityStatus['needs_grid_review'] ?? false);
+        $isAvailabilityOpen = $hasActiveCoreCalendar && ! $isTermClosed && ! $registrarNotTeaching;
+        $canSubmitAvailability = $isAvailabilityOpen && ! $hasDeclaration;
         $effectiveMode = $availabilityStatus['effective_mode'] ?? null;
         /** @var FacultyAvailabilityDeclaration|null $latestDeclaration */
         $latestDeclaration = $availabilityStatus['latest_declaration'] ?? null;
-        /** @var TermCalendarPackage|null $activePackage */
-        $activePackage = $availabilityStatus['active_calendar_package'] ?? null;
-        $activePackage?->loadMissing('windows');
 
         $deadlineSource = FacultyAvailabilityDeadline::query()
             ->where('term_id', $term->id)
@@ -212,12 +171,30 @@ class FacultyOverview extends Page
         $officialMeetings = SectionMeeting::query()
             ->activeOfficial()
             ->with([
-                'schedulingDemand.termOffering',
+                'schedulingDemand.termOffering.term',
+                'schedulingDemand.termOffering.curriculumEntry.courseSpecification.course',
                 'schedulingDemand.sectionDeliveryGroup.section',
+                'schedulingDemand.courseComponent',
+                'schedulingDemand.courseComponent.courseSpecification.course',
+                'faculty',
+                'room',
             ])
             ->where('faculty_user_id', $user->id)
-            ->whereHas('schedulingDemand.termOffering', fn ($query) => $query->where('term_id', $term->id))
+            ->whereHas('schedulingDemand.termOffering', fn (Builder $query): Builder => $query->where('term_id', $term->id))
+            ->orderBy('day_of_week')
+            ->orderBy('starts_at')
+            ->orderBy('id')
             ->get();
+
+        $versionId = $officialMeetings->pluck('published_timetable_version_id')->filter()->first();
+        $publishedVersion = $versionId !== null
+            ? PublishedTimetableVersion::query()
+                ->with(['scheduleRun', 'term.academicYear'])
+                ->find($versionId)
+            : null;
+        $schedulePresentation = ($publishedVersion instanceof PublishedTimetableVersion && $officialMeetings->isNotEmpty())
+            ? TimetablePresentation::forPublished($publishedVersion, $officialMeetings)
+            : null;
 
         $scheduleMeetingCount = $officialMeetings->count();
         $scheduleClassCount = $officialMeetings
@@ -226,24 +203,8 @@ class FacultyOverview extends Page
             ->unique()
             ->count();
 
-        $externallyArrangedCount = ClassOfferingTeachingAssignment::query()
-            ->where('faculty_user_id', $user->id)
-            ->where('state', ClassOfferingTeachingAssignment::StateActive)
-            ->whereHas('termOffering', fn ($query) => $query
-                ->where('term_id', $term->id)
-                ->where('state', '!=', TermOffering::StateCancelled)
-                ->whereHas('curriculumEntry.courseSpecification', fn ($specQuery) => $specQuery
-                    ->where('scheduling_treatment', CourseSpecification::SchedulingExternallyArranged)))
-            ->where(function ($query): void {
-                $query->whereNull('section_id')
-                    ->orWhereHas('section', fn ($sectionQuery) => $sectionQuery->where('state', '!=', Section::StateCancelled));
-            })
-            ->count();
-
-        /** @var TermCalendarWindow|null $examinationPeriod */
-        $examinationPeriod = $activePackage?->windows->first(
-            fn (TermCalendarWindow $window): bool => $window->window_type === TermCalendarWindow::TypeExaminationPeriod,
-        );
+        $externallyArrangedClasses = $this->externallyArrangedClasses($term, $user);
+        $externallyArrangedCount = count($externallyArrangedClasses);
 
         $affectedMeetings = $availabilityStatus['affected_meetings'] ?? [];
         $affectedMeetingsCount = count($affectedMeetings);
@@ -258,25 +219,12 @@ class FacultyOverview extends Page
             allRosters: $allRosters,
             openIncClasses: $openIncClasses,
             gradeWindow: $gradeWindow,
-            hasActiveCoreCalendar: $canSubmitAvailability,
+            isAvailabilityOpen: $isAvailabilityOpen,
             hasDeclaration: $hasDeclaration,
             needsGridReview: $needsGridReview,
             replyByFormatted: $replyByFormatted,
             affectedMeetings: $affectedMeetings,
         );
-
-        $hasReturnedOrOverdue = $allRosters->contains(
-            fn (GradeRoster $roster): bool => $roster->state === GradeRoster::StateReturned
-                || ($roster->state === GradeRoster::StateLateNotSubmitted && $gradeWindow->isOpen($roster, LateGradeAuthorization::PeriodFinal)),
-        );
-
-        $priorityCard = match (true) {
-            $hasReturnedOrOverdue => 'grades',
-            $canSubmitAvailability && (! $hasDeclaration || $needsGridReview) => 'availability',
-            $affectedMeetingsCount > 0 => 'schedule',
-            $actionableClassCount > 0 || $openIncClasses->isNotEmpty() => 'grades',
-            default => null,
-        };
 
         $availabilityStatusLabel = match (true) {
             $registrarNotTeaching => 'Not teaching (Registrar)',
@@ -287,16 +235,19 @@ class FacultyOverview extends Page
             default => $latestDeclaration?->modeLabel() ?? 'Not submitted yet',
         };
 
-        $availabilityDescription = match (true) {
+        $windowCount = count($availabilityStatus['teaching_windows'] ?? []);
+        $availabilityNote = match (true) {
             $registrarNotTeaching => filled($registrarNotTeachingReason)
                 ? 'Marked not teaching (0 units): '.$registrarNotTeachingReason
                 : 'Marked not teaching (0 units) by the Registrar for this term.',
             $isTermClosed => 'This term is closed. Availability is read-only.',
             ! $hasActiveCoreCalendar && ! $hasDeclaration => 'Term calendar is not active yet.',
-            ! $hasDeclaration => 'Share when you can teach so the Registrar can schedule your classes.',
-            $needsGridReview => 'Teaching hours changed. Review and update your selected times.',
-            $effectiveMode === FacultyAvailabilityDeclaration::ModeWindows => count($availabilityStatus['teaching_windows'] ?? []).' '.Str::plural('weekly window', count($availabilityStatus['teaching_windows'] ?? [])).' saved.',
-            default => 'Saved for this term.',
+            ! $hasDeclaration => $canSubmitAvailability && $replyByFormatted !== null
+                ? 'Reply by '.$replyByFormatted
+                : 'Share when you can teach so the Registrar can plan your classes.',
+            $needsGridReview => 'Teaching hours changed after submission. Contact the Registrar if adjustments are needed.',
+            $effectiveMode === FacultyAvailabilityDeclaration::ModeWindows => $windowCount.' '.Str::plural('weekly window', $windowCount).' saved · Locked',
+            default => 'Submitted and locked for this term.',
         };
 
         $otherTermActionableCount = $allRosters
@@ -304,52 +255,93 @@ class FacultyOverview extends Page
                 && $this->isRosterActionable($roster, $gradeWindow))
             ->count();
 
-        $scopeMetaParts = [
-            $term->starts_on->format('M j').' – '.$term->ends_on->format('M j, Y'),
-            $hasActiveCoreCalendar ? 'Term calendar active' : 'Term calendar not active',
+        $gradesDescriptionParts = [
+            $assignedClassCount.' assigned '.Str::plural('class', $assignedClassCount),
+            $actionableClassCount > 0 ? $actionableClassCount.' needing action' : null,
         ];
+        $gradesNoteParts = [
+            $termOpenIncCount > 0 ? $termOpenIncCount.' open INC '.Str::plural('completion', $termOpenIncCount) : null,
+            $otherTermActionableCount > 0 ? $otherTermActionableCount.' needing action in earlier terms' : null,
+        ];
+        $gradesNote = collect($gradesNoteParts)->filter()->implode(' · ') ?: 'View class masterlists, export CSV, or enter grades.';
 
         $totalClassCount = $scheduleClassCount + $externallyArrangedCount;
 
         return [
-            'terms' => $terms,
             'term' => $term,
-            'scopeMeta' => implode(' · ', $scopeMetaParts),
-            'termGateAttention' => [],
+            'scopeTitle' => $termResolver->scopeTitle($term),
+            'scopeMeta' => $termResolver->scopeMeta($term, $hasActiveCoreCalendar),
+            'noTermAttention' => [],
             'actionItems' => $actionItems,
-            'priorityCard' => $priorityCard,
-            'scheduleCard' => [
+            'schedulePresentation' => $schedulePresentation,
+            'scheduleSummary' => [
                 'totalClassCount' => $totalClassCount,
                 'classCount' => $scheduleClassCount,
                 'meetingCount' => $scheduleMeetingCount,
                 'externallyArrangedCount' => $externallyArrangedCount,
                 'affectedCount' => $affectedMeetingsCount,
-                'examPeriodLabel' => $examinationPeriod
-                    ? $examinationPeriod->opens_on->format('M j').'–'.$examinationPeriod->closes_on->format('M j, Y')
-                    : null,
-                'url' => FacultySchedule::getUrl(['termId' => $term->id]),
+                'url' => FacultySchedule::getUrl(),
+                'academicCalendarUrl' => FacultyAcademicCalendar::getUrl(),
             ],
+            'externallyArrangedClasses' => $externallyArrangedClasses,
             'availabilityCard' => [
                 'statusLabel' => $availabilityStatusLabel,
-                'description' => $availabilityDescription,
-                'replyBy' => $canSubmitAvailability ? $replyByFormatted : null,
+                'note' => $availabilityNote,
                 'hasDeclaration' => $hasDeclaration,
-                'needsReview' => $canSubmitAvailability && $needsGridReview,
-                'url' => MyAvailability::getUrl(['termId' => $term->id]),
-                'ctaLabel' => ($isTermClosed || $registrarNotTeaching)
-                    ? 'View availability'
-                    : ($hasDeclaration ? 'Update availability' : 'Submit availability'),
+                'url' => MyAvailability::getUrl(),
             ],
             'gradesCard' => [
                 'actionableCount' => $actionableClassCount,
                 'assignedCount' => $assignedClassCount,
                 'otherTermActionableCount' => $otherTermActionableCount,
                 'openIncCount' => $termOpenIncCount,
+                'description' => collect($gradesDescriptionParts)->filter()->implode(' · '),
+                'note' => $gradesNote,
                 'url' => $actionableClassCount > 0
-                    ? FacultyGradeRoster::getUrl(['queue' => 'needs-action', 'termId' => $term->id])
-                    : FacultyGradeRoster::getUrl(['termId' => $term->id]),
+                    ? FacultyGradeRoster::getUrl(['queue' => 'needs-action'])
+                    : FacultyGradeRoster::getUrl(),
             ],
         ];
+    }
+
+    /**
+     * @return list<array{course_code: string, course_title: string, section_code: string, role: string}>
+     */
+    private function externallyArrangedClasses(Term $term, User $user): array
+    {
+        return ClassOfferingTeachingAssignment::query()
+            ->with([
+                'termOffering.curriculumEntry.courseSpecification.course',
+                'section',
+            ])
+            ->where('faculty_user_id', $user->id)
+            ->where('state', ClassOfferingTeachingAssignment::StateActive)
+            ->whereHas('termOffering', fn (Builder $query): Builder => $query
+                ->where('term_id', $term->id)
+                ->where('state', '!=', TermOffering::StateCancelled)
+                ->whereHas('curriculumEntry.courseSpecification', fn (Builder $specQuery): Builder => $specQuery
+                    ->where('scheduling_treatment', CourseSpecification::SchedulingExternallyArranged)))
+            ->where(function (Builder $query): void {
+                $query->whereNull('section_id')
+                    ->orWhereHas('section', fn (Builder $sectionQuery): Builder => $sectionQuery->where('state', '!=', Section::StateCancelled));
+            })
+            ->orderBy('id')
+            ->get()
+            ->map(function (ClassOfferingTeachingAssignment $assignment): array {
+                $spec = $assignment->termOffering?->curriculumEntry?->courseSpecification;
+                $course = $spec?->course;
+
+                return [
+                    'course_code' => (string) ($course?->code ?? 'Subject'),
+                    'course_title' => (string) ($spec?->title ?? $course?->code ?? 'Externally arranged subject'),
+                    'section_code' => (string) ($assignment->section?->code ?: 'Term offering'),
+                    'role' => $assignment->role === ClassOfferingTeachingAssignment::RoleDesignated ? 'Designated instructor' : 'Co-faculty',
+                ];
+            })
+            ->unique(fn (array $row): string => $row['course_code'].'|'.$row['section_code'].'|'.$row['role'])
+            ->sortBy(['course_code', 'section_code'])
+            ->values()
+            ->all();
     }
 
     private function isRosterActionable(GradeRoster $roster, GradeWindowService $gradeWindow): bool
@@ -403,9 +395,9 @@ class FacultyOverview extends Page
     /**
      * @param  Collection<int, GradeRoster>  $allRosters
      * @param  Collection<int, array{roster: GradeRoster, term_id: int, course_section: string, term_label: string, count: int}>  $openIncClasses
-     * @return list<array{label: string, count?: int, href: string, icon: string}>
+     * @return list<array{label: string, count: int, href: string}>
      */
-    private function termGateAttentionItems(Collection $allRosters, Collection $openIncClasses, GradeWindowService $gradeWindow): array
+    private function noTermAttentionItems(Collection $allRosters, Collection $openIncClasses, GradeWindowService $gradeWindow): array
     {
         $items = [];
 
@@ -415,7 +407,6 @@ class FacultyOverview extends Page
                 'label' => 'Returned class grades',
                 'count' => $returnedCount,
                 'href' => FacultyGradeRoster::getUrl(['queue' => 'needs-action']),
-                'icon' => 'heroicon-o-exclamation-circle',
             ];
         }
 
@@ -428,7 +419,6 @@ class FacultyOverview extends Page
                 'label' => 'Overdue class grades ready for entry',
                 'count' => $overdueOpenCount,
                 'href' => FacultyGradeRoster::getUrl(['queue' => 'needs-action']),
-                'icon' => 'heroicon-o-academic-cap',
             ];
         }
 
@@ -438,7 +428,6 @@ class FacultyOverview extends Page
                 'label' => 'Open INC completions',
                 'count' => $openIncTotal,
                 'href' => FacultyGradeRoster::getUrl(['queue' => 'inc']),
-                'icon' => 'heroicon-o-arrow-path-rounded-square',
             ];
         }
 
@@ -456,7 +445,7 @@ class FacultyOverview extends Page
         Collection $allRosters,
         Collection $openIncClasses,
         GradeWindowService $gradeWindow,
-        bool $hasActiveCoreCalendar,
+        bool $isAvailabilityOpen,
         bool $hasDeclaration,
         bool $needsGridReview,
         ?string $replyByFormatted,
@@ -511,7 +500,7 @@ class FacultyOverview extends Page
             }
         }
 
-        if ($hasActiveCoreCalendar && ! $hasDeclaration) {
+        if ($isAvailabilityOpen && ! $hasDeclaration) {
             $items[] = [
                 'badge' => 'Availability needed',
                 'severity' => 'warning',
@@ -521,20 +510,17 @@ class FacultyOverview extends Page
                     $replyByFormatted ? 'Reply by '.$replyByFormatted : null,
                 ])->filter()->implode(' · '),
                 'action_label' => 'Submit availability',
-                'action_url' => MyAvailability::getUrl(['termId' => $term->id]),
+                'action_url' => MyAvailability::getUrl(),
                 'action_color' => 'gray',
             ];
-        } elseif ($hasActiveCoreCalendar && $needsGridReview) {
+        } elseif ($isAvailabilityOpen && $hasDeclaration && $needsGridReview) {
             $items[] = [
-                'badge' => 'Review needed',
-                'severity' => 'warning',
-                'title' => 'Teaching times outside updated hours',
-                'summary' => collect([
-                    'One or more saved teaching windows fall outside the updated approved teaching grid.',
-                    $replyByFormatted ? 'Reply by '.$replyByFormatted : null,
-                ])->filter()->implode(' · '),
-                'action_label' => 'Update times',
-                'action_url' => MyAvailability::getUrl(['termId' => $term->id]),
+                'badge' => 'Hours changed',
+                'severity' => 'info',
+                'title' => 'Teaching hours changed after submission',
+                'summary' => 'One or more saved teaching windows fall outside the updated approved teaching grid. Contact the Registrar if your availability needs adjustment.',
+                'action_label' => 'View availability',
+                'action_url' => MyAvailability::getUrl(),
                 'action_color' => 'gray',
             ];
         }
@@ -556,7 +542,7 @@ class FacultyOverview extends Page
                 'severity' => $isLateImpact ? 'warning' : 'info',
                 'title' => $courseSection,
                 'summary' => $isLateImpact
-                    ? collect([$dayTime, 'Outside your updated availability. Current meetings stay official until revised.'])->filter()->implode(' · ')
+                    ? collect([$dayTime, 'Outside your recorded availability. Current meetings stay official until revised by the Registrar.'])->filter()->implode(' · ')
                     : collect([
                         $dayTime,
                         isset($meeting['effective_date']) && method_exists($meeting['effective_date'], 'format')
@@ -565,7 +551,7 @@ class FacultyOverview extends Page
                         filled($meeting['reason'] ?? null) ? (string) $meeting['reason'] : null,
                     ])->filter()->implode(' · '),
                 'action_label' => 'View schedule',
-                'action_url' => FacultySchedule::getUrl(['termId' => $term->id]),
+                'action_url' => FacultySchedule::getUrl(),
                 'action_color' => 'gray',
             ];
         }

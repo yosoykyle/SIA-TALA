@@ -193,36 +193,42 @@ class TermPlanningWorkflowComprehensionTest extends TestCase
 
     #[TestWith([FacultySchedule::class, MyAvailability::class])]
     #[TestWith([MyAvailability::class, FacultySchedule::class])]
-    public function test_faculty_sidebar_switch_keeps_the_selected_term(string $from, string $to): void
+    public function test_faculty_sidebar_links_use_clean_urls_without_term_id(string $from, string $to): void
     {
         Role::findOrCreate(User::StaffRoleFaculty, 'web');
         $faculty = User::factory()->create(['status' => User::StatusActive]);
         $faculty->assignRole(User::StaffRoleFaculty);
         $faculty->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
         $faculty->forceFill(['two_factor_recovery_codes_acknowledged_at' => now()])->save();
-        $term = Term::factory()->create();
+        $term = Term::factory()->create(['state' => Term::StateActive]);
         $this->actingAs($faculty)->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleFaculty]);
 
         $this->get($from::getUrl(['termId' => $term->id]))
-            ->assertSeeHtml('href="'.e($to::getUrl(['termId' => $term->id])).'"');
+            ->assertOk()
+            ->assertSeeHtml('href="'.e($to::getUrl()).'"')
+            ->assertDontSeeHtml('href="'.e($to::getUrl(['termId' => $term->id])).'"');
     }
 
     #[TestWith([FacultySchedule::class, MyAvailability::class])]
     #[TestWith([MyAvailability::class, FacultySchedule::class])]
-    public function test_faculty_sidebar_keeps_an_automatically_selected_term(string $from, string $to): void
+    public function test_faculty_pages_auto_resolve_active_term_and_render_clean_sidebar_links(string $from, string $to): void
     {
         Role::findOrCreate(User::StaffRoleFaculty, 'web');
         $faculty = User::factory()->create(['status' => User::StatusActive]);
         $faculty->assignRole(User::StaffRoleFaculty);
         $faculty->saveAppAuthenticationSecret('JBSWY3DPEHPK3PXP');
         $faculty->forceFill(['two_factor_recovery_codes_acknowledged_at' => now()])->save();
-        $term = Term::factory()->create();
+        TermCalendarPackage::query()->where('state', TermCalendarPackage::StateActive)
+            ->update(['state' => TermCalendarPackage::StateClosed]);
+        $term = Term::factory()->create(['state' => Term::StateActive]);
         TermCalendarPackage::factory()->for($term)->create(['state' => TermCalendarPackage::StateActive]);
         $this->actingAs($faculty)->withSession([WorkspaceContextResolver::SessionKey => User::StaffRoleFaculty]);
 
         $this->get($from::getUrl())
             ->assertOk()
-            ->assertSeeHtml('href="'.e($to::getUrl(['termId' => $term->id])).'"');
+            ->assertSee($term->label)
+            ->assertSeeHtml('href="'.e($to::getUrl()).'"')
+            ->assertDontSeeHtml('href="'.e($to::getUrl(['termId' => $term->id])).'"');
     }
 
     public function test_plan_exposes_actual_work_and_keeps_candidate_and_official_views_consistent(): void

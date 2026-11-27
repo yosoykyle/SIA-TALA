@@ -230,7 +230,7 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
         $other = $this->scheduleFixture();
 
         Livewire::actingAs($fixture['faculty'])
-            ->test(FacultySchedule::class)
+            ->test(FacultySchedule::class, ['termId' => $fixture['term']->id])
             ->assertActionExists('printSchedule');
 
         $this->actingAs($fixture['faculty'])
@@ -320,7 +320,7 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
         $tuesday = $fixture['meeting']->replicate();
         $tuesday->fill(['meeting_sequence' => 2, 'day_of_week' => 2])->save();
         $criteria = ['course_id' => $fixture['course']->id, 'class_id' => $fixture['section']->id, 'room_id' => $fixture['room']->id, 'day_of_week' => 2, 'modality' => TermOffering::ModalityFaceToFace, 'search' => $fixture['course']->code];
-        $page = Livewire::actingAs($fixture['faculty'])->test(FacultySchedule::class)
+        $page = Livewire::actingAs($fixture['faculty'])->test(FacultySchedule::class, ['termId' => $fixture['term']->id])
             ->set('tableSearch', $criteria['search'])
             ->filterTable('day_of_week', 2)
             ->filterTable('modality', TermOffering::ModalityFaceToFace);
@@ -380,17 +380,23 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
     }
 
     #[Test]
-    public function faculty_schedule_distinguishes_unselected_and_unassigned_terms_and_keeps_figures_unfiltered(): void
+    public function faculty_schedule_distinguishes_missing_and_unassigned_terms_and_keeps_figures_unfiltered(): void
     {
         $faculty = $this->staff(User::StaffRoleFaculty);
-        $emptyTerm = Term::factory()->create();
+        Term::query()->update(['state' => Term::StateClosed]);
 
         Livewire::actingAs($faculty)->test(FacultySchedule::class)
-            ->assertSee('Choose a term to view your schedule')
+            ->assertSee('No active term yet')
+            ->assertDontSee('Choose a term to view your schedule')
             ->assertDontSee('No official meetings assigned in this term')
-            ->assertDontSee('Search courses, classes or rooms')
-            ->call('selectTerm', $emptyTerm->id)
+            ->assertDontSee('Search subject, class, or room');
+
+        $emptyTerm = Term::factory()->create(['state' => Term::StateActive]);
+
+        Livewire::actingAs($faculty)->test(FacultySchedule::class)
+            ->assertSet('termId', $emptyTerm->id)
             ->assertSee('No official meetings assigned in this term')
+            ->assertSee('Academic calendar')
             ->assertDontSee('Weekly meetings');
 
         $fixture = $this->scheduleFixture();
@@ -400,6 +406,7 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
         Livewire::actingAs($fixture['faculty'])->test(FacultySchedule::class, ['termId' => $fixture['term']->id])
             ->filterTable('day_of_week', 2)
             ->assertSeeInOrder(['Classes', '1', 'Weekly meetings', '2', 'Teaching days', '2'])
+            ->assertSee('Academic calendar')
             ->assertSee('Showing filtered classes:')
             ->assertSee('Tuesday');
     }

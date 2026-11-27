@@ -4,7 +4,6 @@ namespace App\Filament\Pages;
 
 use App\Actions\Scheduling\FacultyAvailabilityStatusProjection;
 use App\Actions\Scheduling\RecordFacultyAvailabilityDeclaration;
-use App\Models\CalendarEvent;
 use App\Models\FacultyAvailabilityDeadline;
 use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\FacultyTermLoadOverride;
@@ -13,7 +12,7 @@ use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermTeachingGridRow;
 use App\Models\User;
-use App\Support\HasSearchableTermSelection;
+use App\Support\FacultyActiveTermResolver;
 use BackedEnum;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
@@ -29,8 +28,6 @@ use UnitEnum;
 
 class MyAvailability extends Page
 {
-    use HasSearchableTermSelection;
-
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedClock;
 
     protected static string|UnitEnum|null $navigationGroup = 'Faculty';
@@ -81,18 +78,9 @@ class MyAvailability extends Page
     {
         if ($this->termId !== null) {
             abort_unless(Term::query()->whereKey($this->termId)->exists(), 404);
-        }
-
-        if ($this->termId === null) {
-            $activeTermIds = TermCalendarPackage::query()
-                ->where('state', TermCalendarPackage::StateActive)
-                ->whereHas('term', fn ($query) => $query->where('state', '!=', Term::StateClosed))
-                ->distinct()
-                ->pluck('term_id');
-
-            if ($activeTermIds->count() === 1) {
-                $this->termId = (int) $activeTermIds->sole();
-            }
+        } else {
+            $user = auth()->user();
+            $this->termId = app(FacultyActiveTermResolver::class)->resolveId($user instanceof User ? $user : null);
         }
 
         $this->syncEditorState();
@@ -109,11 +97,16 @@ class MyAvailability extends Page
         return [];
     }
 
-    public function selectTerm(int $termId): void
+    public function hasExistingDeclaration(): bool
     {
-        abort_unless(Term::query()->whereKey($termId)->exists(), 404);
-        $this->termId = $termId;
-        $this->syncEditorState();
+        return $this->declarationsQuery()->exists();
+    }
+
+    public function isAvailabilityLocked(): bool
+    {
+        return $this->isSelectedTermClosed()
+            || $this->isRegistrarMarkedNotTeaching()
+            || $this->hasExistingDeclaration();
     }
 
     public function cancelEdits(): void
@@ -123,7 +116,7 @@ class MyAvailability extends Page
 
     public function toggleDay(int $day): void
     {
-        if ($this->isSelectedTermClosed() || $this->isRegistrarMarkedNotTeaching()) {
+        if ($this->isAvailabilityLocked()) {
             return;
         }
 
@@ -151,7 +144,7 @@ class MyAvailability extends Page
 
     public function addDayRange(int $day): void
     {
-        if ($this->isSelectedTermClosed() || $this->isRegistrarMarkedNotTeaching()) {
+        if ($this->isAvailabilityLocked()) {
             return;
         }
 
@@ -206,7 +199,7 @@ class MyAvailability extends Page
 
     public function removeDayRange(int $day, int $index): void
     {
-        if ($this->isSelectedTermClosed() || $this->isRegistrarMarkedNotTeaching()) {
+        if ($this->isAvailabilityLocked()) {
             return;
         }
 
@@ -226,6 +219,12 @@ class MyAvailability extends Page
 
     public function updatedDayWindows(mixed $value, string $path): void
     {
+        if ($this->isAvailabilityLocked()) {
+            $this->syncEditorState();
+
+            return;
+        }
+
         $parts = explode('.', $path);
         if (count($parts) === 3 && $parts[2] === 'start_time') {
             $this->normalizeRangeEnd((int) $parts[0], (int) $parts[1]);
@@ -234,7 +233,7 @@ class MyAvailability extends Page
 
     public function copyDayToWeekdays(int $sourceDay): void
     {
-        if ($this->isSelectedTermClosed() || $this->isRegistrarMarkedNotTeaching()) {
+        if ($this->isAvailabilityLocked()) {
             return;
         }
 
@@ -297,7 +296,7 @@ class MyAvailability extends Page
         if ($this->termId === null || $this->editorTermId !== $this->termId) {
             Notification::make()
                 ->title('Term selection changed')
-                ->body('Review availability for the selected Term before saving.')
+                ->body('Review availability for the selected term before saving.')
                 ->danger()
                 ->persistent()
                 ->send();
@@ -309,6 +308,11 @@ class MyAvailability extends Page
         abort_unless($selectedTerm->state !== Term::StateClosed, 409);
         abort_unless(! $this->isRegistrarMarkedNotTeaching(), 409);
         abort_unless($this->hasActiveCoreCalendar(), 409);
+        abort_if(
+            $this->hasExistingDeclaration(),
+            409,
+            'Availability is already submitted for this term. Contact the Registrar for changes.',
+        );
         $this->resetValidation();
 
         if (! in_array($this->availabilityMode, [
@@ -316,7 +320,7 @@ class MyAvailability extends Page
             FacultyAvailabilityDeclaration::ModeAnyApproved,
             FacultyAvailabilityDeclaration::ModeCannotTeach,
         ], true)) {
-            $this->addError('availabilityMode', 'Choose how you can teach this Term.');
+            $this->addError('availabilityMode', 'Choose how you can teach this term.');
 
             return;
         }
@@ -384,11 +388,6 @@ class MyAvailability extends Page
             ->send();
     }
 
-    public function availabilitySummary(FacultyAvailabilityDeclaration $declaration): string
-    {
-        return $this->declarationSummary($declaration);
-    }
-
     public function stateHeading(?string $effectiveMode): string
     {
         return match ($effectiveMode) {
@@ -403,8 +402,9 @@ class MyAvailability extends Page
     /** @return array<string, mixed> */
     protected function getViewData(): array
     {
-        $terms = Term::query()->with('academicYear')->latest('starts_on')->get();
-        $term = $terms->firstWhere('id', $this->termId);
+        $term = $this->termId !== null
+            ? Term::query()->with('academicYear')->find($this->termId)
+            : null;
         $faculty = auth()->user();
 
         $status = ($term instanceof Term && $faculty instanceof User)
@@ -449,10 +449,8 @@ class MyAvailability extends Page
         $isTermClosed = $term instanceof Term && $term->state === Term::StateClosed;
         $registrarNotTeaching = (bool) ($status['registrar_not_teaching'] ?? false);
         $registrarNotTeachingReason = $status['registrar_not_teaching_reason'] ?? null;
-        $canEditAvailability = $hasActiveCoreCalendar && ! $isTermClosed && ! $registrarNotTeaching;
-        $declarations = $term instanceof Term
-            ? $this->declarationsQuery()->orderByDesc('version')->get()
-            : collect();
+        $hasDeclaration = (bool) ($status['has_declaration'] ?? false);
+        $canEditAvailability = $hasActiveCoreCalendar && ! $isTermClosed && ! $registrarNotTeaching && ! $hasDeclaration;
 
         $liveHoursSummary = $canEditAvailability && $this->availabilityMode === FacultyAvailabilityDeclaration::ModeWindows
             ? $this->weeklyHoursSummaryFromWindows($this->compiledDraftWindows(), $package)
@@ -468,41 +466,15 @@ class MyAvailability extends Page
             ? 'Reply by '.$deadlineSource->due_at->timezone((string) config('app.display_timezone', 'Asia/Manila'))->format('M j, Y · g:i A')
             : null;
 
+        $activeTermResolver = app(FacultyActiveTermResolver::class);
+        $scopeTitle = $term instanceof Term ? $activeTermResolver->scopeTitle($term) : null;
         $scopeMeta = $term instanceof Term
-            ? implode(' · ', array_filter([
-                $term->starts_on->format('M j').' – '.$term->ends_on->format('M j, Y'),
-                $hasActiveCoreCalendar ? 'Term calendar active' : 'Term calendar not active',
-                $scopePill,
-            ]))
+            ? $activeTermResolver->scopeMeta($term, $hasActiveCoreCalendar, $scopePill)
             : null;
 
-        $historicalBlocks = ($term instanceof Term && $faculty instanceof User)
-            ? CalendarEvent::query()
-                ->recurringSchedulingBlocks()
-                ->where('scope_type', CalendarEvent::ScopeFaculty)
-                ->where('faculty_user_id', $faculty->id)
-                ->where('term_id', $term->id)
-                ->orderBy('day_of_week')
-                ->orderBy('starts_at')
-                ->get()
-                ->map(fn (CalendarEvent $event): array => [
-                    'id' => (int) $event->id,
-                    'day' => SectionMeeting::dayOptions()[(int) $event->day_of_week] ?? 'Unknown day',
-                    'time' => ($event->starts_at && $event->ends_at)
-                        ? $this->displayIntervalTime($event->starts_at instanceof \DateTimeInterface ? $event->starts_at->format('H:i') : (string) $event->starts_at)
-                            .'–'
-                            .$this->displayIntervalTime($event->ends_at instanceof \DateTimeInterface ? $event->ends_at->format('H:i') : (string) $event->ends_at)
-                        : 'Time unavailable',
-                    'authority' => $event->authority,
-                    'recorded_at' => $event->created_at,
-                ])
-                ->values()
-                ->all()
-            : [];
-
         return [
-            'terms' => $terms,
             'term' => $term,
+            'scopeTitle' => $scopeTitle,
             'scopeMeta' => $scopeMeta,
             'status' => $status,
             'hasActiveCoreCalendar' => $hasActiveCoreCalendar,
@@ -510,7 +482,7 @@ class MyAvailability extends Page
             'canEditAvailability' => $canEditAvailability,
             'registrarNotTeaching' => $registrarNotTeaching,
             'registrarNotTeachingReason' => $registrarNotTeachingReason,
-            'hasDeclaration' => (bool) ($status['has_declaration'] ?? false),
+            'hasDeclaration' => $hasDeclaration,
             'currentDeclaration' => $currentDeclaration,
             'effectiveMode' => $status['effective_mode'] ?? null,
             'statusHeading' => $registrarNotTeaching
@@ -525,9 +497,7 @@ class MyAvailability extends Page
             'groupedApprovedHours' => $this->groupedApprovedHours($package),
             'editorDayRows' => $this->editorDayRows($package, $outsideGridKeys),
             'canCopyToWeekdays' => $approvedWeekdayCount > 1,
-            'declarations' => $declarations,
             'scopePill' => $scopePill,
-            'historicalBlocks' => $historicalBlocks,
         ];
     }
 
@@ -965,31 +935,6 @@ class MyAvailability extends Page
         $dayUnit = $daysWithHours === 1 ? 'day' : 'days';
 
         return sprintf('%s %s/week across %d %s (excluding breaks)', $formattedHours, $hourUnit, $daysWithHours, $dayUnit);
-    }
-
-    private function declarationSummary(FacultyAvailabilityDeclaration $record): string
-    {
-        return match ($record->effectiveMode()) {
-            FacultyAvailabilityDeclaration::ModeCannotTeach => 'Unavailable for the whole Term',
-            FacultyAvailabilityDeclaration::ModeAnyApproved => 'All approved school teaching hours',
-            FacultyAvailabilityDeclaration::ModeWindows => collect($record->normalizedTeachingWindows())
-                ->map(fn (array $window): string => sprintf(
-                    '%s, %s–%s',
-                    SectionMeeting::dayOptions()[(int) $window['day_of_week']] ?? 'Unknown day',
-                    $this->displayIntervalTime($window['start_time']),
-                    $this->displayIntervalTime($window['end_time']),
-                ))
-                ->implode('; ') ?: 'No teaching windows recorded',
-            FacultyAvailabilityDeclaration::ModeLegacyUnavailability => 'Unavailable: '.collect($record->hard_unavailability)
-                ->map(fn (array $interval): string => sprintf(
-                    '%s, %s–%s',
-                    SectionMeeting::dayOptions()[(int) $interval['day_of_week']] ?? 'Unknown day',
-                    $this->displayIntervalTime((string) $interval['starts_at']),
-                    $this->displayIntervalTime((string) $interval['ends_at']),
-                ))
-                ->implode('; '),
-            default => 'All approved school teaching hours',
-        };
     }
 
     private function displayIntervalTime(string $time): string

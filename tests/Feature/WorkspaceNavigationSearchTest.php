@@ -9,6 +9,7 @@ use App\Filament\Clusters\Admissions;
 use App\Filament\Clusters\PublicContent;
 use App\Filament\Components\AccessibleSidebar;
 use App\Filament\Pages\AcademicApprovals;
+use App\Filament\Pages\FacultyAcademicCalendar;
 use App\Filament\Pages\FacultySchedule;
 use App\Filament\Pages\GovernanceAudit;
 use App\Filament\Pages\GradesAndCompletion;
@@ -200,8 +201,9 @@ class WorkspaceNavigationSearchTest extends TestCase
 
         $this->assertContains('Overview', $this->titles('Overview'));
         $this->assertContains('My schedule', $this->titles('Schedule'));
+        $this->assertContains('Academic calendar', $this->titles('Academic calendar'));
         $this->assertContains('My availability', $this->titles('Availability'));
-        $this->assertContains('Class grades', $this->titles('Class grades'));
+        $this->assertContains('Class list & grades', $this->titles('Class list & grades'));
         $this->assertSame([], $this->titles('Term Planning'));
     }
 
@@ -210,7 +212,7 @@ class WorkspaceNavigationSearchTest extends TestCase
     {
         return [
             'Accounting' => [User::StaffRoleAccounting, ['Overview', 'Student accounts', 'Fee plans', 'Payment channels'], []],
-            'Faculty' => [User::StaffRoleFaculty, ['Overview', 'My schedule', 'My availability', 'Class grades'], []],
+            'Faculty' => [User::StaffRoleFaculty, ['Overview', 'My schedule', 'Academic calendar', 'My availability', 'Class list & grades'], []],
             'Academic Head' => [User::StaffRoleAcademicHead, ['Academic Oversight'], []],
             'System Administrator' => [User::StaffRoleSystemSuperAdmin, ['Users & Access', 'Public Content', 'System Health', 'Governance & Audit'], ['manage-faqs', 'manage-public-notices']],
         ];
@@ -368,6 +370,7 @@ class WorkspaceNavigationSearchTest extends TestCase
         $this->assertNotNull($admin);
 
         $this->signIn(User::StaffRoleFaculty);
+        $this->assertSame([], Livewire::test(FacultyAcademicCalendar::class)->instance()->getBreadcrumbs());
         $this->assertSame([], Livewire::test(FacultySchedule::class)->instance()->getBreadcrumbs());
         $this->assertSame([], Livewire::test(MyAvailability::class)->instance()->getBreadcrumbs());
 

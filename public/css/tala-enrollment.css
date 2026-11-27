@@ -1150,8 +1150,9 @@
 .registrar-late-context p{margin-block-start:.375rem;font-weight:400;}
 
 .faculty-class-worklist{color:var(--tala-text);container-type:inline-size;}
-.faculty-class-scope-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.9fr) minmax(0,1.25fr);align-items:end;gap:.75rem;inline-size:100%;}
+.faculty-class-scope-fields{display:grid;grid-template-columns:minmax(12rem,15rem) minmax(16rem,1fr);align-items:end;gap:.75rem;inline-size:100%;}
 .faculty-class-scope-field{min-inline-size:0;}
+.faculty-class-scope-field--search :is(.fi-input-wrp,.fi-input){inline-size:100%;min-inline-size:0;}
 .faculty-class-scope-field .fi-select-input{padding-inline-end:2.25rem;text-overflow:ellipsis;}
 .faculty-class-scope-field label{display:block;font-size:var(--tala-type-caption);font-weight:var(--tala-weight-emphasis);color:var(--tala-muted);margin-block-end:.375rem;}
 .faculty-class-term-group+ .faculty-class-term-group{margin-block-start:2rem;}
@@ -1177,8 +1178,33 @@
 .faculty-class-pagination nav{display:flex;align-items:center;flex-wrap:wrap;gap:.75rem;}
 @container(max-width:42rem){.faculty-class-scope-fields{grid-template-columns:minmax(0,1fr);}}
 @container(max-width:36rem){.faculty-class-grid{grid-template-columns:minmax(0,1fr);}.faculty-class-empty{padding:1.5rem;}}
-@media(forced-colors:active){.faculty-class-card{border:1px solid CanvasText;}}
-@media(prefers-reduced-motion:reduce){.faculty-class-card{transition:none;}}
+@media(forced-colors:active){.faculty-class-card,.faculty-class-table-wrap{border:1px solid CanvasText;box-shadow:none;}}
+@media(prefers-reduced-motion:reduce){.faculty-class-card,.faculty-class-row-actions>:is(a,button,.fi-btn,.fi-ac-btn-action){transition:none;}}
+.faculty-class-table-wrap,.faculty-class-worklist .tala-data-table-scroll{container-type:inline-size;inline-size:100%;max-inline-size:100%;min-inline-size:0;max-block-size:none;overflow-x:auto;overflow-y:visible;overscroll-behavior-inline:contain;border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius);background:var(--tala-surface);box-shadow:var(--tala-material-raised);}
+.faculty-class-table-wrap:focus-visible{outline:3px solid var(--tala-focus);outline-offset:2px;}
+.faculty-class-table-wrap table{inline-size:100%;border-collapse:collapse;font-size:.875rem;text-align:start;color:var(--tala-text);}
+.faculty-class-table-wrap thead th{background:var(--tala-surface-sunken);color:var(--tala-muted);font-size:var(--tala-type-caption);font-weight:var(--tala-weight-emphasis);padding:.75rem 1rem;border-block-end:1px solid var(--tala-edge);text-align:start;white-space:nowrap;}
+.faculty-class-table-wrap tbody :is(th,td){padding:.875rem 1rem;border-block-end:1px solid var(--tala-edge);vertical-align:middle;text-align:start;line-height:1.45;overflow-wrap:anywhere;}
+.faculty-class-table-wrap tbody tr:last-child :is(th,td){border-block-end:0;}
+.faculty-class-table-wrap tbody th{font-weight:var(--tala-weight-emphasis);color:var(--tala-text);}
+.faculty-class-table-wrap tbody th>span{display:block;margin-block-start:.1875rem;font-size:var(--tala-type-caption);font-weight:400;color:var(--tala-muted);}
+.faculty-class-table-wrap :is(th,td).tala-data-table-number{text-align:end;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.faculty-class-row-actions{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:.5rem;}
+.faculty-class-row-actions>:is(a,button,.fi-btn,.fi-ac-btn-action){min-block-size:2.25rem;white-space:nowrap;}
+.faculty-result-readiness-badges{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;}
+:is(.faculty-class-worklist,.faculty-result-workspace) :is(input:not([type="checkbox"]):not([type="radio"]),select,textarea){font:inherit;font-size:max(1rem,1em);}
+@container(max-width:42rem){
+    .faculty-class-table-wrap,.faculty-class-worklist .tala-data-table-scroll{overflow-x:visible;}
+    .faculty-class-table-wrap table.tala-data-table--records thead{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}
+    .faculty-class-table-wrap table.tala-data-table--records tbody{display:block;}
+    .faculty-class-table-wrap table.tala-data-table--records tbody tr{display:grid;grid-template-columns:minmax(0,1fr);gap:.375rem;padding:var(--tala-card-pad);border-block-end:1px solid var(--tala-edge);}
+    .faculty-class-table-wrap table.tala-data-table--records tbody tr:last-child{border-block-end:0;}
+    .faculty-class-table-wrap table.tala-data-table--records tbody :is(th,td){display:block;inline-size:auto;padding:.1875rem 0;border:0;text-align:start;white-space:normal;}
+    .faculty-class-table-wrap table.tala-data-table--records .tala-data-table-number{text-align:start;white-space:normal;}
+    .faculty-class-table-wrap table.tala-data-table--records .tala-data-table-mobile-label{display:block;font-size:var(--tala-type-caption);font-weight:400;color:var(--tala-muted);margin-block-end:.125rem;}
+    .faculty-class-row-actions>:is(a,button,.fi-btn,.fi-ac-btn-action){min-block-size:2.75rem;}
+}
+@media(pointer:coarse){.faculty-class-row-actions>:is(a,button,.fi-btn,.fi-ac-btn-action){min-block-size:2.75rem;}}
 .faculty-result-progress{display:flex;gap:2.5rem;padding-block:1rem;}
 .faculty-result-progress dt{color:var(--tala-muted);font-size:.875rem;}
 .faculty-result-progress dd{font-size:1.75rem;line-height:1.3;font-weight:var(--tala-weight-heading);font-variant-numeric:tabular-nums;}

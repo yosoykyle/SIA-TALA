@@ -3794,6 +3794,400 @@ html.dark .fi-body .fi-section.tala-term-settings-identity.tala-term-settings-id
     background: #18181b;
 }
 
+/* Issue #102: Faculty Overview, My schedule, Academic calendar, and locked My availability */
+.tala-faculty-overview-layout {
+    container-type: inline-size;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--tala-section-gap);
+    min-inline-size: 0;
+}
+
+.tala-faculty-overview-layout > * {
+    min-inline-size: 0;
+}
+
+.tala-faculty-overview-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--tala-card-gap);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    min-inline-size: 0;
+}
+
+@container (min-width: 40rem) {
+    .tala-faculty-overview-actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.tala-faculty-overview-actions > :is(.tala-workspace-card--compact, li > .tala-workspace-card--compact) {
+    border: 1px solid var(--tala-edge);
+    border-radius: var(--tala-card-radius);
+    background: var(--tala-surface);
+    box-shadow: var(--tala-material-raised);
+    min-block-size: 2.75rem;
+    transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.tala-faculty-overview-actions > li {
+    display: flex;
+    min-inline-size: 0;
+}
+
+.tala-faculty-overview-actions > li > .tala-workspace-card--compact {
+    inline-size: 100%;
+}
+
+@media (hover: hover) {
+    .tala-faculty-overview-actions > :is(.tala-workspace-card--compact, li > .tala-workspace-card--compact):hover {
+        border-color: var(--tala-selected-edge);
+        background: var(--tala-surface-sunken);
+    }
+}
+
+.tala-faculty-overview-actions > :is(.tala-workspace-card--compact, li > .tala-workspace-card--compact):focus-visible {
+    outline: 3px solid var(--tala-focus);
+    outline-offset: 2px;
+}
+
+.tala-faculty-overview-actions .tala-workspace-card__count,
+.tala-faculty-overview-actions .tala-workspace-card__note,
+.tala-faculty-overview-actions .tala-workspace-card__description {
+    font-variant-numeric: tabular-nums;
+}
+
+.tala-faculty-overview-calendar {
+    display: grid;
+    gap: 0;
+    min-inline-size: 0;
+    overflow: hidden;
+    box-shadow: var(--tala-material-raised);
+}
+
+.tala-faculty-overview-calendar > header,
+.tala-faculty-overview-calendar__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    padding: var(--tala-card-pad-compact) var(--tala-card-pad);
+    border-block-end: 1px solid var(--tala-edge);
+    background: var(--tala-surface-sunken);
+}
+
+.tala-faculty-overview-calendar > header :is(h2, h3),
+.tala-faculty-overview-calendar__header :is(h2, h3) {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: var(--tala-weight-emphasis);
+    line-height: 1.35;
+    color: var(--tala-text);
+}
+
+.tala-faculty-overview-calendar > header p,
+.tala-faculty-overview-calendar__header p {
+    margin: 0;
+    font-size: 0.8125rem;
+    color: var(--tala-muted);
+    line-height: 1.4;
+    font-variant-numeric: tabular-nums;
+}
+
+.tala-faculty-overview-calendar__body {
+    padding: var(--tala-card-pad);
+    min-inline-size: 0;
+}
+
+.tala-faculty-overview-calendar .tala-timetable {
+    --timetable-slot-height: 2.75rem;
+    font-variant-numeric: tabular-nums;
+}
+
+@container (min-width: 52rem) {
+    .tala-faculty-overview-calendar .tala-timetable {
+        --timetable-slot-height: 3.25rem;
+    }
+}
+
+@media (min-width: 64rem) {
+    .tala-faculty-overview-calendar .tala-timetable {
+        --timetable-slot-height: 3.25rem;
+    }
+
+    .tala-faculty-overview-calendar .tala-timetable-weekly {
+        min-block-size: 50dvh;
+        max-block-size: none;
+        overflow: visible;
+    }
+}
+
+@media (min-width: 52.001rem) and (max-width: 63.99rem) {
+    .tala-faculty-overview-calendar .tala-timetable-mobile-meeting > span:last-of-type {
+        grid-column: 3;
+    }
+}
+
+@media (max-width: 52rem) {
+    .tala-faculty-overview-calendar .tala-timetable-list {
+        display: grid;
+        gap: 0.5rem;
+        padding: 0;
+    }
+
+    .tala-faculty-overview-calendar .tala-timetable-list-meeting {
+        border-block-start: 0;
+        padding-inline: 0;
+    }
+
+    .tala-faculty-overview-calendar .tala-timetable-mobile-meeting {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        align-items: start;
+        gap: 0.375rem;
+        inline-size: 100%;
+        padding: 0.75rem;
+    }
+
+    .tala-faculty-overview-calendar .tala-timetable-mobile-meeting > span,
+    .tala-faculty-overview-calendar .tala-timetable-mobile-meeting > span:last-of-type {
+        grid-column: 1;
+        grid-row: auto;
+        min-inline-size: 0;
+        inline-size: 100%;
+        justify-content: flex-start;
+        text-align: start;
+    }
+
+    .tala-faculty-overview-calendar .tala-timetable-mobile-meeting .tala-timetable-list-time {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 0.15rem 0.5rem;
+    }
+
+    .tala-faculty-overview-calendar .tala-timetable-mobile-meeting .tala-timetable-list-clock {
+        white-space: normal;
+    }
+
+    .tala-faculty-overview-calendar .tala-timetable-mobile-meeting .tala-timetable-mobile-course {
+        display: block;
+        min-inline-size: 0;
+    }
+
+    .tala-faculty-overview-calendar .tala-timetable-mobile-meeting .tala-timetable-list-primary {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.25rem 0.4rem;
+        min-inline-size: 0;
+    }
+
+    .tala-faculty-overview-calendar .tala-timetable-mobile-meeting .tala-timetable-list-course-name,
+    .tala-faculty-overview-calendar .tala-timetable-mobile-meeting .tala-timetable-list-section {
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+}
+
+/* My schedule: prevent search placeholder clipping on desktop without mobile overflow */
+.tala-schedule-surface .fi-ta-header-toolbar > div:has(> .fi-ta-search-field) {
+    flex: 1 1 18rem;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    justify-content: flex-end;
+}
+
+.tala-schedule-surface .fi-ta-search-field {
+    flex: 1 1 18rem;
+    inline-size: 100%;
+    min-inline-size: 18rem;
+    max-inline-size: 24rem;
+}
+
+.tala-schedule-surface .fi-ta-search-field .fi-input-wrp,
+.tala-schedule-surface .fi-ta-search-field .fi-input {
+    inline-size: 100%;
+    min-inline-size: 0;
+}
+
+@media (max-width: 40rem) {
+    .tala-schedule-surface .fi-ta-header-toolbar > div:last-child,
+    .tala-schedule-surface .fi-ta-header-toolbar > div:has(> .fi-ta-search-field) {
+        flex: 1 1 100%;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+    }
+
+    .tala-schedule-surface .fi-ta-search-field {
+        flex: 1 1 12rem;
+        inline-size: 100%;
+        min-inline-size: min(16rem, 100%);
+        max-inline-size: 100%;
+    }
+}
+
+/* Read-only Academic calendar page */
+.tala-faculty-calendar-grid {
+    container-type: inline-size;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--tala-section-gap);
+    min-inline-size: 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.tala-faculty-calendar-grid > * {
+    min-inline-size: 0;
+}
+
+.tala-faculty-calendar-grid :is(time, dt, dd) {
+    font-variant-numeric: tabular-nums;
+}
+
+.tala-faculty-calendar-windows {
+    display: grid;
+    gap: var(--tala-card-gap);
+    min-inline-size: 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.tala-faculty-calendar-windows :is(ul, ol) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--tala-card-gap);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+@container (min-width: 40rem) {
+    .tala-faculty-calendar-windows :is(ul, ol) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.tala-faculty-calendar-windows li {
+    display: grid;
+    align-content: start;
+    gap: 0.375rem;
+    padding: var(--tala-card-pad-compact) var(--tala-card-pad);
+    border: 1px solid var(--tala-edge);
+    border-radius: var(--tala-card-radius);
+    background: var(--tala-surface-sunken);
+    min-inline-size: 0;
+}
+
+.tala-faculty-calendar-windows li > :first-child {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.tala-faculty-calendar-holidays {
+    display: grid;
+    gap: var(--tala-card-gap);
+    min-inline-size: 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.tala-faculty-calendar-holidays :is(ul, ol) {
+    display: grid;
+    gap: 0.5rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.tala-faculty-calendar-holidays li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    padding: var(--tala-card-pad-compact) var(--tala-card-pad);
+    border: 1px solid var(--tala-edge);
+    border-radius: var(--tala-card-radius);
+    background: var(--tala-surface-sunken);
+    min-inline-size: 0;
+}
+
+.tala-faculty-calendar-windows time,
+.tala-faculty-calendar-holidays time {
+    font-variant-numeric: tabular-nums;
+}
+
+/* My availability: immediate post-submit read-only locked banner */
+.tala-availability-locked-notice {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: var(--tala-card-pad-compact) var(--tala-card-pad);
+    border: 1px solid var(--tala-edge-strong);
+    border-radius: var(--tala-card-radius);
+    background: var(--tala-surface-sunken);
+    color: var(--tala-text);
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+.tala-availability-locked-notice > :is(.fi-icon, svg) {
+    inline-size: 1.25rem;
+    block-size: 1.25rem;
+    flex: none;
+    margin-block-start: 0.125rem;
+    color: var(--tala-brand-foreground);
+}
+
+.tala-availability-locked-notice__body {
+    display: grid;
+    gap: 0.25rem;
+    flex: 1 1 18rem;
+    min-inline-size: 0;
+}
+
+.tala-availability-locked-notice :is(h2, h3, strong) {
+    margin: 0;
+    font-size: 0.9375rem;
+    font-weight: var(--tala-weight-emphasis);
+    color: var(--tala-text);
+}
+
+.tala-availability-locked-notice p {
+    margin: 0;
+    color: var(--tala-muted);
+    max-inline-size: 70ch;
+}
+
+.tala-availability-locked-notice time {
+    font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tala-faculty-overview-actions > :is(.tala-workspace-card--compact, li > .tala-workspace-card--compact) {
+        transition: none;
+    }
+}
+
+@media (forced-colors: active) {
+    .tala-faculty-overview-actions > :is(.tala-workspace-card--compact, li > .tala-workspace-card--compact),
+    .tala-faculty-overview-calendar,
+    .tala-faculty-calendar-windows li,
+    .tala-faculty-calendar-holidays li,
+    .tala-availability-locked-notice {
+        background: Canvas;
+        color: CanvasText;
+        border-color: CanvasText;
+        box-shadow: none;
+    }
+}
+
 
 
 

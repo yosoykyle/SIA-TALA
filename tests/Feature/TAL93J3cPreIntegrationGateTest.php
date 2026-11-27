@@ -121,7 +121,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
                 'StudentLifecycleChangeResource', 'StudentProfileResource', 'TranscriptRequestResource',
             ]],
             'faculty' => ['role' => User::StaffRoleFaculty, 'allowed' => [
-                'CalendarEventResource', 'StaffEntry', 'FacultyOverview', 'FacultyGradeRoster', 'FacultyQualificationResource',
+                'CalendarEventResource', 'StaffEntry', 'FacultyAcademicCalendar', 'FacultyOverview', 'FacultyGradeRoster', 'FacultyQualificationResource',
                 'FacultySchedule', 'GradeRosterResource', 'MyAvailability',
             ]],
             'academic head' => ['role' => User::StaffRoleAcademicHead, 'allowed' => [
@@ -150,7 +150,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
         $manifest = self::roleAccessManifest();
         $manifest['faculty']['allowed'] = array_values(array_diff(
             $manifest['faculty']['allowed'],
-            ['CalendarEventResource', 'FacultyOverview', 'GradeRosterResource', 'FacultyQualificationResource', 'MyAvailability'],
+            ['CalendarEventResource', 'FacultyAcademicCalendar', 'FacultyOverview', 'GradeRosterResource', 'FacultyQualificationResource', 'MyAvailability'],
         ));
         $manifest['registrar']['allowed'] = array_values(array_diff(
             $manifest['registrar']['allowed'],
@@ -229,6 +229,7 @@ class TAL93J3cPreIntegrationGateTest extends TestCase
             'TermTimetable',
             'AcademicApprovals',
             'FacultyOverview',
+            'FacultyAcademicCalendar',
             'FacultyGradeRoster',
             'MyAvailability',
             'FacultySchedule',

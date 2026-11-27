@@ -13,11 +13,10 @@ use App\Models\SectionMeeting;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermCalendarWindow;
-use App\Models\TermDatedException;
 use App\Models\TermOffering;
 use App\Models\User;
+use App\Support\FacultyActiveTermResolver;
 use App\Support\FacultyScheduleFilters;
-use App\Support\HasSearchableTermSelection;
 use App\Support\TimetablePresentation;
 use BackedEnum;
 use Carbon\CarbonImmutable;
@@ -33,12 +32,12 @@ use Filament\Tables\Grouping\Group;
 use Filament\Tables\Table;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 use Livewire\Attributes\Url;
 use UnitEnum;
 
 class FacultySchedule extends Page implements HasTable
 {
-    use HasSearchableTermSelection;
     use InteractsWithTable;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedCalendarDays;
@@ -63,6 +62,16 @@ class FacultySchedule extends Page implements HasTable
     #[Url]
     public string $scheduleView = 'week';
 
+    /** @var Collection<int, SectionMeeting>|null */
+    private ?Collection $cachedAssignedMeetings = null;
+
+    private ?PublishedTimetableVersion $cachedCurrentVersion = null;
+
+    private bool $resolvedCurrentVersion = false;
+
+    /** @var list<array{course_code:string,course_title:string,section_code:string,role:string,units:string,enrolled_count:int,note:string}>|null */
+    private ?array $cachedExternallyArrangedClasses = null;
+
     /** @return array<string, array<string, mixed>> */
     protected function queryString(): array
     {
@@ -74,54 +83,15 @@ class FacultySchedule extends Page implements HasTable
         if (! in_array($this->scheduleView, ['week', 'list'], true)) {
             $this->scheduleView = 'week';
         }
+
         if ($this->termId !== null) {
             abort_unless(Term::query()->whereKey($this->termId)->exists(), 404);
-        }
-
-        if ($this->termId !== null) {
-            return;
-        }
-
-        $facultyId = auth()->id();
-        $publishedTermIds = SectionMeeting::query()
-            ->activeOfficial()
-            ->where('faculty_user_id', $facultyId)
-            ->with('schedulingDemand.termOffering')
-            ->get()
-            ->pluck('schedulingDemand.termOffering.term_id')
-            ->filter()
-            ->merge(
-                ClassOfferingTeachingAssignment::query()
-                    ->where('faculty_user_id', $facultyId)
-                    ->where('state', ClassOfferingTeachingAssignment::StateActive)
-                    ->whereHas('termOffering', fn ($query) => $query
-                        ->where('state', '!=', TermOffering::StateCancelled)
-                        ->whereHas('curriculumEntry.courseSpecification', fn ($specQuery) => $specQuery
-                            ->where('scheduling_treatment', CourseSpecification::SchedulingExternallyArranged)))
-                    ->with('termOffering:id,term_id')
-                    ->get()
-                    ->pluck('termOffering.term_id')
-                    ->filter(),
-            )
-            ->unique()
-            ->values();
-
-        if ($publishedTermIds->count() === 1) {
-            $this->termId = (int) $publishedTermIds->sole();
 
             return;
         }
 
-        if ($publishedTermIds->isEmpty()) {
-            $activeTermIds = TermCalendarPackage::query()
-                ->where('state', TermCalendarPackage::StateActive)
-                ->distinct()
-                ->pluck('term_id');
-
-            if ($activeTermIds->count() === 1) {
-                $this->termId = (int) $activeTermIds->sole();
-            }
-        }
+        $user = auth()->user();
+        $this->termId = app(FacultyActiveTermResolver::class)->resolveId($user instanceof User ? $user : null);
     }
 
     public static function canAccess(): bool
@@ -208,7 +178,7 @@ class FacultySchedule extends Page implements HasTable
 
     public function scheduleCriteriaDescription(): string
     {
-        return FacultyScheduleFilters::describe($this->scheduleCriteria(), $this->meetingsQuery()->get());
+        return FacultyScheduleFilters::describe($this->scheduleCriteria(), $this->assignedMeetings());
     }
 
     public function table(Table $table): Table
@@ -227,7 +197,9 @@ class FacultySchedule extends Page implements HasTable
                     return null;
                 }
 
-                $meetings = $this->getFilteredTableQuery()->get();
+                $meetings = $this->scheduleCriteria() === []
+                    ? $this->assignedMeetings()
+                    : $this->getFilteredTableQuery()->get();
                 if ($meetings->isEmpty()) {
                     return null;
                 }
@@ -238,7 +210,7 @@ class FacultySchedule extends Page implements HasTable
             })
             ->toolbarActions([])
             ->searchUsing(fn (Builder $query, string $search): Builder => FacultyScheduleFilters::search($query, $search))
-            ->searchPlaceholder('Search subjects, classes, or rooms')
+            ->searchPlaceholder('Search subject, class, or room')
             ->recordActions([$this->viewMeetingAction()])
             ->columns([
                 TextColumn::make('schedulingDemand.termOffering.curriculumEntry.courseSpecification.title')
@@ -297,13 +269,6 @@ class FacultySchedule extends Page implements HasTable
             ->emptyState(view('filament.partials.collection-empty-state'));
     }
 
-    public function selectTerm(int $termId): void
-    {
-        abort_unless(Term::query()->whereKey($termId)->exists(), 404);
-        $this->termId = $termId;
-        $this->resetTable();
-    }
-
     public function viewMeetingAction(): Action
     {
         return Action::make('viewMeeting')
@@ -326,21 +291,26 @@ class FacultySchedule extends Page implements HasTable
     /** @return array<string, mixed> */
     protected function getViewData(): array
     {
-        $terms = Term::query()->with('academicYear')->latest('starts_on')->get();
-        $meetings = $this->getFilteredTableQuery()->get();
-        $assignedMeetings = $this->meetingsQuery()->get();
+        $faculty = auth()->user();
+        $termResolver = app(FacultyActiveTermResolver::class);
+        $term = $this->termId !== null
+            ? Term::query()->with('academicYear')->find($this->termId)
+            : $termResolver->resolve($faculty instanceof User ? $faculty : null);
+
+        $assignedMeetings = $this->assignedMeetings();
+        $meetings = $this->scheduleCriteria() === []
+            ? $assignedMeetings
+            : $this->getFilteredTableQuery()->get();
         $version = $this->currentVersion();
         $package = $this->termId === null ? null : TermCalendarPackage::query()
             ->where('term_id', $this->termId)
             ->where('state', TermCalendarPackage::StateActive)
-            ->with(['windows', 'datedExceptions'])
+            ->with('windows')
             ->first();
         $examinationPeriod = $package?->windows->first(
             fn (TermCalendarWindow $window): bool => $window->window_type === TermCalendarWindow::TypeExaminationPeriod,
         );
 
-        $term = $terms->firstWhere('id', $this->termId);
-        $faculty = auth()->user();
         $availabilityStatus = ($term instanceof Term && $faculty instanceof User)
             ? app(FacultyAvailabilityStatusProjection::class)->forFaculty($term, $faculty)
             : null;
@@ -354,43 +324,11 @@ class FacultySchedule extends Page implements HasTable
         $scheduledClassCount = $assignedMeetings->pluck('schedulingDemand.sectionDeliveryGroup.section.id')->filter()->unique()->count();
         $totalClassCount = $scheduledClassCount + count($externallyArrangedClasses);
 
-        $today = CarbonImmutable::now((string) config('app.display_timezone', 'Asia/Manila'))->startOfDay();
-        $upcomingHolidays = $package instanceof TermCalendarPackage
-            ? $package->datedExceptions
-                ->filter(fn (TermDatedException $exception): bool => $exception->blocks_teaching
-                    && $exception->ends_on !== null
-                    && CarbonImmutable::parse($exception->ends_on->toDateString(), (string) config('app.display_timezone', 'Asia/Manila'))->gte($today))
-                ->sortBy('starts_on')
-                ->take(5)
-                ->map(fn (TermDatedException $exception): array => [
-                    'label' => $exception->label ?: 'No-class day',
-                    'date_label' => $exception->starts_on !== null && $exception->ends_on !== null && ! $exception->starts_on->isSameDay($exception->ends_on)
-                        ? $exception->starts_on->format('M j').'–'.$exception->ends_on->format('M j')
-                        : ($exception->starts_on?->format('M j') ?? ''),
-                ])
-                ->values()
-                ->all()
-            : [];
-
-        $termTeachingRange = match (true) {
-            $package?->classes_start_on !== null && $package?->classes_end_on !== null => $package->classes_start_on->format('M j').'–'.$package->classes_end_on->format('M j, Y'),
-            $term instanceof Term && $term->starts_on !== null && $term->ends_on !== null => $term->starts_on->format('M j').'–'.$term->ends_on->format('M j, Y'),
-            default => null,
-        };
-
-        $scopeMeta = $term instanceof Term
-            ? implode(' · ', [
-                $term->starts_on->format('M j').' – '.$term->ends_on->format('M j, Y'),
-                $package instanceof TermCalendarPackage ? 'Term calendar active' : 'Term calendar not active',
-            ])
-            : null;
-
         return [
-            'terms' => $terms,
             'term' => $term,
-            'scopeMeta' => $scopeMeta,
-            'termTeachingRange' => $termTeachingRange,
-            'upcomingHolidays' => $upcomingHolidays,
+            'scopeTitle' => $term instanceof Term ? $termResolver->scopeTitle($term) : null,
+            'scopeMeta' => $term instanceof Term ? $termResolver->scopeMeta($term, $package instanceof TermCalendarPackage) : null,
+            'academicCalendarUrl' => FacultyAcademicCalendar::getUrl(),
             'version' => $version,
             'presentation' => $version ? TimetablePresentation::forPublished($version, $meetings) : null,
             'assignmentCount' => $assignedMeetings->count(),
@@ -407,14 +345,26 @@ class FacultySchedule extends Page implements HasTable
     }
 
     /**
+     * @return Collection<int, SectionMeeting>
+     */
+    private function assignedMeetings(): Collection
+    {
+        return $this->cachedAssignedMeetings ??= $this->meetingsQuery()->get();
+    }
+
+    /**
      * @return list<array{course_code:string,course_title:string,section_code:string,role:string,units:string,enrolled_count:int,note:string}>
      */
     private function externallyArrangedClasses(): array
     {
+        if ($this->cachedExternallyArrangedClasses !== null) {
+            return $this->cachedExternallyArrangedClasses;
+        }
+
         $facultyId = auth()->id();
 
         if ($this->termId === null || $facultyId === null) {
-            return [];
+            return $this->cachedExternallyArrangedClasses = [];
         }
 
         $assignments = ClassOfferingTeachingAssignment::query()
@@ -437,7 +387,7 @@ class FacultySchedule extends Page implements HasTable
             ->get();
 
         if ($assignments->isEmpty()) {
-            return [];
+            return $this->cachedExternallyArrangedClasses = [];
         }
 
         $sectionIds = $assignments->pluck('section_id')->filter()->unique()->values()->all();
@@ -463,7 +413,7 @@ class FacultySchedule extends Page implements HasTable
                 ->groupBy('term_offering_id')
                 ->pluck('total', 'term_offering_id');
 
-        return $assignments
+        return $this->cachedExternallyArrangedClasses = $assignments
             ->map(function (ClassOfferingTeachingAssignment $assignment) use ($enrolledBySection, $enrolledByOffering): array {
                 $spec = $assignment->termOffering?->curriculumEntry?->courseSpecification;
                 $course = $spec?->course;
@@ -521,15 +471,21 @@ class FacultySchedule extends Page implements HasTable
 
     private function currentVersion(): ?PublishedTimetableVersion
     {
-        if ($this->termId === null) {
-            return null;
+        if ($this->resolvedCurrentVersion) {
+            return $this->cachedCurrentVersion;
         }
 
-        return PublishedTimetableVersion::query()
+        $this->resolvedCurrentVersion = true;
+
+        if ($this->termId === null) {
+            return $this->cachedCurrentVersion = null;
+        }
+
+        return $this->cachedCurrentVersion = PublishedTimetableVersion::query()
             ->with(['scheduleRun', 'term.academicYear'])
             ->where('term_id', $this->termId)
             ->where('state', PublishedTimetableVersion::StatePublished)
-            ->whereHas('meetings', fn ($query) => $query->where('faculty_user_id', auth()->id()))
+            ->whereHas('meetings', fn (Builder $query): Builder => $query->where('faculty_user_id', auth()->id()))
             ->latest('version')
             ->first();
     }
@@ -551,7 +507,7 @@ class FacultySchedule extends Page implements HasTable
 
         if ($source === 'late_availability_impact') {
             $detail = collect([
-                'Outside your updated availability',
+                'Outside your recorded availability',
                 filled($item['reason'] ?? null) ? (string) $item['reason'] : null,
             ])->filter()->implode(' · ');
 

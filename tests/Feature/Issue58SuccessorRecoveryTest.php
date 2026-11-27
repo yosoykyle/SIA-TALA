@@ -7,6 +7,7 @@ use App\Actions\Scheduling\ConfirmClassOffering;
 use App\Actions\Scheduling\FacultyAvailabilityRequestService;
 use App\Actions\Scheduling\ReadyTermPlanningProjection;
 use App\Actions\Scheduling\RecordFacultyAvailabilityDeadline;
+use App\Actions\Scheduling\RecordFacultyAvailabilityDeclaration;
 use App\Filament\Pages\MyAvailability;
 use App\Filament\Pages\TermCalendar;
 use App\Filament\Pages\TermResources;
@@ -161,7 +162,7 @@ class Issue58SuccessorRecoveryTest extends TestCase
         $this->assertSame([$event->id], $retained->modelKeys());
         $this->assertSame(1, OperationalEvent::query()->where('user_id', $faculty->id)->where('event_type', OperationalEvent::TypeFacultyAvailabilityRequestedEmail)->count());
         Mail::assertQueued(FacultyAvailabilityRequestedMail::class, 1);
-        Livewire::actingAs($faculty)->test(MyAvailability::class)->call('selectTerm', $package->term_id)->assertSee('Save availability');
+        Livewire::actingAs($faculty)->test(MyAvailability::class, ['termId' => $package->term_id])->assertSee('Save availability');
     }
 
     public function test_deadline_modal_displays_manila_time_and_round_trips_the_stored_instant(): void
@@ -257,10 +258,21 @@ class Issue58SuccessorRecoveryTest extends TestCase
             ->assertSet('enabledDays.1', true)
             ->assertSet('dayWindows.1.0', ['start_time' => '08:00', 'end_time' => '11:00'])
             ->assertSet('correctionReason', '')
+            ->assertDontSee('Save availability')
+            ->assertDontSee('Save update')
+            ->assertDontSee('Reason for update')
             ->set('availabilityMode', FacultyAvailabilityDeclaration::ModeCannotTeach)
-            ->set('correctionReason', 'Cannot teach this Term')
+            ->set('correctionReason', 'Cannot teach this term')
             ->call('saveAvailability')
-            ->assertHasNoErrors();
+            ->assertStatus(409);
+
+        app(RecordFacultyAvailabilityDeclaration::class)->execute(
+            term: $package->term,
+            faculty: $faculty,
+            actor: $faculty,
+            correctionReason: 'Cannot teach this term',
+            availabilityMode: FacultyAvailabilityDeclaration::ModeCannotTeach,
+        );
 
         $latest = FacultyAvailabilityDeclaration::query()->where('faculty_user_id', $faculty->id)->latest('version')->firstOrFail();
         $this->assertSame(2, $latest->version);
@@ -269,6 +281,11 @@ class Issue58SuccessorRecoveryTest extends TestCase
         $this->assertNull($latest->teaching_windows);
         $this->assertSame([], $latest->hard_unavailability);
         $this->assertEquals($windows, $prior->fresh()->teaching_windows);
+
+        Livewire::actingAs($faculty)
+            ->test(MyAvailability::class, ['termId' => $package->term_id])
+            ->assertSee('Unavailable this term')
+            ->assertSee('Cannot teach this term');
     }
 
     public function test_a_mounted_faculty_declaration_cannot_follow_a_changed_term_selection(): void
@@ -287,7 +304,7 @@ class Issue58SuccessorRecoveryTest extends TestCase
         $this->assertSame(0, FacultyAvailabilityDeclaration::query()->where('faculty_user_id', $faculty->id)->count());
     }
 
-    public function test_owned_history_details_show_complete_response_and_reject_other_records(): void
+    public function test_owned_history_is_hidden_from_faculty_ui_while_backend_versions_and_isolation_remain_intact(): void
     {
         $faculty = $this->staff(User::StaffRoleFaculty);
         $colleague = $this->staff(User::StaffRoleFaculty);
@@ -303,15 +320,17 @@ class Issue58SuccessorRecoveryTest extends TestCase
         FacultyAvailabilityDeclaration::factory()->create(['term_id' => $otherTerm->id, 'faculty_user_id' => $faculty->id, 'correction_reason' => 'Other Term reason']);
 
         $page = Livewire::actingAs($faculty)->test(MyAvailability::class, ['termId' => $term->id]);
-        foreach (['Availability history', 'Version 1', 'Version 2', 'Monday, 8:00 AM–9:30 AM', 'Thursday, 2:00 PM–3:30 PM', 'Initial response', 'Changed teaching commitment', 'Unavailable for the whole Term'] as $text) {
-            $page->assertSee($text);
-        }
         $page
+            ->assertSee('Unavailable this term')
+            ->assertSee('Changed teaching commitment')
+            ->assertDontSee('Availability history')
+            ->assertDontSee('Version 1')
+            ->assertDontSee('Version 2')
             ->assertDontSee('Private colleague reason')
             ->assertDontSee('Other Term reason')
             ->assertDontSee('Term #'.$term->id);
 
-        $page->call('selectTerm', $otherTerm->id)
+        Livewire::actingAs($faculty)->test(MyAvailability::class, ['termId' => $otherTerm->id])
             ->assertSee('Other Term reason')
             ->assertDontSee('Changed teaching commitment')
             ->assertDontSee('Private colleague reason');
@@ -328,8 +347,10 @@ class Issue58SuccessorRecoveryTest extends TestCase
 
         Livewire::actingAs($faculty)
             ->test(MyAvailability::class, ['termId' => $owned->term_id])
-            ->assertSee('Owned term secret')
-            ->call('selectTerm', $otherTerm->id)
+            ->assertSee('Owned term secret');
+
+        Livewire::actingAs($faculty)
+            ->test(MyAvailability::class, ['termId' => $otherTerm->id])
             ->assertDontSee('Owned term secret');
     }
 
@@ -353,15 +374,9 @@ class Issue58SuccessorRecoveryTest extends TestCase
         $registrar = $this->staff();
         $faculty = $this->staff(User::StaffRoleFaculty);
         $package = $this->activePackage($registrar);
-        $prior = FacultyAvailabilityDeclaration::factory()->create([
-            'term_id' => $package->term_id,
-            'faculty_user_id' => $faculty->id,
-            'availability_mode' => FacultyAvailabilityDeclaration::ModeAnyApproved,
-            'hard_unavailability' => [],
-        ]);
         $page = Livewire::actingAs($faculty)
             ->test(MyAvailability::class, ['termId' => $package->term_id])
-            ->assertSet('availabilityMode', FacultyAvailabilityDeclaration::ModeAnyApproved)
+            ->assertSet('availabilityMode', null)
             ->assertSet('enabledDays', [])
             ->assertSet('correctionReason', '')
             ->set('availabilityMode', FacultyAvailabilityDeclaration::ModeWindows)
@@ -372,14 +387,17 @@ class Issue58SuccessorRecoveryTest extends TestCase
 
         $page
             ->set('availabilityMode', FacultyAvailabilityDeclaration::ModeAnyApproved)
-            ->set('correctionReason', 'Available across all approved hours now')
             ->call('saveAvailability')
             ->assertHasNoErrors();
 
-        $this->assertNull($prior->fresh()->teaching_windows);
         $latest = FacultyAvailabilityDeclaration::query()->where('faculty_user_id', $faculty->id)->latest('version')->firstOrFail();
         $this->assertSame(FacultyAvailabilityDeclaration::ModeAnyApproved, $latest->availability_mode);
         $this->assertNull($latest->teaching_windows);
+
+        Livewire::actingAs($faculty)
+            ->test(MyAvailability::class, ['termId' => $package->term_id])
+            ->call('saveAvailability')
+            ->assertStatus(409);
     }
 
     public function test_initial_response_accepts_optional_weekly_times_and_requires_valid_added_intervals(): void
@@ -409,9 +427,10 @@ class Issue58SuccessorRecoveryTest extends TestCase
 
         Livewire::actingAs($faculty)
             ->test(MyAvailability::class, ['termId' => $package->term_id])
-            ->assertSet('correctionReason', '')
+            ->assertSee('Availability submitted and locked for this term. Contact the Registrar if changes are needed.')
+            ->assertDontSee('Reason for update')
             ->call('saveAvailability')
-            ->assertHasErrors(['correctionReason']);
+            ->assertStatus(409);
     }
 
     public function test_availability_view_distinguishes_no_request_from_a_recorded_response(): void
@@ -444,7 +463,8 @@ class Issue58SuccessorRecoveryTest extends TestCase
             ->assertSee('Available except recorded unavailable times')
             ->assertSee('Recorded unavailable times')
             ->assertSee('Monday')
-            ->assertSee('Availability history');
+            ->assertSee('Availability submitted and locked for this term. Contact the Registrar if changes are needed.')
+            ->assertDontSee('Availability history');
     }
 
     public function test_declared_recipient_rejects_the_entire_request_without_partial_mail(): void

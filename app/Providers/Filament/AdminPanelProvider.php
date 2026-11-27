@@ -19,6 +19,7 @@ use App\Filament\Pages\Auth\RequestPasswordReset;
 use App\Filament\Pages\Auth\ResetPassword;
 use App\Filament\Pages\CatalogCurriculaWorkbench;
 use App\Filament\Pages\CompletionAndTor;
+use App\Filament\Pages\FacultyAcademicCalendar;
 use App\Filament\Pages\FacultyGradeRoster;
 use App\Filament\Pages\FacultyOverview;
 use App\Filament\Pages\FacultySchedule;
@@ -202,6 +203,7 @@ class AdminPanelProvider extends PanelProvider
                 TermTimetable::class,
                 AcademicApprovals::class,
                 FacultyOverview::class,
+                FacultyAcademicCalendar::class,
                 FacultyGradeRoster::class,
                 MyAvailability::class,
                 FacultySchedule::class,
@@ -854,44 +856,33 @@ class AdminPanelProvider extends PanelProvider
     /** @return list<NavigationItem> */
     private function facultyNavigation(User $user, NavigationBadgeCounts $badgeCounts): array
     {
-        $request = \Filament\Support\original_request();
-        $termId = $request->attributes->has('tala.selected_term_id')
-            ? (int) $request->attributes->get('tala.selected_term_id')
-            : ($request->integer('termId') ?: $request->integer('term'));
-
-        if ($termId <= 0 && ! $request->attributes->has('tala.selected_term_id')) {
-            $activeTermIds = TermCalendarPackage::query()
-                ->where('state', TermCalendarPackage::StateActive)
-                ->whereHas('term', fn ($query) => $query->where('state', '!=', Term::StateClosed))
-                ->distinct()
-                ->pluck('term_id');
-
-            if ($activeTermIds->count() === 1) {
-                $termId = (int) $activeTermIds->sole();
-            }
-        }
-
-        $termQuery = $termId > 0 ? ['termId' => $termId] : [];
         $items = [];
 
         if (FacultyOverview::canAccess()) {
             $items[] = NavigationItem::make('Overview')
                 ->icon(Heroicon::OutlinedHome)
-                ->url(FacultyOverview::getUrl($termQuery))
+                ->url(FacultyOverview::getUrl())
                 ->isActiveWhen(fn (): bool => \Filament\Support\original_request()->routeIs(FacultyOverview::getRouteName()));
         }
 
         if (FacultySchedule::canAccess()) {
             $items[] = NavigationItem::make('My schedule')
                 ->icon(Heroicon::OutlinedCalendarDays)
-                ->url(FacultySchedule::getUrl($termQuery))
+                ->url(FacultySchedule::getUrl())
                 ->isActiveWhen(fn (): bool => \Filament\Support\original_request()->routeIs(FacultySchedule::getRouteName()));
+        }
+
+        if (FacultyAcademicCalendar::canAccess()) {
+            $items[] = NavigationItem::make('Academic calendar')
+                ->icon(Heroicon::OutlinedCalendar)
+                ->url(FacultyAcademicCalendar::getUrl())
+                ->isActiveWhen(fn (): bool => \Filament\Support\original_request()->routeIs(FacultyAcademicCalendar::getRouteName()));
         }
 
         if (MyAvailability::canAccess()) {
             $items[] = NavigationItem::make('My availability')
                 ->icon(Heroicon::OutlinedClock)
-                ->url(MyAvailability::getUrl($termQuery))
+                ->url(MyAvailability::getUrl())
                 ->isActiveWhen(fn (): bool => \Filament\Support\original_request()->routeIs(MyAvailability::getRouteName()));
         }
 
@@ -924,9 +915,9 @@ class AdminPanelProvider extends PanelProvider
             }
 
             $items[] = $this->expandableNavigationItem(
-                NavigationItem::make('Class grades')
+                NavigationItem::make('Class list & grades')
                     ->icon(Heroicon::OutlinedAcademicCap)
-                    ->url(FacultyGradeRoster::getUrl($termQuery))
+                    ->url(FacultyGradeRoster::getUrl())
                     ->badge(
                         fn (): ?string => ($count = $actionCount()) > 0 ? (string) $count : null,
                         'warning',
@@ -986,15 +977,8 @@ class AdminPanelProvider extends PanelProvider
             }
 
             return collect($component::getNavigationItems())
-                ->map(function (NavigationItem $item) use ($component, $label): NavigationItem {
-                    $request = \Filament\Support\original_request();
-                    $termId = $request->attributes->get('tala.selected_term_id', $request->integer('termId'));
-                    if ($termId > 0 && in_array($component, [FacultySchedule::class, MyAvailability::class], true)) {
-                        $item->url($component::getUrl(['termId' => $termId]));
-                    }
-
-                    return $item->label($label);
-                })->all();
+                ->map(fn (NavigationItem $item): NavigationItem => $item->label($label))
+                ->all();
         })->values()->all();
     }
 

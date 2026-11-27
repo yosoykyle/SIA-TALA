@@ -1,53 +1,18 @@
 <x-filament-panels::page>
     <div class="tala-faculty-workflow space-y-4">
         @if (! $term)
-            <x-servitech-term-gate
-                heading="{{ $terms->isEmpty() ? 'No terms available yet' : 'Choose a term to view your schedule' }}"
-                description="{{ $terms->isEmpty() ? 'No term is available. Contact the Registrar.' : 'Select an academic year and term to see your official teaching meetings.' }}"
-                icon="heroicon-o-calendar-days"
-                heading-id="faculty-term-chooser-heading"
-            >
-                @if ($terms->isNotEmpty())
-                    {{ $this->termSelection }}
-                @endif
-            </x-servitech-term-gate>
+            <x-servitech-empty-state
+                illustrated
+                heading="No active term yet"
+                description="Your official teaching schedule appears here once the Registrar activates a term."
+            />
         @else
             <x-record-scope-bar
-                label="Selected term"
+                label="Current term"
                 icon="heroicon-o-calendar-days"
+                :scope-title="$scopeTitle"
                 :scope-meta="$scopeMeta"
-            >
-                {{ $this->termSelection }}
-            </x-record-scope-bar>
-
-            @if ($termTeachingRange !== null || $examinationPeriod !== null || $upcomingHolidays !== [])
-                <section class="tala-context-inset flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-sm" aria-label="Term dates and upcoming holidays">
-                    <div class="flex flex-wrap items-center gap-x-5 gap-y-1 tabular-nums">
-                        @if ($termTeachingRange !== null)
-                            <span>
-                                <strong class="font-medium text-gray-950 dark:text-white">Classes:</strong>
-                                <span class="text-gray-600 dark:text-gray-300">{{ $termTeachingRange }}</span>
-                            </span>
-                        @endif
-                        <span>
-                            <strong class="font-medium text-gray-950 dark:text-white">Exam period:</strong>
-                            <span class="text-gray-600 dark:text-gray-300">
-                                {{ $examinationPeriod ? $examinationPeriod->opens_on->format('M j').'–'.$examinationPeriod->closes_on->format('M j, Y') : 'Not configured' }}
-                            </span>
-                        </span>
-                    </div>
-                    @if ($upcomingHolidays !== [])
-                        <div class="flex flex-wrap items-center gap-1.5">
-                            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">Upcoming no-class dates:</span>
-                            @foreach ($upcomingHolidays as $holiday)
-                                <x-filament::badge color="gray" size="sm" class="tabular-nums">
-                                    {{ $holiday['date_label'] }} · {{ $holiday['label'] }}
-                                </x-filament::badge>
-                            @endforeach
-                        </div>
-                    @endif
-                </section>
-            @endif
+            />
 
             @if ($affectedMeetings !== [])
                 <section class="tala-warning-banner" role="status" aria-labelledby="faculty-affected-changes-heading">
@@ -65,8 +30,8 @@
                             </p>
                         </div>
                         @if ($hasLateAvailabilityImpact)
-                            <x-filament::button tag="a" color="gray" size="sm" :href="\App\Filament\Pages\MyAvailability::getUrl(['termId' => $term->id])">
-                                Update availability
+                            <x-filament::button tag="a" color="gray" size="sm" :href="\App\Filament\Pages\MyAvailability::getUrl()">
+                                View availability
                             </x-filament::button>
                         @endif
                     </div>
@@ -93,8 +58,11 @@
                     heading="No official meetings assigned in this term"
                     description="Meetings appear here when the Registrar publishes your timetable."
                 >
-                    <x-filament::button tag="a" color="gray" :href="\App\Filament\Pages\MyAvailability::getUrl(['termId' => $term->id])">
+                    <x-filament::button tag="a" color="gray" :href="\App\Filament\Pages\MyAvailability::getUrl()">
                         My availability
+                    </x-filament::button>
+                    <x-filament::button tag="a" color="gray" :href="$academicCalendarUrl">
+                        Academic calendar
                     </x-filament::button>
                 </x-servitech-empty-state>
             @else
@@ -129,6 +97,7 @@
                             @else
                                 Contact the Registrar for approved dates.
                             @endif
+                            <a href="{{ $academicCalendarUrl }}" class="underline underline-offset-2 font-medium text-gray-700 dark:text-gray-200 hover:text-gray-950 dark:hover:text-white ms-1">Academic calendar</a>
                         </span>
                     </div>
                 </dl>
@@ -174,7 +143,7 @@
                                     Practicum, OJT, or externally arranged subjects assigned to you in this term with no fixed weekly classroom slot.
                                 </p>
                             </div>
-                            <x-filament::badge color="gray" size="sm">
+                            <x-filament::badge color="gray" size="sm" class="tabular-nums">
                                 {{ count($externallyArrangedClasses) }} {{ count($externallyArrangedClasses) === 1 ? 'class' : 'classes' }}
                             </x-filament::badge>
                         </div>

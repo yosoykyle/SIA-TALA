@@ -113,14 +113,68 @@ class Issue93FacultyUiTest extends TestCase
         Livewire::actingAs($faculty)
             ->test(MyAvailability::class, ['termId' => $package->term_id])
             ->assertSee('Available on selected times')
+            ->assertSee('Availability submitted and locked for this term. Contact the Registrar if changes are needed.')
             ->assertDontSee('Choose teaching times')
+            ->assertDontSee('Save availability')
+            ->assertDontSee('Save update')
+            ->assertDontSee('Reason for update')
             ->assertSee('8 hours/week across 2 days (excluding breaks)')
             ->assertSee('Monday')
             ->assertSee('Wednesday')
-            ->assertSee('Availability history')
-            ->assertSee('Version 1 · Available on selected times')
+            ->assertDontSee('Availability history')
+            ->assertDontSee('Version 1 · Available on selected times')
             ->assertDontSee('Term #'.$package->term_id)
-            ->assertDontSee('<details', false);
+            ->assertDontSee('<details', false)
+            ->call('toggleDay', 1)
+            ->assertSet('enabledDays.1', true)
+            ->set('availabilityMode', FacultyAvailabilityDeclaration::ModeCannotTeach)
+            ->call('saveAvailability')
+            ->assertStatus(409);
+
+        $this->assertSame(1, FacultyAvailabilityDeclaration::query()
+            ->where('term_id', $package->term_id)
+            ->where('faculty_user_id', $faculty->id)
+            ->count());
+    }
+
+    #[Test]
+    public function my_availability_auto_resolves_the_active_term_and_rolls_over_when_a_new_term_activates(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $faculty = $this->staff(User::StaffRoleFaculty);
+
+        $firstPackage = $this->activePackage($registrar);
+        $firstTerm = $firstPackage->term;
+        $firstTerm->update(['label' => 'Prior Active Term']);
+
+        app(RecordFacultyAvailabilityDeclaration::class)->execute(
+            term: $firstTerm,
+            faculty: $faculty,
+            actor: $faculty,
+            availabilityMode: FacultyAvailabilityDeclaration::ModeAnyApproved,
+        );
+
+        Livewire::actingAs($faculty)
+            ->test(MyAvailability::class)
+            ->assertSet('termId', $firstTerm->id)
+            ->assertSee('Prior Active Term')
+            ->assertSee('Available during all teaching hours')
+            ->assertSee('Availability submitted and locked for this term. Contact the Registrar if changes are needed.')
+            ->assertDontSee('Choose a term to view your availability');
+
+        $firstTerm->update(['state' => Term::StateClosed]);
+        $secondPackage = $this->activePackage($registrar);
+        $secondTerm = $secondPackage->term;
+        $secondTerm->update(['label' => 'Next Active Term']);
+
+        Livewire::actingAs($faculty)
+            ->test(MyAvailability::class)
+            ->assertSet('termId', $secondTerm->id)
+            ->assertSee('Next Active Term')
+            ->assertSee('Not submitted yet')
+            ->assertSee('Save availability')
+            ->assertDontSee('Available during all teaching hours')
+            ->assertDontSee('Prior Active Term');
     }
 
     #[Test]
@@ -163,7 +217,7 @@ class Issue93FacultyUiTest extends TestCase
     }
 
     #[Test]
-    public function legacy_unavailability_declarations_stay_readable_and_updates_require_one_of_the_three_clean_modes(): void
+    public function legacy_unavailability_declarations_stay_readable_locked_for_faculty_and_reflect_registrar_updates(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $faculty = $this->staff(User::StaffRoleFaculty);
@@ -185,25 +239,33 @@ class Issue93FacultyUiTest extends TestCase
             ->assertSee('Available except recorded unavailable times')
             ->assertSee('Recorded unavailable times')
             ->assertSee('1:00 PM–3:00 PM')
-            ->assertSet('availabilityMode', null)
+            ->assertSee('Availability submitted and locked for this term. Contact the Registrar if changes are needed.')
+            ->assertDontSee('Save availability')
+            ->assertDontSee('Save update')
+            ->assertDontSee('Reason for update')
             ->set('availabilityMode', FacultyAvailabilityDeclaration::ModeAnyApproved)
-            ->set('correctionReason', 'Migrating to full approved teaching hours')
+            ->set('correctionReason', 'Attempted self-edit after submission')
             ->call('saveAvailability')
-            ->assertHasNoErrors();
+            ->assertStatus(409);
 
-        $latest = FacultyAvailabilityDeclaration::query()
-            ->where('term_id', $package->term_id)
-            ->where('faculty_user_id', $faculty->id)
-            ->latest('version')
-            ->firstOrFail();
+        app(RecordFacultyAvailabilityDeclaration::class)->execute(
+            term: $package->term,
+            faculty: $faculty,
+            actor: $faculty,
+            correctionReason: 'Registrar-applied update to full approved teaching hours',
+            availabilityMode: FacultyAvailabilityDeclaration::ModeAnyApproved,
+        );
 
-        $this->assertSame(2, $latest->version);
-        $this->assertSame(FacultyAvailabilityDeclaration::ModeAnyApproved, $latest->availability_mode);
-        $this->assertSame([], $latest->hard_unavailability);
+        Livewire::actingAs($faculty)
+            ->test(MyAvailability::class, ['termId' => $package->term_id])
+            ->assertSee('Available during all teaching hours')
+            ->assertSee('Available across all approved school teaching hours.')
+            ->assertSee('Registrar-applied update to full approved teaching hours')
+            ->assertDontSee('Save availability');
     }
 
     #[Test]
-    public function grid_change_surfaces_review_needed_banner_without_mutating_chosen_windows_until_faculty_updates(): void
+    public function grid_change_surfaces_review_needed_banner_while_locked_and_reflects_updated_windows(): void
     {
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $faculty = $this->staff(User::StaffRoleFaculty);
@@ -227,15 +289,29 @@ class Issue93FacultyUiTest extends TestCase
         $page = Livewire::actingAs($faculty)
             ->test(MyAvailability::class, ['termId' => $package->term_id])
             ->assertSee('School teaching hours changed')
-            ->assertSee('Adjust the highlighted days below to match the updated school hours.')
+            ->assertSee('Some of your recorded teaching windows fall outside the updated school hours. Contact the Registrar if your availability needs adjustment.')
             ->assertSee('Outside approved hours')
+            ->assertSee('Availability submitted and locked for this term. Contact the Registrar if changes are needed.')
+            ->assertSee('1:00 PM–8:00 PM')
+            ->assertDontSee('Save availability')
             ->assertSet('dayWindows.4.0', ['start_time' => '13:00', 'end_time' => '20:00']);
 
         $page
             ->set('dayWindows.4.0.end_time', '19:00')
-            ->set('correctionReason', 'Fitted Thursday window to the updated 7:00 PM closing hour')
+            ->set('correctionReason', 'Attempted self-edit after grid change')
             ->call('saveAvailability')
-            ->assertHasNoErrors();
+            ->assertStatus(409);
+
+        app(RecordFacultyAvailabilityDeclaration::class)->execute(
+            term: $package->term,
+            faculty: $faculty,
+            actor: $faculty,
+            correctionReason: 'Fitted Thursday window to the updated 7:00 PM closing hour',
+            availabilityMode: FacultyAvailabilityDeclaration::ModeWindows,
+            teachingWindows: [
+                ['day_of_week' => 4, 'start_time' => '13:00', 'end_time' => '19:00'],
+            ],
+        );
 
         Livewire::actingAs($faculty)
             ->test(MyAvailability::class, ['termId' => $package->term_id])
@@ -317,7 +393,7 @@ class Issue93FacultyUiTest extends TestCase
             ->assertSee($fixture['section']->code)
             ->assertSee('Was Wednesday · 1:30 PM–3:00 PM → Now Monday · 8:00 AM–11:00 AM')
             ->assertSee('Effective Aug 24, 2026')
-            ->assertSee('Update availability')
+            ->assertSee('View availability')
             ->assertSee('Exam period')
             ->assertSee('Apr 20–Apr 24, 2026')
             ->assertSee('Arrange exam times directly with your classes.')
@@ -330,7 +406,7 @@ class Issue93FacultyUiTest extends TestCase
             ->assertDontSee('Schedule & Availability')
             ->assertDontSee('View My availability');
 
-        $schedule->assertSeeHtml('href="'.e(MyAvailability::getUrl(['termId' => $term->id])).'"')
+        $schedule->assertSeeHtml('href="'.e(MyAvailability::getUrl()).'"')
             ->assertSeeHtml('<span class="tala-timetable-tile-class">'.$fixture['section']->code.'</span>');
 
         // Filtering exposes Print filtered alongside Print all without a dropdown menu.
