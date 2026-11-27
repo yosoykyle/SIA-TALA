@@ -3,11 +3,13 @@
 namespace App\Filament\Resources\AdmissionApplications\Schemas;
 
 use App\Filament\Resources\AdmissionApplications\Pages\ViewAdmissionApplication;
+use App\Filament\Resources\AdmissionCycles\Schemas\AdmissionCycleForm;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
 use App\Models\AdmissionRequirement;
 use App\Models\DocumentEvidence;
 use App\Models\PreliminaryEvidenceReview;
+use App\Models\Term;
 use Filament\Actions\Action;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\RepeatableEntry\TableColumn;
@@ -129,7 +131,8 @@ class AdmissionApplicationInfolist
                                 Section::make('Application Choice')
                                     ->schema([
                                         TextEntry::make('admissionCycle.label')->label('Admission cycle'),
-                                        TextEntry::make('term.label')->label('Target term'),
+                                        TextEntry::make('term.label')->label('Academic Year')
+                                            ->formatStateUsing(fn (?string $state, AdmissionApplication $record): ?string => $record->term instanceof Term ? AdmissionCycleForm::academicYearOptionLabel($record->term) : $state),
                                         TextEntry::make('program.name')->label('Program'),
                                         TextEntry::make('application_path')->label('Student type')->formatStateUsing(fn (string $state): string => AdmissionCycle::studentTypeLabel($state)),
                                     ])

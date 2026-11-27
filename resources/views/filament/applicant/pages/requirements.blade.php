@@ -66,7 +66,7 @@
                 @endif
             @endforeach
             @if ($application->application_state === \App\Models\AdmissionApplication::StateAdmitted)
-                <p class="mt-4">{{ $projection['ready'] ? app(\App\Queries\Admissions\ReadyApplicantProjectionQuery::class)->enrollmentNextAction($application) : 'Enrollment readiness still needs current admissions checks. Contact the Registrar for the next instruction.' }}</p>
+                <p class="mt-4">{{ $projection['ready'] ? app(\App\Queries\Admissions\ReadyApplicantProjectionQuery::class)->applicantEnrollmentNextAction($application) : 'Enrollment readiness still needs current admissions checks. Contact the Registrar for the next instruction.' }}</p>
             @endif
         </x-filament::section>
         @else

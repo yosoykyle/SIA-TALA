@@ -7,8 +7,8 @@ use App\Filament\Pages\TermCalendar;
 use App\Filament\Pages\TermOverview;
 use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use App\Models\AdmissionCycle;
-use App\Models\AdmissionCycleEvent;
 use App\Models\Program;
+use App\Models\Term;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
@@ -53,7 +53,8 @@ class AdmissionCycleInfolist
                                 })->badge()
                                 ->color(fn (AdmissionCycle $record): string => $record->state === AdmissionCycle::StatePublished && $record->opens_at?->isPast() && $record->closes_at?->isFuture() ? 'success' : 'gray'),
                             TextEntry::make('term.label')
-                                ->label('Target term')
+                                ->label('Academic Year')
+                                ->formatStateUsing(fn (?string $state, AdmissionCycle $record): ?string => $record->term instanceof Term ? AdmissionCycleForm::academicYearOptionLabel($record->term) : $state)
                                 ->placeholder('Not selected')
                                 ->url(fn (AdmissionCycle $record): ?string => $record->term_id !== null && TermOverview::canAccess()
                                     ? TermCalendar::getUrl(['termId' => $record->term_id])
@@ -96,40 +97,7 @@ class AdmissionCycleInfolist
                             ->state(fn (AdmissionCycle $record): string => app(AdmissionCycleReadinessService::class)->for($record)['blockers'] === []
                                 ? 'All setup checks passed' : 'Resolve the setup findings before publication'),
                     ])->columns(['default' => 1, 'md' => 2])->collapsible()->collapsed()->columnSpanFull(),
-                Section::make('Publication and date-change history')
-                    ->schema([
-                        TextEntry::make('event_history')
-                            ->label('Immutable events')
-                            ->state(fn (AdmissionCycle $record): string => $record->events
-                                ->sortByDesc('occurred_at')
-                                ->map(fn (AdmissionCycleEvent $event): string => sprintf(
-                                    '%s — %s — %s → %s — %s — %s — %s',
-                                    $event->occurred_at->timezone(config('app.display_timezone'))->format('M j, Y g:i A'),
-                                    str($event->event_type)->headline(),
-                                    self::boundarySummary((array) $event->previous_values),
-                                    self::boundarySummary((array) $event->new_values),
-                                    $event->reason ?: 'No reason recorded',
-                                    $event->authority_reference ?: 'No authority recorded',
-                                    $event->actor?->email ?: 'Actor unavailable',
-                                ))->implode("\n") ?: 'No publication or change event yet.')
-                            ->listWithLineBreaks(),
-                    ])
-                    ->collapsible()->collapsed()
-                    ->columnSpanFull(),
             ]);
-    }
-
-    /** @param array<string, mixed> $values */
-    private static function boundarySummary(array $values): string
-    {
-        return collect([
-            'opening' => $values['opens_at'] ?? null,
-            'public close' => $values['closes_at'] ?? null,
-            'new-correction close' => $values['correction_closes_at'] ?? null,
-            'state' => $values['state'] ?? null,
-        ])->filter(fn (mixed $value): bool => filled($value))
-            ->map(fn (mixed $value, string $label): string => "{$label}: {$value}")
-            ->implode(', ') ?: 'No boundary value';
     }
 
     /**
@@ -141,10 +109,14 @@ class AdmissionCycleInfolist
     public static function fixLink(array $finding, AdmissionCycle $record): ?array
     {
         if (str_starts_with($finding['code'], 'requirement_set_')) {
-            return ['label' => 'Open requirement sets', 'url' => AdmissionCycleResource::getUrl('view', ['record' => $record, 'relation' => '0'])];
+            return $record->state === AdmissionCycle::StateDraft
+                ? ['label' => 'Set requirements', 'url' => AdmissionCycleResource::getUrl('edit', ['record' => $record, 'step' => 'form.programs-student-types::data::wizard-step'])]
+                : ['label' => 'Open requirement sets', 'url' => AdmissionCycleResource::getUrl('view', ['record' => $record, 'relation' => '0'])];
         }
 
         $label = match ($finding['code']) {
+            'cycle_code_reserved' => 'Change cycle code',
+            'post_admission_deadlines' => 'Set post-admission deadlines',
             'target_term_and_dates' => 'Fix term and dates',
             'accepting_programs' => 'Choose accepting programs',
             'applicant_guidance' => 'Add applicant guidance',

@@ -5,6 +5,7 @@ namespace App\Filament\Resources\AdmissionCycles\Pages;
 use App\Actions\Admissions\ChangeAdmissionCycle;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
+use App\Filament\Resources\AdmissionCycles\RelationManagers\RequirementSetsRelationManager;
 use App\Models\AdmissionCycle;
 use App\Models\User;
 use Filament\Actions\Action;
@@ -18,13 +19,44 @@ class EditAdmissionCycle extends EditRecord
     protected static string $resource = AdmissionCycleResource::class;
 
     /**
-     * Keep relation managers on ViewAdmissionCycle (Step 3: Requirements & Publish) so Save actions never sit above required sections.
+     * The requirement sets are embedded in the Programs & student types step (#110 item 12), not listed below the page.
      *
      * @return array<class-string>
      */
     public function getRelationManagers(): array
     {
         return [];
+    }
+
+    /**
+     * No <form> wraps the wizard here, so the embedded requirement-set table can open its own modal forms
+     * without nesting them inside this page's form. Save & continue calls save() directly (#110 item 11).
+     */
+    public function hasFormWrapper(): bool
+    {
+        return false;
+    }
+
+    /**
+     * @return array<Action>
+     */
+    protected function getFormActions(): array
+    {
+        return [];
+    }
+
+    /**
+     * Livewire properties for the requirement-set table embedded in the wizard.
+     *
+     * @return array<string, mixed>
+     */
+    public function requirementSetsManagerProperties(): array
+    {
+        return [
+            'ownerRecord' => $this->getRecord(),
+            'pageClass' => static::class,
+            ...RequirementSetsRelationManager::getDefaultProperties(),
+        ];
     }
 
     /**

@@ -24,6 +24,8 @@ use Illuminate\Validation\ValidationException;
  */
 class AdmissionApplication extends Model
 {
+    public const GuardianIsApplicantMessage = 'Enter someone other than yourself as your guardian or emergency contact.';
+
     /** @use HasFactory<AdmissionApplicationFactory> */
     use HasFactory;
 
@@ -321,5 +323,49 @@ class AdmissionApplication extends Model
     public static function choicesKeepingRecorded(array $choices, ?string $recorded): array
     {
         return filled($recorded) && ! in_array($recorded, $choices, true) ? [...$choices, $recorded] : $choices;
+    }
+
+    /**
+     * Whether a guardian or emergency-contact name names the Applicant themself (#110 item 1).
+     *
+     * Matches when the guardian name holds the Applicant's first and last names and nothing beyond
+     * their middle name, middle initial or extension, ignoring case, word order, spacing and punctuation.
+     */
+    public static function guardianNameMatchesApplicant(
+        ?string $guardianFullName,
+        ?string $firstName,
+        ?string $middleName,
+        ?string $lastName,
+        ?string $extensionName = null,
+    ): bool {
+        $guardianWords = self::nameWords($guardianFullName);
+        $firstWords = self::nameWords($firstName);
+        $lastWords = self::nameWords($lastName);
+
+        if ($guardianWords === [] || $firstWords === [] || $lastWords === []) {
+            return false;
+        }
+
+        $requiredWords = [...$firstWords, ...$lastWords];
+        $middleWords = self::nameWords($middleName);
+        $allowedWords = [
+            ...$requiredWords,
+            ...$middleWords,
+            ...array_map(fn (string $word): string => mb_substr($word, 0, 1), $middleWords),
+            ...self::nameWords($extensionName),
+        ];
+
+        return array_diff($requiredWords, $guardianWords) === []
+            && array_diff($guardianWords, $allowedWords) === [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function nameWords(?string $name): array
+    {
+        $normalized = preg_replace('/[^\p{L}\p{N}\s]+/u', '', mb_strtolower((string) $name)) ?? '';
+
+        return array_values(array_filter(preg_split('/\s+/u', trim($normalized)) ?: [], fn (string $word): bool => $word !== ''));
     }
 }

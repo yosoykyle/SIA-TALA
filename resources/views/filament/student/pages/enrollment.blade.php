@@ -152,11 +152,11 @@
                 @endif
                 @if ($proposal && $proposal->items->isNotEmpty())
                     @include('filament.student.pages.enrollment-subjects', ['preparing' => ! $confirmed, 'subjectsHeading' => $confirmed ? 'Confirmed subjects' : 'Proposed subjects'])
-                    @if ($schedulePresentation && $schedulePresentation['meetings'] !== [])
+                    @if ($isStudent && $schedulePresentation && $schedulePresentation['meetings'] !== [])
                         <details class="learner-disclosure"><summary>{{ $confirmed ? 'Confirmed schedule' : 'Preview schedule' }}</summary><div><p class="student-registration-help">Seats remain temporary until official enrollment.@if ($reservationDeadline) Reserved until {{ $reservationDeadline->timezone(config('app.display_timezone'))->format('M j, Y · g:i A') }}.@endif</p><x-enrollment-schedule :presentation="$schedulePresentation" :source-key="'proposal-'.$proposal->id" /></div></details>
                     @endif
-                @elseif ($enrollment)
-                    <x-enrollment-proposal-explanation :enrollment="$enrollment" :proposal="$proposal" :audience="$isStudent ? 'student' : 'applicant'" />
+                @elseif ($enrollment && $isStudent)
+                    <x-enrollment-proposal-explanation :enrollment="$enrollment" :proposal="$proposal" audience="student" />
                 @endif
                 @include('filament.student.pages.enrollment-help')
                 @if ($isStudent && $corHistory !== [])<p class="student-registration-help"><x-filament::link :href="\App\Filament\Student\Pages\CorView::getUrl(panel: 'student')">View earlier registrations</x-filament::link></p>@endif

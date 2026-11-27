@@ -8,6 +8,7 @@ use App\Actions\Admissions\ResolveAdmissionEntryCycle;
 use App\Actions\Admissions\ResolveAdmissionRequirementSet;
 use App\Actions\Admissions\SaveAdmissionApplication;
 use App\Actions\Admissions\SubmitAdmissionApplication;
+use App\Actions\Applicants\ApplicantEntryReadinessService;
 use App\Filament\Components\ResumableWizard;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
@@ -25,6 +26,7 @@ use App\Models\User;
 use App\Support\SafeUserNotification;
 use BackedEnum;
 use Carbon\CarbonImmutable;
+use Closure;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\DatePicker;
@@ -317,6 +319,20 @@ class Application extends Page
                                 ->schema([
                                     TextInput::make('guardian_full_name')
                                         ->live(onBlur: true)
+                                        ->rules([
+                                            fn (Get $get): Closure => function (string $attribute, mixed $value, Closure $fail) use ($get): void {
+                                                if (AdmissionApplication::guardianNameMatchesApplicant(
+                                                    is_string($value) ? $value : null,
+                                                    $get('first_name'),
+                                                    $get('middle_name'),
+                                                    $get('last_name'),
+                                                    $get('extension_name'),
+                                                )) {
+                                                    $fail(AdmissionApplication::GuardianIsApplicantMessage);
+                                                }
+                                            },
+                                        ])
+                                        ->afterStateUpdated(fn (TextInput $component, ?string $state) => $this->revalidateFieldOnBlur($component, $state))
                                         ->disabled(fn (): bool => ! $this->fieldIsEditable('guardian_full_name'))
                                         ->required(fn (Get $get): bool => $this->guardianContactIsRequired($get))
                                         ->maxLength(160),
@@ -473,10 +489,14 @@ class Application extends Page
                                     ? 'Review the marked copies and replace those requested by the Registrar. Other submitted copies stay unchanged.'
                                     : null)
                                 ->schema([
-                                    Checkbox::make('privacy_acknowledged')
-                                        ->label('I acknowledge the current privacy notice for this application.')
-                                        ->helperText('The school uses these details and private copies to review your application and check your identity records.')
-                                        ->live()->accepted(fn (): bool => ! $this->savingDraft)->required(fn (): bool => ! $this->savingDraft),
+                                    Section::make()
+                                        ->extraAttributes(['class' => 'tala-privacy-acknowledgement'])
+                                        ->schema([
+                                            Checkbox::make('privacy_acknowledged')
+                                                ->label(new HtmlString('I acknowledge the current <a class="underline" href="'.e(app(ApplicantEntryReadinessService::class)->officialReferences()['privacy']).'" target="_blank" rel="noopener noreferrer">Privacy Notice</a> for this application.'))
+                                                ->helperText('Required before you continue. The school uses these details and private copies to review your application and check your identity records.')
+                                                ->live()->accepted(fn (): bool => ! $this->savingDraft)->required(fn (): bool => ! $this->savingDraft),
+                                        ]),
                                     ...$this->evidenceFields(
                                         (int) $get('admission_cycle_id'),
                                         (string) $get('application_path'),

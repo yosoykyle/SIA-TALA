@@ -305,6 +305,45 @@ class AdmissionCycleDomainActionsTest extends TestCase
         );
     }
 
+    public function test_draft_cycles_do_not_reserve_a_code_until_one_is_published(): void
+    {
+        Storage::fake('local');
+        $actor = $this->registrar();
+        $abandonedDraft = AdmissionCycle::factory()->create(['code' => 'AY2026-2027-SEM1']);
+        $cycle = $this->publishableCycle($actor);
+        $cycle->forceFill(['code' => 'AY2026-2027-SEM1'])->save();
+
+        $this->assertFalse(AdmissionCycle::codeIsReservedByAnotherCycle('AY2026-2027-SEM1', $cycle->id));
+
+        app(PublishAdmissionCycle::class)->execute($cycle, $actor, 'Synthetic publication authority');
+
+        $this->assertTrue(AdmissionCycle::codeIsReservedByAnotherCycle('AY2026-2027-SEM1', $abandonedDraft->id));
+
+        $duplicate = $this->publishableCycle($actor);
+        $duplicate->forceFill(['code' => 'AY2026-2027-SEM1'])->save();
+        $this->assertContains('cycle_code_reserved', collect(app(AdmissionCycleReadinessService::class)->for($duplicate)['blockers'])->pluck('code')->all());
+
+        try {
+            app(PublishAdmissionCycle::class)->execute($duplicate, $actor, 'Synthetic publication authority');
+            $this->fail('A second cycle must not publish with a code a published cycle already uses.');
+        } catch (ValidationException) {
+            $this->assertSame(AdmissionCycle::StateDraft, $duplicate->fresh()->state);
+        }
+    }
+
+    public function test_publication_requires_all_three_post_admission_deadlines(): void
+    {
+        Storage::fake('local');
+        $actor = $this->registrar();
+        $cycle = $this->publishableCycle($actor);
+        $cycle->forceFill(['payment_due_at' => null])->save();
+
+        $this->assertContains('post_admission_deadlines', collect(app(AdmissionCycleReadinessService::class)->for($cycle)['blockers'])->pluck('code')->all());
+
+        $this->expectException(ValidationException::class);
+        app(PublishAdmissionCycle::class)->execute($cycle, $actor, 'Synthetic publication authority');
+    }
+
     private function registrar(): User
     {
         $user = User::factory()->create(['status' => User::StatusActive]);
@@ -322,6 +361,9 @@ class AdmissionCycleDomainActionsTest extends TestCase
             'state' => AdmissionCycle::StateDraft,
             'opens_at' => now()->subDay(),
             'closes_at' => now()->addDay(),
+            'requirements_due_at' => now()->addWeeks(2),
+            'payment_due_at' => now()->addWeeks(3),
+            'period_ends_at' => now()->addWeeks(4),
             'registrar_owner_id' => $owner->id,
         ]);
         $cycle->programs()->attach($program, [

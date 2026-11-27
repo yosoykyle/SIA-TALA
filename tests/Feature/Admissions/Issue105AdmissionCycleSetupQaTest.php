@@ -3,6 +3,7 @@
 namespace Tests\Feature\Admissions;
 
 use App\Actions\Admissions\AdmissionCycleReadinessService;
+use App\Actions\Admissions\AdmissionRequirementSetCompletenessService;
 use App\Actions\Admissions\PublishAdmissionRequirementSet;
 use App\Filament\Resources\AdmissionCycles\Pages\CreateAdmissionCycle;
 use App\Filament\Resources\AdmissionCycles\Pages\EditAdmissionCycle;
@@ -124,6 +125,9 @@ class Issue105AdmissionCycleSetupQaTest extends TestCase
             'opens_at' => $opensAt,
             'closes_at' => $opensAt->copy()->addDays(10),
             'correction_closes_at' => $opensAt->copy()->addDays(12),
+            'requirements_due_at' => $opensAt->copy()->addDays(20),
+            'payment_due_at' => $opensAt->copy()->addDays(25),
+            'period_ends_at' => $opensAt->copy()->addDays(30),
         ]);
         $cycle->programs()->attach($program->id, [
             'accepts_first_year' => true,
@@ -168,6 +172,79 @@ class Issue105AdmissionCycleSetupQaTest extends TestCase
 
         $this->assertSame('REQ-PSA-BIRTH-CERTIFICATE', $code1);
         $this->assertSame('REQ-PSA-BIRTH-CERTIFICATE-2', $code2);
+    }
+
+    public function test_new_requirement_list_starts_with_the_main_credential_for_its_student_type(): void
+    {
+        $registrar = $this->registrar();
+        $this->actingAs($registrar);
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $cycle = AdmissionCycle::factory()->create(['registrar_owner_id' => $registrar->id]);
+
+        $manager = Livewire::test(RequirementSetsRelationManager::class, [
+            'ownerRecord' => $cycle,
+            'pageClass' => EditAdmissionCycle::class,
+        ])->mountTableAction('create');
+
+        $rows = array_values($manager->instance()->mountedActions[0]['data']['requirements']);
+        $this->assertCount(1, $rows);
+        $this->assertSame(AdmissionRequirement::ClassificationCoreFirstYearCompletionCredential, $rows[0]['credential_classification']);
+        $this->assertSame(AdmissionRequirement::DueEnrollmentReadiness, $rows[0]['due_stage']);
+
+        $manager->set('mountedActions.0.data.application_path', AdmissionCycle::PathTransferee);
+        $rows = array_values($manager->instance()->mountedActions[0]['data']['requirements']);
+        $this->assertSame(AdmissionRequirement::ClassificationCoreTransferCredential, $rows[0]['credential_classification']);
+        $this->assertSame('Honorable Dismissal and Transcript of Records', $rows[0]['label']);
+    }
+
+    public function test_only_can_be_held_with_approval_papers_permit_a_hold(): void
+    {
+        $required = RequirementSetsRelationManager::prepareRequirementPayload([
+            'label' => 'PSA Birth Certificate',
+            'credential_classification' => AdmissionRequirement::ClassificationCoreOtherOfficialCredential,
+            'submission_mode' => RequirementSetsRelationManager::ModeBothOnlineAndF2f,
+            'exception_permitted' => true,
+            'required_approving_authority' => 'Registrar',
+        ]);
+        $holdable = RequirementSetsRelationManager::prepareRequirementPayload([
+            'label' => '2x2 ID Photo',
+            'credential_classification' => AdmissionRequirement::ClassificationNonCore,
+            'submission_mode' => RequirementSetsRelationManager::ModeF2fOnly,
+            'required_approving_authority' => 'Registrar',
+        ]);
+
+        $this->assertFalse($required['exception_permitted']);
+        $this->assertNull($required['required_approving_authority']);
+        $this->assertTrue($holdable['exception_permitted']);
+        $this->assertSame('Registrar', $holdable['required_approving_authority']);
+    }
+
+    public function test_a_list_must_carry_exactly_one_main_credential_for_its_student_type(): void
+    {
+        $first = AdmissionRequirement::ClassificationCoreFirstYearCompletionCredential;
+        $transfer = AdmissionRequirement::ClassificationCoreTransferCredential;
+        $other = AdmissionRequirement::ClassificationCoreOtherOfficialCredential;
+
+        $this->assertNull(RequirementSetsRelationManager::mainCredentialProblem([$first, $other], AdmissionCycle::PathFirstYear));
+        $this->assertNull(RequirementSetsRelationManager::mainCredentialProblem([$first], RequirementSetsRelationManager::PathBoth));
+        $this->assertSame('A requirement list can have only one main admission credential.', RequirementSetsRelationManager::mainCredentialProblem([$first, $first], AdmissionCycle::PathFirstYear));
+        $this->assertStringContainsString('Honorable Dismissal / TOR', (string) RequirementSetsRelationManager::mainCredentialProblem([$first], AdmissionCycle::PathTransferee));
+        $this->assertStringContainsString('Form 138', (string) RequirementSetsRelationManager::mainCredentialProblem([$other], AdmissionCycle::PathFirstYear));
+
+        $cycle = AdmissionCycle::factory()->create();
+        $set = AdmissionRequirementSet::factory()->for($cycle)->create(['application_path' => AdmissionCycle::PathFirstYear]);
+        foreach ([$first, $first, $transfer] as $classification) {
+            AdmissionRequirement::factory()->for($set, 'requirementSet')->create([
+                'credential_classification' => $classification,
+                'due_stage' => AdmissionRequirement::DueEnrollmentReadiness,
+                'official_submission_method' => AdmissionRequirement::SubmissionInPerson,
+                'exception_permitted' => false,
+            ]);
+        }
+
+        $errors = app(AdmissionRequirementSetCompletenessService::class)->errors($set->fresh());
+        $this->assertContains('A requirement list can have only one main admission credential.', $errors);
+        $this->assertContains('The main admission credential does not match this student type.', $errors);
     }
 
     public function test_edit_admission_cycle_hides_relation_managers_below_save_actions(): void

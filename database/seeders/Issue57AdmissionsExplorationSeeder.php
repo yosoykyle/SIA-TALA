@@ -181,6 +181,7 @@ class Issue57AdmissionsExplorationSeeder extends Seeder
             'code' => self::CycleCode, 'label' => 'Synthetic Applicant–Registrar exploration',
             'term_id' => $term->id, 'state' => AdmissionCycle::StateDraft,
             'opens_at' => now()->subDay(), 'closes_at' => now()->addDays(14), 'correction_closes_at' => now()->addDays(21),
+            'requirements_due_at' => now()->addDays(45), 'payment_due_at' => now()->addDays(60), 'period_ends_at' => now()->addDays(75),
             'applicant_instructions' => 'Synthetic exploration only: complete the five-step application and follow the named requirement instructions.',
             'support_contact' => 'Synthetic Registrar support', 'privacy_notice_reference' => 'synthetic:issue57:privacy:v1',
             'registrar_owner_id' => $registrar->id,

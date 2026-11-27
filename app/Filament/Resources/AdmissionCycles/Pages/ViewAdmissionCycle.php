@@ -27,7 +27,18 @@ class ViewAdmissionCycle extends ViewRecord
 
     public function hasCombinedRelationManagerTabsWithContent(): bool
     {
-        return true;
+        return $this->cycle()->state !== AdmissionCycle::StateDraft;
+    }
+
+    /**
+     * A Draft cycle sets its requirements in the setup wizard (#110 item 12), so its overview has no
+     * Requirement Sets tab. Published and cancelled cycles keep the tab for replacement versions and history.
+     *
+     * @return array<class-string>
+     */
+    public function getRelationManagers(): array
+    {
+        return $this->cycle()->state === AdmissionCycle::StateDraft ? [] : parent::getRelationManagers();
     }
 
     public function getContentTabLabel(): ?string
@@ -195,7 +206,7 @@ class ViewAdmissionCycle extends ViewRecord
                 ->modalSubmitActionLabel('Save deadlines')
                 ->color('gray')->outlined()
                 ->icon('heroicon-o-calendar-days')
-                ->modalDescription('Physical papers and the enrollment payment must be done by these times, or the application expires until the Registrar extends it. When the admission period ends, unfinished applications close for good and applicants create a new account for a later term. Leave a date blank if the school has not set it.')
+                ->modalDescription('Physical papers and the enrollment payment must be done by these times, or the application expires until the Registrar extends it. When the admission period ends, unfinished applications close for good and applicants create a new account for a later term. All three dates are required.')
                 ->modalWidth(Width::ThreeExtraLarge)
                 ->stickyModalHeader()
                 ->stickyModalFooter()
@@ -294,6 +305,7 @@ class ViewAdmissionCycle extends ViewRecord
             ->timezone('Asia/Manila')
             ->prefixIcon($icon)
             ->placeholder('Not set')
+            ->required()
             ->native(true);
     }
 

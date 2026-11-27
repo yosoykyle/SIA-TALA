@@ -87,7 +87,20 @@ class AdmissionRequirement extends Model
     }
 
     /**
-     * Applicant-facing wording for when the official paper is due.
+     * Applicant-facing wording for when an on-site paper is due (#110 item 4, owner decision Nov 27, 2026):
+     * papers due during review or before enrollment share one label, because both mean bringing them in before enrollment.
+     */
+    public function applicantOnSiteDueLabel(): string
+    {
+        return match ($this->due_stage) {
+            self::DuePreliminaryReview, self::DueEnrollmentReadiness => 'Bring before enrollment',
+            self::DuePostEnrollmentFollowUp => 'Bring after enrollment',
+            default => 'Bring when the Registrar asks',
+        };
+    }
+
+    /**
+     * Staff-facing wording for the review stage when the official paper is due.
      */
     public function dueStageLabel(): string
     {

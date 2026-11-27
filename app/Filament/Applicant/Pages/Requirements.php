@@ -240,7 +240,7 @@ class Requirements extends Page implements HasTable
             'onsite' => true,
             'due' => $held->has($requirement->id)
                 ? 'Still owed · bring it by '.$held->get($requirement->id)->exception_expires_at?->timezone(config('app.display_timezone'))->format('M j, Y')
-                : $requirement->dueStageLabel(),
+                : $requirement->applicantOnSiteDueLabel(),
             'instructions' => $requirement->applicant_instructions,
             // #103 Scope 7: after clearance, a paper the Registrar has not ticked is still To be followed.
             ...match (true) {

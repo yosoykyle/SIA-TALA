@@ -2,15 +2,21 @@
 
 namespace App\Filament\Resources\AdmissionCycles\Schemas;
 
+use App\Filament\Resources\AdmissionCycles\Pages\EditAdmissionCycle;
+use App\Filament\Resources\AdmissionCycles\RelationManagers\RequirementSetsRelationManager;
 use App\Models\AdmissionCycle;
 use App\Models\CurriculumVersion;
 use App\Models\Program;
 use App\Models\Term;
+use Carbon\CarbonImmutable;
+use Closure;
+use Filament\Actions\Action;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Livewire;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
@@ -18,7 +24,8 @@ use Filament\Schemas\Components\Wizard;
 use Filament\Schemas\Components\Wizard\Step;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\HtmlString;
+use Illuminate\Support\Str;
+use Livewire\Component;
 
 class AdmissionCycleForm
 {
@@ -27,8 +34,13 @@ class AdmissionCycleForm
         return $schema->components([
             Wizard::make([
                 Step::make('Cycle details & schedule')
-                    ->description('Name the intake, pick the target term, and set application dates.')
+                    ->description(fn (Get $get): string => self::detailsStepSummary($get))
                     ->icon('heroicon-o-calendar-days')
+                    ->afterValidation(function (Component $livewire): void {
+                        if ($livewire instanceof EditAdmissionCycle) {
+                            $livewire->save(shouldRedirect: false, shouldSendSavedNotification: false);
+                        }
+                    })
                     ->schema([
                         Section::make('Cycle identity')
                             ->compact()
@@ -43,7 +55,7 @@ class AdmissionCycleForm
                                 TextInput::make('code')
                                     ->label('Internal cycle code')
                                     ->placeholder('AY2026-2027-SEM1')
-                                    ->helperText('A unique reference for staff and retained records.')
+                                    ->helperText('A unique reference for staff and retained records. It is reserved only once the cycle is published.')
                                     ->required()
                                     ->maxLength(40)
                                     ->extraInputAttributes([
@@ -51,11 +63,18 @@ class AdmissionCycleForm
                                         'autocapitalize' => 'characters',
                                         'spellcheck' => 'false',
                                     ])
-                                    ->unique(ignoreRecord: true),
+                                    ->rules([
+                                        fn (?AdmissionCycle $record): Closure => function (string $attribute, mixed $value, Closure $fail) use ($record): void {
+                                            if (is_string($value) && filled($value) && AdmissionCycle::codeIsReservedByAnotherCycle($value, $record?->id)) {
+                                                $fail(AdmissionCycle::CodeReservedMessage);
+                                            }
+                                        },
+                                    ]),
                                 Select::make('term_id')
-                                    ->label('Target term')
-                                    ->placeholder('Choose the term applicants will enter')
-                                    ->helperText('Selecting a term automatically detects programs with an open curriculum batch for that school year.')
+                                    ->label('Academic Year')
+                                    ->validationAttribute('Academic Year')
+                                    ->placeholder('Choose the academic year and semester applicants will enter')
+                                    ->helperText('Selecting an academic year automatically detects programs with an open curriculum batch for that school year.')
                                     ->relationship(
                                         name: 'term',
                                         titleAttribute: 'label',
@@ -70,10 +89,7 @@ class AdmissionCycleForm
                                             })
                                             ->orderByDesc('terms.starts_on'),
                                     )
-                                    ->getOptionLabelFromRecordUsing(fn (Term $record): string => collect([
-                                        $record->label,
-                                        $record->academicYear?->label,
-                                    ])->filter()->implode(' · '))
+                                    ->getOptionLabelFromRecordUsing(fn (Term $record): string => self::academicYearOptionLabel($record))
                                     ->searchable()
                                     ->preload()
                                     ->live()
@@ -127,21 +143,35 @@ class AdmissionCycleForm
                                     ->helperText('Last date the Registrar can request corrections on submitted applications.'),
                             ])
                             ->columns(['default' => 1, 'lg' => 3]),
-                        Section::make('Post-admission deadlines (Optional)')
+                        Section::make('Post-admission deadlines')
                             ->compact()
-                            ->description('Separate from the application window: use these only if you want TALA to mark admitted applications as Expired or permanently close unfinished applications after a cutoff.')
+                            ->description('Admitted applicants who miss the papers or payment deadline are marked Expired. After the final admission cutoff, unfinished applications are permanently closed.')
                             ->schema([
                                 DateTimePicker::make('requirements_due_at')
                                     ->label('Physical papers due')
                                     ->validationAttribute('Physical papers due')
+                                    ->afterOrEqual(fn (Get $get): ?string => filled($get('closes_at')) ? 'closes_at' : null)
+                                    ->beforeOrEqual(fn (Get $get): ?string => filled($get('period_ends_at')) ? 'period_ends_at' : null)
+                                    ->validationMessages([
+                                        'after_or_equal' => 'Physical papers due must be on or after New applications close.',
+                                        'before_or_equal' => 'Physical papers due must be on or before the Final admission cutoff.',
+                                    ])
                                     ->timezone('Asia/Manila')
                                     ->seconds(true)
+                                    ->required()
                                     ->helperText('Deadline for admitted applicants to submit physical papers.'),
                                 DateTimePicker::make('payment_due_at')
                                     ->label('Enrollment payment due')
                                     ->validationAttribute('Enrollment payment due')
+                                    ->afterOrEqual(fn (Get $get): ?string => filled($get('closes_at')) ? 'closes_at' : null)
+                                    ->beforeOrEqual(fn (Get $get): ?string => filled($get('period_ends_at')) ? 'period_ends_at' : null)
+                                    ->validationMessages([
+                                        'after_or_equal' => 'Enrollment payment due must be on or after New applications close.',
+                                        'before_or_equal' => 'Enrollment payment due must be on or before the Final admission cutoff.',
+                                    ])
                                     ->timezone('Asia/Manila')
                                     ->seconds(true)
+                                    ->required()
                                     ->helperText('Deadline for cleared applicants to complete enrollment payment.'),
                                 DateTimePicker::make('period_ends_at')
                                     ->label('Final admission cutoff')
@@ -152,14 +182,13 @@ class AdmissionCycleForm
                                     ])
                                     ->timezone('Asia/Manila')
                                     ->seconds(true)
+                                    ->required()
                                     ->helperText('After this date, all unfinished applications are permanently closed.'),
                             ])
-                            ->columns(['default' => 1, 'lg' => 3])
-                            ->collapsible()
-                            ->collapsed(fn (?AdmissionCycle $record): bool => ! ($record?->requirements_due_at || $record?->payment_due_at || $record?->period_ends_at)),
+                            ->columns(['default' => 1, 'lg' => 3]),
                     ]),
                 Step::make('Programs & student types')
-                    ->description('Confirm which student types and eligible programs accept applicants.')
+                    ->description(fn (Get $get): string => self::programsStepSummary($get))
                     ->icon('heroicon-o-academic-cap')
                     ->schema([
                         Section::make('Who can apply')
@@ -231,18 +260,82 @@ class AdmissionCycleForm
                                             ],
                                         ])->all());
                                     }),
-                                Placeholder::make('next_step_note')
-                                    ->label('Next step in setup')
-                                    ->content(new HtmlString('After saving, you will move directly to <strong>Step 3: Requirements & Publish</strong> to configure Freshman and Transferee requirements and publish the cycle.'))
+                                Placeholder::make('requirements_note')
+                                    ->label('Requirements')
+                                    ->content('After you save, you set the Freshman and Transferee requirements right here in this step.')
+                                    ->visible(fn ($livewire): bool => ! $livewire instanceof EditAdmissionCycle)
                                     ->columnSpanFull(),
                             ])
                             ->columns(2),
+                        Livewire::make(
+                            RequirementSetsRelationManager::class,
+                            fn ($livewire): array => $livewire instanceof EditAdmissionCycle ? $livewire->requirementSetsManagerProperties() : [],
+                        )
+                            ->key('requirement-sets')
+                            ->visible(fn ($livewire): bool => $livewire instanceof EditAdmissionCycle)
+                            ->columnSpanFull(),
                     ]),
             ])
                 ->skippable(fn (?AdmissionCycle $record): bool => $record instanceof AdmissionCycle)
                 ->persistStepInQueryString()
+                ->extraAttributes(['class' => 'tala-cycle-wizard'])
+                ->nextAction(fn (Action $action): Action => $action->label('Save & continue'))
+                ->cancelAction(view('filament.admin.admission-cycles.wizard-cancel'))
+                ->submitAction(view('filament.admin.admission-cycles.wizard-submit'))
                 ->columnSpanFull(),
         ]);
+    }
+
+    /**
+     * Stage-bar summary for the details step (#110 item 13), e.g. "Opens Jan 5 · Closes Feb 1".
+     */
+    public static function detailsStepSummary(Get $get): string
+    {
+        $opensAt = $get('opens_at');
+        $closesAt = $get('closes_at');
+
+        if (blank($opensAt) || blank($closesAt)) {
+            return 'Name the intake, pick the academic year, and set application dates.';
+        }
+
+        $format = fn (mixed $value): string => CarbonImmutable::parse((string) $value, 'Asia/Manila')->format('M j, Y');
+
+        return 'Opens '.$format($opensAt).' · Closes '.$format($closesAt);
+    }
+
+    /**
+     * Stage-bar summary for the programs step (#110 item 13), e.g. "2 student types · 3 programs".
+     */
+    public static function programsStepSummary(Get $get): string
+    {
+        $pathCount = count(array_filter((array) $get('accepted_paths')));
+        $programCount = count(array_filter((array) $get('programs')));
+
+        if ($pathCount === 0 && $programCount === 0) {
+            return 'Confirm which student types and eligible programs accept applicants.';
+        }
+
+        return $pathCount.' '.Str::plural('student type', $pathCount).' · '.$programCount.' '.Str::plural('program', $programCount);
+    }
+
+    /**
+     * Academic Year first, then the semester (#110 item 9): "AY 2026–2027 · First Semester".
+     * A term label that already names its year (e.g. "AY 2026-2027 - First Semester") is not repeated.
+     */
+    public static function academicYearOptionLabel(Term $term): string
+    {
+        $yearLabel = trim((string) $term->academicYear?->label);
+        $termLabel = trim((string) $term->label);
+
+        if ($yearLabel === '') {
+            return $termLabel;
+        }
+
+        $yearDigits = preg_replace('/^AY\s*/i', '', $yearLabel);
+        $semester = trim((string) preg_replace('/^(AY\s*)?'.preg_quote($yearDigits, '/').'\s*[-–·:]?\s*/i', '', $termLabel));
+        $displayYear = preg_match('/^\d/', $yearLabel) === 1 ? 'AY '.$yearLabel : $yearLabel;
+
+        return collect([$displayYear, $semester])->filter()->implode(' · ');
     }
 
     /**

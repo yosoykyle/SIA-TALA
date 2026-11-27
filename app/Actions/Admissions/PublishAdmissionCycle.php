@@ -35,6 +35,12 @@ class PublishAdmissionCycle
                 ]);
             }
 
+            if (AdmissionCycle::codeIsReservedByAnotherCycle($locked->code, $locked->id)) {
+                throw ValidationException::withMessages([
+                    'code' => AdmissionCycle::CodeReservedMessage,
+                ]);
+            }
+
             $projection = $this->readiness->for($locked);
 
             if (! $projection['ready']) {
