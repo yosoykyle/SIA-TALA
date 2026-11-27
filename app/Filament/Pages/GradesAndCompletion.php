@@ -19,6 +19,7 @@ use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\User;
 use Filament\Actions\Action;
+use Filament\Actions\BulkActionGroup;
 use Filament\Actions\ViewAction;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\View as SchemaView;
@@ -217,7 +218,7 @@ class GradesAndCompletion extends Page implements HasTable
                         ->state(fn (StudentProfile $record): string => $record->enrollments->first()?->studentSection?->reference ?? 'Not assigned')
                         ->visible(fn (): bool => filled($this->tableFilters['enrollment_scope']['term_id'] ?? null)),
                     TextColumn::make('lifecycle_status')
-                        ->label('Status')
+                        ->label('Lifecycle')
                         ->badge()
                         ->color(fn (?string $state): string => StudentProfile::lifecycleStatusColor($state))
                         ->formatStateUsing(fn (?string $state): string => StudentProfile::lifecycleStatusLabel((string) $state))
@@ -245,9 +246,15 @@ class GradesAndCompletion extends Page implements HasTable
                 ->recordUrl(fn (StudentProfile $record): string => StudentProfileResource::academicRecordUrl($record, $this))
                 ->recordActions([ViewAction::make('viewAcademicRecord')->label('Open record')->button()->color('gray')
                     ->url(fn (StudentProfile $record): string => StudentProfileResource::academicRecordUrl($record, $this))])
+                ->toolbarActions([
+                    BulkActionGroup::make([
+                        StudentOnboardingActions::exportSelectedStudentsBulkAction(),
+                        StudentOnboardingActions::sendSelectedActivationInvitesBulkAction(),
+                    ]),
+                ])
                 ->emptyState(view('filament.partials.collection-empty-state'))
                 ->emptyStateHeading(fn (): string => filled($this->getTableSearch()) || $this->getTable()->isFiltered() ? 'No students match' : 'No student records yet')
-                ->emptyStateDescription(fn (): string => filled($this->getTableSearch()) || $this->getTable()->isFiltered() ? 'Clear your search or adjust the program, enrollment or entry-year filters.' : 'Check Students & Enrollment for the student records that should appear here.')
+                ->emptyStateDescription(fn (): string => filled($this->getTableSearch()) || $this->getTable()->isFiltered() ? 'Clear your search or adjust the program, enrollment or entry-year filters.' : 'Use Import continuing students or Add continuing student above to onboard existing Servitech students, or check Students & Enrollment for newly enrolled records.')
                 ->searchPlaceholder('Student name or number');
         }
 

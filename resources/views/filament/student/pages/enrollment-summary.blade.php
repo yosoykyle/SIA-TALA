@@ -21,10 +21,21 @@
         'identityName' => trim($student?->first_name.' '.$student?->last_name),
         'identityProgram' => $studyContext['program_name'] ?? 'Your program is being recorded',
         'identityNumber' => $student?->student_number,
-        'identityStudies' => $studyContext['is_official'] ? $studyContext['study_level_label'].' · '.$studyContext['semester'].' · '.$studyContext['academic_year'] : null,
+        'identityStudies' => $studyContext['is_official']
+            ? $studyContext['study_level_label'].' · '.$studyContext['semester'].' · '.$studyContext['academic_year']
+            : ($studyContext['study_level_label'] !== 'Unavailable' ? $studyContext['study_level_label'].' (provisional)' : null),
     ])
     @php
+        $financialHolds = $activeFinancialHolds ?? collect();
+        $hasFinancialHolds = $financialHolds->isNotEmpty();
+        $isAwaitingEnrollment = $case === null;
+        $hasPriorCredits = ($priorCreditsSummary['count'] ?? 0) > 0;
+        $priorPassedCount = (int) ($priorCreditsSummary['passed_count'] ?? 0);
+        $priorUnitsFormatted = rtrim(rtrim(number_format((float) ($priorCreditsSummary['units'] ?? 0), 2, '.', ''), '0'), '.');
         $showNotice = $notice && (! $proofPending || $notice['tier'] !== 'Payment Pending or Rejected');
+        $financialHoldCoversNotice = $hasFinancialHolds && ($notice['tier'] ?? null) === 'Enrollment Blocked';
+        $showSecondaryNotice = $showNotice && ! ($isAwaitingEnrollment && $financialHoldCoversNotice);
+        $welcomeSpansWide = $hasFinancialHolds || $showSecondaryNotice;
         $paymentDue = ! $proofPending && ($position['state'] ?? 'Unavailable') !== 'Unavailable' && ($position['next_obligation'] ?? null) && (float) $position['current_due'] > 0;
         $showResults = $official && ($academicSnapshot['subjects'] ?? 0) > 0;
         $showPlan = ($academicSnapshot['total_units'] ?? 0) > 0;
@@ -35,24 +46,107 @@
             $academicSnapshot['plan']['attention'] ? $academicSnapshot['plan']['attention'].' to discuss with the Registrar' : null,
             $academicSnapshot['plan']['later'] ? $academicSnapshot['plan']['later'].' not yet enrolled' : null,
         ]) : [];
+        $remainingHolds = $hasFinancialHolds && ($isAwaitingEnrollment || ($position['state'] ?? 'Unavailable') === 'Unavailable')
+            ? $activeHolds->reject(fn (\App\Models\Hold $hold): bool => $hold->hold_type === \App\Models\Hold::TypeFinancial)->values()
+            : $activeHolds;
     @endphp
     <div class="student-bento">
-        <section @class(['student-tile student-overview-payment', 'student-tile-wide' => $showNotice, 'student-tile-full' => ! $showNotice, 'student-tile-fill' => $paymentDue, 'student-tile-info' => $proofPending || ($position['state'] ?? 'Unavailable') === 'Unavailable']) aria-labelledby="overview-payment-heading">
-            <p class="student-tile-kicker"><x-filament::icon icon="heroicon-o-credit-card" />Fees and payments</p>
-            @if ($proofPending)<h2 id="overview-payment-heading">Your submitted receipt is under review</h2><p>Accounting is reviewing your PHP {{ number_format((float) $latestEvidence->claimed_amount, 2) }} receipt. No action is needed while it is reviewed.</p>
-            @elseif (($position['state'] ?? 'Unavailable') === 'Unavailable')<h2 id="overview-payment-heading">Accounting is updating your fees</h2><p>Your balance will appear when your assessment is ready.</p>
-            @elseif ($position['next_obligation'] ?? null)<h2 id="overview-payment-heading">{{ (float) $position['current_due'] > 0 ? 'Your next payment is due' : 'Your next scheduled payment' }}</h2><p class="student-tile-figure">PHP {{ number_format((float) $position['next_obligation']['balance'], 2) }}</p><p class="student-tile-meta">{{ $position['next_obligation']['due_at'] ? 'Due '.\Carbon\CarbonImmutable::parse($position['next_obligation']['due_at'])->timezone(config('app.display_timezone'))->format('M j, Y') : 'Ask Accounting for the due date' }}</p>
-            @else<h2 id="overview-payment-heading">No remaining balance</h2><p>Your current term account has no outstanding payment.</p>@endif
-            @if (! $proofPending && ($position['state'] ?? 'Unavailable') !== 'Unavailable' && ($position['obligations'] ?? []) !== [])
-                <ul class="student-tile-schedule" aria-label="Payment schedule this term">
-                    @foreach (array_slice($position['obligations'], 0, 4) as $obligation)
-                        <li @class(['student-tile-schedule-done' => $obligation['balance'] === '0.00', 'student-tile-schedule-due' => $obligation['balance'] !== '0.00' && $obligation['is_due']])><span>{{ $obligation['label'] }}</span><span class="student-tile-schedule-amount">PHP {{ number_format((float) $obligation['amount'], 2) }}</span><span class="student-tile-chip">{{ $obligation['balance'] === '0.00' ? 'Satisfied' : ($obligation['is_due'] ? 'Due' : 'Upcoming') }}</span></li>
+        @if ($isAwaitingEnrollment)
+            <section @class(['student-tile student-overview-welcome student-tile-tint', 'student-tile-wide' => $welcomeSpansWide, 'student-tile-full' => ! $welcomeSpansWide]) aria-labelledby="overview-readiness-heading">
+                <p class="student-tile-kicker"><x-filament::icon icon="heroicon-o-academic-cap" />Enrollment readiness</p>
+                <h2 id="overview-readiness-heading">{{ $hasPriorCredits ? 'Welcome back, '.($student?->first_name ?: 'Student') : 'Welcome to Servitech Student Hub' }}</h2>
+                @if (($context['can_start'] ?? false) && ! $hasFinancialHolds)
+                    <p>Enrollment is open for {{ $context['term']?->label }}. Review your study plan or go to Enrollment when you are ready to register.</p>
+                @elseif ($hasFinancialHolds)
+                    <p>Your student record is active. Coordinate with Accounting to clear your prior-balance hold before next-term enrollment.</p>
+                @else
+                    <p>Your student record is active. No enrollment period is open right now — review your study plan and recorded credits while waiting for next term.</p>
+                @endif
+                <dl class="student-welcome-facts" aria-label="Student standing summary">
+                    <div>
+                        <dt>Program</dt>
+                        <dd>{{ $studyContext['program_name'] ?? 'Being recorded' }}</dd>
+                    </div>
+                    <div>
+                        <dt>Year standing</dt>
+                        <dd>{{ $studyContext['study_level_label'] !== 'Unavailable' ? $studyContext['study_level_label'].' (provisional)' : 'Pending enrollment' }}</dd>
+                    </div>
+                    <div>
+                        <dt>Prior credits</dt>
+                        <dd>
+                            @if ($hasPriorCredits)
+                                {{ $priorPassedCount }} {{ $priorPassedCount === 1 ? 'subject' : 'subjects' }} ({{ $priorUnitsFormatted }} {{ (float) ($priorCreditsSummary['units'] ?? 0) === 1.0 ? 'unit' : 'units' }})
+                            @else
+                                None recorded yet
+                            @endif
+                        </dd>
+                    </div>
+                </dl>
+                <div class="student-tile-actions">
+                    @if (($context['can_start'] ?? false) && ! $hasFinancialHolds)
+                        <x-filament::button tag="a" :href="\App\Filament\Student\Pages\Enrollment::getUrl(panel: 'student')" icon="heroicon-m-arrow-right" icon-position="after">Go to Enrollment</x-filament::button>
+                        <x-filament::button tag="a" color="gray" :href="\App\Filament\Student\Pages\Academics::getUrl(['view' => 'plan'], panel: 'student')">Review your study plan</x-filament::button>
+                    @else
+                        <x-filament::button tag="a" :href="\App\Filament\Student\Pages\Academics::getUrl(['view' => 'plan'], panel: 'student')" icon="heroicon-m-arrow-right" icon-position="after">Review your study plan</x-filament::button>
+                        @if ($hasPriorCredits)
+                            <x-filament::button tag="a" color="gray" :href="\App\Filament\Student\Pages\Academics::getUrl(['view' => 'record'], panel: 'student')">View academic record</x-filament::button>
+                        @else
+                            <x-filament::button tag="a" color="gray" :href="\App\Filament\Student\Pages\Enrollment::getUrl(panel: 'student')">Go to Enrollment</x-filament::button>
+                        @endif
+                    @endif
+                </div>
+            </section>
+            @if ($hasFinancialHolds)
+                @php
+                    $holdMessages = $financialHolds->map(fn (\App\Models\Hold $hold): string => $hold->studentFacingMessage())->filter()->unique()->values();
+                    $holdNotes = $financialHolds
+                        ->filter(fn (\App\Models\Hold $hold): bool => filled($hold->reason) && $hold->reason !== $hold->studentFacingMessage() && $hold->reason !== $hold->staff_only_reason)
+                        ->pluck('reason')
+                        ->unique()
+                        ->values();
+                @endphp
+                <section class="student-tile student-tile-wide student-tile-attention" role="status" aria-labelledby="overview-financial-hold-heading">
+                    <p class="student-tile-kicker"><x-filament::icon icon="heroicon-o-exclamation-triangle" />Prior-balance hold</p>
+                    <h2 id="overview-financial-hold-heading">Financial hold on your account</h2>
+                    @foreach ($holdMessages as $msg)
+                        <p>{{ $msg }}</p>
                     @endforeach
-                </ul>
+                    @foreach ($holdNotes as $note)
+                        <p class="student-tile-meta"><strong>Hold note:</strong> {{ $note }}</p>
+                    @endforeach
+                    <p class="student-tile-meta">Once settled, the Accounting Office or Registrar will lift this hold so you can enroll and request official records.</p>
+                    <div class="student-tile-actions">
+                        <x-filament::button tag="a" color="gray" :href="\App\Filament\Student\Pages\Finance::getUrl(panel: 'student')">View fees and payments</x-filament::button>
+                    </div>
+                </section>
             @endif
-            <div class="student-tile-actions"><x-filament::button tag="a" color="gray" :href="\App\Filament\Student\Pages\Finance::getUrl(panel: 'student')">View fees and payments</x-filament::button></div>
-        </section>
-        @if ($showNotice)
+        @else
+            <section @class(['student-tile student-overview-payment', 'student-tile-wide' => $showSecondaryNotice, 'student-tile-full' => ! $showSecondaryNotice, 'student-tile-fill' => $paymentDue, 'student-tile-attention' => ! $proofPending && ($position['state'] ?? 'Unavailable') === 'Unavailable' && $hasFinancialHolds, 'student-tile-info' => $proofPending || (($position['state'] ?? 'Unavailable') === 'Unavailable' && ! $hasFinancialHolds)]) aria-labelledby="overview-payment-heading">
+                <p class="student-tile-kicker"><x-filament::icon :icon="! $proofPending && ($position['state'] ?? 'Unavailable') === 'Unavailable' && $hasFinancialHolds ? 'heroicon-o-exclamation-triangle' : 'heroicon-o-credit-card'" />{{ ! $proofPending && ($position['state'] ?? 'Unavailable') === 'Unavailable' && $hasFinancialHolds ? 'Prior-balance hold' : 'Fees and payments' }}</p>
+                @if ($proofPending)<h2 id="overview-payment-heading">Your submitted receipt is under review</h2><p>Accounting is reviewing your PHP {{ number_format((float) $latestEvidence->claimed_amount, 2) }} receipt. No action is needed while it is reviewed.</p>
+                @elseif (($position['state'] ?? 'Unavailable') === 'Unavailable' && $hasFinancialHolds)
+                    <h2 id="overview-payment-heading">Financial hold on your account</h2>
+                    @foreach ($financialHolds as $hold)
+                        <p>{{ $hold->studentFacingMessage() }}</p>
+                        @if (filled($hold->reason) && $hold->reason !== $hold->studentFacingMessage() && $hold->reason !== $hold->staff_only_reason)
+                            <p class="student-tile-meta"><strong>Hold note:</strong> {{ $hold->reason }}</p>
+                        @endif
+                    @endforeach
+                    <p class="student-tile-meta">Once settled, the Accounting Office or Registrar will lift this hold.</p>
+                @elseif (($position['state'] ?? 'Unavailable') === 'Unavailable')<h2 id="overview-payment-heading">Accounting is updating your fees</h2><p>Your balance will appear when your assessment is ready.</p>
+                @elseif ($position['next_obligation'] ?? null)<h2 id="overview-payment-heading">{{ (float) $position['current_due'] > 0 ? 'Your next payment is due' : 'Your next scheduled payment' }}</h2><p class="student-tile-figure">PHP {{ number_format((float) $position['next_obligation']['balance'], 2) }}</p><p class="student-tile-meta">{{ $position['next_obligation']['due_at'] ? 'Due '.\Carbon\CarbonImmutable::parse($position['next_obligation']['due_at'])->timezone(config('app.display_timezone'))->format('M j, Y') : 'Ask Accounting for the due date' }}</p>
+                @else<h2 id="overview-payment-heading">No remaining balance</h2><p>Your current term account has no outstanding payment.</p>@endif
+                @if (! $proofPending && ($position['state'] ?? 'Unavailable') !== 'Unavailable' && ($position['obligations'] ?? []) !== [])
+                    <ul class="student-tile-schedule" aria-label="Payment schedule this term">
+                        @foreach (array_slice($position['obligations'], 0, 4) as $obligation)
+                            <li @class(['student-tile-schedule-done' => $obligation['balance'] === '0.00', 'student-tile-schedule-due' => $obligation['balance'] !== '0.00' && $obligation['is_due']])><span>{{ $obligation['label'] }}</span><span class="student-tile-schedule-amount">PHP {{ number_format((float) $obligation['amount'], 2) }}</span><span class="student-tile-chip">{{ $obligation['balance'] === '0.00' ? 'Satisfied' : ($obligation['is_due'] ? 'Due' : 'Upcoming') }}</span></li>
+                        @endforeach
+                    </ul>
+                @endif
+                <div class="student-tile-actions"><x-filament::button tag="a" color="gray" :href="\App\Filament\Student\Pages\Finance::getUrl(panel: 'student')">View fees and payments</x-filament::button></div>
+            </section>
+        @endif
+        @if ($showSecondaryNotice)
             <section class="student-tile student-tile-wide student-tile-attention" aria-label="Needs your attention">
                 <p class="student-tile-kicker"><x-filament::icon icon="heroicon-o-information-circle" />Needs your attention</p>
                 @if ($irregular = $notice['irregular'] ?? null)
@@ -88,7 +182,7 @@
             <p class="student-tile-kicker"><x-filament::icon icon="heroicon-o-document-text" />Enrollment</p>
             <h2 id="overview-enrollment-heading">{{ $title }}</h2>
             <p class="student-tile-meta">{{ $case?->term?->label ?? $context['term']?->label ?? 'The Registrar will confirm the enrollment period.' }}@if ($showResults) · {{ $academicSnapshot['subjects'] }} {{ $academicSnapshot['subjects'] === 1 ? 'subject' : 'subjects' }}@endif</p>
-            @if ($official || ! $showNotice || ($context['reason'] ?? null) !== $notice['student_reason'])<p>{{ $official ? 'Open your enrollment record to check subjects and document availability.' : ($context['reason'] ?? 'Review your subjects and fees when the Registrar has prepared them.') }}</p>@endif
+            @if ($official || ! $showSecondaryNotice || ($context['reason'] ?? null) !== $notice['student_reason'])<p>{{ $official ? 'Open your enrollment record to check subjects and document availability.' : ($context['reason'] ?? 'Review your subjects and fees when the Registrar has prepared them.') }}</p>@endif
             <div class="student-tile-actions"><x-filament::button tag="a" :href="\App\Filament\Student\Pages\Enrollment::getUrl(panel: 'student')" icon="heroicon-m-arrow-right" icon-position="after">View enrollment</x-filament::button></div>
         </section>
         @if ($showResults)
@@ -111,11 +205,11 @@
                 <div class="student-tile-actions"><x-filament::button tag="a" color="gray" :href="\App\Filament\Student\Pages\Academics::getUrl(['view' => 'plan'], panel: 'student')">View study plan</x-filament::button></div>
             </section>
         @endif
-        @if ($activeHolds->isNotEmpty())
+        @if ($remainingHolds->isNotEmpty())
             <section class="student-tile student-tile-full student-tile-attention" aria-label="School matters to resolve">
                 <p class="student-tile-kicker"><x-filament::icon icon="heroicon-o-exclamation-triangle" />Holds</p>
                 <h2>School matters to resolve</h2>
-                <ul class="student-tile-list">@foreach ($activeHolds as $hold)<li>{{ $hold->studentFacingMessage() }}</li>@endforeach</ul>
+                <ul class="student-tile-list">@foreach ($remainingHolds as $hold)<li>{{ $hold->studentFacingMessage() }}</li>@endforeach</ul>
             </section>
         @endif
         @php

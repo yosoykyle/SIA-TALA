@@ -3,6 +3,7 @@
 namespace App\Actions\StudentHub;
 
 use App\Actions\Academics\AcademicEnrollmentGuidance;
+use App\Actions\Academics\CurriculumEvaluation;
 use App\Actions\Enrollment\CurrentOfficialEnrollmentResolver;
 use App\Actions\Enrollment\EnrollmentAcademicContextResolver;
 use App\Actions\StudentLifecycle\HoldEvaluationService;
@@ -13,6 +14,7 @@ use App\Models\GradeRosterRow;
 use App\Models\Hold;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
+use App\Models\PriorAcademicCredit;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
 use App\Models\SectionMeeting;
@@ -330,33 +332,103 @@ class StudentDashboardService
             ->orderBy('id')
             ->get();
 
-        return $grades
-            ->groupBy(fn (GradeRosterRow $row): int => (int) $row->roster->termOffering->term_id)
-            ->map(function (Collection $termGrades, int|string $termId): array {
-                $term = $termGrades->first()?->roster?->termOffering?->term;
+        $termBuckets = [];
 
-                return [
-                    'term_id' => (int) $termId,
-                    'term_name' => $term?->label,
-                    'grades' => $termGrades
-                        ->map(fn (GradeRosterRow $grade): array => [
-                            'grade_roster_row_id' => (int) $grade->id,
-                            'course_enrollment_id' => (int) $grade->course_enrollment_id,
-                            'subject_code' => $grade->roster->termOffering->curriculumEntry?->courseSpecification?->course?->code,
-                            'subject_description' => $grade->roster->termOffering->curriculumEntry?->courseSpecification?->title,
-                            'grade' => $grade->current_outcome_code,
-                            'display_grade' => $this->gradeLabels->displayGrade($grade->current_outcome_code, $grade->current_outcome_category),
-                            'remarks' => $grade->current_outcome_category,
-                            'is_inc' => $grade->current_outcome_code === 'INC',
-                            'is_finalized' => true,
-                            'finalized_at' => $grade->released_at?->toDateTimeString(),
-                        ])
-                        ->values()
-                        ->all(),
+        foreach ($grades->groupBy(fn (GradeRosterRow $row): int => (int) $row->roster->termOffering->term_id) as $termId => $termGrades) {
+            $term = $termGrades->first()?->roster?->termOffering?->term;
+            $bucketKey = 'term:'.(int) $termId;
+
+            $termBuckets[$bucketKey] = [
+                'term_id' => (int) $termId,
+                'term_name' => $term?->label,
+                'sort_key' => '1|'.($term?->ends_on?->toDateString() ?? '9999-12-31').'|'.sprintf('%010d', (int) $termId),
+                'grades' => $termGrades
+                    ->map(fn (GradeRosterRow $grade): array => [
+                        'grade_roster_row_id' => (int) $grade->id,
+                        'course_enrollment_id' => (int) $grade->course_enrollment_id,
+                        'subject_code' => $grade->roster->termOffering->curriculumEntry?->courseSpecification?->course?->code,
+                        'subject_description' => $grade->roster->termOffering->curriculumEntry?->courseSpecification?->title,
+                        'grade' => $grade->current_outcome_code,
+                        'display_grade' => $this->gradeLabels->displayGrade($grade->current_outcome_code, $grade->current_outcome_category),
+                        'remarks' => $grade->current_outcome_category,
+                        'is_inc' => $grade->current_outcome_code === 'INC',
+                        'is_finalized' => true,
+                        'finalized_at' => $grade->released_at?->toDateTimeString(),
+                    ])
+                    ->values()
+                    ->all(),
+            ];
+        }
+
+        $priorCredits = PriorAcademicCredit::query()
+            ->active()
+            ->where('student_profile_id', $studentProfile->id)
+            ->with(['courseSpecification.course', 'term.academicYear', 'curriculumEntry'])
+            ->orderByDesc('recorded_at')
+            ->orderBy('id')
+            ->get();
+
+        foreach ($priorCredits as $credit) {
+            $bucketKey = $credit->periodKey();
+            $resultCode = $credit->effectiveResultCode();
+            $isExternal = CurriculumEvaluation::isExternalTransferPriorCredit($credit);
+
+            if (! isset($termBuckets[$bucketKey])) {
+                $displayTerm = $credit->displayTermLabel();
+                $displayAy = $credit->displayAcademicYearLabel();
+                $periodLabel = $credit->term !== null
+                    ? $displayTerm
+                    : collect([$displayTerm, $displayAy !== 'Prior Institutional Record' ? $displayAy : null])
+                        ->filter()
+                        ->unique()
+                        ->implode(' · ');
+
+                $termBuckets[$bucketKey] = [
+                    'term_id' => $credit->term_id !== null ? (int) $credit->term_id : null,
+                    'term_name' => $periodLabel !== '' ? $periodLabel : $displayTerm,
+                    'sort_key' => $credit->periodSortKey(),
+                    'grades' => [],
                 ];
-            })
+            }
+
+            $termBuckets[$bucketKey]['grades'][] = [
+                'grade_roster_row_id' => null,
+                'prior_academic_credit_id' => (int) $credit->id,
+                'course_enrollment_id' => null,
+                'subject_code' => $credit->courseSpecification?->course?->code,
+                'subject_description' => $credit->courseSpecification?->title,
+                'grade' => $resultCode,
+                'display_grade' => $this->priorCreditDisplayGrade($resultCode, $isExternal),
+                'remarks' => $credit->result_status,
+                'source' => $isExternal ? 'external_transfer' : 'pre_tala',
+                'is_inc' => $resultCode === 'INC',
+                'is_finalized' => true,
+                'finalized_at' => $credit->recorded_at?->toDateTimeString(),
+            ];
+        }
+
+        return collect($termBuckets)
+            ->sortByDesc('sort_key')
+            ->map(fn (array $bucket): array => [
+                'term_id' => $bucket['term_id'],
+                'term_name' => $bucket['term_name'],
+                'grades' => $bucket['grades'],
+            ])
             ->values()
             ->all();
+    }
+
+    private function priorCreditDisplayGrade(string $resultCode, bool $isExternalTransfer): string
+    {
+        if ($isExternalTransfer && in_array($resultCode, ['TC', 'CREDIT'], true)) {
+            return 'Transfer Credit';
+        }
+
+        if ($resultCode === 'CREDIT') {
+            return 'Credited';
+        }
+
+        return $this->gradeLabels->displayGrade($resultCode, null) ?? $resultCode;
     }
 
     /**

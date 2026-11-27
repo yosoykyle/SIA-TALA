@@ -3,10 +3,14 @@
 namespace App\Actions\Completion;
 
 use App\Actions\Academics\OfficialCourseResultProjection;
+use App\Actions\StudentLifecycle\HoldEvaluationService;
+use App\Models\AcademicYear;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
+use App\Models\CurriculumVersion;
 use App\Models\DegreeConferral;
 use App\Models\Enrollment;
+use App\Models\Hold;
 use App\Models\PriorAcademicCredit;
 use App\Models\ProgramShiftCreditEntry;
 use App\Models\RegistrationCreditEvaluation;
@@ -35,6 +39,10 @@ class TranscriptPreview
         $restrictions = app(OfficialOutputRestrictionService::class)->activeFor($student);
         if ($restrictions->isNotEmpty()) {
             throw ValidationException::withMessages(['transcript' => 'Accounting must resolve the official TOR restriction: '.$restrictions->pluck('reason')->implode('; ')]);
+        }
+        $recordReleaseHolds = app(HoldEvaluationService::class)->activeBlockingHolds($student, [Hold::BlockingRecordRelease]);
+        if ($recordReleaseHolds->isNotEmpty()) {
+            throw ValidationException::withMessages(['transcript' => 'Accounting must resolve the official TOR hold: '.$recordReleaseHolds->pluck('reason')->implode('; ')]);
         }
 
         $missing = collect([
@@ -76,7 +84,8 @@ class TranscriptPreview
                     'academic_year' => $term->academicYear->label,
                     'term_id' => $term->id,
                     'term' => $term->label,
-                    'term_starts_on' => $term->starts_on->toDateString(),
+                    'period_sort_key' => $this->termSortKey($term),
+                    'course_id' => (int) $course->id,
                     'course_code' => $course->code,
                     'course_title' => $specification->title,
                     'units' => $result['units'],
@@ -93,50 +102,6 @@ class TranscriptPreview
             ->map(fn (mixed $id): int => (int) $id)
             ->unique()
             ->values();
-        $approvedCreditRows = ProgramShiftCreditEntry::query()
-            ->where('treatment', ProgramShiftCreditEntry::TreatmentAccepted)
-            ->where('state', ProgramShiftCreditEntry::StateRecorded)
-            ->whereHas('lifecycleChange', fn ($query) => $query
-                ->where('student_profile_id', $student->id)
-                ->where('state', StudentLifecycleChange::StateApplied))
-            ->with([
-                'lifecycleChange.term.academicYear',
-                'curriculumEntry.courseSpecification.course',
-                'sourceCourse',
-                'sourceGradeOutcomeEvent',
-            ])
-            ->get()
-            ->map(function (ProgramShiftCreditEntry $credit) use ($countedReleasedEventIds): array {
-                $term = $credit->lifecycleChange->term;
-                $specification = $credit->curriculumEntry->courseSpecification;
-                $units = (float) $specification->credit_units;
-                $sourceResult = $credit->source_grade_outcome_event_id !== null
-                    ? $credit->sourceGradeOutcomeEvent->result_code
-                    : null;
-                $sourceCourseCode = $credit->source_course_id !== null
-                    ? $credit->sourceCourse->code
-                    : null;
-                $alreadyCountedInReleased = $credit->source_grade_outcome_event_id !== null
-                    && $countedReleasedEventIds->contains((int) $credit->source_grade_outcome_event_id);
-
-                return [
-                    'academic_year' => $term->academicYear->label,
-                    'term_id' => $term->id,
-                    'term' => $term->label,
-                    'term_starts_on' => $term->starts_on->toDateString(),
-                    'course_code' => $specification->course->code,
-                    'course_title' => $specification->title,
-                    'units' => number_format($units, 2, '.', ''),
-                    'result' => $credit->numeric_grade ?? $sourceResult ?? 'Credited',
-                    'remarks' => filled($sourceCourseCode)
-                        ? 'Approved credit/equivalency from '.$sourceCourseCode
-                        : 'Approved credit/equivalency',
-                    'attempt_or_credit' => 'Approved credit/equivalency',
-                    'earned_units' => $alreadyCountedInReleased ? 0.0 : $units,
-                    'attempt_event_id' => $credit->source_grade_outcome_event_id,
-                ];
-            });
-        $transferCreditRows = $this->transferCreditRows($student);
         $priorCreditRows = PriorAcademicCredit::query()
             ->active()
             ->where('student_profile_id', $student->id)
@@ -153,31 +118,97 @@ class TranscriptPreview
 
                 $ayLabel = $credit->displayAcademicYearLabel();
                 $termLabel = $credit->displayTermLabel();
+                $isExternalTransfer = $credit->isExternalTransfer();
+                $remarks = $isExternalTransfer
+                    ? (filled($credit->source_school) ? 'External transfer credit ('.$credit->source_school.')' : 'External transfer credit')
+                    : (filled($credit->source_school) ? 'Prior record ('.$credit->source_school.')' : 'Prior institutional record');
 
                 return [
                     'academic_year' => $ayLabel,
                     'term_id' => $credit->term_id ?? ('prior:'.$ayLabel.'|'.$termLabel),
                     'term' => $termLabel,
-                    'term_starts_on' => $credit->term?->starts_on?->toDateString() ?? $credit->periodSortKey(),
+                    'period_sort_key' => $credit->term instanceof Term
+                        ? $this->termSortKey($credit->term)
+                        : $credit->periodSortKey(),
+                    'course_id' => (int) $course->id,
                     'course_code' => $course->code,
                     'course_title' => $specification->title,
                     'units' => number_format((float) $credit->units, 2, '.', ''),
                     'result' => $credit->effectiveResultCode(),
-                    'remarks' => filled($credit->source_school) ? 'Prior record ('.$credit->source_school.')' : 'Prior institutional record',
-                    'attempt_or_credit' => 'Prior record',
+                    'remarks' => $remarks,
+                    'attempt_or_credit' => $isExternalTransfer ? 'Transfer credit' : 'Prior record',
                     'earned_units' => $credit->isPassing() ? (float) $credit->units : 0.0,
                     'attempt_event_id' => null,
                     'prior_credit_id' => (int) $credit->id,
+                    'is_external_transfer' => $isExternalTransfer,
                 ];
             });
+        $countedPriorCreditIds = $priorCreditRows
+            ->filter(fn (array $row): bool => (float) $row['earned_units'] > 0.0 && $row['prior_credit_id'] !== null)
+            ->pluck('prior_credit_id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values();
+        $approvedCreditRows = ProgramShiftCreditEntry::query()
+            ->where('treatment', ProgramShiftCreditEntry::TreatmentAccepted)
+            ->where('state', ProgramShiftCreditEntry::StateRecorded)
+            ->whereHas('lifecycleChange', fn ($query) => $query
+                ->where('student_profile_id', $student->id)
+                ->where('state', StudentLifecycleChange::StateApplied))
+            ->with([
+                'lifecycleChange.term.academicYear',
+                'curriculumEntry.courseSpecification.course',
+                'sourceCourse',
+                'sourceGradeOutcomeEvent',
+                'sourcePriorAcademicCredit',
+            ])
+            ->get()
+            ->map(function (ProgramShiftCreditEntry $credit) use ($countedReleasedEventIds, $countedPriorCreditIds): array {
+                $term = $credit->lifecycleChange->term;
+                $specification = $credit->curriculumEntry->courseSpecification;
+                $units = (float) $specification->credit_units;
+                $sourceResult = $credit->source_grade_outcome_event_id !== null
+                    ? $credit->sourceGradeOutcomeEvent->result_code
+                    : ($credit->source_prior_academic_credit_id !== null
+                        ? $credit->sourcePriorAcademicCredit?->effectiveResultCode()
+                        : null);
+                $sourceCourseCode = $credit->source_course_id !== null
+                    ? $credit->sourceCourse->code
+                    : null;
+                $alreadyCounted = ($credit->source_grade_outcome_event_id !== null
+                        && $countedReleasedEventIds->contains((int) $credit->source_grade_outcome_event_id))
+                    || ($credit->source_prior_academic_credit_id !== null
+                        && $countedPriorCreditIds->contains((int) $credit->source_prior_academic_credit_id));
+
+                return [
+                    'academic_year' => $term->academicYear->label,
+                    'term_id' => $term->id,
+                    'term' => $term->label,
+                    'period_sort_key' => $this->termSortKey($term),
+                    'course_id' => (int) $specification->course_id,
+                    'course_code' => $specification->course->code,
+                    'course_title' => $specification->title,
+                    'units' => number_format($units, 2, '.', ''),
+                    'result' => $credit->numeric_grade ?? $sourceResult ?? 'Credited',
+                    'remarks' => filled($sourceCourseCode)
+                        ? 'Approved credit/equivalency from '.$sourceCourseCode
+                        : 'Approved credit/equivalency',
+                    'attempt_or_credit' => 'Approved credit/equivalency',
+                    'earned_units' => $alreadyCounted ? 0.0 : $units,
+                    'attempt_event_id' => $credit->source_grade_outcome_event_id,
+                ];
+            });
+        $transferCreditRows = $this->transferCreditRows($student);
+
         $runningEarnedUnits = 0.0;
+        $earnedCourseIds = [];
         $rowsWithSummaries = [];
         $termGroups = $releasedRows
             ->concat($approvedCreditRows)
             ->concat($transferCreditRows)
             ->concat($priorCreditRows)
             ->sortBy([
-                ['term_starts_on', 'asc'],
+                ['period_sort_key', 'asc'],
                 ['term_id', 'asc'],
                 ['course_code', 'asc'],
                 ['attempt_event_id', 'asc'],
@@ -186,10 +217,23 @@ class TranscriptPreview
         foreach ($termGroups as $termRows) {
             $termRows = $termRows->values();
             $termUnits = $termRows->sum(fn (array $row): float => (float) $row['units']);
-            $runningEarnedUnits += $termRows->sum(fn (array $row): float => (float) $row['earned_units']);
+            foreach ($termRows as $row) {
+                $earned = (float) $row['earned_units'];
+                $courseId = isset($row['course_id']) ? (int) $row['course_id'] : 0;
+                if ($earned > 0.0) {
+                    if ($courseId > 0 && isset($earnedCourseIds[$courseId])) {
+                        $earned = 0.0;
+                    } else {
+                        if ($courseId > 0) {
+                            $earnedCourseIds[$courseId] = true;
+                        }
+                        $runningEarnedUnits += $earned;
+                    }
+                }
+            }
             foreach ($termRows as $index => $row) {
                 $rowsWithSummaries[] = [
-                    ...collect($row)->except(['term_id', 'term_starts_on', 'earned_units'])->all(),
+                    ...collect($row)->except(['term_id', 'period_sort_key', 'earned_units', 'course_id'])->all(),
                     'term_summary' => $index === $termRows->count() - 1
                         ? [
                             'term_units' => number_format($termUnits, 2, '.', ''),
@@ -245,6 +289,7 @@ class TranscriptPreview
         $fingerprintSource = [
             'request_source_fingerprint' => $request->source_fingerprint,
             'output_restriction_source' => app(OfficialOutputRestrictionService::class)->fingerprintFor($student),
+            'record_release_hold_ids' => $recordReleaseHolds->pluck('id')->values()->all(),
             'academic_event_ids' => collect($academicYears)->flatten(1)->pluck('attempt_event_id')->filter()->values()->all(),
             'prior_credit_ids' => collect($academicYears)->flatten(1)->pluck('prior_credit_id')->filter()->values()->all(),
             'content' => collect($content)->except(['request', 'status'])->all(),
@@ -252,6 +297,27 @@ class TranscriptPreview
         $content['source_fingerprint'] = hash('sha256', json_encode($fingerprintSource, JSON_THROW_ON_ERROR));
 
         return $content;
+    }
+
+    private function termSortKey(Term $term): string
+    {
+        $startYear = $term->academicYear instanceof AcademicYear
+            ? (CurriculumVersion::extractAcademicYearStart($term->academicYear) ?? (int) ($term->starts_on?->year ?? 9999))
+            : (int) ($term->starts_on?->year ?? 9999);
+        $termOrder = match ($term->type) {
+            Term::TypeFirstSemester => 1,
+            Term::TypeSecondSemester => 2,
+            Term::TypeSpecialTerm => 3,
+            default => 4,
+        };
+
+        return sprintf(
+            '%04d|%d|%s|%010d',
+            $startYear,
+            $termOrder,
+            $term->starts_on?->toDateString() ?? '9999-12-31',
+            (int) $term->id,
+        );
     }
 
     /**
@@ -301,7 +367,8 @@ class TranscriptPreview
                         'academic_year' => $term->academicYear->label,
                         'term_id' => $term->id,
                         'term' => $term->label,
-                        'term_starts_on' => $term->starts_on->toDateString(),
+                        'period_sort_key' => $this->termSortKey($term),
+                        'course_id' => (int) $specification->course_id,
                         'course_code' => $specification->course->code,
                         'course_title' => $specification->title,
                         'units' => number_format($units, 2, '.', ''),

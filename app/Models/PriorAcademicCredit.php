@@ -20,6 +20,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $final_grade
  * @property string $result_status
  * @property string|null $source_school
+ * @property bool $is_external_transfer
  * @property string $state
  * @property int|null $recorded_by
  * @property Carbon|null $recorded_at
@@ -55,6 +56,7 @@ class PriorAcademicCredit extends Model
         'final_grade',
         'result_status',
         'source_school',
+        'is_external_transfer',
         'state',
         'recorded_by',
         'recorded_at',
@@ -68,9 +70,15 @@ class PriorAcademicCredit extends Model
         return [
             'year_level' => 'integer',
             'units' => 'decimal:2',
+            'is_external_transfer' => 'boolean',
             'recorded_at' => 'datetime',
             'revoked_at' => 'datetime',
         ];
+    }
+
+    public function isExternalTransfer(): bool
+    {
+        return (bool) $this->is_external_transfer;
     }
 
     /** @return list<string> */
@@ -141,6 +149,14 @@ class PriorAcademicCredit extends Model
 
     public function effectiveResultCode(): string
     {
+        if ($this->isExternalTransfer()
+            && ! in_array($this->result_status, [self::ResultFailed, self::ResultInc, self::ResultDropped], true)) {
+            $grade = trim((string) ($this->final_grade ?? ''));
+            if ($grade === '' || ! is_numeric($grade) || (float) $grade <= 4.00) {
+                return 'TC';
+            }
+        }
+
         $grade = trim((string) ($this->final_grade ?? ''));
 
         if ($grade !== '') {
@@ -155,11 +171,11 @@ class PriorAcademicCredit extends Model
         }
 
         return match ($this->result_status) {
-            self::ResultCredited => 'CREDIT',
+            self::ResultCredited => $this->isExternalTransfer() ? 'TC' : 'CREDIT',
             self::ResultFailed => '5.00',
             self::ResultInc => 'INC',
             self::ResultDropped => 'DRP',
-            default => 'CREDIT',
+            default => $this->isExternalTransfer() ? 'TC' : 'CREDIT',
         };
     }
 
@@ -209,21 +225,37 @@ class PriorAcademicCredit extends Model
     public function periodSortKey(): string
     {
         if ($this->term instanceof Term) {
-            return '1|'.($this->term->ends_on?->toDateString() ?? '9999-12-31').'|'.($this->term->starts_on?->toDateString() ?? '9999-12-31').'|'.sprintf('%010d', $this->term->id);
+            $startYear = $this->term->academicYear instanceof AcademicYear
+                ? (CurriculumVersion::extractAcademicYearStart($this->term->academicYear) ?? (int) ($this->term->starts_on?->year ?? 9999))
+                : (int) ($this->term->starts_on?->year ?? 9999);
+            $termOrder = match ($this->term->type) {
+                Term::TypeFirstSemester => 1,
+                Term::TypeSecondSemester => 2,
+                Term::TypeSpecialTerm => 3,
+                default => 4,
+            };
+
+            return sprintf(
+                '%04d|%d|%s|%010d',
+                $startYear,
+                $termOrder,
+                $this->term->starts_on?->toDateString() ?? '9999-12-31',
+                (int) $this->term->id,
+            );
         }
 
         $ay = $this->displayAcademicYearLabel();
         preg_match('/(19|20)\d{2}/', $ay, $matches);
-        $yearPart = $matches[0] ?? '0000';
+        $yearPart = isset($matches[0]) ? (int) $matches[0] : 0;
         $termLower = strtolower($this->displayTermLabel());
         $termOrder = match (true) {
-            str_contains($termLower, '1st'), str_contains($termLower, 'first') => '1',
-            str_contains($termLower, '2nd'), str_contains($termLower, 'second') => '2',
-            str_contains($termLower, 'sum'), str_contains($termLower, 'special'), str_contains($termLower, 'mid') => '3',
-            default => '4',
+            str_contains($termLower, '1st'), str_contains($termLower, 'first') => 1,
+            str_contains($termLower, '2nd'), str_contains($termLower, 'second') => 2,
+            str_contains($termLower, 'sum'), str_contains($termLower, 'special'), str_contains($termLower, 'mid') => 3,
+            default => 4,
         };
         $yearLevel = sprintf('%02d', (int) ($this->year_level ?? 0));
 
-        return "0|{$yearPart}|{$yearLevel}|{$termOrder}|{$ay}|{$this->displayTermLabel()}";
+        return sprintf('%04d|%d|0000-00-00|%s|%s|%s', $yearPart, $termOrder, $yearLevel, $ay, $this->displayTermLabel());
     }
 }

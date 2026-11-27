@@ -2,25 +2,29 @@
 
 namespace App\Actions\StudentProfiles;
 
-use App\Actions\AcademicSetup\CurriculumSpreadsheetParser;
-use App\Models\Course;
+use App\Models\AcademicYear;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
-use App\Models\PriorAcademicCredit;
+use App\Models\Enrollment;
+use App\Models\Hold;
 use App\Models\Program;
+use App\Models\StudentImportBatch;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class OngoingStudentSpreadsheetImportService
 {
     public const StatusReady = 'ready';
+
+    public const StatusUpdateUnactivated = 'update_unactivated';
 
     public const StatusAlreadyOnboarded = 'already_onboarded';
 
@@ -31,35 +35,43 @@ class OngoingStudentSpreadsheetImportService
     public function __construct(
         private readonly OnboardExistingStudent $onboardStudent,
         private readonly RecordPriorAcademicCredits $priorCredits,
+        private readonly StudentAccountActivation $activation,
     ) {}
 
     /**
-     * Validate parsed Sheet 1 (`Students`) and optional Sheet 2 (`Prior Subjects`) rows
-     * against live DB state without writing any records.
+     * Validate parsed Cohort Roster (`Students`) rows against live DB state and selected cohort scope
+     * without writing any records.
      *
      * @param  list<array<string, mixed>>  $parsedStudents
-     * @param  list<array<string, mixed>>  $parsedPriorSubjects
      * @param  array<string|int, array<string, mixed>>  $rowOverrides
+     * @param  array{
+     *     program_id?: int|null,
+     *     curriculum_version_id?: int|null,
+     *     entry_academic_year_id?: int|null,
+     *     completed_through_year_level?: int|null,
+     *     completed_through_term_type?: string|null,
+     *     filename?: string|null
+     * }  $cohortScope
      * @return array{
      *     summary: array{
      *         total: int,
      *         ready_new: int,
+     *         update_unactivated: int,
      *         already_onboarded: int,
      *         blocked_count: int,
      *         skipped_count: int,
      *         warnings_count: int,
-     *         prior_subjects_total: int,
-     *         prior_subjects_ready: int,
-     *         prior_subjects_blocked: int
+     *         applicant_collisions_blocked: int,
+     *         applicant_links_opted_in: int,
+     *         estimated_prior_credits: int
      *     },
-     *     rows: list<array<string, mixed>>,
-     *     prior_subjects: list<array<string, mixed>>
+     *     rows: list<array<string, mixed>>
      * }
      */
     public function buildPreview(
         array $parsedStudents,
-        array $parsedPriorSubjects = [],
         array $rowOverrides = [],
+        array $cohortScope = [],
     ): array {
         $indexedOverrides = $this->normalizeOverrides($rowOverrides);
 
@@ -70,26 +82,56 @@ class OngoingStudentSpreadsheetImportService
                 ->orderByDesc('id')])
             ->get();
 
+        /** @var array<int, Program> $programsById */
+        $programsById = [];
         /** @var array<string, Program> $programsByCode */
         $programsByCode = [];
         foreach ($programs as $program) {
+            $programsById[(int) $program->id] = $program;
             $codeKey = strtoupper(trim((string) $program->code));
             if ($codeKey !== '') {
                 $programsByCode[$codeKey] = $program;
             }
         }
 
+        $scopeProgramId = filled($cohortScope['program_id'] ?? null) ? (int) $cohortScope['program_id'] : null;
+        $scopeProgram = $scopeProgramId !== null ? ($programsById[$scopeProgramId] ?? null) : null;
+        $scopeCurriculumId = filled($cohortScope['curriculum_version_id'] ?? null) ? (int) $cohortScope['curriculum_version_id'] : null;
+        $scopeEntryAcademicYearId = filled($cohortScope['entry_academic_year_id'] ?? null) ? (int) $cohortScope['entry_academic_year_id'] : null;
+        $scopeCompletedYear = filled($cohortScope['completed_through_year_level'] ?? null) ? (int) $cohortScope['completed_through_year_level'] : null;
+        $scopeCompletedTermType = filled($cohortScope['completed_through_term_type'] ?? null) ? trim((string) $cohortScope['completed_through_term_type']) : null;
+
         $terms = Term::query()->with('academicYear')->get();
+
+        $officiallyEnrolledProfileIds = Enrollment::query()
+            ->where('canonical_outcome', Enrollment::OutcomeOfficiallyEnrolled)
+            ->whereNotNull('student_profile_id')
+            ->distinct()
+            ->pluck('student_profile_id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->flip()
+            ->all();
 
         /** @var array<string, StudentProfile> $existingProfilesByNumber */
         $existingProfilesByNumber = [];
         /** @var array<string, StudentProfile> $existingProfilesByEmail */
         $existingProfilesByEmail = [];
+        /** @var array<string, list<StudentProfile>> $existingProfilesByNameDob */
+        $existingProfilesByNameDob = [];
+        /** @var array<string, list<StudentProfile>> $existingProfilesByLrn */
+        $existingProfilesByLrn = [];
 
         StudentProfile::query()
             ->with('user')
+            ->whereNull('archived_at')
+            ->whereNull('merged_into_id')
             ->get()
-            ->each(function (StudentProfile $profile) use (&$existingProfilesByNumber, &$existingProfilesByEmail): void {
+            ->each(function (StudentProfile $profile) use (
+                &$existingProfilesByNumber,
+                &$existingProfilesByEmail,
+                &$existingProfilesByNameDob,
+                &$existingProfilesByLrn,
+            ): void {
                 $numKey = strtoupper(trim((string) $profile->student_number));
                 if ($numKey !== '') {
                     $existingProfilesByNumber[$numKey] = $profile;
@@ -99,48 +141,52 @@ class OngoingStudentSpreadsheetImportService
                 if ($profileEmail !== '') {
                     $existingProfilesByEmail[$profileEmail] = $profile;
                 }
+
+                $nameDobKey = $this->nameDobKey(
+                    (string) $profile->first_name,
+                    (string) $profile->last_name,
+                    $profile->birth_date?->format('Y-m-d'),
+                );
+                if ($nameDobKey !== null) {
+                    $existingProfilesByNameDob[$nameDobKey][] = $profile;
+                }
+
+                $lrnKey = $this->normalizeIdentifierKey($profile->prior_identifier);
+                if ($lrnKey !== null) {
+                    $existingProfilesByLrn[$lrnKey][] = $profile;
+                }
             });
 
-        /** @var array<string, int> $existingUserIdsByEmail */
-        $existingUserIdsByEmail = User::query()
-            ->pluck('id', 'email')
-            ->mapWithKeys(fn (int $id, string $email): array => [strtolower(trim($email)) => $id])
-            ->all();
+        /** @var array<string, User> $existingUsersByEmail */
+        $existingUsersByEmail = [];
+        User::query()
+            ->with(['roles', 'studentProfile'])
+            ->get()
+            ->each(function (User $user) use (&$existingUsersByEmail): void {
+                $emailKey = strtolower(trim((string) $user->email));
+                if ($emailKey !== '') {
+                    $existingUsersByEmail[$emailKey] = $user;
+                }
+            });
 
-        $courses = Course::query()
-            ->with(['specifications' => fn ($query) => $query
-                ->orderByRaw("CASE WHEN state = 'ACTIVE' THEN 0 WHEN state = 'DRAFT' THEN 1 ELSE 2 END")
-                ->orderByDesc('id')])
-            ->get();
-
-        /** @var array<string, Course> $coursesByDisplayCode */
-        $coursesByDisplayCode = [];
-        /** @var array<string, Course> $coursesByMatchCode */
-        $coursesByMatchCode = [];
-        foreach ($courses as $course) {
-            $displayCode = CurriculumSpreadsheetParser::normalizeDisplayCode((string) $course->code);
-            $matchCode = CurriculumSpreadsheetParser::normalizeMatchCode((string) $course->code);
-            if ($displayCode !== '') {
-                $coursesByDisplayCode[$displayCode] = $course;
-            }
-            if ($matchCode !== '') {
-                $coursesByMatchCode[$matchCode] = $course;
-            }
-        }
-
-        /** @var array<int, array<int, CurriculumEntry>> $curriculumEntriesBySpecByVersion */
-        $curriculumEntriesBySpecByVersion = [];
+        /** @var array<string, int> $quickCreditCountCache */
+        $quickCreditCountCache = [];
 
         $seenBatchNumbers = [];
         $seenBatchEmails = [];
+        $seenBatchNameDob = [];
+        $seenBatchLrn = [];
         $previewRows = [];
-        $readyStudentsByNumber = [];
 
         $readyNewCount = 0;
+        $updateUnactivatedCount = 0;
         $alreadyOnboardedCount = 0;
         $blockedCount = 0;
         $skippedCount = 0;
         $warningsCount = 0;
+        $applicantCollisionsBlocked = 0;
+        $applicantLinksOptedIn = 0;
+        $estimatedPriorCredits = 0;
 
         foreach ($parsedStudents as $index => $rawRow) {
             $sourceRow = (int) ($rawRow['source_row'] ?? ($index + 1));
@@ -149,6 +195,7 @@ class OngoingStudentSpreadsheetImportService
 
             $row = $this->applyStudentOverride($rawRow, $override, $rowKey, $sourceRow);
             $isSkipped = (bool) $row['skip'];
+            $linkExistingApplicant = (bool) $row['link_existing_applicant'];
             $studentNumber = (string) $row['student_number'];
             $studentNumberKey = strtoupper($studentNumber);
             $firstName = (string) $row['first_name'];
@@ -156,169 +203,302 @@ class OngoingStudentSpreadsheetImportService
             $lastName = (string) $row['last_name'];
             $email = (string) $row['email'];
             $emailKey = strtolower($email);
-            $programCode = (string) $row['program_code'];
-            $curriculumCode = $row['curriculum_version_code'];
+            $rowProgramCode = $row['program_code'];
+            $rowCurriculumCode = $row['curriculum_version_code'];
             $entryTermCode = $row['entry_term_code'];
 
             $errors = [];
+            $fieldErrors = [];
             $warnings = [];
             $issueCategories = [];
             $editableIssueFields = [];
 
-            $matchedExistingProfile = null;
-            $alreadyOnboardedReason = null;
+            $addFieldError = function (string $field, string $message, string $category) use (
+                &$errors,
+                &$fieldErrors,
+                &$issueCategories,
+                &$editableIssueFields,
+            ): void {
+                $errors[] = $message;
+                $fieldErrors[$field][] = $message;
+                $issueCategories[] = $category;
+                $editableIssueFields[] = $field;
+            };
 
-            if (! $isSkipped) {
-                if ($studentNumberKey !== '' && isset($existingProfilesByNumber[$studentNumberKey])) {
-                    $matchedExistingProfile = $existingProfilesByNumber[$studentNumberKey];
-                    $alreadyOnboardedReason = "Student number {$studentNumber} already exists in TALA.";
-                } elseif ($emailKey !== '' && isset($existingProfilesByEmail[$emailKey])) {
-                    $matchedExistingProfile = $existingProfilesByEmail[$emailKey];
-                    $alreadyOnboardedReason = "Email {$email} already belongs to an existing student profile.";
-                } elseif ($emailKey !== '' && isset($existingUserIdsByEmail[$emailKey])) {
-                    $alreadyOnboardedReason = "Email {$email} is already registered to an existing TALA account.";
+            $matchedExistingProfile = null;
+            $isUnactivatedUpsert = false;
+            $alreadyOnboardedReason = null;
+            $isApplicantCollision = false;
+            $applicantUserId = null;
+            $hasDuplicateWarning = false;
+
+            if (! $isSkipped && $studentNumberKey !== '' && isset($existingProfilesByNumber[$studentNumberKey])) {
+                $matchedExistingProfile = $existingProfilesByNumber[$studentNumberKey];
+                $matchedUser = $matchedExistingProfile->user;
+                $hasSignedIn = $matchedUser instanceof User && $matchedUser->last_successful_sign_in_at !== null;
+                $hasOfficialEnrollment = isset($officiallyEnrolledProfileIds[(int) $matchedExistingProfile->id]);
+
+                if (! $hasSignedIn && ! $hasOfficialEnrollment) {
+                    $isUnactivatedUpsert = true;
+                } else {
+                    $alreadyOnboardedReason = $hasOfficialEnrollment
+                        ? "Student number {$studentNumber} already has an official enrollment in TALA and will be left unchanged."
+                        : "Student number {$studentNumber} has already signed in to Student Hub and will be left unchanged.";
                 }
             }
 
             $program = null;
             $curriculumVersion = null;
             $entryTerm = null;
-            $resolvedInlineCredits = [];
+            $resolvedEntryAcademicYearId = $scopeEntryAcademicYearId;
+            $normalizedStanding = StudentProfile::StandingRegular;
+            $normalizedLifecycle = StudentProfile::LifecycleActive;
+            $priorCreditsToApply = 0;
 
             if (! $isSkipped && $alreadyOnboardedReason === null) {
                 if ($studentNumber === '') {
-                    $errors[] = 'Missing student number.';
-                    $issueCategories[] = 'Missing student number';
-                    $editableIssueFields[] = OngoingStudentSpreadsheetParser::FieldStudentNumber;
+                    $addFieldError(OngoingStudentSpreadsheetParser::FieldStudentNumber, 'Missing student number.', 'Missing student number');
                 } elseif (strlen($studentNumber) > 64) {
-                    $errors[] = 'Student number cannot exceed 64 characters.';
-                    $issueCategories[] = 'Invalid student number';
-                    $editableIssueFields[] = OngoingStudentSpreadsheetParser::FieldStudentNumber;
+                    $addFieldError(OngoingStudentSpreadsheetParser::FieldStudentNumber, 'Student number cannot exceed 64 characters.', 'Invalid student number');
                 } elseif (isset($seenBatchNumbers[$studentNumberKey])) {
                     $firstRow = $seenBatchNumbers[$studentNumberKey];
-                    $errors[] = "Duplicate student number ({$studentNumber}) in this file (first seen on row {$firstRow}).";
-                    $issueCategories[] = 'Duplicate in file';
-                    $editableIssueFields[] = OngoingStudentSpreadsheetParser::FieldStudentNumber;
+                    $addFieldError(OngoingStudentSpreadsheetParser::FieldStudentNumber, "Duplicate student number ({$studentNumber}) in this file (first seen on row {$firstRow}).", 'Duplicate in file');
                 } else {
                     $seenBatchNumbers[$studentNumberKey] = $sourceRow;
                 }
 
                 if ($firstName === '') {
-                    $errors[] = 'Missing first name.';
-                    $issueCategories[] = 'Missing name';
-                    $editableIssueFields[] = OngoingStudentSpreadsheetParser::FieldFirstName;
+                    $addFieldError(OngoingStudentSpreadsheetParser::FieldFirstName, 'Missing first name.', 'Missing name');
                 }
 
                 if ($lastName === '') {
-                    $errors[] = 'Missing last name.';
-                    $issueCategories[] = 'Missing name';
-                    $editableIssueFields[] = OngoingStudentSpreadsheetParser::FieldLastName;
+                    $addFieldError(OngoingStudentSpreadsheetParser::FieldLastName, 'Missing last name.', 'Missing name');
                 }
 
                 if ($email === '') {
-                    $errors[] = 'Missing email address.';
-                    $issueCategories[] = 'Missing email';
-                    $editableIssueFields[] = OngoingStudentSpreadsheetParser::FieldEmail;
+                    $addFieldError(OngoingStudentSpreadsheetParser::FieldEmail, 'Missing email address.', 'Missing email');
                 } elseif (filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
-                    $errors[] = "Invalid email format ({$email}).";
-                    $issueCategories[] = 'Invalid email';
-                    $editableIssueFields[] = OngoingStudentSpreadsheetParser::FieldEmail;
+                    $addFieldError(OngoingStudentSpreadsheetParser::FieldEmail, "Invalid email format ({$email}).", 'Invalid email');
                 } elseif (isset($seenBatchEmails[$emailKey])) {
                     $firstRow = $seenBatchEmails[$emailKey];
-                    $errors[] = "Duplicate email ({$email}) in this file (first seen on row {$firstRow}).";
-                    $issueCategories[] = 'Duplicate in file';
-                    $editableIssueFields[] = OngoingStudentSpreadsheetParser::FieldEmail;
+                    $addFieldError(OngoingStudentSpreadsheetParser::FieldEmail, "Duplicate email ({$email}) in this file (first seen on row {$firstRow}).", 'Duplicate in file');
                 } else {
                     $seenBatchEmails[$emailKey] = $sourceRow;
+
+                    $existingUser = $existingUsersByEmail[$emailKey] ?? null;
+                    if ($existingUser instanceof User) {
+                        $belongsToMatchedUnactivated = $isUnactivatedUpsert
+                            && $matchedExistingProfile instanceof StudentProfile
+                            && (int) $matchedExistingProfile->user_id === (int) $existingUser->id;
+
+                        if (! $belongsToMatchedUnactivated) {
+                            $otherProfile = $existingUser->studentProfile ?? ($existingProfilesByEmail[$emailKey] ?? null);
+                            if ($otherProfile instanceof StudentProfile) {
+                                $addFieldError(
+                                    OngoingStudentSpreadsheetParser::FieldEmail,
+                                    "Email {$email} is already linked to student {$otherProfile->student_number}.",
+                                    'Email in use',
+                                );
+                            } elseif ($existingUser->isStaffCapable()) {
+                                $addFieldError(
+                                    OngoingStudentSpreadsheetParser::FieldEmail,
+                                    "Email {$email} belongs to a staff account and cannot be used for a student.",
+                                    'Staff email collision',
+                                );
+                            } elseif ($existingUser->hasAssignedRole('applicant')) {
+                                $isApplicantCollision = true;
+                                $applicantUserId = (int) $existingUser->id;
+
+                                if (! $linkExistingApplicant) {
+                                    $addFieldError(
+                                        OngoingStudentSpreadsheetParser::FieldEmail,
+                                        "Email {$email} belongs to an existing applicant account. Enable \"Link existing applicant account & archive draft intake\" or enter a different email.",
+                                        'Existing applicant account',
+                                    );
+                                }
+                            } else {
+                                $addFieldError(
+                                    OngoingStudentSpreadsheetParser::FieldEmail,
+                                    "Email {$email} is already registered to another TALA account.",
+                                    'Email in use',
+                                );
+                            }
+                        }
+                    }
                 }
 
-                if ($programCode === '') {
-                    $errors[] = 'Missing program code.';
-                    $issueCategories[] = 'Missing program';
-                    $editableIssueFields[] = OngoingStudentSpreadsheetParser::FieldProgramCode;
-                } else {
-                    $program = $programsByCode[strtoupper($programCode)] ?? null;
+                // Resolve Program (row override or cohort scope).
+                if ($rowProgramCode !== null && $rowProgramCode !== '') {
+                    $program = $programsByCode[strtoupper($rowProgramCode)] ?? null;
                     if (! $program instanceof Program) {
-                        $errors[] = "Program code \"{$programCode}\" was not found.";
-                        $issueCategories[] = 'Unknown program';
-                        $editableIssueFields[] = OngoingStudentSpreadsheetParser::FieldProgramCode;
+                        $addFieldError(
+                            OngoingStudentSpreadsheetParser::FieldProgramCode,
+                            "Program code \"{$rowProgramCode}\" was not found.",
+                            'Unknown program',
+                        );
                     }
-                }
-
-                if ($program instanceof Program) {
-                    $curriculumResolution = $this->resolveCurriculumVersion($program, $curriculumCode);
-                    $curriculumVersion = $curriculumResolution['curriculum'];
-
-                    if ($curriculumResolution['error'] !== null) {
-                        $errors[] = $curriculumResolution['error'];
-                        $issueCategories[] = 'Curriculum issue';
-                        $editableIssueFields[] = OngoingStudentSpreadsheetParser::FieldCurriculumVersionCode;
-                    }
+                } elseif ($scopeProgram instanceof Program) {
+                    $program = $scopeProgram;
+                } else {
+                    $addFieldError(
+                        OngoingStudentSpreadsheetParser::FieldProgramCode,
+                        'Select a Program in Step 1 or provide a Program Code column.',
+                        'Missing program',
+                    );
                 }
 
                 if ($entryTermCode !== null && $entryTermCode !== '') {
                     $entryTerm = $this->resolveTermFromSingleToken($terms, $entryTermCode);
                     if (! $entryTerm instanceof Term) {
                         $warnings[] = "Entry term \"{$entryTermCode}\" was not matched to a TALA term and will be left blank.";
+                    } elseif ($resolvedEntryAcademicYearId === null && $entryTerm->academic_year_id !== null) {
+                        $resolvedEntryAcademicYearId = (int) $entryTerm->academic_year_id;
                     }
+                }
+
+                // Resolve Curriculum Version (row override -> cohort scope -> batch AY -> single active).
+                if ($program instanceof Program) {
+                    $preferredCurriculumId = ($scopeProgram instanceof Program && (int) $program->id === (int) $scopeProgram->id)
+                        ? $scopeCurriculumId
+                        : null;
+
+                    $curriculumResolution = $this->resolveCurriculumVersion(
+                        program: $program,
+                        curriculumCode: $rowCurriculumCode,
+                        preferredCurriculumId: $preferredCurriculumId,
+                        entryAcademicYearId: $resolvedEntryAcademicYearId,
+                    );
+                    $curriculumVersion = $curriculumResolution['curriculum'];
+
+                    if ($curriculumResolution['error'] !== null) {
+                        $addFieldError(
+                            OngoingStudentSpreadsheetParser::FieldCurriculumVersionCode,
+                            $curriculumResolution['error'],
+                            'Curriculum issue',
+                        );
+                    }
+                }
+
+                // Strict Academic Standing validation (no silent coercion).
+                $standingCheck = $this->validateStanding($row['academic_standing']);
+                if ($standingCheck['error'] !== null) {
+                    $addFieldError(
+                        OngoingStudentSpreadsheetParser::FieldAcademicStanding,
+                        $standingCheck['error'],
+                        'Invalid standing',
+                    );
+                    $normalizedStanding = (string) ($row['academic_standing'] ?? '');
+                } else {
+                    $normalizedStanding = $standingCheck['value'];
+                }
+
+                // Strict Lifecycle Status validation (no silent coercion).
+                $lifecycleCheck = $this->validateLifecycleStatus($row['lifecycle_status']);
+                if ($lifecycleCheck['error'] !== null) {
+                    $addFieldError(
+                        OngoingStudentSpreadsheetParser::FieldLifecycleStatus,
+                        $lifecycleCheck['error'],
+                        'Invalid lifecycle status',
+                    );
+                    $normalizedLifecycle = (string) ($row['lifecycle_status'] ?? '');
+                } else {
+                    $normalizedLifecycle = $lifecycleCheck['value'];
                 }
 
                 if ($row['birth_date'] !== null && $row['birth_date'] !== '') {
                     $parsedDate = $this->validateBirthDate((string) $row['birth_date']);
                     if ($parsedDate === null) {
-                        $errors[] = "Invalid birth date \"{$row['birth_date']}\". Use YYYY-MM-DD format.";
-                        $issueCategories[] = 'Invalid birth date';
-                        $editableIssueFields[] = OngoingStudentSpreadsheetParser::FieldBirthDate;
+                        $addFieldError(
+                            OngoingStudentSpreadsheetParser::FieldBirthDate,
+                            "Invalid birth date \"{$row['birth_date']}\". Use YYYY-MM-DD format.",
+                            'Invalid birth date',
+                        );
                     } else {
                         $row['birth_date'] = $parsedDate;
                     }
                 }
 
-                $inlineItems = is_array($row['inline_prior_credits'] ?? null)
-                    ? $row['inline_prior_credits']
-                    : OngoingStudentSpreadsheetParser::parseInlinePriorSubjects($row['prior_completed_subjects'] ?? null);
-
-                foreach ($inlineItems as $inlineItem) {
-                    $subjectCode = (string) ($inlineItem['subject_code'] ?? '');
-                    $normSubjectCode = (string) ($inlineItem['normalized_subject_code'] ?? '');
-                    $course = $coursesByDisplayCode[$subjectCode] ?? $coursesByMatchCode[$normSubjectCode] ?? null;
-
-                    if (! $course instanceof Course) {
-                        $errors[] = "Unknown subject code \"{$subjectCode}\" in Prior Completed Subjects.";
-                        $issueCategories[] = 'Invalid prior subject';
-
-                        continue;
-                    }
-
-                    $activeSpec = $this->resolveActiveCourseSpecification($course, $curriculumVersion?->id, $curriculumEntriesBySpecByVersion);
-                    if (! $activeSpec instanceof CourseSpecification) {
-                        $errors[] = "Subject \"{$course->code}\" has no active specification for Prior Completed Subjects.";
-                        $issueCategories[] = 'Invalid prior subject';
-
-                        continue;
-                    }
-
-                    $gradeCheck = $this->validateGradeAndStatus(
-                        rawGrade: $inlineItem['final_grade'] ?? null,
-                        rawStatus: null,
+                if ($row['phone'] !== null && strlen((string) $row['phone']) > 64) {
+                    $addFieldError(
+                        OngoingStudentSpreadsheetParser::FieldPhone,
+                        'Phone number cannot exceed 64 characters.',
+                        'Invalid phone',
                     );
+                }
 
-                    if ($gradeCheck['error'] !== null) {
-                        $errors[] = "Invalid grade for {$course->code} in Prior Completed Subjects: {$gradeCheck['error']}";
-                        $issueCategories[] = 'Invalid prior grade';
+                if ($row['prior_identifier'] !== null && strlen((string) $row['prior_identifier']) > 255) {
+                    $addFieldError(
+                        OngoingStudentSpreadsheetParser::FieldPriorIdentifier,
+                        'LRN / Prior ID cannot exceed 255 characters.',
+                        'Invalid LRN',
+                    );
+                }
 
-                        continue;
+                if ($row['financial_hold_note'] !== null && strlen((string) $row['financial_hold_note']) > 1000) {
+                    $addFieldError(
+                        OngoingStudentSpreadsheetParser::FieldFinancialHoldNote,
+                        'Financial hold note cannot exceed 1,000 characters.',
+                        'Invalid hold note',
+                    );
+                }
+
+                // Soft duplicate warnings: Name + Birth Date or LRN matching another existing profile or earlier row.
+                $nameDobKey = $this->nameDobKey($firstName, $lastName, $row['birth_date']);
+                if ($nameDobKey !== null) {
+                    foreach ($existingProfilesByNameDob[$nameDobKey] ?? [] as $dupProfile) {
+                        if ($matchedExistingProfile instanceof StudentProfile && (int) $dupProfile->id === (int) $matchedExistingProfile->id) {
+                            continue;
+                        }
+                        $dupName = trim("{$dupProfile->first_name} {$dupProfile->last_name}");
+                        $warnings[] = "Possible duplicate: matches existing student {$dupProfile->student_number} ({$dupName}) by name and birth date.";
+                        $hasDuplicateWarning = true;
+                        break;
                     }
 
-                    $resolvedInlineCredits[] = [
-                        'course_specification_id' => (int) $activeSpec->id,
-                        'subject_code' => (string) $course->code,
-                        'academic_year_label' => 'Prior Institutional Record',
-                        'term_label' => null,
-                        'year_level' => null,
-                        'final_grade' => $gradeCheck['final_grade'],
-                        'result_status' => $gradeCheck['result_status'],
-                    ];
+                    if (isset($seenBatchNameDob[$nameDobKey])) {
+                        $warnings[] = "Possible duplicate: matches row #{$seenBatchNameDob[$nameDobKey]} in this file by name and birth date.";
+                        $hasDuplicateWarning = true;
+                    } else {
+                        $seenBatchNameDob[$nameDobKey] = $sourceRow;
+                    }
+                }
+
+                $lrnKey = $this->normalizeIdentifierKey($row['prior_identifier']);
+                if ($lrnKey !== null) {
+                    foreach ($existingProfilesByLrn[$lrnKey] ?? [] as $dupProfile) {
+                        if ($matchedExistingProfile instanceof StudentProfile && (int) $dupProfile->id === (int) $matchedExistingProfile->id) {
+                            continue;
+                        }
+                        $warnings[] = "Possible duplicate: LRN matches existing student {$dupProfile->student_number}.";
+                        $hasDuplicateWarning = true;
+                        break;
+                    }
+
+                    if (isset($seenBatchLrn[$lrnKey])) {
+                        $warnings[] = "Possible duplicate: LRN matches row #{$seenBatchLrn[$lrnKey]} in this file.";
+                        $hasDuplicateWarning = true;
+                    } else {
+                        $seenBatchLrn[$lrnKey] = $sourceRow;
+                    }
+                }
+
+                // Regular Cohort Quick-Credit estimate.
+                if ($curriculumVersion instanceof CurriculumVersion
+                    && $scopeCompletedYear !== null
+                    && $scopeCompletedTermType !== null) {
+                    if ($normalizedStanding === StudentProfile::StandingRegular) {
+                        $cacheKey = $curriculumVersion->id.'|'.$scopeCompletedYear.'|'.$scopeCompletedTermType;
+                        if (! array_key_exists($cacheKey, $quickCreditCountCache)) {
+                            $quickCreditCountCache[$cacheKey] = $this->countCurriculumEntriesThrough(
+                                curriculumVersionId: (int) $curriculumVersion->id,
+                                yearLevel: $scopeCompletedYear,
+                                termType: $scopeCompletedTermType,
+                            );
+                        }
+                        $priorCreditsToApply = $quickCreditCountCache[$cacheKey];
+                    } else {
+                        $warnings[] = "Standing is {$normalizedStanding}: cohort quick-credit will not be auto-applied (routed to individual advising).";
+                    }
                 }
             }
 
@@ -335,26 +515,36 @@ class OngoingStudentSpreadsheetImportService
                 $skippedCount++;
             } elseif ($alreadyOnboardedReason !== null) {
                 $status = self::StatusAlreadyOnboarded;
-                $statusLabel = 'Already onboarded';
-                $issueBadge = 'Already onboarded';
+                $statusLabel = 'Already active';
+                $issueBadge = 'Already active';
                 $alreadyOnboardedCount++;
             } elseif ($errors !== []) {
                 $status = self::StatusBlocked;
                 $issueBadge = count($issueCategories) > 1
                     ? 'Multiple issues'
                     : ($issueCategories[0] ?? 'Fix required');
-                $statusLabel = $issueBadge;
+                $statusLabel = $isApplicantCollision && ! $linkExistingApplicant && count($issueCategories) === 1
+                    ? 'Blocked — Existing applicant account'
+                    : $issueBadge;
                 $blockedCount++;
+                if ($isApplicantCollision && ! $linkExistingApplicant) {
+                    $applicantCollisionsBlocked++;
+                }
+            } elseif ($isUnactivatedUpsert) {
+                $status = self::StatusUpdateUnactivated;
+                $statusLabel = 'Update unactivated profile';
+                $updateUnactivatedCount++;
+                $estimatedPriorCredits += $priorCreditsToApply;
             } else {
                 $status = self::StatusReady;
-                $statusLabel = 'Ready to onboard';
+                $statusLabel = $isApplicantCollision && $linkExistingApplicant
+                    ? 'Ready (link applicant)'
+                    : 'Ready to onboard';
                 $readyNewCount++;
-
-                $readyStudentsByNumber[$studentNumberKey] = [
-                    'row_key' => $rowKey,
-                    'student_number' => $studentNumber,
-                    'curriculum_version_id' => $curriculumVersion?->id,
-                ];
+                $estimatedPriorCredits += $priorCreditsToApply;
+                if ($isApplicantCollision && $linkExistingApplicant) {
+                    $applicantLinksOptedIn++;
+                }
             }
 
             if (! $isSkipped && $alreadyOnboardedReason === null && $warnings !== []) {
@@ -373,25 +563,33 @@ class OngoingStudentSpreadsheetImportService
                 'last_name' => $lastName,
                 'student_name' => $studentName,
                 'email' => $email,
-                'program_code' => $program instanceof Program ? (string) $program->code : $programCode,
+                'program_code' => $program instanceof Program ? (string) $program->code : ($rowProgramCode ?? ''),
                 'program_id' => $program?->id !== null ? (int) $program->id : null,
                 'curriculum_version_code' => $curriculumVersion instanceof CurriculumVersion
                     ? (string) $curriculumVersion->version_code
-                    : $curriculumCode,
+                    : $rowCurriculumCode,
                 'curriculum_version_id' => $curriculumVersion?->id !== null ? (int) $curriculumVersion->id : null,
                 'entry_term_code' => $entryTermCode,
                 'entry_term_id' => $entryTerm?->id !== null ? (int) $entryTerm->id : null,
-                'academic_standing' => $this->normalizeStandingLabel($row['academic_standing']),
-                'lifecycle_status' => $this->normalizeLifecycleCode($row['lifecycle_status']),
+                'entry_academic_year_id' => $resolvedEntryAcademicYearId,
+                'completed_through_year_level' => ($normalizedStanding === StudentProfile::StandingRegular) ? $scopeCompletedYear : null,
+                'completed_through_term_type' => ($normalizedStanding === StudentProfile::StandingRegular) ? $scopeCompletedTermType : null,
+                'prior_credits_to_apply' => $priorCreditsToApply,
+                'academic_standing' => $normalizedStanding,
+                'raw_academic_standing' => $row['academic_standing'],
+                'lifecycle_status' => $normalizedLifecycle,
+                'raw_lifecycle_status' => $row['lifecycle_status'],
                 'birth_date' => $row['birth_date'],
                 'phone' => $row['phone'],
                 'address' => $row['address'],
                 'prior_identifier' => $row['prior_identifier'],
                 'financial_hold_note' => $row['financial_hold_note'],
-                'prior_completed_subjects' => $row['prior_completed_subjects'],
-                'inline_prior_credits' => $row['inline_prior_credits'] ?? [],
-                'resolved_inline_prior_credits' => $resolvedInlineCredits,
                 'matched_student_profile_id' => $matchedExistingProfile?->id !== null ? (int) $matchedExistingProfile->id : null,
+                'is_unactivated_upsert' => $isUnactivatedUpsert,
+                'is_applicant_collision' => $isApplicantCollision,
+                'applicant_user_id' => $applicantUserId,
+                'link_existing_applicant' => $linkExistingApplicant,
+                'has_duplicate_warning' => $hasDuplicateWarning,
                 'already_onboarded_reason' => $alreadyOnboardedReason,
                 'skip' => $isSkipped,
                 'status' => $status,
@@ -399,125 +597,8 @@ class OngoingStudentSpreadsheetImportService
                 'issue_badge' => $issueBadge,
                 'issue_categories' => $issueCategories,
                 'editable_issue_fields' => $editableIssueFields,
+                'field_errors' => $fieldErrors,
                 'has_warnings' => $warnings !== [],
-                'warnings' => $warnings,
-                'errors' => $errors,
-            ];
-        }
-
-        // Validate Sheet 2 (`Prior Subjects`) rows against ready Sheet 1 rows OR existing DB profiles.
-        $previewPriorSubjects = [];
-        $priorReadyCount = 0;
-        $priorBlockedCount = 0;
-
-        foreach ($parsedPriorSubjects as $index => $priorRow) {
-            $sourceRow = (int) ($priorRow['source_row'] ?? ($index + 1));
-            $rowKey = (string) ($priorRow['row_key'] ?? ('prior_row_'.$sourceRow));
-            $studentNumber = trim((string) ($priorRow['student_number'] ?? ''));
-            $studentNumberKey = strtoupper($studentNumber);
-            $rawSubjectCode = trim((string) ($priorRow['subject_code'] ?? ''));
-            $displaySubjectCode = $rawSubjectCode !== '' ? CurriculumSpreadsheetParser::normalizeDisplayCode($rawSubjectCode) : '';
-            $matchSubjectCode = $rawSubjectCode !== '' ? CurriculumSpreadsheetParser::normalizeMatchCode($rawSubjectCode) : '';
-
-            $errors = [];
-            $warnings = [];
-            $targetType = null; // 'batch' or 'existing'
-            $targetProfileId = null;
-            $targetCurriculumVersionId = null;
-
-            if ($studentNumber === '') {
-                $errors[] = 'Missing student number.';
-            } elseif (isset($readyStudentsByNumber[$studentNumberKey])) {
-                $targetType = 'batch';
-                $targetCurriculumVersionId = $readyStudentsByNumber[$studentNumberKey]['curriculum_version_id'];
-            } elseif (isset($existingProfilesByNumber[$studentNumberKey])) {
-                $existingProfile = $existingProfilesByNumber[$studentNumberKey];
-                $targetType = 'existing';
-                $targetProfileId = (int) $existingProfile->id;
-                $targetCurriculumVersionId = $existingProfile->curriculum_version_id !== null
-                    ? (int) $existingProfile->curriculum_version_id
-                    : null;
-            } else {
-                $errors[] = "Unknown student number \"{$studentNumber}\": not found in ready Sheet 1 rows or existing student profiles.";
-            }
-
-            $course = null;
-            $courseSpec = null;
-
-            if ($displaySubjectCode === '' || $matchSubjectCode === '') {
-                $errors[] = 'Missing subject code.';
-            } else {
-                $course = $coursesByDisplayCode[$displaySubjectCode] ?? $coursesByMatchCode[$matchSubjectCode] ?? null;
-
-                if (! $course instanceof Course) {
-                    $errors[] = "Unknown subject code \"{$displaySubjectCode}\".";
-                } else {
-                    $courseSpec = $this->resolveActiveCourseSpecification($course, $targetCurriculumVersionId, $curriculumEntriesBySpecByVersion);
-                    if (! $courseSpec instanceof CourseSpecification) {
-                        $errors[] = "Subject \"{$course->code}\" has no active specification.";
-                    }
-                }
-            }
-
-            $yearLevel = $priorRow['year_level'] ?? null;
-            if ($yearLevel !== null && $yearLevel !== '') {
-                $parsedYear = CurriculumSpreadsheetParser::parseYearLevel($yearLevel);
-                if ($parsedYear === null) {
-                    $errors[] = 'Year level must be between 1 and 8.';
-                    $yearLevel = null;
-                } else {
-                    $yearLevel = $parsedYear;
-                }
-            } elseif (filled($priorRow['raw_year_level'] ?? null)) {
-                $errors[] = "Invalid year level \"{$priorRow['raw_year_level']}\".";
-                $yearLevel = null;
-            } else {
-                $yearLevel = null;
-            }
-
-            $gradeCheck = $this->validateGradeAndStatus(
-                rawGrade: $priorRow['final_grade'] ?? null,
-                rawStatus: $priorRow['result_status'] ?? null,
-            );
-            if ($gradeCheck['error'] !== null) {
-                $errors[] = $gradeCheck['error'];
-            }
-
-            $ayInput = filled($priorRow['academic_year'] ?? null) ? trim((string) $priorRow['academic_year']) : null;
-            $termInput = filled($priorRow['term'] ?? null) ? trim((string) $priorRow['term']) : null;
-            $matchedTerm = $this->resolveTermFromYearAndLabel($terms, $ayInput, $termInput);
-
-            $errors = array_values(array_unique($errors));
-
-            if ($errors !== []) {
-                $status = self::StatusBlocked;
-                $statusLabel = 'Blocked';
-                $priorBlockedCount++;
-            } else {
-                $status = self::StatusReady;
-                $statusLabel = 'Ready';
-                $priorReadyCount++;
-            }
-
-            $previewPriorSubjects[] = [
-                'row_key' => $rowKey,
-                'source_row' => $sourceRow,
-                'sheet' => 'Prior Subjects',
-                'student_number' => $studentNumber,
-                'subject_code' => $course instanceof Course ? (string) $course->code : $displaySubjectCode,
-                'normalized_subject_code' => $matchSubjectCode,
-                'course_specification_id' => $courseSpec?->id !== null ? (int) $courseSpec->id : null,
-                'target_type' => $targetType,
-                'student_profile_id' => $targetProfileId,
-                'term_id' => $matchedTerm?->id !== null ? (int) $matchedTerm->id : null,
-                'academic_year_label' => $ayInput ?? ($matchedTerm?->academicYear?->label ? (string) $matchedTerm->academicYear->label : 'Prior Institutional Record'),
-                'term_label' => $termInput ?? ($matchedTerm instanceof Term ? (string) $matchedTerm->label : null),
-                'year_level' => $yearLevel,
-                'final_grade' => $gradeCheck['final_grade'],
-                'result_status' => $gradeCheck['result_status'],
-                'source_school' => filled($priorRow['source_school'] ?? null) ? trim((string) $priorRow['source_school']) : null,
-                'status' => $status,
-                'status_label' => $statusLabel,
                 'warnings' => $warnings,
                 'errors' => $errors,
             ];
@@ -527,26 +608,37 @@ class OngoingStudentSpreadsheetImportService
             'summary' => [
                 'total' => count($previewRows),
                 'ready_new' => $readyNewCount,
+                'update_unactivated' => $updateUnactivatedCount,
                 'already_onboarded' => $alreadyOnboardedCount,
                 'blocked_count' => $blockedCount,
                 'skipped_count' => $skippedCount,
                 'warnings_count' => $warningsCount,
-                'prior_subjects_total' => count($previewPriorSubjects),
-                'prior_subjects_ready' => $priorReadyCount,
-                'prior_subjects_blocked' => $priorBlockedCount,
+                'applicant_collisions_blocked' => $applicantCollisionsBlocked,
+                'applicant_links_opted_in' => $applicantLinksOptedIn,
+                'estimated_prior_credits' => $estimatedPriorCredits,
             ],
             'rows' => $previewRows,
-            'prior_subjects' => $previewPriorSubjects,
         ];
     }
 
     /**
-     * Commit validated student onboarding rows and prior academic credit rows.
+     * Commit validated cohort roster onboarding rows (new profiles + safe unactivated profile updates),
+     * recording a `StudentImportBatch` for 1-click undo when new profiles are created.
      *
      * @param  array<int|string, mixed>  $previewRows
-     * @param  list<array<string, mixed>>  $previewPriorSubjects
+     * @param  array{
+     *     program_id?: int|null,
+     *     curriculum_version_id?: int|null,
+     *     entry_academic_year_id?: int|null,
+     *     completed_through_year_level?: int|null,
+     *     completed_through_term_type?: string|null,
+     *     filename?: string|null
+     * }  $cohortScope
      * @return array{
+     *     import_batch_id: int|null,
      *     created_students: int,
+     *     updated_students: int,
+     *     linked_existing_applicants: int,
      *     skipped_existing_students: int,
      *     prior_credits_recorded: int,
      *     activation_emails_sent: int,
@@ -557,23 +649,21 @@ class OngoingStudentSpreadsheetImportService
     public function commitImport(
         User $actor,
         array $previewRows,
-        array $previewPriorSubjects = [],
-        bool $sendActivationEmails = true,
+        bool $sendActivationEmails = false,
         bool $skipBlocked = true,
+        array $cohortScope = [],
     ): array {
         if (! $actor->hasRole(User::StaffRoleRegistrar)) {
             throw new AuthorizationException('Only an authorized Registrar may import ongoing students.');
         }
 
         if (isset($previewRows['rows']) && is_array($previewRows['rows'])) {
-            if ($previewPriorSubjects === [] && isset($previewRows['prior_subjects']) && is_array($previewRows['prior_subjects'])) {
-                $previewPriorSubjects = $previewRows['prior_subjects'];
-            }
             $previewRows = $previewRows['rows'];
         }
 
         $skippedRows = [];
-        $readyStudents = [];
+        $readyNewStudents = [];
+        $readyUpdateStudents = [];
 
         foreach ($previewRows as $row) {
             if (! is_array($row)) {
@@ -586,7 +676,7 @@ class OngoingStudentSpreadsheetImportService
                 $skippedRows[] = [
                     ...$row,
                     'sheet' => 'Students',
-                    'skip_reason' => (string) ($row['already_onboarded_reason'] ?? 'Already onboarded in TALA.'),
+                    'skip_reason' => (string) ($row['already_onboarded_reason'] ?? 'Already active in TALA.'),
                 ];
 
                 continue;
@@ -618,74 +708,42 @@ class OngoingStudentSpreadsheetImportService
                 continue;
             }
 
-            $readyStudents[] = $row;
+            if ($status === self::StatusUpdateUnactivated || ! empty($row['is_unactivated_upsert'])) {
+                $readyUpdateStudents[] = $row;
+            } else {
+                $readyNewStudents[] = $row;
+            }
         }
 
-        /** @var array<string, list<array<string, mixed>>> $batchPriorByStudentNumber */
-        $batchPriorByStudentNumber = [];
-        /** @var array<int, list<array<string, mixed>>> $existingPriorByProfileId */
-        $existingPriorByProfileId = [];
+        $batch = null;
+        if ($readyNewStudents !== []) {
+            $firstReady = $readyNewStudents[0];
+            $batchProgramId = (int) ($cohortScope['program_id'] ?? $firstReady['program_id'] ?? 0);
+            $batchCurriculumId = (int) ($cohortScope['curriculum_version_id'] ?? $firstReady['curriculum_version_id'] ?? 0);
 
-        foreach ($previewPriorSubjects as $priorRow) {
-            if (! is_array($priorRow)) {
-                continue;
-            }
-
-            $priorStatus = (string) ($priorRow['status'] ?? '');
-            if ($priorStatus === self::StatusBlocked || ! empty($priorRow['errors'])) {
-                if (! $skipBlocked) {
-                    throw ValidationException::withMessages([
-                        'prior_subjects' => 'Resolve or skip all blocked prior subject rows before importing: '.implode(' ', (array) ($priorRow['errors'] ?? [])),
-                    ]);
-                }
-
-                $skippedRows[] = [
-                    ...$priorRow,
-                    'sheet' => 'Prior Subjects',
-                    'skip_reason' => implode(' ', (array) ($priorRow['errors'] ?? [])) ?: 'Blocked',
-                ];
-
-                continue;
-            }
-
-            if ($priorStatus === self::StatusSkipped) {
-                $skippedRows[] = [
-                    ...$priorRow,
-                    'sheet' => 'Prior Subjects',
-                    'skip_reason' => 'Skipped by user.',
-                ];
-
-                continue;
-            }
-
-            $specId = isset($priorRow['course_specification_id']) ? (int) $priorRow['course_specification_id'] : 0;
-            if ($specId <= 0) {
-                continue;
-            }
-
-            $creditItem = [
-                'course_specification_id' => $specId,
-                'term_id' => $priorRow['term_id'] ?? null,
-                'academic_year_label' => $priorRow['academic_year_label'] ?? null,
-                'term_label' => $priorRow['term_label'] ?? null,
-                'year_level' => $priorRow['year_level'] ?? null,
-                'final_grade' => $priorRow['final_grade'] ?? null,
-                'result_status' => $priorRow['result_status'] ?? null,
-                'source_school' => $priorRow['source_school'] ?? null,
-            ];
-
-            if (($priorRow['target_type'] ?? null) === 'existing' && filled($priorRow['student_profile_id'] ?? null)) {
-                $profileId = (int) $priorRow['student_profile_id'];
-                $existingPriorByProfileId[$profileId][] = $creditItem;
-            } else {
-                $numKey = strtoupper(trim((string) ($priorRow['student_number'] ?? '')));
-                if ($numKey !== '') {
-                    $batchPriorByStudentNumber[$numKey][] = $creditItem;
-                }
+            if ($batchProgramId > 0 && $batchCurriculumId > 0) {
+                $batch = StudentImportBatch::query()->create([
+                    'program_id' => $batchProgramId,
+                    'curriculum_version_id' => $batchCurriculumId,
+                    'entry_academic_year_id' => filled($cohortScope['entry_academic_year_id'] ?? null)
+                        ? (int) $cohortScope['entry_academic_year_id']
+                        : (filled($firstReady['entry_academic_year_id'] ?? null) ? (int) $firstReady['entry_academic_year_id'] : null),
+                    'completed_through_year_level' => filled($cohortScope['completed_through_year_level'] ?? null)
+                        ? (int) $cohortScope['completed_through_year_level']
+                        : null,
+                    'completed_through_term_type' => filled($cohortScope['completed_through_term_type'] ?? null)
+                        ? (string) $cohortScope['completed_through_term_type']
+                        : null,
+                    'imported_by' => $actor->id,
+                    'student_count' => 0,
+                    'filename' => filled($cohortScope['filename'] ?? null) ? (string) $cohortScope['filename'] : null,
+                ]);
             }
         }
 
         $createdStudents = 0;
+        $updatedStudents = 0;
+        $linkedExistingApplicants = 0;
         $skippedExistingStudents = count(array_filter(
             $skippedRows,
             fn (array $row): bool => ($row['status'] ?? null) === self::StatusAlreadyOnboarded,
@@ -694,20 +752,25 @@ class OngoingStudentSpreadsheetImportService
         $activationEmailsSent = 0;
         $activationEmailsFailed = 0;
 
-        foreach ($readyStudents as $studentRow) {
+        foreach ($readyNewStudents as $studentRow) {
             $studentNumber = trim((string) ($studentRow['student_number'] ?? ''));
-            $studentNumberKey = strtoupper($studentNumber);
             $email = strtolower(trim((string) ($studentRow['email'] ?? '')));
+            $linkApplicant = (bool) ($studentRow['link_existing_applicant'] ?? false);
 
-            // Re-verify Decision 2 idempotency right before write.
             $existingByNumber = $studentNumber !== ''
                 ? StudentProfile::query()->where('student_number', $studentNumber)->first()
                 : null;
             $existingUserByEmail = $email !== ''
-                ? User::query()->whereRaw('LOWER(email) = ?', [$email])->first()
+                ? User::query()->with(['roles', 'studentProfile'])->whereRaw('LOWER(email) = ?', [$email])->first()
                 : null;
 
-            if ($existingByNumber instanceof StudentProfile || $existingUserByEmail instanceof User) {
+            $isAllowedApplicantLink = $existingUserByEmail instanceof User
+                && $linkApplicant
+                && ! $existingUserByEmail->studentProfile instanceof StudentProfile
+                && ! $existingUserByEmail->isStaffCapable()
+                && $existingUserByEmail->hasAssignedRole('applicant');
+
+            if ($existingByNumber instanceof StudentProfile || ($existingUserByEmail instanceof User && ! $isAllowedApplicantLink)) {
                 $skippedExistingStudents++;
                 $skippedRows[] = [
                     ...$studentRow,
@@ -718,22 +781,15 @@ class OngoingStudentSpreadsheetImportService
                         : "Email {$email} is already registered in TALA.",
                 ];
 
-                if ($existingByNumber instanceof StudentProfile && isset($batchPriorByStudentNumber[$studentNumberKey])) {
-                    $existingPriorByProfileId[$existingByNumber->id] = array_merge(
-                        $existingPriorByProfileId[$existingByNumber->id] ?? [],
-                        $batchPriorByStudentNumber[$studentNumberKey],
-                    );
-                    unset($batchPriorByStudentNumber[$studentNumberKey]);
-                }
-
                 continue;
             }
 
-            $inlineCredits = is_array($studentRow['resolved_inline_prior_credits'] ?? null)
-                ? $studentRow['resolved_inline_prior_credits']
-                : [];
-            $sheetTwoCredits = $batchPriorByStudentNumber[$studentNumberKey] ?? [];
-            $combinedCredits = array_values(array_merge($inlineCredits, $sheetTwoCredits));
+            $standing = (string) ($studentRow['academic_standing'] ?? StudentProfile::StandingRegular);
+            $applyQuickCredit = $standing === StudentProfile::StandingRegular
+                && filled($studentRow['completed_through_year_level'] ?? null)
+                && filled($studentRow['completed_through_term_type'] ?? null);
+
+            $ayLabel = $this->resolveAcademicYearLabel($studentRow['entry_academic_year_id'] ?? null);
 
             try {
                 $result = $this->onboardStudent->execute([
@@ -745,14 +801,20 @@ class OngoingStudentSpreadsheetImportService
                     'program_id' => (int) $studentRow['program_id'],
                     'curriculum_version_id' => $studentRow['curriculum_version_id'] ?? null,
                     'entry_term_id' => $studentRow['entry_term_id'] ?? null,
-                    'academic_standing' => $studentRow['academic_standing'] ?? StudentProfile::StandingRegular,
+                    'entry_academic_year_id' => $studentRow['entry_academic_year_id'] ?? null,
+                    'import_batch_id' => $batch?->id,
+                    'completed_through_year_level' => $applyQuickCredit ? (int) $studentRow['completed_through_year_level'] : null,
+                    'completed_through_term_type' => $applyQuickCredit ? (string) $studentRow['completed_through_term_type'] : null,
+                    'prior_academic_year_label' => $ayLabel,
+                    'link_existing_applicant' => $linkApplicant,
+                    'defer_prior_credits' => ! $applyQuickCredit,
+                    'academic_standing' => $standing,
                     'lifecycle_status' => $studentRow['lifecycle_status'] ?? StudentProfile::LifecycleActive,
                     'birth_date' => $studentRow['birth_date'] ?? null,
                     'phone' => $studentRow['phone'] ?? null,
                     'address' => $studentRow['address'] ?? null,
                     'prior_identifier' => $studentRow['prior_identifier'] ?? null,
                     'financial_hold_note' => $studentRow['financial_hold_note'] ?? null,
-                    'prior_credits' => $combinedCredits,
                     'send_activation_email' => $sendActivationEmails,
                 ], $actor);
             } catch (ValidationException $exception) {
@@ -773,6 +835,10 @@ class OngoingStudentSpreadsheetImportService
             $createdStudents++;
             $priorCreditsRecorded += (int) $result['prior_credits_created'];
 
+            if (! empty($result['linked_existing_applicant'])) {
+                $linkedExistingApplicants++;
+            }
+
             if ($sendActivationEmails) {
                 if ($result['activation_sent']) {
                     $activationEmailsSent++;
@@ -782,20 +848,49 @@ class OngoingStudentSpreadsheetImportService
             }
         }
 
-        if ($existingPriorByProfileId !== []) {
-            $profiles = StudentProfile::query()
-                ->whereIn('id', array_keys($existingPriorByProfileId))
-                ->get()
-                ->keyBy('id');
+        foreach ($readyUpdateStudents as $studentRow) {
+            $updateResult = $this->upsertUnactivatedProfile($studentRow, $actor, $sendActivationEmails);
 
-            foreach ($existingPriorByProfileId as $profileId => $creditItems) {
-                $profile = $profiles->get($profileId);
-                if (! $profile instanceof StudentProfile) {
-                    continue;
+            if ($updateResult['status'] === 'updated') {
+                $updatedStudents++;
+                $priorCreditsRecorded += (int) $updateResult['prior_credits_created'];
+                if ($sendActivationEmails) {
+                    if ($updateResult['activation_sent']) {
+                        $activationEmailsSent++;
+                    } elseif ($updateResult['activation_attempted']) {
+                        $activationEmailsFailed++;
+                    }
+                }
+            } elseif ($updateResult['status'] === 'already_active') {
+                $skippedExistingStudents++;
+                $skippedRows[] = [
+                    ...$studentRow,
+                    'sheet' => 'Students',
+                    'status' => self::StatusAlreadyOnboarded,
+                    'skip_reason' => $updateResult['reason'],
+                ];
+            } else {
+                if (! $skipBlocked) {
+                    throw ValidationException::withMessages([
+                        'rows' => $updateResult['reason'],
+                    ]);
                 }
 
-                $appendResult = $this->priorCredits->appendCredits($profile, $creditItems, $actor);
-                $priorCreditsRecorded += (int) $appendResult['created'];
+                $skippedRows[] = [
+                    ...$studentRow,
+                    'sheet' => 'Students',
+                    'status' => self::StatusBlocked,
+                    'skip_reason' => $updateResult['reason'],
+                ];
+            }
+        }
+
+        if ($batch instanceof StudentImportBatch) {
+            if ($createdStudents > 0) {
+                $batch->forceFill(['student_count' => $createdStudents])->save();
+            } else {
+                $batch->delete();
+                $batch = null;
             }
         }
 
@@ -803,22 +898,256 @@ class OngoingStudentSpreadsheetImportService
             ->causedBy($actor)
             ->event('ongoing_students_spreadsheet_imported')
             ->withProperties([
+                'import_batch_id' => $batch?->id,
                 'created_students' => $createdStudents,
+                'updated_students' => $updatedStudents,
+                'linked_existing_applicants' => $linkedExistingApplicants,
                 'skipped_existing_students' => $skippedExistingStudents,
                 'prior_credits_recorded' => $priorCreditsRecorded,
                 'activation_emails_sent' => $activationEmailsSent,
                 'activation_emails_failed' => $activationEmailsFailed,
                 'skipped_rows_count' => count($skippedRows),
             ])
-            ->log("Imported {$createdStudents} ongoing student(s) from spreadsheet");
+            ->log("Imported {$createdStudents} and updated {$updatedStudents} student(s) from cohort roster");
 
         return [
+            'import_batch_id' => $batch?->id,
             'created_students' => $createdStudents,
+            'updated_students' => $updatedStudents,
+            'linked_existing_applicants' => $linkedExistingApplicants,
             'skipped_existing_students' => $skippedExistingStudents,
             'prior_credits_recorded' => $priorCreditsRecorded,
             'activation_emails_sent' => $activationEmailsSent,
             'activation_emails_failed' => $activationEmailsFailed,
             'skipped_rows' => $skippedRows,
+        ];
+    }
+
+    /**
+     * Safely update an existing student profile whose user has never signed in and has no official enrollment.
+     *
+     * @param  array<string, mixed>  $studentRow
+     * @return array{status: string, reason: string, prior_credits_created: int, activation_attempted: bool, activation_sent: bool}
+     */
+    private function upsertUnactivatedProfile(array $studentRow, User $actor, bool $sendActivationEmails): array
+    {
+        $studentNumber = trim((string) ($studentRow['student_number'] ?? ''));
+        $email = strtolower(trim((string) ($studentRow['email'] ?? '')));
+
+        $profile = StudentProfile::query()
+            ->with('user')
+            ->where('student_number', $studentNumber)
+            ->first();
+
+        if (! $profile instanceof StudentProfile) {
+            return [
+                'status' => 'blocked',
+                'reason' => "Unactivated student profile {$studentNumber} could not be found.",
+                'prior_credits_created' => 0,
+                'activation_attempted' => false,
+                'activation_sent' => false,
+            ];
+        }
+
+        $user = $profile->user;
+        $hasSignedIn = $user instanceof User && $user->last_successful_sign_in_at !== null;
+        $hasOfficialEnrollment = Enrollment::query()
+            ->where('student_profile_id', $profile->id)
+            ->where('canonical_outcome', Enrollment::OutcomeOfficiallyEnrolled)
+            ->exists();
+
+        if ($hasSignedIn || $hasOfficialEnrollment) {
+            return [
+                'status' => 'already_active',
+                'reason' => "Student {$studentNumber} is already active or officially enrolled and was left unchanged.",
+                'prior_credits_created' => 0,
+                'activation_attempted' => false,
+                'activation_sent' => false,
+            ];
+        }
+
+        if ($email !== '') {
+            $emailOwner = User::query()
+                ->whereRaw('LOWER(email) = ?', [$email])
+                ->when($user instanceof User, fn ($query) => $query->whereKeyNot($user->id))
+                ->first();
+
+            if ($emailOwner instanceof User) {
+                return [
+                    'status' => 'blocked',
+                    'reason' => "Email {$email} is already registered to another TALA account.",
+                    'prior_credits_created' => 0,
+                    'activation_attempted' => false,
+                    'activation_sent' => false,
+                ];
+            }
+        }
+
+        $standing = (string) ($studentRow['academic_standing'] ?? $profile->academic_standing ?? StudentProfile::StandingRegular);
+        $lifecycle = (string) ($studentRow['lifecycle_status'] ?? $profile->lifecycle_status ?? StudentProfile::LifecycleActive);
+        $priorCreditsCreated = 0;
+
+        DB::transaction(function () use (
+            $profile,
+            $user,
+            $studentRow,
+            $email,
+            $standing,
+            $lifecycle,
+            $actor,
+            &$priorCreditsCreated,
+        ): void {
+            $lockedProfile = StudentProfile::query()->lockForUpdate()->findOrFail($profile->id);
+
+            $namePayload = User::staffNamePayload(
+                firstName: trim((string) $studentRow['first_name']),
+                middleName: filled($studentRow['middle_name'] ?? null) ? trim((string) $studentRow['middle_name']) : null,
+                lastName: trim((string) $studentRow['last_name']),
+            );
+
+            if ($user instanceof User) {
+                $lockedUser = User::query()->lockForUpdate()->findOrFail($user->id);
+                $previousEmail = strtolower(trim((string) $lockedUser->email));
+                $emailChanged = $email !== '' && $email !== $previousEmail;
+
+                $userUpdates = [...$namePayload];
+                if ($emailChanged) {
+                    $userUpdates['email'] = $email;
+                    $userUpdates['email_verified_at'] = null;
+                }
+
+                $lockedUser->forceFill($userUpdates)->save();
+
+                if ($emailChanged) {
+                    DB::table('password_reset_tokens')
+                        ->whereIn('email', array_values(array_unique([$previousEmail, $email])))
+                        ->delete();
+                }
+            }
+
+            $profileUpdates = [
+                'first_name' => $namePayload['first_name'],
+                'middle_name' => $namePayload['middle_name'],
+                'last_name' => $namePayload['last_name'],
+                'email' => $email !== '' ? $email : $lockedProfile->email,
+                'academic_standing' => $standing,
+                'lifecycle_status' => $lifecycle,
+            ];
+
+            if (filled($studentRow['program_id'] ?? null)) {
+                $profileUpdates['program_id'] = (int) $studentRow['program_id'];
+            }
+            if (filled($studentRow['curriculum_version_id'] ?? null)) {
+                $profileUpdates['curriculum_version_id'] = (int) $studentRow['curriculum_version_id'];
+            }
+            if (filled($studentRow['entry_academic_year_id'] ?? null)) {
+                $profileUpdates['entry_academic_year_id'] = (int) $studentRow['entry_academic_year_id'];
+            }
+            if (filled($studentRow['entry_term_id'] ?? null)) {
+                $profileUpdates['entry_term_id'] = (int) $studentRow['entry_term_id'];
+            }
+            if (filled($studentRow['birth_date'] ?? null)) {
+                $profileUpdates['birth_date'] = $studentRow['birth_date'];
+            }
+            if (filled($studentRow['phone'] ?? null)) {
+                $profileUpdates['phone'] = $studentRow['phone'];
+            }
+            if (filled($studentRow['address'] ?? null)) {
+                $profileUpdates['address'] = $studentRow['address'];
+            }
+            if (filled($studentRow['prior_identifier'] ?? null)) {
+                $profileUpdates['prior_identifier'] = $studentRow['prior_identifier'];
+            }
+
+            $lockedProfile->forceFill($profileUpdates)->save();
+
+            if ($standing === StudentProfile::StandingRegular
+                && filled($studentRow['completed_through_year_level'] ?? null)
+                && filled($studentRow['completed_through_term_type'] ?? null)) {
+                $ayLabel = $this->resolveAcademicYearLabel($lockedProfile->entry_academic_year_id);
+                $creditResult = $this->priorCredits->applyCompletedThroughTerm(
+                    profile: $lockedProfile,
+                    yearLevel: (int) $studentRow['completed_through_year_level'],
+                    termType: (string) $studentRow['completed_through_term_type'],
+                    actor: $actor,
+                    academicYearLabel: $ayLabel,
+                );
+                $priorCreditsCreated += (int) $creditResult['created'];
+            }
+
+            $holdNote = trim((string) ($studentRow['financial_hold_note'] ?? ''));
+            if ($holdNote !== '') {
+                $hasSameEnrollmentHold = Hold::query()
+                    ->where('student_profile_id', $lockedProfile->id)
+                    ->where('hold_type', Hold::TypeFinancial)
+                    ->where('blocking_level', Hold::BlockingEnrollment)
+                    ->where('status', Hold::StatusActive)
+                    ->where('reason', $holdNote)
+                    ->exists();
+
+                if (! $hasSameEnrollmentHold) {
+                    Hold::query()->create([
+                        'student_profile_id' => $lockedProfile->id,
+                        'hold_type' => Hold::TypeFinancial,
+                        'blocking_level' => Hold::BlockingEnrollment,
+                        'status' => Hold::StatusActive,
+                        'reason' => $holdNote,
+                        'student_message' => 'Please settle your prior balance with the Accounting Office before next-term enrollment or official record release.',
+                        'resolution_requirement' => 'Accounting clearance required to release prior-balance enrollment hold.',
+                        'created_by' => $actor->id,
+                        'effective_at' => now(),
+                    ]);
+                }
+
+                $hasSameRecordHold = Hold::query()
+                    ->where('student_profile_id', $lockedProfile->id)
+                    ->where('hold_type', Hold::TypeFinancial)
+                    ->where('blocking_level', Hold::BlockingRecordRelease)
+                    ->where('status', Hold::StatusActive)
+                    ->where('reason', $holdNote)
+                    ->exists();
+
+                if (! $hasSameRecordHold) {
+                    Hold::query()->create([
+                        'student_profile_id' => $lockedProfile->id,
+                        'hold_type' => Hold::TypeFinancial,
+                        'blocking_level' => Hold::BlockingRecordRelease,
+                        'status' => Hold::StatusActive,
+                        'reason' => $holdNote,
+                        'student_message' => 'Official transcript and graduation clearance remain on hold until your prior balance is settled with the Accounting Office.',
+                        'resolution_requirement' => 'Accounting clearance required to release prior-balance transcript and graduation hold.',
+                        'created_by' => $actor->id,
+                        'effective_at' => now(),
+                    ]);
+                }
+            }
+
+            activity('student_onboarding')
+                ->performedOn($lockedProfile)
+                ->causedBy($actor)
+                ->event('unactivated_student_profile_upserted')
+                ->withProperties([
+                    'student_number' => $lockedProfile->student_number,
+                    'academic_standing' => $standing,
+                    'prior_credits_created' => $priorCreditsCreated,
+                ])
+                ->log('Updated unactivated student profile from cohort roster import');
+        }, attempts: 3);
+
+        $activationAttempted = false;
+        $activationSent = false;
+        $refreshed = $profile->fresh(['user']);
+        if ($sendActivationEmails && $refreshed instanceof StudentProfile && StudentAccountActivation::canResendActivation($refreshed)) {
+            $activationAttempted = true;
+            $activationSent = $this->activation->sendActivationEmail($refreshed, $actor);
+        }
+
+        return [
+            'status' => 'updated',
+            'reason' => '',
+            'prior_credits_created' => $priorCreditsCreated,
+            'activation_attempted' => $activationAttempted,
+            'activation_sent' => $activationSent,
         ];
     }
 
@@ -867,13 +1196,7 @@ class OngoingStudentSpreadsheetImportService
             return $cleaned !== '' ? $cleaned : null;
         };
 
-        $priorRaw = array_key_exists('prior_completed_subjects', $override)
-            ? $nullableText($override['prior_completed_subjects'])
-            : $nullableText($rawRow['prior_completed_subjects'] ?? null);
-
-        $inlineCredits = array_key_exists('prior_completed_subjects', $override)
-            ? OngoingStudentSpreadsheetParser::parseInlinePriorSubjects($priorRaw)
-            : ($rawRow['inline_prior_credits'] ?? OngoingStudentSpreadsheetParser::parseInlinePriorSubjects($priorRaw));
+        $programOverride = $nullableText($pick('program_code'));
 
         return [
             'row_key' => $rowKey,
@@ -883,7 +1206,7 @@ class OngoingStudentSpreadsheetImportService
             'middle_name' => $nullableText($pick('middle_name')),
             'last_name' => $cleanText($pick('last_name', '')),
             'email' => strtolower($cleanText($pick('email', ''))),
-            'program_code' => strtoupper($cleanText($pick('program_code', ''))),
+            'program_code' => $programOverride !== null ? strtoupper($programOverride) : null,
             'curriculum_version_code' => $nullableText($pick('curriculum_version_code')),
             'entry_term_code' => $nullableText($pick('entry_term_code')),
             'academic_standing' => $nullableText($pick('academic_standing')),
@@ -893,8 +1216,9 @@ class OngoingStudentSpreadsheetImportService
             'address' => filled($pick('address')) ? trim((string) $pick('address')) : null,
             'prior_identifier' => $nullableText($pick('prior_identifier')),
             'financial_hold_note' => filled($pick('financial_hold_note')) ? trim((string) $pick('financial_hold_note')) : null,
-            'prior_completed_subjects' => $priorRaw,
-            'inline_prior_credits' => $inlineCredits,
+            'link_existing_applicant' => array_key_exists('link_existing_applicant', $override)
+                ? (bool) $override['link_existing_applicant']
+                : (bool) ($rawRow['link_existing_applicant'] ?? false),
             'skip' => array_key_exists('skip', $override)
                 ? (bool) $override['skip']
                 : (bool) ($rawRow['skip'] ?? false),
@@ -904,8 +1228,12 @@ class OngoingStudentSpreadsheetImportService
     /**
      * @return array{curriculum: ?CurriculumVersion, error: ?string}
      */
-    private function resolveCurriculumVersion(Program $program, ?string $curriculumCode): array
-    {
+    private function resolveCurriculumVersion(
+        Program $program,
+        ?string $curriculumCode,
+        ?int $preferredCurriculumId = null,
+        ?int $entryAcademicYearId = null,
+    ): array {
         $versions = $program->relationLoaded('curriculumVersions')
             ? $program->curriculumVersions
             : $program->curriculumVersions()
@@ -932,22 +1260,40 @@ class OngoingStudentSpreadsheetImportService
             ];
         }
 
+        if ($preferredCurriculumId !== null) {
+            $matchedPreferred = $versions->firstWhere('id', $preferredCurriculumId);
+            if ($matchedPreferred instanceof CurriculumVersion) {
+                return ['curriculum' => $matchedPreferred, 'error' => null];
+            }
+        }
+
+        if ($entryAcademicYearId !== null) {
+            $batchCurriculum = $program->curriculumForAcademicYear($entryAcademicYearId);
+            if ($batchCurriculum instanceof CurriculumVersion) {
+                return ['curriculum' => $batchCurriculum, 'error' => null];
+            }
+        }
+
         $active = $versions->where('state', CurriculumVersion::StateActive)->values();
 
         if ($active->count() === 1) {
             return ['curriculum' => $active->first(), 'error' => null];
         }
 
+        if ($versions->count() === 1) {
+            return ['curriculum' => $versions->first(), 'error' => null];
+        }
+
         if ($active->isEmpty()) {
             return [
                 'curriculum' => null,
-                'error' => "Program {$program->code} has no active curriculum version yet. Specify a Curriculum Version Code.",
+                'error' => "Program {$program->code} has no active curriculum version yet. Select a Curriculum Version in Step 1.",
             ];
         }
 
         return [
             'curriculum' => null,
-            'error' => "Program {$program->code} has multiple active curriculum versions. Specify which Curriculum Version Code to assign.",
+            'error' => "Program {$program->code} has multiple active curriculum versions. Select which Curriculum Version applies in Step 1.",
         ];
     }
 
@@ -993,156 +1339,135 @@ class OngoingStudentSpreadsheetImportService
         return $labelMatches->count() === 1 ? $labelMatches->first() : null;
     }
 
-    /**
-     * @param  Collection<int, Term>  $terms
-     */
-    private function resolveTermFromYearAndLabel(Collection $terms, ?string $academicYear, ?string $termLabel): ?Term
-    {
-        if ($academicYear === null && $termLabel === null) {
-            return null;
-        }
-
-        if ($academicYear === null && $termLabel !== null) {
-            return $this->resolveTermFromSingleToken($terms, $termLabel);
-        }
-
-        $ayNorm = $this->stripAyPrefix(strtolower(trim((string) $academicYear)));
-        $termClean = strtolower(trim((string) ($termLabel ?? '')));
-        $parsedTermType = $termClean !== '' ? CurriculumSpreadsheetParser::parseTermType($termClean) : null;
-
-        $matches = $terms->filter(function (Term $term) use ($ayNorm, $termClean, $parsedTermType): bool {
-            $modelAy = $this->stripAyPrefix(strtolower(trim((string) ($term->academicYear?->label ?? ''))));
-            if ($modelAy === '' || $modelAy !== $ayNorm) {
-                return false;
-            }
-
-            if ($termClean === '') {
-                return false;
-            }
-
-            if (strtolower(trim((string) $term->label)) === $termClean) {
-                return true;
-            }
-
-            return $parsedTermType !== null && $term->type === $parsedTermType;
-        });
-
-        return $matches->count() === 1 ? $matches->first() : null;
-    }
-
     private function stripAyPrefix(string $text): string
     {
         return trim((string) preg_replace('/^(?:a\.?y\.?|s\.?y\.?)\s*/i', '', $text));
     }
 
-    /**
-     * @param  array<int, array<int, CurriculumEntry>>  $curriculumEntriesBySpecByVersion
-     */
-    private function resolveActiveCourseSpecification(
-        Course $course,
-        ?int $curriculumVersionId,
-        array &$curriculumEntriesBySpecByVersion,
-    ): ?CourseSpecification {
-        $specs = $course->relationLoaded('specifications')
-            ? $course->specifications
-            : $course->specifications()->get();
+    private function countCurriculumEntriesThrough(int $curriculumVersionId, int $yearLevel, string $termType): int
+    {
+        $targetOrder = match ($termType) {
+            Term::TypeFirstSemester => 1,
+            Term::TypeSecondSemester => 2,
+            Term::TypeSpecialTerm => 3,
+            default => null,
+        };
 
-        if ($curriculumVersionId !== null) {
-            if (! isset($curriculumEntriesBySpecByVersion[$curriculumVersionId])) {
-                $curriculumEntriesBySpecByVersion[$curriculumVersionId] = CurriculumEntry::query()
-                    ->with('courseSpecification')
-                    ->where('curriculum_version_id', $curriculumVersionId)
-                    ->get()
-                    ->keyBy('course_specification_id')
-                    ->all();
-            }
-
-            foreach ($specs as $spec) {
-                if (isset($curriculumEntriesBySpecByVersion[$curriculumVersionId][(int) $spec->id])
-                    && in_array($spec->state, [CourseSpecification::StateActive, CourseSpecification::StateDraft], true)) {
-                    return $spec;
-                }
-            }
+        if ($targetOrder === null) {
+            return 0;
         }
 
-        return $specs->firstWhere('state', CourseSpecification::StateActive);
+        return CurriculumEntry::query()
+            ->with('courseSpecification')
+            ->where('curriculum_version_id', $curriculumVersionId)
+            ->get()
+            ->filter(function (CurriculumEntry $entry) use ($yearLevel, $targetOrder): bool {
+                $spec = $entry->courseSpecification;
+                if (! $spec instanceof CourseSpecification || $spec->state === CourseSpecification::StateDraft) {
+                    return false;
+                }
+
+                $entryYear = is_numeric($entry->year_level) ? (int) $entry->year_level : null;
+                if ($entryYear === null) {
+                    return false;
+                }
+
+                $entryOrder = match ($entry->term_type) {
+                    Term::TypeFirstSemester => 1,
+                    Term::TypeSecondSemester => 2,
+                    Term::TypeSpecialTerm => 3,
+                    default => 1,
+                };
+
+                return $entryYear < $yearLevel || ($entryYear === $yearLevel && $entryOrder <= $targetOrder);
+            })
+            ->pluck('course_specification_id')
+            ->unique()
+            ->count();
+    }
+
+    private function resolveAcademicYearLabel(?int $entryAcademicYearId): ?string
+    {
+        if ($entryAcademicYearId === null) {
+            return null;
+        }
+
+        $ay = AcademicYear::query()->find($entryAcademicYearId);
+
+        return $ay instanceof AcademicYear && filled($ay->label) ? (string) $ay->label : null;
     }
 
     /**
-     * Validate grade (`1.00`-`5.00` or `CREDIT`/`TC`/`INC`/`DRP`/`W`) and result status.
+     * Strict Academic Standing validator — rejects unknown strings instead of silently coercing to Regular.
      *
-     * @return array{final_grade: ?string, result_status: string, error: ?string}
+     * @return array{value: string, error: ?string}
      */
-    private function validateGradeAndStatus(?string $rawGrade, ?string $rawStatus): array
+    private function validateStanding(?string $raw): array
     {
-        $grade = trim((string) ($rawGrade ?? ''));
-        $status = strtolower(trim((string) ($rawStatus ?? '')));
+        $trimmed = trim((string) ($raw ?? ''));
+        if ($trimmed === '') {
+            return ['value' => StudentProfile::StandingRegular, 'error' => null];
+        }
 
-        $allowedStatuses = PriorAcademicCredit::resultStatuses();
-        if ($status !== '' && ! in_array($status, $allowedStatuses, true)) {
+        $clean = strtolower(str_replace(['_', '-'], ' ', $trimmed));
+        $clean = preg_replace('/\s+/', ' ', $clean) ?? '';
+
+        $resolved = match ($clean) {
+            'regular' => StudentProfile::StandingRegular,
+            'irregular' => StudentProfile::StandingIrregular,
+            'probationary' => StudentProfile::StandingProbationary,
+            'deficient' => StudentProfile::StandingDeficient,
+            'blocked by prerequisite' => StudentProfile::StandingBlockedByPrerequisite,
+            'must repeat year', 'must repeat year level' => StudentProfile::StandingMustRepeatYear,
+            'completion candidate' => StudentProfile::StandingCompletionCandidate,
+            'graduation candidate' => StudentProfile::StandingGraduationCandidate,
+            'not yet evaluated' => StudentProfile::StandingNotYetEvaluated,
+            default => null,
+        };
+
+        if ($resolved === null) {
             return [
-                'final_grade' => null,
-                'result_status' => PriorAcademicCredit::ResultPassed,
-                'error' => "Invalid result status \"{$rawStatus}\". Allowed: ".implode(', ', $allowedStatuses).'.',
+                'value' => $trimmed,
+                'error' => "Unknown academic standing \"{$trimmed}\". Choose Regular, Irregular, Probationary, Deficient, Completion Candidate, or Graduation Candidate.",
             ];
         }
 
-        $normalizedGrade = null;
+        return ['value' => $resolved, 'error' => null];
+    }
 
-        if ($grade !== '') {
-            $upperGrade = strtoupper($grade);
-
-            if (in_array($upperGrade, ['CREDIT', 'TC', 'INC', 'DRP', 'W'], true)) {
-                $normalizedGrade = $upperGrade;
-            } elseif (is_numeric($grade)) {
-                $numeric = (float) $grade;
-                if ($numeric < 1.00 || $numeric > 5.00) {
-                    return [
-                        'final_grade' => null,
-                        'result_status' => PriorAcademicCredit::ResultPassed,
-                        'error' => "Final grade \"{$grade}\" must be between 1.00 and 5.00, or CREDIT/TC/INC/DRP/W.",
-                    ];
-                }
-                $normalizedGrade = number_format($numeric, 2, '.', '');
-            } else {
-                return [
-                    'final_grade' => null,
-                    'result_status' => PriorAcademicCredit::ResultPassed,
-                    'error' => "Invalid final grade \"{$grade}\". Use 1.00-5.00 or CREDIT/TC/INC/DRP/W.",
-                ];
-            }
+    /**
+     * Strict Lifecycle Status validator — rejects unknown strings instead of silently coercing to ACTIVE.
+     *
+     * @return array{value: string, error: ?string}
+     */
+    private function validateLifecycleStatus(?string $raw): array
+    {
+        $trimmed = trim((string) ($raw ?? ''));
+        if ($trimmed === '') {
+            return ['value' => StudentProfile::LifecycleActive, 'error' => null];
         }
 
-        if ($status === '') {
-            if ($normalizedGrade === null) {
-                $status = PriorAcademicCredit::ResultCredited;
-                $normalizedGrade = 'CREDIT';
-            } elseif (in_array($normalizedGrade, ['CREDIT', 'TC'], true)) {
-                $status = PriorAcademicCredit::ResultCredited;
-            } elseif ($normalizedGrade === 'INC') {
-                $status = PriorAcademicCredit::ResultInc;
-            } elseif (in_array($normalizedGrade, ['DRP', 'W'], true)) {
-                $status = PriorAcademicCredit::ResultDropped;
-            } elseif (is_numeric($normalizedGrade)) {
-                $status = (float) $normalizedGrade <= 4.00
-                    ? PriorAcademicCredit::ResultPassed
-                    : PriorAcademicCredit::ResultFailed;
-            }
-        } elseif ($normalizedGrade === null) {
-            $normalizedGrade = match ($status) {
-                PriorAcademicCredit::ResultCredited => 'CREDIT',
-                PriorAcademicCredit::ResultInc => 'INC',
-                PriorAcademicCredit::ResultDropped => 'DRP',
-                PriorAcademicCredit::ResultFailed => '5.00',
-                default => 'CREDIT',
-            };
+        $clean = strtoupper(str_replace([' ', '-'], '_', $trimmed));
+        $clean = preg_replace('/_+/', '_', $clean) ?? '';
+
+        $resolved = match ($clean) {
+            'ACTIVE' => StudentProfile::LifecycleActive,
+            'LEAVE_OF_ABSENCE', 'LOA' => StudentProfile::LifecycleLeaveOfAbsence,
+            'INACTIVE' => StudentProfile::LifecycleInactive,
+            'WITHDRAWN' => StudentProfile::LifecycleWithdrawn,
+            'TRANSFERRED_OUT' => StudentProfile::LifecycleTransferredOut,
+            'COMPLETED' => StudentProfile::LifecycleCompleted,
+            default => null,
+        };
+
+        if ($resolved === null) {
+            return [
+                'value' => $trimmed,
+                'error' => "Unknown lifecycle status \"{$trimmed}\". Choose ACTIVE, LEAVE_OF_ABSENCE, INACTIVE, WITHDRAWN, TRANSFERRED_OUT, or COMPLETED.",
+            ];
         }
 
-        return [
-            'final_grade' => $normalizedGrade,
-            'result_status' => $status,
-            'error' => null,
-        ];
+        return ['value' => $resolved, 'error' => null];
     }
 
     private function validateBirthDate(string $raw): ?string
@@ -1161,30 +1486,23 @@ class OngoingStudentSpreadsheetImportService
         }
     }
 
-    private function normalizeStandingLabel(?string $raw): string
+    private function nameDobKey(string $firstName, string $lastName, ?string $birthDate): ?string
     {
-        $clean = strtolower(trim((string) ($raw ?? '')));
+        $f = strtolower(trim((string) preg_replace('/\s+/', ' ', $firstName)));
+        $l = strtolower(trim((string) preg_replace('/\s+/', ' ', $lastName)));
+        $d = trim((string) ($birthDate ?? ''));
 
-        return match ($clean) {
-            '', 'regular' => StudentProfile::StandingRegular,
-            'irregular' => StudentProfile::StandingIrregular,
-            'probationary' => StudentProfile::StandingProbationary,
-            'deficient' => StudentProfile::StandingDeficient,
-            default => StudentProfile::StandingRegular,
-        };
+        if ($f === '' || $l === '' || $d === '') {
+            return null;
+        }
+
+        return $f.'|'.$l.'|'.$d;
     }
 
-    private function normalizeLifecycleCode(?string $raw): string
+    private function normalizeIdentifierKey(?string $value): ?string
     {
-        $clean = strtoupper(str_replace([' ', '-'], '_', trim((string) ($raw ?? ''))));
+        $clean = strtoupper(trim((string) preg_replace('/[^a-zA-Z0-9]+/', '', (string) ($value ?? ''))));
 
-        return match ($clean) {
-            '', 'ACTIVE' => StudentProfile::LifecycleActive,
-            'LEAVE_OF_ABSENCE', 'LOA' => StudentProfile::LifecycleLeaveOfAbsence,
-            'INACTIVE' => StudentProfile::LifecycleInactive,
-            'WITHDRAWN' => StudentProfile::LifecycleWithdrawn,
-            'TRANSFERRED_OUT' => StudentProfile::LifecycleTransferredOut,
-            default => StudentProfile::LifecycleActive,
-        };
+        return $clean !== '' ? $clean : null;
     }
 }

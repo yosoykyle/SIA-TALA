@@ -512,7 +512,10 @@ class CurriculumVersionLifecycleService
             $hasStudents = StudentProfile::query()
                 ->where('program_id', $locked->program_id)
                 ->whereNull('merged_into_id')
-                ->whereHas('entryTerm', fn ($query) => $query->where('academic_year_id', $academicYear->id))
+                ->where(function ($query) use ($academicYear): void {
+                    $query->where('entry_academic_year_id', $academicYear->id)
+                        ->orWhereHas('entryTerm', fn ($termQuery) => $termQuery->where('academic_year_id', $academicYear->id));
+                })
                 ->exists();
 
             $hasCohorts = TermCohort::query()

@@ -14,7 +14,7 @@
                     :figure="$overviewCounts['incomplete']" :figure-label="'incomplete course '.\Illuminate\Support\Str::plural('result', $overviewCounts['incomplete'])"
                     description="Review and release INC completions and grade corrections." note="INC means incomplete." action="Open results" />
                 <x-workspace-card :action-color="'gray'" :href="$this::getUrl(['viewTab' => 'academic-progress'])" icon="heroicon-o-identification" label="Student records"
-                    description="View released grades, averages, and academic progress." note="Find a student’s academic record." action="Find a student" />
+                    description="Onboard continuing students, review released grades, averages, and academic progress." note="Import cohorts, manage prior records, or find a student." action="Open student records" />
             </nav>
             <section class="tala-workspace-launcher__supporting" aria-labelledby="other-records-title">
                 <h2 id="other-records-title">Other records</h2>

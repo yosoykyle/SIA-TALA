@@ -2,7 +2,9 @@
 @php($headingTag = $headingLevel === 'h1' ? 'h1' : 'h2')
 <header {{ $attributes->class(['tala-record-identity', 'tala-identity-surface']) }}>
     @if ($program || $initials)
-        @include('filament.components.learner-journey-art', ['artClass' => 'student-identity-art', 'artAlignment' => 'xMaxYMax meet'])
+        <div class="tala-record-identity-art-clip" aria-hidden="true">
+            @include('filament.components.learner-journey-art', ['artClass' => 'student-identity-art', 'artAlignment' => 'xMaxYMax meet'])
+        </div>
     @endif
     <div class="tala-record-identity-person">
         @isset($avatar){{ $avatar }}@else

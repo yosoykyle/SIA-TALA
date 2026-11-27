@@ -115,6 +115,8 @@ class StudentProfile extends Model
         'applicant_intake_id',
         'student_number',
         'entry_term_id',
+        'entry_academic_year_id',
+        'import_batch_id',
         'first_name',
         'middle_name',
         'last_name',
@@ -165,6 +167,18 @@ class StudentProfile extends Model
     public function entryTerm(): BelongsTo
     {
         return $this->belongsTo(Term::class, 'entry_term_id');
+    }
+
+    /** @return BelongsTo<AcademicYear, $this> */
+    public function entryAcademicYear(): BelongsTo
+    {
+        return $this->belongsTo(AcademicYear::class, 'entry_academic_year_id');
+    }
+
+    /** @return BelongsTo<StudentImportBatch, $this> */
+    public function importBatch(): BelongsTo
+    {
+        return $this->belongsTo(StudentImportBatch::class, 'import_batch_id');
     }
 
     /** @return HasMany<StudentProfileEvent, $this> */

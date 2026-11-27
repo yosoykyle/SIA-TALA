@@ -20,6 +20,7 @@ use App\Filament\Resources\StudentProfiles\Pages\ViewStudentProfile;
 use App\Filament\Resources\StudentProfiles\RelationManagers\ChecklistItemsRelationManager;
 use App\Filament\Resources\StudentProfiles\RelationManagers\HoldsRelationManager;
 use App\Models\AcademicDecision;
+use App\Models\AcademicYear;
 use App\Models\Assessment;
 use App\Models\Enrollment;
 use App\Models\Hold;
@@ -33,6 +34,7 @@ use App\Models\TermAccount;
 use App\Models\TermCohort;
 use App\Models\User;
 use BackedEnum;
+use Filament\Actions\BulkActionGroup;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\Select;
 use Filament\Infolists\Components\RepeatableEntry;
@@ -455,7 +457,7 @@ class StudentProfileResource extends Resource
                     ->badge()
                     ->wrap(),
                 TextColumn::make('lifecycle_status')
-                    ->label('Status')
+                    ->label('Lifecycle')
                     ->badge()
                     ->color(fn (?string $state): string => StudentProfile::lifecycleStatusColor($state))
                     ->formatStateUsing(fn (?string $state): string => StudentProfile::lifecycleStatusLabel((string) $state))
@@ -473,7 +475,7 @@ class StudentProfileResource extends Resource
                     ->sortable()
                     ->wrapHeader(),
                 TextColumn::make('irregular_status')
-                    ->label('Status')
+                    ->label('Standing')
                     ->state(fn (StudentProfile $record): string => app(IrregularStudentReasons::class)->forStudent($record)['status_label'])
                     ->description(fn (StudentProfile $record): ?string => app(IrregularStudentReasons::class)->needsReview($record) ? 'Needs Irregular review' : null)
                     ->badge()
@@ -547,10 +549,16 @@ class StudentProfileResource extends Resource
                 IrregularReviewActions::keepRegular(),
                 ViewAction::make()->url(fn (StudentProfile $record, HasTable $livewire): string => self::academicRecordUrl($record, $livewire)),
             ])
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    StudentOnboardingActions::exportSelectedStudentsBulkAction(),
+                    StudentOnboardingActions::sendSelectedActivationInvitesBulkAction(),
+                ]),
+            ])
             ->defaultSort('student_number')
             ->stackedOnMobile()
             ->emptyStateHeading('No student profiles found')
-            ->emptyStateDescription('Official student profiles appear here after enrollment, or clear search and filters.')
+            ->emptyStateDescription('Use Import continuing students or Add continuing student to onboard existing students, or clear your search and filters.')
             ->emptyState(view('filament.partials.collection-empty-state'));
     }
 
@@ -641,10 +649,36 @@ class StudentProfileResource extends Resource
                     return $indicators;
                 }),
             SelectFilter::make('entry_year')->label('Entry academic year')
-                ->options(fn (): array => Term::query()->with('academicYear')->whereIn('id', StudentProfile::query()->select('entry_term_id'))->get()
-                    ->filter(fn (Term $term): bool => $term->academicYear !== null)->mapWithKeys(fn (Term $term): array => [$term->academic_year_id => $term->academicYear->label])->all())
-                ->query(fn (Builder $query, array $data): Builder => $query->when($data['value'] ?? null,
-                    fn (Builder $scope, mixed $yearId): Builder => $scope->whereHas('entryTerm', fn (Builder $terms): Builder => $terms->where('academic_year_id', $yearId)))),
+                ->options(function (): array {
+                    $directIds = StudentProfile::query()
+                        ->whereNotNull('entry_academic_year_id')
+                        ->distinct()
+                        ->pluck('entry_academic_year_id');
+                    $termYearIds = Term::query()
+                        ->whereIn('id', StudentProfile::query()->whereNotNull('entry_term_id')->select('entry_term_id'))
+                        ->whereNotNull('academic_year_id')
+                        ->distinct()
+                        ->pluck('academic_year_id');
+
+                    $yearIds = $directIds->concat($termYearIds)->filter()->unique()->values();
+                    if ($yearIds->isEmpty()) {
+                        return [];
+                    }
+
+                    return AcademicYear::query()
+                        ->whereIn('id', $yearIds)
+                        ->orderByDesc('starts_on')
+                        ->orderByDesc('id')
+                        ->pluck('label', 'id')
+                        ->all();
+                })
+                ->query(fn (Builder $query, array $data): Builder => $query->when(
+                    $data['value'] ?? null,
+                    fn (Builder $scope, mixed $yearId): Builder => $scope->where(function (Builder $nested) use ($yearId): void {
+                        $nested->where('entry_academic_year_id', (int) $yearId)
+                            ->orWhereHas('entryTerm', fn (Builder $terms): Builder => $terms->where('academic_year_id', (int) $yearId));
+                    }),
+                )),
             SelectFilter::make('activation_status')
                 ->label('Account activation')
                 ->options([
@@ -657,13 +691,13 @@ class StudentProfileResource extends Resource
                         ->orWhere('password', '')
                         ->orWhere(fn (Builder $unverified): Builder => $unverified
                             ->whereNull('email_verified_at')
-                            ->whereNull('last_sign_in_at'))),
+                            ->whereNull('last_successful_sign_in_at'))),
                     'activated' => $query->whereHas('user', fn (Builder $users): Builder => $users
                         ->whereNotNull('password')
                         ->where('password', '!=', '')
                         ->where(fn (Builder $verified): Builder => $verified
                             ->whereNotNull('email_verified_at')
-                            ->orWhereNotNull('last_sign_in_at'))),
+                            ->orWhereNotNull('last_successful_sign_in_at'))),
                     default => $query,
                 }),
         ];

@@ -42,7 +42,8 @@ class PrepareStandardRegistration
         $enrollment->loadMissing(['studentProfile', 'term']);
         if ($enrollment->studentProfile !== null
             && $enrollment->term !== null
-            && $this->hasPartialSatisfiedPosition($enrollment->studentProfile, $enrollment->term)) {
+            && ($this->hasPartialSatisfiedPosition($enrollment->studentProfile, $enrollment->term)
+                || $this->isUncreditedContinuingCohort($enrollment->studentProfile, $enrollment->term))) {
             $enrollment->update([
                 'selection_basis' => Enrollment::SelectionIndividuallyAdvised,
                 'status_reason' => 'Registrar advising is required for the remaining curriculum subjects in this Term.',
@@ -97,6 +98,7 @@ class PrepareStandardRegistration
             ->with('courseSpecification')
             ->where('curriculum_version_id', $curriculum->id)
             ->where('term_type', $term->type)
+            ->orderBy('year_level')
             ->orderBy('sequence')
             ->orderBy('id')
             ->get()
@@ -137,7 +139,7 @@ class PrepareStandardRegistration
             $program = $programId !== null ? Program::query()->find($programId) : null;
 
             if ($program instanceof Program && $program->curriculumVersionBatches()->exists()) {
-                $academicYearId = $profile?->entryTerm?->academic_year_id ?? $enrollment->term?->academic_year_id;
+                $academicYearId = $profile?->entry_academic_year_id ?? $profile?->entryTerm?->academic_year_id ?? $enrollment->term?->academic_year_id;
                 $curriculum = $program->curriculumForAcademicYear($academicYearId);
 
                 if (! $curriculum instanceof CurriculumVersion) {
@@ -159,7 +161,7 @@ class PrepareStandardRegistration
         $satisfied = $profile !== null ? $this->eligibility->satisfiedCourseIds($profile) : collect();
         $positions = CurriculumEntry::query()->with('courseSpecification.requirements')
             ->where('curriculum_version_id', $curriculum->id)->where('term_type', $enrollment->term?->type)
-            ->orderBy('sequence')->orderBy('id')->get()
+            ->orderBy('year_level')->orderBy('sequence')->orderBy('id')->get()
             ->groupBy(fn (CurriculumEntry $entry): string => $entry->year_level.':'.$entry->term_label.':'.$entry->term_type);
         $entries = $positions->first(fn (Collection $group): bool => $group->contains(fn (CurriculumEntry $entry): bool => ! $satisfied->contains($entry->courseSpecification?->course_id)));
         if (! $entries instanceof Collection || $entries->isEmpty()
@@ -281,6 +283,19 @@ class PrepareStandardRegistration
             ])
             ->sort(fn (array $a, array $b): int => [$b['fullest'], $b['total'], $a['first']] <=> [$a['fullest'], $a['total'], $b['first']])
             ->first()['block'];
+    }
+
+    private function isUncreditedContinuingCohort(StudentProfile $profile, Term $term): bool
+    {
+        if ($profile->applicant_intake_id !== null || $profile->entry_academic_year_id === null) {
+            return false;
+        }
+
+        if ((int) $profile->entry_academic_year_id === (int) $term->academic_year_id) {
+            return false;
+        }
+
+        return $this->eligibility->satisfiedCourseIds($profile)->isEmpty();
     }
 
     private function unavailable(string $reason): never

@@ -14,6 +14,7 @@ use App\Models\CourseEnrollment;
 use App\Models\CourseSpecification;
 use App\Models\Enrollment as EnrollmentRecord;
 use App\Models\Hold;
+use App\Models\PriorAcademicCredit;
 use App\Models\StudentProfile;
 use App\Models\User;
 use App\Support\RegistrationSchedulePresentation;
@@ -65,8 +66,15 @@ class Dashboard extends BaseDashboard
                         ->all()
                     : [];
 
+                $activeHolds = $user->studentProfile?->holds()
+                    ->where('status', Hold::StatusActive)
+                    ->where(fn ($query) => $query->whereNull('effective_at')->orWhere('effective_at', '<=', now()))
+                    ->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', now()))
+                    ->get() ?? collect();
+
                 return [
                     'academicSnapshot' => $this->academicSnapshot($user->studentProfile, $case),
+                    'priorCreditsSummary' => $this->priorCreditsSummary($user->studentProfile),
                     'context' => $context,
                     'case' => $case,
                     'studyContext' => app(StudentStudyContext::class)->forStudent($user),
@@ -79,11 +87,8 @@ class Dashboard extends BaseDashboard
                     'activeOfficialTermCount' => $activeOfficialEnrollments->count(),
                     'notice' => in_array($notice['tier'] ?? null, ['Schedule Available', 'COR Available'], true) ? null : $notice,
                     'latestEvidence' => $case?->termAccount?->paymentEvidenceVersions()->latest('version')->first(),
-                    'activeHolds' => $user->studentProfile?->holds()
-                        ->where('status', Hold::StatusActive)
-                        ->where(fn ($query) => $query->whereNull('effective_at')->orWhere('effective_at', '<=', now()))
-                        ->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', now()))
-                        ->get() ?? collect(),
+                    'activeHolds' => $activeHolds,
+                    'activeFinancialHolds' => $activeHolds->where('hold_type', Hold::TypeFinancial)->values(),
                 ];
             }),
         ]);
@@ -101,7 +106,8 @@ class Dashboard extends BaseDashboard
         }
 
         $current = $case?->canonical_outcome === EnrollmentRecord::OutcomeOfficiallyEnrolled
-            ? app(OfficialCourseResultProjection::class)->forStudent($student)->filter(fn (array $result): bool => (int) $result['course_enrollment']->enrollment_id === (int) $case->id
+            ? app(OfficialCourseResultProjection::class)->forStudent($student)->filter(fn (array $result): bool => ($result['course_enrollment'] ?? null) instanceof CourseEnrollment
+                && (int) $result['course_enrollment']->enrollment_id === (int) $case->id
                 && $result['course_enrollment']->is_current
                 && $result['course_enrollment']->status === CourseEnrollment::StatusActive)
             : collect();
@@ -120,6 +126,42 @@ class Dashboard extends BaseDashboard
                 'attention' => $rows->where('status', 'Deficient')->count(),
                 'later' => $rows->where('status', 'Not taken')->count(),
             ],
+        ];
+    }
+
+    /**
+     * Summary of active prior academic credits for continuing/migrated student onboarding surfaces.
+     *
+     * @return array{count:int, passed_count:int, units:float, inc_count:int, failed_count:int, external_transfer_count:int}
+     */
+    private function priorCreditsSummary(?StudentProfile $student): array
+    {
+        if (! $student instanceof StudentProfile) {
+            return [
+                'count' => 0,
+                'passed_count' => 0,
+                'units' => 0.0,
+                'inc_count' => 0,
+                'failed_count' => 0,
+                'external_transfer_count' => 0,
+            ];
+        }
+
+        $credits = PriorAcademicCredit::query()
+            ->active()
+            ->where('student_profile_id', $student->id)
+            ->get();
+
+        $passing = $credits->filter(fn (PriorAcademicCredit $credit): bool => $credit->isPassing());
+
+        return [
+            'count' => $credits->count(),
+            'passed_count' => $passing->count(),
+            'units' => (float) $passing->sum(fn (PriorAcademicCredit $credit): float => (float) $credit->units),
+            'inc_count' => $credits->filter(fn (PriorAcademicCredit $credit): bool => $credit->effectiveResultCode() === 'INC')->count(),
+            'failed_count' => $credits->filter(fn (PriorAcademicCredit $credit): bool => $credit->result_status === PriorAcademicCredit::ResultFailed
+                || (is_numeric($credit->effectiveResultCode()) && (float) $credit->effectiveResultCode() > 4.00))->count(),
+            'external_transfer_count' => $credits->filter(fn (PriorAcademicCredit $credit): bool => CurriculumEvaluation::isExternalTransferPriorCredit($credit))->count(),
         ];
     }
 

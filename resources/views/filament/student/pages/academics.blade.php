@@ -12,6 +12,8 @@
                     @if ($studyContext['is_official'])
                         <span>{{ $studyContext['study_level_label'] }}</span>
                         <span>{{ collect([$studyContext['semester'], $studyContext['academic_year']])->filter()->implode(' · ') }}</span>
+                    @elseif ($studyContext['study_level_label'] !== 'Unavailable')
+                        <span>{{ $studyContext['study_level_label'] }} (provisional)</span>
                     @endif
                 </div>
             @endif
@@ -103,9 +105,13 @@
                     @else
                         <x-servitech-empty-state
                             illustrated
+                            tone="neutral"
                             :heading="$studyContext['is_official'] ? 'No active subjects recorded' : 'Current subjects unavailable'"
                             :description="$studyContext['is_official'] ? 'Contact the Registrar if you expected subjects in this registration.' : 'Current subjects cannot be shown here. View your enrollment record, or contact the Registrar.'"
-                        />
+                        >
+                            <x-filament::button tag="a" color="primary" :href="static::getUrl(['view' => 'plan'], panel: 'student')" icon="heroicon-o-map">View study plan</x-filament::button>
+                            <x-filament::button tag="a" color="gray" :href="static::getUrl(['view' => 'record'], panel: 'student')" icon="heroicon-o-document-text">View academic record</x-filament::button>
+                        </x-servitech-empty-state>
                     @endif
                 </section>
                 @if ($effect['needs_attention'])
@@ -174,6 +180,10 @@
                                         <li>{{ $contextFact }}</li>
                                     @endforeach
                                 </ul>
+                            @elseif ($studyContext['study_level_label'] !== 'Unavailable')
+                                <ul aria-label="Your provisional standing">
+                                    <li>{{ $studyContext['study_level_label'] }} (provisional)</li>
+                                </ul>
                             @endif
                             <p style="margin-block-start: .5rem;">
                                 <x-filament::link :href="$planEnrollmentUrl" :icon="$returnEnrollmentTerm ? 'heroicon-o-arrow-left' : 'heroicon-o-clipboard-document-check'">
@@ -196,16 +206,22 @@
                     @if ($totals = $curriculum['checklist_totals'] ?? null)
                         <dl class="student-plan-checklist-totals" aria-label="Subject checklist summary">
                             <div><dt>Total subjects</dt><dd>{{ $totals['total'] }}</dd></div>
-                            <div class="student-plan-check-passed"><dt>Passed</dt><dd>{{ $totals['passed'] }}</dd></div>
-                            <div class="student-plan-check-credited"><dt>Credited</dt><dd>{{ $totals['credited'] ?? 0 }}</dd></div>
+                            <div class="student-plan-check-passed"><dt>Passed at SIA</dt><dd>{{ $totals['passed'] }}</dd></div>
+                            @if (($totals['pre_tala'] ?? 0) > 0)
+                                <div class="student-plan-check-pre_tala"><dt>Pre-TALA record</dt><dd>{{ $totals['pre_tala'] }}</dd></div>
+                            @endif
+                            <div class="student-plan-check-credited"><dt>Transfer / credited</dt><dd>{{ $totals['credited'] ?? 0 }}</dd></div>
                             <div class="student-plan-check-failed"><dt>Failed – retake</dt><dd>{{ $totals['failed'] }}</dd></div>
                             <div class="student-plan-check-dropped"><dt>Dropped or INC</dt><dd>{{ $totals['dropped'] }}</dd></div>
                             <div class="student-plan-check-not_taken"><dt>Not yet taken</dt><dd>{{ $totals['not_taken'] }}</dd></div>
                             <div><dt>Remaining</dt><dd>{{ $totals['remaining'] }}</dd></div>
                         </dl>
                         <ul class="student-plan-legend" aria-label="What the subject colors mean">
-                            <li class="student-plan-check-passed"><x-filament::icon icon="heroicon-o-check-circle" /> Passed at SIA</li>
-                            <li class="student-plan-check-credited"><x-filament::icon icon="heroicon-o-document-check" /> Credited from another school or program (not taken at SIA)</li>
+                            <li class="student-plan-check-passed"><x-filament::icon icon="heroicon-o-check-circle" /> Passed at SIA (TALA)</li>
+                            @if (($totals['pre_tala'] ?? 0) > 0)
+                                <li class="student-plan-check-pre_tala"><x-filament::icon icon="heroicon-o-archive-box" /> Pre-TALA Servitech record</li>
+                            @endif
+                            <li class="student-plan-check-credited"><x-filament::icon icon="heroicon-o-document-check" /> Transfer credit (External) or program shift</li>
                             <li class="student-plan-check-failed"><x-filament::icon icon="heroicon-o-x-circle" /> Failed – retake</li>
                             <li class="student-plan-status-warning"><x-filament::icon icon="heroicon-o-exclamation-circle" /> Dropped or INC</li>
                             <li class="student-plan-status-future"><x-filament::icon icon="heroicon-o-minus-circle" /> Not yet taken</li>
@@ -227,7 +243,7 @@
                                             <span class="student-plan-timeline-copy">
                                                 <span class="student-plan-timeline-label">{{ $planYear['label'] }}</span>
                                                 <span class="student-plan-timeline-meta">{{ $planYear['done'] }} of {{ $planYear['total'] }} completed</span>
-                                                @if ($planYear['current'])<span class="student-plan-timeline-current">Current year</span>@endif
+                                                @if ($planYear['current'])<span class="student-plan-timeline-current">{{ $studyContext['is_official'] ? 'Current year' : 'Provisional standing' }}</span>@endif
                                             </span>
                                         </button>
                                     </li>
@@ -244,18 +260,21 @@
                             <section class="student-plan-year" aria-labelledby="student-plan-year-{{ $loop->index }}" x-show="planYear === {{ $loop->index }}" @if ($loop->index !== $planOpenIndex) x-cloak @endif>
                                 <header class="student-plan-year-heading">
                                     <h2 id="student-plan-year-{{ $loop->index }}">{{ $planYear['label'] }}</h2>
-                                    <p>{{ $planYear['done'] }} of {{ $planYear['total'] }} {{ $planYear['total'] === 1 ? 'subject' : 'subjects' }} completed{{ $planYear['current'] ? ' · Your current year' : '' }}</p>
+                                    <p>{{ $planYear['done'] }} of {{ $planYear['total'] }} {{ $planYear['total'] === 1 ? 'subject' : 'subjects' }} completed{{ $planYear['current'] ? ($studyContext['is_official'] ? ' · Your current year' : ' · Provisional standing') : '' }}</p>
                                 </header>
                                 <div>@foreach ($termGroups as $termLabel => $rows)
                                     <section class="student-plan-term"><h3>{{ $termLabel ?: 'Term not recorded' }}</h3>
                                         <ul class="student-plan-subjects">@foreach ($rows as $row)
-                                            <li @class(['student-plan-subject-credited' => ($row['checklist_state'] ?? null) === 'credited'])><div><h4>{{ $row['curriculum_entry']->courseSpecification?->title ?? 'Subject unavailable' }}</h4><p class="student-academic-secondary">{{ $row['curriculum_entry']->courseSpecification?->course?->code }}</p>
-                                                @if (filled($row['credit']['detail'] ?? null))<p class="student-plan-credit-source">{{ $row['credit']['detail'] }}</p>@endif
+                                            @php
+                                                $checklistState = $row['checklist_state'] ?? 'not_taken';
+                                            @endphp
+                                            <li @class(['student-plan-subject-credited' => $checklistState === 'credited', 'student-plan-subject-pre-tala' => $checklistState === 'pre_tala'])><div><h4>{{ $row['curriculum_entry']->courseSpecification?->title ?? 'Subject unavailable' }}</h4><p class="student-academic-secondary">{{ $row['curriculum_entry']->courseSpecification?->course?->code }}</p>
+                                                @if (filled($row['credit']['detail'] ?? null))<p @class(['student-plan-credit-source' => $checklistState === 'credited', 'student-plan-pre-tala-source' => $checklistState === 'pre_tala'])>{{ $row['credit']['detail'] }}</p>@endif
                                                 @if (! in_array($row['status'], ['Completed', 'Approved credit'], true))
                                                     @foreach ($planRequirements->get($row['curriculum_entry']->id) ?? [] as $requirement)<p class="student-academic-secondary">{{ \App\Models\CourseRequirement::typeOptions()[$requirement->rule_type] }}: {{ $requirement->relatedCourse?->code ?? 'Subject not recorded' }}</p>@endforeach
                                                     @if ($row['status'] === 'Deficient')<p class="student-academic-secondary">Ask the Registrar about completing or retaking this subject.</p>@endif
                                                 @endif
-                                            </div><p>{{ (float) $row['curriculum_entry']->courseSpecification?->credit_units }} units</p>@php $checklistState = $row['checklist_state'] ?? 'not_taken'; @endphp<p @class(['student-plan-status', 'student-plan-check-'.$checklistState, 'student-plan-status-future' => in_array($checklistState, ['not_taken', 'locked'], true), 'student-plan-status-warning' => in_array($checklistState, ['incomplete', 'dropped'], true)]) data-checklist-state="{{ $checklistState }}"><x-filament::icon :icon="match ($checklistState) { 'passed' => 'heroicon-o-check-circle', 'credited' => 'heroicon-o-document-check', 'in_progress' => 'heroicon-o-clock', 'failed' => 'heroicon-o-x-circle', 'incomplete', 'dropped' => 'heroicon-o-exclamation-circle', 'locked' => 'heroicon-o-lock-closed', default => 'heroicon-o-minus-circle' }" />{{ match ($checklistState) { 'passed' => 'Passed', 'credited' => ($row['credit']['label'] ?? 'Credited'), 'in_progress' => 'In progress', 'failed' => 'Failed – need to retake', 'incomplete' => 'INC – complete or retake', 'dropped' => 'Dropped – need to take', 'locked' => 'Locked – prerequisite not passed'.(($row['locked_by'] ?? []) !== [] ? ' ('.implode(', ', $row['locked_by']).')' : ''), default => 'Not yet taken' } }}</p></li>
+                                            </div><p>{{ (float) $row['curriculum_entry']->courseSpecification?->credit_units }} units</p><p @class(['student-plan-status', 'student-plan-check-'.$checklistState, 'student-plan-status-future' => in_array($checklistState, ['not_taken', 'locked'], true), 'student-plan-status-warning' => in_array($checklistState, ['incomplete', 'dropped'], true)]) data-checklist-state="{{ $checklistState }}"><x-filament::icon :icon="match ($checklistState) { 'passed' => 'heroicon-o-check-circle', 'pre_tala' => 'heroicon-o-archive-box', 'credited' => 'heroicon-o-document-check', 'in_progress' => 'heroicon-o-clock', 'failed' => 'heroicon-o-x-circle', 'incomplete', 'dropped' => 'heroicon-o-exclamation-circle', 'locked' => 'heroicon-o-lock-closed', default => 'heroicon-o-minus-circle' }" />{{ match ($checklistState) { 'passed' => 'Passed at SIA (TALA)', 'pre_tala' => ($row['credit']['label'] ?? 'Pre-TALA Servitech record'), 'credited' => ($row['credit']['label'] ?? 'Transfer credit (External)'), 'in_progress' => 'In progress', 'failed' => 'Failed – need to retake', 'incomplete' => 'INC – complete or retake', 'dropped' => 'Dropped – need to take', 'locked' => 'Locked – prerequisite not passed'.(($row['locked_by'] ?? []) !== [] ? ' ('.implode(', ', $row['locked_by']).')' : ''), default => 'Not yet taken' } }}</p></li>
                                         @endforeach</ul>
                                     </section>
                                 @endforeach</div>
@@ -345,6 +364,10 @@
                                         <li>{{ $contextFact }}</li>
                                     @endforeach
                                 </ul>
+                            @elseif ($studyContext['study_level_label'] !== 'Unavailable')
+                                <ul aria-label="Your provisional standing">
+                                    <li>{{ $studyContext['study_level_label'] }} (provisional)</li>
+                                </ul>
                             @endif
                         </div>
                         <div class="student-record-gwa">
@@ -409,16 +432,26 @@
                                         <td @class(['student-record-grade' => is_numeric($result['result'])])>
                                             @if (($result['course_enrollment'] ?? null) instanceof \App\Models\CourseEnrollment)
                                                 <x-student-academic-result :$result :show-details="false" />
+                                                @if (($hasPriorCredits ?? false) && $result['outcome_source'] !== null)
+                                                    <span class="student-academic-secondary student-record-source-label">
+                                                        {{ \App\Actions\Enrollment\RegistrationAcademicEligibilityQuery::isPassingResult($result['result'] ?? null) ? 'Passed at SIA (TALA)' : 'SIA (TALA) record' }}
+                                                    </span>
+                                                @endif
                                             @else
                                                 @php
                                                     $priorCredit = $result['prior_credit'] ?? null;
+                                                    $isExternalTransfer = $priorCredit instanceof \App\Models\PriorAcademicCredit
+                                                        && \App\Actions\Academics\CurriculumEvaluation::isExternalTransferPriorCredit($priorCredit);
+                                                    $priorSourceLabel = $isExternalTransfer
+                                                        ? 'Transfer credit (External)'.(filled($priorCredit->source_school) ? ' · '.$priorCredit->source_school : '')
+                                                        : 'Pre-TALA Servitech record';
                                                 @endphp
                                                 @if ($result['result'] === 'INC')
                                                     <x-filament::badge color="warning" id="prior-credit-result-{{ $priorCredit?->id ?? $loop->index }}">INC</x-filament::badge>
                                                 @else
                                                     <span id="prior-credit-result-{{ $priorCredit?->id ?? $loop->index }}">{{ $result['result'] ?? 'Not released' }}</span>
                                                 @endif
-                                                <span class="student-academic-secondary">{{ filled($priorCredit?->source_school) ? 'Prior record · '.$priorCredit->source_school : 'Prior record' }}</span>
+                                                <span class="student-academic-secondary student-record-source-label">{{ $priorSourceLabel }}</span>
                                             @endif
                                         </td>
                                     </tr>

@@ -40,6 +40,7 @@ class AcademicAverageReadiness
     public function includedResults(Collection $results): Collection
     {
         return $results->filter(fn (array $result): bool => is_numeric($result['result'])
+            && ! ($result['is_external_transfer'] ?? false)
             && ! $this->excludedClassification($result)
             && $result['course_specification']?->academic_classification !== null
             && (float) $result['units'] > 0);

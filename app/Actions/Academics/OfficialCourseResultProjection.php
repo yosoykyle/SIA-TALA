@@ -3,10 +3,12 @@
 namespace App\Actions\Academics;
 
 use App\Actions\Grades\IncDeadlineService;
+use App\Models\AcademicYear;
 use App\Models\CourseDropRecord;
 use App\Models\CourseEnrollment;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
+use App\Models\CurriculumVersion;
 use App\Models\GradeOutcomeEvent;
 use App\Models\PriorAcademicCredit;
 use App\Models\ProgramShiftCreditEntry;
@@ -140,11 +142,13 @@ class OfficialCourseResultProjection
                     || $results->contains(fn (array $attempt): bool => $courseId > 0
                         && (int) $attempt['course_specification']?->course_id === $courseId
                         && (($attempt['prior_credit'] ?? null)?->id !== $result['prior_credit']->id)
-                        && is_numeric($attempt['result'])
-                        && (float) $attempt['result'] <= 4.00);
+                        && ((is_numeric($attempt['result']) && (float) $attempt['result'] <= 4.00)
+                            || in_array($attempt['result'], ['CREDIT', 'TC'], true)));
                 $result['inc_settled'] = $separatelySatisfied;
                 $result['average_exclusion'] = $code.': prior INC contributes no grade points or units'
                     .($separatelySatisfied ? '; requirement satisfied by a separate released attempt or credit.' : '; completion remains open.');
+            } elseif (($result['is_external_transfer'] ?? false) === true) {
+                $result['average_exclusion'] = $code.': external transfer credit excluded from SIA GWA.';
             } elseif (in_array($classification, [CourseSpecification::AcademicClassificationPe, CourseSpecification::AcademicClassificationNstp], true)) {
                 $result['average_exclusion'] = $code.': PE/NSTP-equivalent course excluded.';
             } elseif ($classification === CourseSpecification::AcademicClassificationNonCredit) {
@@ -191,16 +195,27 @@ class OfficialCourseResultProjection
         $term = $courseEnrollment->enrollment?->term;
         $yearLevel = $courseEnrollment->termOffering?->curriculumEntry?->year_level;
 
+        $startYear = $term?->academicYear instanceof AcademicYear
+            ? (CurriculumVersion::extractAcademicYearStart($term->academicYear) ?? (int) ($term->starts_on?->year ?? 9999))
+            : (int) ($term?->starts_on?->year ?? 9999);
+        $termOrder = match ($term?->type) {
+            Term::TypeFirstSemester => 1,
+            Term::TypeSecondSemester => 2,
+            Term::TypeSpecialTerm => 3,
+            default => 4,
+        };
+
         return [
             'course_enrollment' => $courseEnrollment,
             'prior_credit' => null,
+            'is_external_transfer' => false,
             'course_specification' => $courseEnrollment->termOffering?->curriculumEntry?->courseSpecification,
             'term' => $term,
             'period_key' => 'term:'.(int) ($term?->id ?? 0),
             'period_label' => (string) ($term?->label ?? 'Recorded Term'),
             'academic_year_label' => $term?->academicYear?->label,
             'year_level' => is_numeric($yearLevel) ? (int) $yearLevel : null,
-            'period_sort_key' => '1|'.($term?->ends_on?->toDateString() ?? '9999-12-31').'|'.($term?->starts_on?->toDateString() ?? '9999-12-31').'|'.sprintf('%010d', (int) ($term?->id ?? 0)),
+            'period_sort_key' => sprintf('%04d|%d|%s|%010d', $startYear, $termOrder, $term?->starts_on?->toDateString() ?? '9999-12-31', (int) ($term?->id ?? 0)),
             'event' => $latest instanceof GradeOutcomeEvent ? $latest : null,
             'result' => $latest?->result_code,
             'units' => (string) $courseEnrollment->units_snapshot,
@@ -222,6 +237,7 @@ class OfficialCourseResultProjection
         return [
             'course_enrollment' => null,
             'prior_credit' => $credit,
+            'is_external_transfer' => $credit->isExternalTransfer(),
             'course_specification' => $credit->courseSpecification,
             'term' => $credit->term,
             'period_key' => $credit->periodKey(),

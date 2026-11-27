@@ -9,6 +9,7 @@ use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
+use App\Models\PriorAcademicCredit;
 use App\Models\Program;
 use App\Models\ProgramShiftCreditEntry;
 use App\Models\RegistrationCreditEvaluation;
@@ -121,7 +122,7 @@ class RegistrationAcademicEligibilityQuery
         if ($programId !== null) {
             $program = Program::query()->find($programId);
             if ($program instanceof Program && $program->curriculumVersionBatches()->exists()) {
-                $academicYearId = $profile?->entryTerm?->academic_year_id ?? $enrollment->term?->academic_year_id;
+                $academicYearId = $profile?->entry_academic_year_id ?? $profile?->entryTerm?->academic_year_id ?? $enrollment->term?->academic_year_id;
 
                 return $program->curriculumForAcademicYear($academicYearId);
             }
@@ -320,6 +321,31 @@ class RegistrationAcademicEligibilityQuery
                     || $transferCourseIds->contains((int) $entry->courseSpecification?->course_id)))
             || $offeredCourseIds->contains(fn (int $courseId): bool => $transferCourseIds->contains($courseId))) {
             throw ValidationException::withMessages(['sections' => 'An approved credited subject must not be enrolled again.']);
+        }
+
+        if ($profile instanceof StudentProfile) {
+            $priorPassedCourseIds = $this->expandWithEquivalentCourseIds(
+                PriorAcademicCredit::query()
+                    ->active()
+                    ->where('student_profile_id', $profile->id)
+                    ->with('courseSpecification')
+                    ->get()
+                    ->filter(fn (PriorAcademicCredit $credit): bool => $credit->isPassing())
+                    ->pluck('courseSpecification.course_id')
+                    ->filter()
+                    ->map(fn (mixed $id): int => (int) $id)
+                    ->unique()
+                    ->values(),
+            );
+
+            if ($priorPassedCourseIds->isNotEmpty()
+                && ($matchedEntries->contains(fn (?CurriculumEntry $entry): bool => $entry instanceof CurriculumEntry
+                    && $priorPassedCourseIds->contains((int) $entry->courseSpecification?->course_id))
+                    || $offeredCourseIds->contains(fn (int $courseId): bool => $priorPassedCourseIds->contains($courseId)))) {
+                throw ValidationException::withMessages([
+                    'sections' => 'An already passed or credited prior subject must not be enrolled again.',
+                ]);
+            }
         }
 
         $specificationIds = $offerings

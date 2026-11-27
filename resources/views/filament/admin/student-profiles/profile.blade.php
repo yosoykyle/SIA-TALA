@@ -12,10 +12,17 @@
         && $student->applicant_intake_id === null
         && ! $student->enrollments()->exists()
         && ! $student->priorAcademicCredits()->active()->exists();
+    $hasSecondaryActions = $this->upsertPriorCreditAction->isVisible()
+        || $this->recordCorrectionAction->isVisible()
+        || $this->resendActivationAction->isVisible()
+        || $this->correctActivationEmailAction->isVisible();
 @endphp
 <div class="tala-student-profile">
     <x-record-identity :name="$name" :number="$student->student_number" :program="$student->program?->name"
         :initials="$initials" :photo-url="$student->adminPhotoUrl()" heading-level="h1">
+        <x-slot:status>
+            <x-filament::badge :color="$student->lifecycle_status === \App\Models\StudentProfile::LifecycleActive ? 'success' : 'gray'">{{ \App\Models\StudentProfile::lifecycleStatusLabel($student->lifecycle_status) }} student</x-filament::badge>
+        </x-slot:status>
         <x-slot:supporting>
             <p class="tala-profile-muted">{{ $student->curriculumVersion?->name ?? 'No curriculum recorded' }}</p>
             @if ($activationStatus !== null && \App\Actions\StudentProfiles\StudentAccountActivation::canResendActivation($student))
@@ -23,18 +30,55 @@
             @endif
         </x-slot:supporting>
         <x-slot:actions>
-            <x-filament::badge :color="$student->lifecycle_status === \App\Models\StudentProfile::LifecycleActive ? 'success' : 'gray'">{{ \App\Models\StudentProfile::lifecycleStatusLabel($student->lifecycle_status) }} student</x-filament::badge>
-            @if ($this->recordCorrectionAction->isVisible())
-                {{ $this->recordCorrectionAction }}
-            @endif
             @if ($this->recordPriorSubjectsAction->isVisible())
                 {{ $this->recordPriorSubjectsAction }}
             @endif
-            @if ($this->resendActivationAction->isVisible())
-                {{ $this->resendActivationAction }}
-            @endif
-            @if ($this->correctActivationEmailAction->isVisible())
-                {{ $this->correctActivationEmailAction }}
+            @if ($hasSecondaryActions)
+                <x-filament::dropdown placement="bottom-end" width="xs">
+                    <x-slot name="trigger">
+                        <x-filament::button color="gray" size="sm" icon="heroicon-o-chevron-down" icon-position="after">
+                            More actions
+                        </x-filament::button>
+                    </x-slot>
+                    <x-filament::dropdown.list>
+                        @if ($this->upsertPriorCreditAction->isVisible())
+                            <x-filament::dropdown.list.item
+                                icon="heroicon-o-plus-circle"
+                                wire:click="mountAction('upsertPriorCredit')"
+                                x-on:click="close"
+                            >
+                                Record or edit prior grade
+                            </x-filament::dropdown.list.item>
+                        @endif
+                        @if ($this->recordCorrectionAction->isVisible())
+                            <x-filament::dropdown.list.item
+                                icon="heroicon-o-pencil-square"
+                                wire:click="mountAction('recordCorrection')"
+                                x-on:click="close"
+                            >
+                                Record factual correction
+                            </x-filament::dropdown.list.item>
+                        @endif
+                        @if ($this->resendActivationAction->isVisible())
+                            <x-filament::dropdown.list.item
+                                icon="heroicon-o-envelope"
+                                wire:click="mountAction('resendActivation')"
+                                x-on:click="close"
+                            >
+                                Send / Resend activation email
+                            </x-filament::dropdown.list.item>
+                        @endif
+                        @if ($this->correctActivationEmailAction->isVisible())
+                            <x-filament::dropdown.list.item
+                                icon="heroicon-o-at-symbol"
+                                wire:click="mountAction('correctActivationEmail')"
+                                x-on:click="close"
+                            >
+                                Correct email &amp; resend
+                            </x-filament::dropdown.list.item>
+                        @endif
+                    </x-filament::dropdown.list>
+                </x-filament::dropdown>
             @endif
         </x-slot:actions>
     </x-record-identity>
@@ -48,12 +92,7 @@
     @if ($tab === 'overview')
         @if ($showPriorRecordGuidance)
             <x-tala-access-alert variant="warning" title="Prior academic record needed">
-                <div class="tala-profile-action-row">
-                    <p>Prior academic record not yet recorded: record prior subjects before starting next-term enrollment so TALA places this student accurately.</p>
-                    @if ($this->recordPriorSubjectsAction->isVisible())
-                        <div class="tala-action-block">{{ $this->recordPriorSubjectsAction }}</div>
-                    @endif
-                </div>
+                <p>Prior academic record not yet recorded. Use <strong>Manage prior subjects</strong> above before starting next-term enrollment so TALA places this student accurately.</p>
             </x-tala-access-alert>
         @endif
         @if ($profile['handoff'])
@@ -88,7 +127,7 @@
                     <x-slot:footer><x-filament::button color="gray" icon="heroicon-o-book-open" wire:click="selectRecordTab('academic')" class="tala-profile-full-action">View academic record</x-filament::button></x-slot:footer>
                 </x-filament::section>
                 <x-filament::section icon="heroicon-o-clipboard-document-check" icon-color="primary" compact>
-                    <x-slot:heading>Requirements & follow-up</x-slot:heading>
+                    <x-slot:heading>Requirements &amp; follow-up</x-slot:heading>
                     <x-slot:description>Documents and office follow-up.</x-slot:description>
                     <div class="tala-profile-inset">
                         <strong>{{ $profile['holds']->isEmpty() ? 'No active restrictions recorded' : $profile['holds']->count().' active '.\Illuminate\Support\Str::plural('restriction', $profile['holds']->count()) }}</strong>

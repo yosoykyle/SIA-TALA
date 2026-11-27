@@ -158,6 +158,20 @@
 }
 
 .tala-profile-scope { font-size:.875rem; min-inline-size:0; }
+.tala-profile-return-link { margin-block-end:.75rem; }
+.tala-profile-toolbar-actions { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; }
+.tala-profile-result-cell { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.5rem .75rem; }
+.tala-profile-row-cues { display:inline-flex; flex-wrap:wrap; align-items:center; gap:.5rem; }
+.tala-profile-context-actions { display:grid; gap:.5rem; }
+.tala-profile-curriculum-groups { display:grid; gap:1.25rem; padding:var(--tala-card-pad); }
+.tala-profile-curriculum-year { display:grid; gap:.75rem; }
+.tala-profile-curriculum-year__header { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:.25rem 1rem; }
+.tala-profile-curriculum-year__header h3 { margin:0; font-size:1rem; font-weight:var(--tala-weight-heading); }
+.tala-profile-curriculum-year__header p { margin:0; }
+.tala-profile-table-caption { text-align:start; font-size:var(--tala-type-caption,.75rem); font-weight:var(--tala-weight-heading); color:var(--tala-muted); padding:.5rem .75rem; }
+.tala-profile-req-list { font-weight:400; font-size:var(--tala-type-caption,.75rem); margin-block-start:.25rem; display:grid; gap:.125rem; }
+.tala-profile-req-item { display:block; }
+.tala-profile-credit-detail { font-size:var(--tala-type-caption,.75rem); margin-block-start:.25rem; }
 
 /* Keep existing content visible; targeted reads share the navigation bar material. */
 .tala-content-region { position:relative; min-inline-size:0; }
@@ -608,9 +622,10 @@
 .tala-record-detail { display:flex; flex-direction:column; grid-column:2; overflow:visible; }
 .tala-record-detail > .tala-record-inspector { flex:1 1 auto; min-block-size:0; border:0; border-radius:.75rem; box-shadow:none; overflow:auto; overscroll-behavior:contain; scrollbar-gutter:auto; padding:var(--tala-card-pad); container-type:inline-size; }
 .tala-record-detail:has(> .tala-record-footer) > .tala-record-inspector { border-end-start-radius:0; border-end-end-radius:0; }
-.tala-record-identity:has(.student-identity-art) { position:relative; overflow:hidden; }
+.tala-record-identity:has(.student-identity-art) { position:relative; overflow:visible; }
+.tala-record-identity-art-clip { position:absolute; inset:0; overflow:hidden; border-radius:inherit; pointer-events:none; z-index:0; }
 .tala-record-identity .student-identity-art { inline-size:32%; opacity:.35; }
-.tala-record-identity-person,.tala-record-identity > .tala-record-actions { position:relative; z-index:1; }
+.tala-record-identity-person,.tala-record-identity > .tala-record-actions { position:relative; z-index:2; }
 .tala-record-identity .student-profile-avatar { display:grid; place-items:center; flex:none; inline-size:4rem; block-size:4rem; overflow:hidden; border-radius:50%; background:var(--tala-brand-tint); color:var(--tala-on-brand-tint); border:.25rem solid var(--tala-surface); box-shadow:0 0 0 1px var(--tala-selected-edge); font-size:1.25rem; font-weight:var(--tala-weight-emphasis); }
 .tala-record-identity .student-profile-avatar img { inline-size:100%; block-size:100%; object-fit:cover; }
 .tala-record-workspace--framed .tala-record-identity h2 { font-size:var(--tala-type-card); margin:0 0 .375rem; }
@@ -794,7 +809,10 @@
 .tala-student-label :is(span:not(.tala-student-label__avatar), small) { color:var(--tala-muted); font-size:.8125rem; overflow-wrap:anywhere; }
 .tala-scoped-directory .fi-ta-text { padding-block:.625rem; }
 .tala-scoped-directory .fi-ta-table { table-layout:fixed; }
+.tala-scoped-directory .fi-ta-table th.fi-ta-selection-cell { inline-size:3.25rem; }
 .tala-scoped-directory .fi-ta-table th:last-child { inline-size:8.5rem; }
+.fi-ta-table .fi-ta-selection-cell { padding-inline-end:.75rem; }
+.fi-ta-table .fi-ta-selection-cell + :is(.fi-ta-cell, .fi-ta-header-cell) { padding-inline-start:.5rem; }
 .tala-scoped-directory .fi-ta-col,
 .tala-scoped-directory .tala-student-label > div { min-inline-size:0; }
 .tala-scoped-directory .tala-student-label strong { white-space:normal; overflow-wrap:anywhere; }
