@@ -274,7 +274,7 @@ class AdmissionCycleCorrectionBoundaryJourneyTest extends TestCase
         Livewire::actingAs($registrar)
             ->test(ViewAdmissionCycle::class, ['record' => $application->admissionCycle->id])
             ->assertSee('New applications close')
-            ->assertSee('New correction requests end')
+            ->assertSee('Correction request deadline')
             ->assertActionVisible('extendCorrectionBoundary');
 
         Livewire::actingAs($registrar)
