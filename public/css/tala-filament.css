@@ -1217,19 +1217,23 @@
 .servitech-empty-state__footer { display:flex; flex-wrap:wrap; align-items:center; gap:.625rem .75rem; }
 .servitech-empty-state__actions { display:flex; flex-wrap:wrap; align-items:center; gap:.625rem .75rem; }
 .servitech-empty-state__note { margin:0; color:var(--tala-muted); font-size:.875rem; line-height:1.5; }
-.servitech-task-state { display:flex; align-items:flex-start; gap:1rem; padding:var(--tala-card-pad); border:1px solid var(--tala-edge); border-radius:var(--tala-card-radius); background:var(--tala-surface); color:var(--tala-text); box-shadow:var(--tala-material-raised); min-inline-size:0; }
-.servitech-task-state__icon { display:grid; place-items:center; flex:none; inline-size:2.75rem; block-size:2.75rem; border-radius:50%; background:var(--tala-surface-sunken); color:var(--tala-brand-foreground); }
-.servitech-task-state__icon > .fi-icon { inline-size:1.5rem; block-size:1.5rem; }
-.servitech-task-state__body { display:grid; gap:.75rem; min-inline-size:0; }
-.servitech-task-state .servitech-task-state__body h2 { font-size:1.5rem; font-weight:var(--tala-weight-heading); line-height:1.25; text-wrap:balance; margin:0; }
-.servitech-task-state .servitech-task-state__body p { margin:0; max-inline-size:70ch; font-size:.9375rem; line-height:1.55; }
-.servitech-task-state .servitech-task-state__scope { font-weight:var(--tala-weight-emphasis); }
-.servitech-task-state .servitech-task-state__office { font-size:.875rem; }
-.servitech-task-state__actions { display:flex; flex-wrap:wrap; gap:.75rem; margin-block-start:.25rem; }
-.servitech-task-state--attention { background:color-mix(in srgb,var(--warning-500) 12%,var(--tala-surface)); border-color:color-mix(in srgb,var(--warning-500) 35%,var(--tala-edge)); }
-.servitech-task-state--attention .servitech-task-state__icon { color:var(--warning-700); background:color-mix(in srgb,var(--warning-500) 16%,var(--tala-surface)); }
-.dark .servitech-task-state--attention .servitech-task-state__icon { color:var(--warning-300); }
-@media(max-width:40rem) { .servitech-task-state { gap:.75rem; padding:1rem; } .servitech-task-state__icon { inline-size:2.25rem; block-size:2.25rem; } .servitech-task-state .servitech-task-state__body h2 { font-size:1.25rem; } }
+.servitech-task-state { display:flex; align-items:flex-start; gap:1rem; padding:var(--tala-card-pad, 1rem) 1.25rem; border:1px solid var(--tala-edge); border-radius:var(--tala-card-radius, 0.75rem); background:var(--tala-surface); color:var(--tala-text); box-shadow:var(--tala-material-raised); min-inline-size:0; }
+.servitech-task-state__icon { display:grid; place-items:center; flex:none; inline-size:2.25rem; block-size:2.25rem; border-radius:0.625rem; background:var(--tala-brand-tint); color:var(--tala-brand-foreground); }
+.servitech-task-state__icon > .fi-icon { inline-size:1.25rem; block-size:1.25rem; }
+.servitech-task-state__body { display:grid; gap:0.5rem; min-inline-size:0; flex:1 1 auto; }
+.servitech-task-state__header { display:flex; flex-wrap:wrap; align-items:center; gap:0.375rem 0.625rem; }
+.servitech-task-state__pill { display:inline-flex; align-items:center; padding:0.125rem 0.5rem; border-radius:999px; border:1px solid var(--tala-edge); background:var(--tala-surface-sunken); color:var(--tala-muted); font-size:0.75rem; font-weight:600; line-height:1.35; white-space:nowrap; }
+.servitech-task-state .servitech-task-state__body h2 { font-size:1rem; font-weight:var(--tala-weight-emphasis, 600); line-height:1.35; text-wrap:balance; color:var(--tala-text); margin:0; }
+.servitech-task-state .servitech-task-state__body p { margin:0; max-inline-size:70ch; font-size:0.875rem; line-height:1.5; color:var(--tala-muted); }
+.servitech-task-state .servitech-task-state__scope { color:var(--tala-text); font-weight:var(--tala-weight-emphasis, 600); }
+.servitech-task-state .servitech-task-state__office { font-size:0.8125rem; color:var(--tala-muted); }
+.servitech-task-state .servitech-task-state__office strong { color:var(--tala-text); }
+.servitech-task-state__actions { display:flex; flex-wrap:wrap; gap:0.75rem; margin-block-start:0.5rem; }
+.servitech-task-state--attention .servitech-task-state__icon { color:var(--tala-status-warning-icon); background:var(--tala-status-warning-bg); }
+.servitech-task-state--attention .servitech-task-state__pill { border-color:var(--tala-status-warning-border); background:var(--tala-status-warning-bg); color:var(--tala-status-warning-fg); }
+.servitech-task-state--blocked .servitech-task-state__icon { color:var(--tala-status-danger-fg); background:var(--tala-status-danger-bg); }
+.servitech-task-state--blocked .servitech-task-state__pill { border-color:var(--tala-status-danger-border); background:var(--tala-status-danger-bg); color:var(--tala-status-danger-fg); }
+@media(max-width:40rem) { .servitech-task-state { gap:0.75rem; padding:1rem; } }
 .tala-record-timeline { list-style:none; margin:0 1rem 1rem; padding:.25rem .875rem; border:1px solid var(--tala-edge); border-radius:var(--tala-card-radius); background:var(--tala-surface-sunken); }
 .tala-record-timeline-item { display:grid; grid-template-columns:1.75rem minmax(0,1fr); gap:.875rem; position:relative; padding-block:1rem; }
 .tala-record-timeline-item:not(:last-child)::after { content:''; position:absolute; inset-inline-start:.875rem; inset-block:2.5rem -.875rem; border-inline-start:1px solid var(--tala-edge); }
@@ -2292,6 +2296,9 @@ table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
 
 .fi-body .student-record-workspace .student-record-term .student-academic-table-wrap.tala-data-table-scroll {
     padding: 0;
+    max-block-size: none;
+    overflow: clip;
+    overscroll-behavior: auto;
 }
 
 .fi-body .tala-workspace-coverage__table.tala-data-table-scroll {
@@ -3025,5 +3032,209 @@ table.tala-data-table--records { min-inline-size:0; table-layout:fixed; }
         background: Canvas;
         border-color: CanvasText;
         box-shadow: none;
+    }
+}
+
+/* Student Class Schedule (#111 Theme 4): identity header, highlighted dates, Academic Calendar accent, and compact weekly timetable. */
+.fi-body .student-schedule-identity {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+    padding: 0.875rem 1.125rem;
+}
+
+.fi-body .student-schedule-identity__primary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.625rem 1rem;
+    min-inline-size: 0;
+}
+
+.fi-body .student-schedule-identity__number {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.4375rem;
+    padding: 0.375rem 0.75rem;
+    border: 1px solid color-mix(in srgb, var(--tala-brand) 36%, var(--tala-edge));
+    border-radius: 0.5rem;
+    background: var(--tala-brand-tint);
+    color: var(--tala-on-brand-tint);
+    line-height: 1.3;
+}
+
+.fi-body .student-schedule-identity__number-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--tala-muted);
+}
+
+.fi-body .student-schedule-identity__number > strong {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--tala-brand-foreground);
+}
+
+.fi-body .student-schedule-identity__meta {
+    display: grid;
+    gap: 0.125rem;
+    min-inline-size: 0;
+}
+
+.fi-body .student-schedule-identity__name {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--tala-text);
+}
+
+.fi-body .student-schedule-identity__details {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: var(--tala-muted);
+}
+
+.fi-body .student-schedule-nav-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+}
+
+.fi-body .student-schedule-highlights {
+    display: grid;
+    gap: 0.625rem;
+}
+
+.fi-body .student-schedule-highlights__cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+    gap: 0.75rem;
+}
+
+.fi-body .student-schedule-highlight-card {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--tala-edge);
+    border-radius: 0.625rem;
+    background: var(--tala-surface);
+    min-inline-size: 0;
+}
+
+.fi-body .student-schedule-highlight-card--classes {
+    background: var(--tala-surface);
+}
+
+.fi-body .student-schedule-highlight-card--exam {
+    background: var(--tala-surface);
+}
+
+.fi-body .student-schedule-highlight-card__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: 2rem;
+    block-size: 2rem;
+    flex: none;
+    border-radius: 0.5rem;
+    background: color-mix(in srgb, var(--tala-brand) 10%, var(--tala-surface-sunken));
+    color: var(--tala-brand-foreground);
+}
+
+.fi-body .student-schedule-highlight-card--exam .student-schedule-highlight-card__icon {
+    background: color-mix(in srgb, var(--tala-status-warning-bg) 70%, var(--tala-surface-sunken));
+    color: var(--tala-status-warning-fg);
+}
+
+.fi-body .student-schedule-highlight-card__icon > .fi-icon {
+    inline-size: 1.125rem;
+    block-size: 1.125rem;
+}
+
+.fi-body .student-schedule-highlight-card__body {
+    display: grid;
+    gap: 0.125rem;
+    flex: 1 1 auto;
+    min-inline-size: 0;
+}
+
+.fi-body .student-schedule-highlight-card__label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.3;
+    color: var(--tala-muted);
+}
+
+.fi-body .student-schedule-highlight-card__value {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--tala-text);
+}
+
+.fi-body .student-schedule-highlights__holidays {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem 0.625rem;
+    padding: 0.5rem 0.875rem;
+    border: 1px solid var(--tala-edge);
+    border-radius: 0.5rem;
+    background: var(--tala-surface-sunken);
+}
+
+.fi-body .student-schedule-highlights__holidays-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--tala-muted);
+}
+
+.fi-body .student-schedule-calendar .student-calendar-fact--classes dd:not(.tala-calendar-facts__note) {
+    color: var(--tala-brand-foreground);
+}
+
+.fi-body .student-schedule-calendar .student-calendar-fact--exam dd:not(.tala-calendar-facts__note) {
+    color: var(--tala-status-warning-fg);
+}
+
+.fi-body .student-schedule-calendar .tala-calendar-activity.is-highlighted {
+    border-inline-start: 3px solid var(--tala-status-warning-icon);
+    background: color-mix(in srgb, var(--tala-status-warning-bg) 45%, var(--tala-surface));
+}
+
+/* Compact slot height for Student Class Schedule weekly timetable on desktop without excessive vertical scrolling. */
+.fi-body .student-schedule-reading .enrollment-schedule .tala-timetable {
+    --timetable-slot-height: 1.85rem;
+}
+
+.fi-body .student-schedule-reading .enrollment-schedule .tala-timetable-weekly {
+    max-block-size: none;
+    overflow: visible;
+}
+
+.fi-body .student-schedule-reading .enrollment-schedule .tala-timetable-day-heading,
+.fi-body .student-schedule-reading .enrollment-schedule .tala-timetable-axis-heading {
+    padding: 0.5rem 0.375rem;
+    font-size: 0.8125rem;
+}
+
+.fi-body .student-schedule-reading .enrollment-schedule .tala-timetable-meeting {
+    padding: 0.25rem 0.375rem;
+    gap: 0.125rem;
+}
+
+@media (forced-colors: active) {
+    .fi-body .student-schedule-identity__number,
+    .fi-body .student-schedule-highlight-card,
+    .fi-body .student-schedule-calendar .tala-calendar-activity.is-highlighted {
+        background: Canvas;
+        border-color: CanvasText;
     }
 }

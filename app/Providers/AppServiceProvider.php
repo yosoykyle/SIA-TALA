@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Actions\Academics\OfficialCourseResultProjection;
 use App\Actions\Integrations\SchedulingSolver\CloudRunIdTokenProvider;
 use App\Actions\Integrations\SchedulingSolver\CloudRunSchedulingSolverClient;
 use App\Actions\Integrations\SchedulingSolver\GoogleServiceAccountCloudRunIdTokenProvider;
@@ -16,23 +17,35 @@ use App\Models\Assessment;
 use App\Models\AssessmentLine;
 use App\Models\CalendarEvent;
 use App\Models\Course;
+use App\Models\CourseDropRecord;
+use App\Models\CourseEnrollment;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumVersion;
 use App\Models\DuplicateProfileResolution;
+use App\Models\Enrollment;
 use App\Models\FacultyQualification;
 use App\Models\FacultyTermLoadOverride;
 use App\Models\FeeRule;
 use App\Models\FinancialAccommodation;
+use App\Models\GradeOutcomeEvent;
+use App\Models\GradeRosterRow;
+use App\Models\IncDeadlineAmendment;
 use App\Models\LedgerEntry;
 use App\Models\Payment;
 use App\Models\PaymentScheduleRow;
+use App\Models\PriorAcademicCredit;
 use App\Models\Program;
+use App\Models\ProgramShiftCreditEntry;
+use App\Models\RegistrationCreditEvaluation;
+use App\Models\RegistrationCreditLine;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionDeliveryGroup;
 use App\Models\SectionMeeting;
+use App\Models\StudentLifecycleChange;
+use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Policies\AcademicYearPolicy;
 use App\Policies\AccountingAdjustmentPolicy;
@@ -193,5 +206,24 @@ class AppServiceProvider extends ServiceProvider
         Blade::component('layouts.app', 'app-layout');
         Blade::component('components.guest-navbar', 'guest-navbar');
         Blade::component('components.student-navbar', 'student-navbar');
+
+        foreach ([
+            CourseEnrollment::class,
+            CourseDropRecord::class,
+            Enrollment::class,
+            GradeOutcomeEvent::class,
+            GradeRosterRow::class,
+            IncDeadlineAmendment::class,
+            PriorAcademicCredit::class,
+            ProgramShiftCreditEntry::class,
+            RegistrationCreditEvaluation::class,
+            RegistrationCreditLine::class,
+            StudentLifecycleChange::class,
+            StudentProfile::class,
+            Term::class,
+        ] as $projectionSourceModel) {
+            $projectionSourceModel::saved(static fn (): null => OfficialCourseResultProjection::clearCache());
+            $projectionSourceModel::deleted(static fn (): null => OfficialCourseResultProjection::clearCache());
+        }
     }
 }

@@ -77,7 +77,7 @@ class AcademicEnrollmentEffect
                 'effect' => AcademicDecision::EffectAdvisingRequired,
                 'source' => 'Released academic-record projection',
                 'reason' => 'Current unresolved or deficient course results require an individually advised selection; only affected prerequisites remain unavailable.',
-                'student_reason' => 'You have a subject result that is still open or was not passed. You can still enroll next term. The Registrar will help you choose your subjects, and only subjects that depend on the affected one stay on hold.',
+                'student_reason' => 'You have an unreleased or deficient subject result; contact your professor or instructor first if a grade is missing. You can still enroll in eligible subjects next term while only dependent subjects stay on hold.',
             ];
         }
 

@@ -73,7 +73,10 @@ Radius: compact 6px, control 8px, surface 12px
 North Star: "Clear Institutional Operations"
 Rules:
 - The Control Meaning Rule. Primary commands and affirmative submissions use native green; Cancel or Close that exits without applying work uses neutral gray.
-- Alternating neutral surface tiers and card surface rule. Outer cards—including filter/scope cards such as `x-record-scope-bar` and `x-record-collection-controls`—keep a continuous raised `--tala-surface` body with hairline dividers (`border-block-start: 1px solid var(--t...
+- Alternating neutral surface tiers and card surface rule. Outer cards—including filter/scope cards such as `x-record-scope-bar` and `x-record-collection-controls`—keep a continuous raised `--tala-surface` body with hairline dividers (`border-block-start: 1px solid var(--tala-edge)`).
+- Canonical Profile Card (`<x-record-identity>`). The shared `<x-record-identity>` profile card style (initials/photo, name, institutional identity pill, subtle Servitech green surface accent, and learner journey art where appropriate) is the canonical profile card style across the system (reused across Student Hub Overview, Class Schedule, Users & Access modals/profiles, and Profile headers).
+- Unified Raised-Card Status & Advisory Callout. Status and advisory callouts (`.tala-warning-banner`, `<x-servitech-task-state>`, etc.) use a clean raised Neutral Zinc `--tala-surface` card with a `1px solid var(--tala-edge)` hairline border, subtle top rim, and a compact tinted semantic icon badge/status pill—avoiding muddy full-card amber/green washes, nested cards, or thick colored side-borders (`> 1px`).
+- Full-Width Segmented View Switchers & Native Buttons. Multi-view workspaces use full-width segmented view switchers (`<x-tala-navigation stretch>`) for 1-tap switching on mobile and desktop alongside consistent native Filament buttons (`<x-filament::button>`).
 Don't:
 - Treat historical prototype layouts or today's production screens as automatically approved compositions.
 - Force scheduling into a table-only view, or use a visual grid without an accessible equivalent.

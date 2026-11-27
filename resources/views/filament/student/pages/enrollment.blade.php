@@ -36,13 +36,52 @@
         };
     @endphp
     <div class="learner-enrollment student-registration">
+        @if ($isStudent)
+            <x-tala-navigation label="Enrollment sections" stretch class="student-workspace-nav">
+                <x-filament::tabs.item
+                    tag="a"
+                    wire:navigate
+                    :href="\App\Filament\Student\Pages\Enrollment::getUrl(panel: 'student')"
+                    :active="true"
+                    icon="heroicon-o-clipboard-document-check"
+                >
+                    Current registration
+                </x-filament::tabs.item>
+                <x-filament::tabs.item
+                    tag="a"
+                    wire:navigate
+                    :href="\App\Filament\Student\Pages\CorView::getUrl(panel: 'student')"
+                    :active="false"
+                    icon="heroicon-o-document-check"
+                >
+                    Certificate (COR)
+                </x-filament::tabs.item>
+            </x-tala-navigation>
+        @endif
         <div wire:loading class="flex items-center gap-2 text-sm" style="color: var(--tala-muted);" role="status">
             <x-filament::loading-indicator class="h-4 w-4" /> Updating enrollment details…
         </div>
         @if ($showProgressStepper)
-            <ol class="tala-irregular-progress" aria-label="Enrollment progress">
+            <ol class="student-enrollment-stepper" aria-label="Enrollment progress">
                 @foreach ($enrollmentSteps as $index => $stepLabel)
-                    <li @class(['is-done' => $official || $index < $enrollmentStepIndex]) @if (! $official && $index === $enrollmentStepIndex) aria-current="step" @endif>{{ $stepLabel }}</li>
+                    @php
+                        $isComplete = $official || $index < $enrollmentStepIndex;
+                        $isCurrent = ! $official && $index === $enrollmentStepIndex;
+                    @endphp
+                    <li @class([
+                        'student-enrollment-stepper__step',
+                        'is-complete' => $isComplete,
+                        'is-current' => $isCurrent,
+                    ]) @if ($isCurrent) aria-current="step" @endif>
+                        <span class="student-enrollment-stepper__num" aria-hidden="true">
+                            @if ($isComplete)
+                                <x-filament::icon icon="heroicon-m-check" class="h-3.5 w-3.5" />
+                            @else
+                                {{ $index + 1 }}
+                            @endif
+                        </span>
+                        <span class="student-enrollment-stepper__label">{{ $stepLabel }}</span>
+                    </li>
                 @endforeach
             </ol>
         @endif
@@ -78,71 +117,75 @@
                     }" :description="$entryContext['reason'] ?? 'Review the subjects and fees prepared for this Term. The Registrar checks your classes before you confirm.'" :scope="$academicGuidance['scope_label'] ?? null" :office="in_array($entryContext['context_state'], ['academic_restriction', 'ambiguous'], true) ? 'Registrar Office' : null" :attention="in_array($entryContext['context_state'], ['academic_restriction', 'ambiguous'], true)">
                     @if ($entryContext['can_start']){{ $this->startRegistrationAction }}@endif
                     @if ($isStudent)
-                        <x-filament::button tag="a" color="gray" :href="\App\Filament\Student\Pages\Academics::getUrl(array_filter(['view' => 'plan', 'enrollmentTerm' => $entryContext['term']?->id]), panel: 'student')" icon="heroicon-o-map">View study plan</x-filament::button>
+                        <x-filament::button tag="a" color="gray" outlined :href="\App\Filament\Student\Pages\Academics::getUrl(array_filter(['view' => 'plan', 'enrollmentTerm' => $entryContext['term']?->id]), panel: 'student')" icon="heroicon-o-map">View study plan</x-filament::button>
                     @endif
                 </x-servitech-task-state>
             @else
                 <div class="student-enrollment-task-layout">
-                    <section class="student-enrollment-task tala-task-surface" aria-labelledby="enrollment-task-heading">
-                        @if (! $confirmed && ($irregularReview['is_irregular'] ?? false) && ! $proposal)
-                            @php
-                                $requestState = $irregularRequest?->state;
-                                $progressIndex = match ($requestState) {
-                                    \App\Models\IrregularEnrollmentRequest::StateSubmitted => 1,
-                                    \App\Models\IrregularEnrollmentRequest::StateAccepted => 2,
-                                    default => 0,
-                                };
-                            @endphp
-                            <h2 id="enrollment-task-heading">{{ match ($requestState) {
-                                \App\Models\IrregularEnrollmentRequest::StateSubmitted => 'Irregular application – submitted – for Registrar approval',
-                                \App\Models\IrregularEnrollmentRequest::StateReturned => 'Irregular application returned for correction',
-                                default => 'Apply for irregular enrollment',
-                            } }}</h2>
-                            <ol class="tala-irregular-progress" aria-label="Irregular enrollment progress">
-                                @foreach (['Applied as irregular', 'Registrar approval', 'Assessment', 'Payment', 'Enrolled'] as $index => $step)
-                                    <li @class(['is-done' => $index < $progressIndex]) @if ($index === $progressIndex) aria-current="step" @endif>{{ $step }}</li>
-                                @endforeach
-                            </ol>
-                            @if ($requestState === \App\Models\IrregularEnrollmentRequest::StateSubmitted)
-                                <p>Your irregular application has been submitted. Please wait for Registrar approval. You cannot edit your subjects unless the Registrar returns your application for correction.</p>
-                            @elseif ($requestState === \App\Models\IrregularEnrollmentRequest::StateReturned)
-                                <p><strong>Registrar note:</strong> {{ $irregularRequest->return_reason }}</p>
+                    <section class="student-enrollment-task tala-task-surface student-card--two-tone" aria-labelledby="enrollment-task-heading">
+                        <div class="student-card__body">
+                            @if (! $confirmed && ($irregularReview['is_irregular'] ?? false) && ! $proposal)
+                                @php
+                                    $requestState = $irregularRequest?->state;
+                                    $progressIndex = match ($requestState) {
+                                        \App\Models\IrregularEnrollmentRequest::StateSubmitted => 1,
+                                        \App\Models\IrregularEnrollmentRequest::StateAccepted => 2,
+                                        default => 0,
+                                    };
+                                @endphp
+                                <h2 id="enrollment-task-heading">{{ match ($requestState) {
+                                    \App\Models\IrregularEnrollmentRequest::StateSubmitted => 'Irregular application – submitted – for Registrar approval',
+                                    \App\Models\IrregularEnrollmentRequest::StateReturned => 'Irregular application returned for correction',
+                                    default => 'Apply for irregular enrollment',
+                                } }}</h2>
+                                <ol class="tala-irregular-progress" aria-label="Irregular enrollment progress">
+                                    @foreach (['Applied as irregular', 'Registrar approval', 'Assessment', 'Payment', 'Enrolled'] as $index => $step)
+                                        <li @class(['is-done' => $index < $progressIndex]) @if ($index === $progressIndex) aria-current="step" @endif>{{ $step }}</li>
+                                    @endforeach
+                                </ol>
+                                @if ($requestState === \App\Models\IrregularEnrollmentRequest::StateSubmitted)
+                                    <p>Your irregular application has been submitted. Please wait for Registrar approval. You cannot edit your subjects unless the Registrar returns your application for correction.</p>
+                                @elseif ($requestState === \App\Models\IrregularEnrollmentRequest::StateReturned)
+                                    <p><strong>Registrar note:</strong> {{ $irregularRequest->return_reason }}</p>
+                                @else
+                                    <x-irregular-reasons :review="$irregularReview" audience="student" />
+                                    <p>Confirm your reason, choose your retakes and other subjects, then submit your application to the Registrar.</p>
+                                @endif
+                            @elseif (! $confirmed)
+                                <h2 id="enrollment-task-heading">Your classes are being prepared</h2>
+                                <p>The Registrar is preparing your subjects and schedule. You can confirm when your classes and fees are ready.</p>
+                                <p>No action is needed from you yet.</p>
+                            @elseif ($latestEvidence?->state === \App\Models\PaymentEvidenceVersion::StateSubmitted)
+                                <h2 id="enrollment-task-heading">Submitted receipt awaiting review</h2>
+                                <p>Accounting is reviewing your {{ $money($latestEvidence->claimed_amount) }} receipt. Your balance changes after verification.</p>
+                            @elseif (($paymentRequirement['state'] ?? 'Unavailable') === 'Unavailable')
+                                <h2 id="enrollment-task-heading">Accounting needs to review your fees</h2>
+                                <p>Your enrollment payment amount is unavailable. Contact Accounting before paying.</p>
                             @else
-                                <x-irregular-reasons :review="$irregularReview" audience="student" />
-                                <p>Confirm your reason, choose your retakes and other subjects, then submit your application to the Registrar.</p>
+                                <h2 id="enrollment-task-heading">Complete your enrollment payment</h2>
+                                @if ($hasElectronicChannels)
+                                    <p>Your subjects are confirmed. Pay {{ $money($paymentRequirement['balance'] ?? null) }} through a school payment channel below or onsite at the Campus Cashier.</p>
+                                    <p>Once Accounting verifies your receipt (or records your onsite Cashier payment), your enrollment becomes official automatically and your COR will be ready immediately. Onsite Cashier payments are recorded directly: no receipt upload needed.</p>
+                                @else
+                                    <p>Your subjects are confirmed. Pay {{ $money($paymentRequirement['balance'] ?? null) }} onsite at the Campus Cashier below: electronic transfer channels are currently unavailable.</p>
+                                    <p>Onsite Cashier payments are recorded directly: no receipt upload needed. Once Accounting records your onsite Cashier payment, your enrollment becomes official automatically and your COR will be ready immediately.</p>
+                                @endif
                             @endif
-                            @if ($this->applyAsIrregularAction->isVisible())<div class="student-tile-actions">{{ $this->applyAsIrregularAction }}</div>@endif
-                        @elseif (! $confirmed)
-                            <h2 id="enrollment-task-heading">Your classes are being prepared</h2>
-                            <p>The Registrar is preparing your subjects and schedule. You can confirm when your classes and fees are ready.</p>
-                            <p>No action is needed from you yet.</p>
-                        @elseif ($latestEvidence?->state === \App\Models\PaymentEvidenceVersion::StateSubmitted)
-                            <h2 id="enrollment-task-heading">Submitted receipt awaiting review</h2>
-                            <p>Accounting is reviewing your {{ $money($latestEvidence->claimed_amount) }} receipt. Your balance changes after verification.</p>
-                        @elseif (($paymentRequirement['state'] ?? 'Unavailable') === 'Unavailable')
-                            <h2 id="enrollment-task-heading">Accounting needs to review your fees</h2>
-                            <p>Your enrollment payment amount is unavailable. Contact Accounting before paying.</p>
-                        @else
-                            <h2 id="enrollment-task-heading">Complete your enrollment payment</h2>
-                            @if ($hasElectronicChannels)
-                                <p>Your subjects are confirmed. Pay {{ $money($paymentRequirement['balance'] ?? null) }} through a school payment channel below or onsite at the Campus Cashier.</p>
-                                <p>Once Accounting verifies your receipt (or records your onsite Cashier payment), your enrollment becomes official automatically and your COR will be ready immediately. Onsite Cashier payments are recorded directly: no receipt upload needed.</p>
-                            @else
-                                <p>Your subjects are confirmed. Pay {{ $money($paymentRequirement['balance'] ?? null) }} onsite at the Campus Cashier below: electronic transfer channels are currently unavailable.</p>
-                                <p>Onsite Cashier payments are recorded directly: no receipt upload needed. Once Accounting records your onsite Cashier payment, your enrollment becomes official automatically and your COR will be ready immediately.</p>
+                            @if (($readiness['shortages'] ?? []) !== [])
+                                <ul class="student-registration-shortages">@foreach ($readiness['shortages'] as $shortage)<li><strong>{{ $shortage['course'] }} · {{ $shortage['section'] }}</strong><p>{{ $shortage['recovery'] }} Contact {{ $shortage['owner'] }}.</p></li>@endforeach</ul>
                             @endif
-                        @endif
-                        @if (($readiness['shortages'] ?? []) !== [])
-                            <ul class="student-registration-shortages">@foreach ($readiness['shortages'] as $shortage)<li><strong>{{ $shortage['course'] }} · {{ $shortage['section'] }}</strong><p>{{ $shortage['recovery'] }} Contact {{ $shortage['owner'] }}.</p></li>@endforeach</ul>
-                        @endif
-                        @if ($confirmed && $latestEvidence)
-                            <div class="student-enrollment-receipt"><p><strong>{{ $latestEvidence->original_name }}</strong><br>{{ str($latestEvidence->state)->headline() }} · {{ $money($latestEvidence->claimed_amount) }}<br>Submitted {{ $latestEvidence->submitted_at?->timezone(config('app.display_timezone'))->format('M j, Y · g:i A') }}</p>@if ($latestEvidence->review_note)<p>{{ $latestEvidence->review_note }}</p>@endif<x-payment-proof-viewer :proof="$latestEvidence" label="View receipt" /></div>
-                        @endif
-                        <div class="student-finance-actions">
+                            @if ($confirmed && $latestEvidence)
+                                <div class="student-enrollment-receipt"><p><strong>{{ $latestEvidence->original_name }}</strong><br>{{ str($latestEvidence->state)->headline() }} · {{ $money($latestEvidence->claimed_amount) }}<br>Submitted {{ $latestEvidence->submitted_at?->timezone(config('app.display_timezone'))->format('M j, Y · g:i A') }}</p>@if ($latestEvidence->review_note)<p>{{ $latestEvidence->review_note }}</p>@endif<x-payment-proof-viewer :proof="$latestEvidence" label="View receipt" /></div>
+                            @endif
+                        </div>
+                        <div class="student-card__footer">
+                            @if (! $confirmed && ($irregularReview['is_irregular'] ?? false) && ! $proposal && $this->applyAsIrregularAction->isVisible())
+                                {{ $this->applyAsIrregularAction }}
+                            @endif
                             @if ($confirmed && ($paymentRequirement['state'] ?? '') === 'ActionNeeded' && $latestEvidence?->state !== \App\Models\PaymentEvidenceVersion::StateSubmitted && $hasElectronicChannels)
                                 {{ $this->submitPaymentEvidenceAction->color('primary') }}
                             @endif
-                            <x-filament::button wire:click="$refresh" color="gray" icon="heroicon-o-arrow-path">Refresh enrollment</x-filament::button>
+                            <x-filament::button wire:click="$refresh" color="gray" outlined icon="heroicon-o-arrow-path">Refresh enrollment</x-filament::button>
                         </div>
                     </section>
                     @include('filament.student.pages.enrollment-fees')
@@ -164,7 +207,7 @@
                     <x-enrollment-proposal-explanation :enrollment="$enrollment" :proposal="$proposal" audience="student" />
                 @endif
                 @include('filament.student.pages.enrollment-help')
-                @if ($isStudent && $corHistory !== [])<p class="student-registration-help"><x-filament::link :href="\App\Filament\Student\Pages\CorView::getUrl(panel: 'student')">View earlier registrations</x-filament::link></p>@endif
+                @if ($isStudent && $corHistory !== [])<div class="student-registration-help"><x-filament::button tag="a" size="sm" color="gray" outlined :href="\App\Filament\Student\Pages\CorView::getUrl(panel: 'student')" icon="heroicon-o-document-text">View earlier registrations</x-filament::button></div>@endif
             @endif
         @endif
     </div>

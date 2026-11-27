@@ -37,6 +37,9 @@ class CorView extends Page
     #[Locked]
     public array $cor = [];
 
+    #[Locked]
+    public bool $isPreviousTermFallback = false;
+
     public function mount(Request $request): void
     {
         $actor = auth()->user();
@@ -44,18 +47,22 @@ class CorView extends Page
         abort_unless($actor instanceof User, 403);
 
         $builder = app(BuildCorOutput::class);
+        $this->isPreviousTermFallback = false;
         $selected = $this->version !== null ? $this->ownedVersions($actor)->firstWhere('id', $this->version) : null;
         if ($selected instanceof CorVersion) {
             $this->cor = $builder->forEnrollment($selected->enrollment, $actor, BuildCorOutput::CopyStudent, false, $selected);
         } else {
             $currentCor = $builder->forStudent($actor);
-            if (($currentCor['available'] ?? false) === true) {
+            if (($currentCor['available'] ?? false) === true || ($currentCor['enrollment'] ?? null) instanceof \App\Models\Enrollment) {
                 $this->cor = $currentCor;
             } else {
                 $latestOwned = $this->ownedVersions($actor)->first();
-                $this->cor = $latestOwned instanceof CorVersion
-                    ? $builder->forEnrollment($latestOwned->enrollment, $actor, BuildCorOutput::CopyStudent, false, $latestOwned)
-                    : $currentCor;
+                if ($latestOwned instanceof CorVersion) {
+                    $this->cor = $builder->forEnrollment($latestOwned->enrollment, $actor, BuildCorOutput::CopyStudent, false, $latestOwned);
+                    $this->isPreviousTermFallback = ($this->cor['available'] ?? false) === true;
+                } else {
+                    $this->cor = $currentCor;
+                }
             }
         }
 
@@ -74,6 +81,7 @@ class CorView extends Page
             'versions' => $versions,
             'illustrateEmpty' => $versions === [] && ($this->cor['enrollment'] ?? null) === null && auth()->user()?->studentProfile !== null,
             'selectedVersionId' => $this->selectedVersionId(),
+            'isPreviousTermFallback' => $this->isPreviousTermFallback,
         ];
     }
 
@@ -126,7 +134,7 @@ class CorView extends Page
             $isCurrentTerm = $currentEnrollment instanceof \App\Models\Enrollment && $currentEnrollment->is($version->enrollment);
             $statusLabel = match (true) {
                 $isCurrentTerm && $isLatestForCase => 'Current',
-                $isLatestForCase => 'Latest for this Term',
+                $isLatestForCase => 'Previous term',
                 default => 'Earlier copy',
             };
 

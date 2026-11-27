@@ -83,8 +83,10 @@ class BuildCorOutput
         $isCurrentVersion = $requestedVersion === null
             || (int) $enrollment->current_cor_version_id === (int) $requestedVersion->id;
         $isCurrentDocument = $isCurrentEnrollment && $isCurrentVersion;
+        $shouldEnforceStudentGuards = $this->actorOwnsEnrollment($actor, $enrollment)
+            && ($isCurrentDocument || (! $currentEnrollment instanceof Enrollment && $isCurrentVersion));
 
-        if ($isCurrentDocument && $enrollment->studentProfile->blocksCurrentCorByLifecycle()) {
+        if (($isCurrentDocument || $shouldEnforceStudentGuards) && $enrollment->studentProfile->blocksCurrentCorByLifecycle()) {
             return $this->unavailable(sprintf(
                 'Your current COR is unavailable while your student lifecycle status is %s. Please contact the Registrar Office for the next step.',
                 StudentProfile::lifecycleStatusLabel($enrollment->studentProfile->lifecycle_status),
@@ -93,7 +95,7 @@ class BuildCorOutput
 
         $activeHolds = $this->blockingCorHolds($enrollment);
 
-        if ($isCurrentDocument && $activeHolds->isNotEmpty() && $this->actorOwnsEnrollment($actor, $enrollment)) {
+        if ($shouldEnforceStudentGuards && $activeHolds->isNotEmpty()) {
             $message = $activeHolds
                 ->map(fn (Hold $hold): ?string => $hold->studentFacingMessage())
                 ->filter()
@@ -160,9 +162,11 @@ class BuildCorOutput
     {
         $enrollment->loadMissing([
             'currentCorVersion',
+            'currentProposalVersion.curriculumVersion',
             'credentialUser',
             'studentProfile.user',
             'studentProfile.program',
+            'studentProfile.curriculumVersion',
             'term',
             'holds',
         ]);
@@ -212,8 +216,12 @@ class BuildCorOutput
             $enrollment->currentCorVersion === null => 'Retained copy - current version unavailable',
             $isCurrentEnrollment && (int) $enrollment->current_cor_version_id === (int) $corVersion->id => 'Current',
             (int) $enrollment->current_cor_version_id !== (int) $corVersion->id => 'Superseded',
-            default => 'Historical',
+            default => 'Previous term',
         };
+        $curriculumName = $snapshot['curriculum_name']
+            ?? $enrollment->currentProposalVersion?->curriculumVersion?->name
+            ?? $enrollment->studentProfile?->curriculumVersion?->name
+            ?? null;
         $financeSatisfaction = data_get($snapshot, 'finance_satisfaction.state', 'Satisfied at finalization');
         $curriculumLevels = collect($snapshot['represented_curriculum_levels'] ?? [])->filter()->implode(', ');
         $fees = collect($snapshot['fees'] ?? [])
@@ -262,6 +270,7 @@ class BuildCorOutput
                 'program' => (string) ($snapshot['program_code'] ?? $snapshot['program_name'] ?? $snapshot['program_id'] ?? 'Not recorded'),
                 'program_name' => $snapshot['program_name'] ?? $snapshot['program_code'] ?? 'Not recorded',
                 'program_code' => $snapshot['program_code'] ?? 'Not recorded',
+                'curriculum_name' => $curriculumName,
                 'curriculum_version' => isset($snapshot['curriculum_version_id']) ? '#'.$snapshot['curriculum_version_id'] : 'Not recorded',
                 'curriculum_levels' => $curriculumLevels !== '' ? $curriculumLevels : 'Not recorded',
                 'selection_basis' => $snapshot['selection_basis'] ?? 'Not recorded',

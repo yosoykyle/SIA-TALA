@@ -4,14 +4,22 @@
     $money = fn ($value) => $value === null ? 'Not recorded' : 'PHP '.number_format((float) $value, 2);
     $courses = collect($cor['subjects'])->groupBy(fn ($subject) => $subject['course_enrollment_id'] ?? $subject['subject_code'].'|'.$subject['section']);
     $recorded = fn ($value): bool => filled($value) && ! in_array($value, ['Not recorded', 'Not applicable'], true);
-    $modeLabel = fn ($mode) => match ($mode) { 'FACE_TO_FACE' => 'Face to face', 'ONLINE' => 'Online', 'HYBRID' => 'Hybrid', default => str($mode)->replace('_', ' ')->headline() };
+    $modeLabel = fn ($mode): string => match (strtoupper(str_replace([' ', '-'], '_', trim((string) $mode)))) {
+        'FACE_TO_FACE' => 'Face-to-face',
+        'ONLINE' => 'Online',
+        'HYBRID' => 'Hybrid',
+        default => str((string) $mode)->replace('_', ' ')->headline()->toString(),
+    };
     $isStaffCopy = in_array($cor['copy_context'] ?? null, [\App\Actions\Cor\BuildCorOutput::CopyRegistrar, \App\Actions\Cor\BuildCorOutput::CopyAccounting], true);
+    $studentCurriculumLabel = filled($summary['curriculum_name'] ?? null)
+        ? $summary['curriculum_name']
+        : (str_starts_with((string) ($summary['curriculum_version'] ?? ''), '#') ? 'Assigned curriculum' : ($summary['curriculum_version'] ?? 'Not recorded'));
 @endphp
 <x-official-output-layout
     title="Certificate of Registration"
     :context="str($cor['copy_context'])->replace('_', ' ')->headline().' · '.$summary['document_status']"
     page-orientation="landscape"
-    page-margin="8mm"
+    page-margin="6mm"
     document-class="cor-document"
     :back-url="$backUrl ?? null"
     :back-label="$backLabel ?? 'Back to enrollment'"
@@ -30,8 +38,13 @@
     </x-slot:documentHeader>
 
     <dl class="cor-identity" aria-label="Student, program and term">
-        <div class="cor-identity-name"><dt>Student</dt><dd>{{ $summary['student_name'] }}</dd></div>
-        <div><dt>Student number</dt><dd>{{ $summary['student_number'] }}</dd></div>
+        <div class="cor-identity-name">
+            <dt>Student</dt>
+            <dd>
+                <span>{{ $summary['student_name'] }}</span>
+                <span class="cor-identity-number"><span class="cor-sr-only">Student number: </span>{{ $summary['student_number'] }}</span>
+            </dd>
+        </div>
         <div><dt>Program</dt><dd>{{ $summary['program_name'] }}@if ($recorded($summary['program_code'])) <span class="cor-secondary">{{ $summary['program_code'] }}</span>@endif</dd></div>
         <div><dt>Year level</dt><dd>{{ $summary['curriculum_levels'] }}</dd></div>
         <div><dt>Term</dt><dd>{{ $summary['term'] }}</dd></div>
@@ -43,13 +56,30 @@
                 <table>
                     <caption class="cor-sr-only">Official subjects and schedule at issue</caption>
                     <colgroup><col class="cor-title-column"><col class="cor-section-column"><col class="cor-units-column"><col class="cor-schedule-column"></colgroup>
-                    <thead><tr><th scope="col">Subject</th><th scope="col">Class / Mode</th><th scope="col" class="cor-number">Units</th><th scope="col">Schedule and room</th></tr></thead>
+                    <thead><tr><th scope="col">Subject</th><th scope="col">Section / Modality</th><th scope="col" class="cor-number">Units</th><th scope="col">Schedule and room</th></tr></thead>
                     <tbody>
                         @forelse ($courses as $meetings)
-                            @php($subject = $meetings->first())
+                            @php
+                                $subject = $meetings->first();
+                                $modalitySummary = $meetings->pluck('modality')
+                                    ->filter($recorded)
+                                    ->unique()
+                                    ->map($modeLabel)
+                                    ->implode('; ');
+                                $sectionLabel = $recorded($subject['section'] ?? null)
+                                    ? 'Sec. '.$subject['section']
+                                    : ($subject['section'] ?? 'Not recorded');
+                            @endphp
                             <tr>
                                 <th scope="row">{{ $subject['subject_description'] }}<span class="cor-secondary">{{ collect([$subject['subject_code'], ...$meetings->pluck('instructor')->unique()->filter(fn ($instructor): bool => $recorded($instructor) && $instructor !== 'Externally arranged')->all()])->implode(' · ') }}</span></th>
-                                <td>{{ $subject['section'] }}<span class="cor-secondary">{{ $meetings->pluck('modality')->unique()->map($modeLabel)->implode('; ') }}</span></td>
+                                <td>
+                                    @if ($modalitySummary !== '')
+                                        <span>{{ $modalitySummary }}</span>
+                                        <span class="cor-secondary">{{ $sectionLabel }}</span>
+                                    @else
+                                        {{ $sectionLabel }}
+                                    @endif
+                                </td>
                                 <td class="cor-number">{{ $number($subject['units']) }}@if (is_numeric($subject['lecture_hours']) || is_numeric($subject['laboratory_hours']))<span class="cor-secondary">{{ collect([is_numeric($subject['lecture_hours']) ? 'Lec '.$number($subject['lecture_hours']) : null, is_numeric($subject['laboratory_hours']) ? 'Lab '.$number($subject['laboratory_hours']) : null])->filter()->implode(' · ') }}</span>@endif</td>
                                 <td>
                                     @foreach ($meetings as $meeting)
@@ -84,19 +114,17 @@
         </section>
     </div>
 
-    <section class="cor-sources" aria-label="{{ $isStaffCopy ? 'Recorded authority and sources' : 'Document details' }}">
+    <section class="cor-sources {{ $isStaffCopy ? 'cor-sources-staff' : 'cor-sources-compact' }}" aria-label="{{ $isStaffCopy ? 'Recorded authority and sources' : 'Document details' }}">
         <dl>
             <div><dt>Document reference</dt><dd>COR-{{ $summary['enrollment_id'] }}-{{ $summary['cor_version'] }}</dd></div>
             @if ($isStaffCopy)
                 <div><dt>Recorded by</dt><dd>{{ $summary['issued_by'] }}</dd></div>
             @endif
-            <div><dt>{{ $isStaffCopy ? 'Recorded at' : 'Issued at' }}</dt><dd>{{ $summary['issued_at'] ? \App\Support\DisplayDateTime::format(\Carbon\CarbonImmutable::parse($summary['issued_at']), 'M j, Y g:i A') : 'Not recorded' }}</dd></div>
-            <div><dt>Curriculum record</dt><dd>{{ $summary['curriculum_version'] }}</dd></div>
+            <div><dt>{{ $isStaffCopy ? 'Recorded at' : 'Issued at' }}</dt><dd>{{ $summary['issued_at'] ? \App\Support\DisplayDateTime::format(\Carbon\CarbonImmutable::parse($summary['issued_at']), $isStaffCopy ? 'M j, Y g:i A' : 'M j, Y') : 'Not recorded' }}</dd></div>
+            <div><dt>{{ $isStaffCopy ? 'Curriculum record' : 'Curriculum' }}</dt><dd>{{ $isStaffCopy ? ($summary['curriculum_name'] ?? $summary['curriculum_version']) : $studentCurriculumLabel }}</dd></div>
             @if ($isStaffCopy)
                 <div><dt>Subject selection</dt><dd>{{ str($summary['selection_basis'])->headline() }}</dd></div>
-            @endif
-            <div><dt>Timetable source</dt><dd>{{ $summary['course_delivery_mix'] }}</dd></div>
-            @if ($isStaffCopy)
+                <div><dt>Timetable source</dt><dd>{{ $summary['course_delivery_mix'] }}</dd></div>
                 <div><dt>Term Account</dt><dd>{{ $summary['term_account_reference'] }}</dd></div>
                 <div><dt>Clearance at issue</dt><dd>{{ $summary['payment_status'] }}</dd></div>
                 <div><dt>Assessment source</dt><dd>{{ $summary['assessment_reference'] }}</dd></div>
@@ -107,6 +135,6 @@
         </dl>
     </section>
     <x-slot:documentFooter>
-        <footer class="cor-footer"><p>Issued details are fixed. Current payments and balances appear in Finance / Statement of Account.</p><p>This document contains personal information. Keep it secure.</p></footer>
+        <footer class="cor-footer"><p>Official Certificate of Registration · {{ config('institution.name') }}</p><p>Current payments and balances appear on your Statement of Account.</p></footer>
     </x-slot:documentFooter>
 </x-official-output-layout>

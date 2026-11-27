@@ -104,9 +104,10 @@ TALA calculates:
 
 Rules:
 
-- `TermWeightedAverageProjection` covers exactly one term. Its neutral default display label is **Term weighted average**.
+- `TermWeightedAverageProjection` covers exactly one term and displays in Student **Grades** as **Term GPA** (per-term unit-weighted average).
+- Per-academic-year unit-weighted average displays as **Academic Year GWA**.
 - `CumulativeGwaProjection` covers every included attempt through the selected grade-complete term and displays as **Cumulative GWA**.
-- Cumulative GWA is calculated from all included attempt grade points and units; it is never the arithmetic mean of displayed term averages.
+- All three projections (**Term GPA**, **Academic Year GWA**, and **Cumulative GWA**) use the Philippine college unit-weighted formula ($\frac{\sum (\text{Grade} \times \text{Units})}{\sum \text{Units}}$) from all included attempt grade points and units; TALA never computes an arithmetic mean of displayed term GPAs.
 - Every released numeric attempt counts. A later passing retake may satisfy the curriculum but never erases the earlier failed attempt.
 - There is no independent maximum retake counter; continuation depends on the confirmed academic-enrollment effect.
 - `ORDINARY` and `TESDA_COMPETENCY` subjects are included in GWA. `PE`, `NSTP` (including CWTS, LTS, and ROTC equivalents), and `NON_CREDIT` / Bridging courses are excluded under the client-confirmed Servitech GWA inclusion/exclusion rule.
@@ -303,20 +304,20 @@ Leave, full withdrawal, authorized return/reactivation, and Registrar Enrollment
 
 ## 8. Academic record and transcript authority
 
-### 8.1 Student Academics
+### 8.1 Student Grades (Academics)
 
-Student Academics provides the following information, prioritizing current status and any action needed:
+Student **Grades** (with its **Study plan** child item) provides the following information, prioritizing current status and any action needed:
 
 1. Current academic-record status, responsible owner, and next action.
-2. Released grades grouped by term.
-3. Term weighted average and cumulative GWA, or the explicit `Grades not complete`, incomplete-result, or not-applicable state.
-4. Curriculum evaluation.
+2. Released grades grouped by term, using **Grades** and **Units** columns (without a `Remarks` column).
+3. **Term GPA**, **Academic Year GWA**, and **Cumulative GWA**, or the explicit `Grades not complete`, incomplete-result, or not-applicable state.
+4. Curriculum evaluation (in **Study plan**).
 5. Confirmed academic progress and safe explanation.
 6. Attempted, earned, and remaining units.
 7. Completion readiness.
-8. Correction, INC, and lifecycle history.
+8. Correction and INC context (clutter blocks such as `Released results` progress bars, `Average sources`, and `School record changes` are omitted from Student **Grades**; lifecycle-change notifications route to Student **Profile**).
 
-Students may print an A4 portrait **UNOFFICIAL STUDENT RECORD** generated from their released academic-record projection as of one explicit time. The screen and every page state **Unofficial — for student reference** and never resemble or claim to be an issued TOR.
+The **UNOFFICIAL STUDENT RECORD** (`OUT-004`, A4 portrait) is a Registrar-only output generated from **Students Record** as of one explicit time (the Student `Unofficial record` print button is removed from Student **Grades**). The screen and every page state **Unofficial — for student reference** and never resemble or claim to be an issued TOR.
 
 The output contains approved institution identity; Student legal name, Student number, Program, and Curriculum Version (human-readable curriculum `name` and assigned batch years rather than raw internal `version_code`); generation reference/time and **Academic record as of** context; chronological Academic Year and exact Term groups; Course code, historical title snapshot, units, released grade or mark, remarks, attempt/supersession context, and approved-credit/equivalency treatment; each term's earned/attempted units and term weighted average or explicit `Grades not complete`, incomplete, or not-applicable state; cumulative earned/attempted/remaining units and cumulative GWA or readiness state; current curriculum/completion summary; and safe correction/INC context. It excludes draft/submitted results, private evidence, internal notes, Faculty, schedules, finance, official certification language, signatory, seal, and official-TOR controls. INC completion dates use the current recorded approved deadline amendment. Live enrollment eligibility guidance belongs in the ordinary Academics and Enrollment tasks; the unofficial record focuses on released facts and academic progress.
 

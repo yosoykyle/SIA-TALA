@@ -60,7 +60,7 @@ class AcademicEnrollmentGuidanceTest extends TestCase
         Livewire::actingAs($student->user)->withQueryParams(['view' => 'plan'])->test(Academics::class)
             ->assertSee('Blocked')->assertSee($guidance['scope_label'])
             ->assertSee('Registrar review is required for this Term.')
-            ->assertSee(StudentEnrollment::getUrl(['term' => $term->id], panel: 'student'), escape: false);
+            ->assertDontSee('Review enrollment');
         Livewire::actingAs($student->user)->withQueryParams(['term' => $term->id])->test(StudentEnrollment::class)
             ->assertSee('Academic review needed')
             ->assertSee($term->academicYear->label)

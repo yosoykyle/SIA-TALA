@@ -19,7 +19,7 @@
             @endisset
             @isset($status){{ $status }}</div>@endisset
             @if ($program)<p>{{ $program }}</p>@endif
-            @if (filled($number))<p>@if ($numberLabel)<span @class(['sr-only' => ! $showNumberLabel, 'tala-record-identity-number-label' => $showNumberLabel])>{{ $numberLabel }}@unless ($showNumberLabel): @endunless</span>@endif{{ $number }}</p>@endif
+            @if (filled($number))<p>@if ($numberLabel)<span @class(['sr-only' => ! $showNumberLabel, 'tala-record-identity-number-label' => $showNumberLabel])>{{ $numberLabel }}@unless ($showNumberLabel): @endunless</span> @endif{{ $number }}</p>@endif
             @isset($supporting){{ $supporting }}@endisset
         </div>
     </div>

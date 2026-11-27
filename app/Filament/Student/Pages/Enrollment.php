@@ -63,6 +63,15 @@ class Enrollment extends Page
     #[Locked]
     public ?int $reviewedCaseVersion = null;
 
+    /** @var array<string, mixed>|null */
+    private ?array $cachedEntryContext = null;
+
+    private ?EnrollmentRecord $cachedCurrentEnrollment = null;
+
+    private bool $currentEnrollmentResolved = false;
+
+    private ?bool $cachedIsIrregular = null;
+
     public static function canAccess(): bool
     {
         return auth()->user()?->hasRole('student') ?? false;
@@ -88,13 +97,19 @@ class Enrollment extends Page
             : [\App\Filament\Applicant\Pages\Dashboard::getUrl(panel: 'applicant') => 'Applicant Home', 'Enrollment'];
     }
 
+    public function updatedTerm(): void
+    {
+        $this->resetEnrollmentCache();
+    }
+
     public function startRegistrationAction(): Action
     {
         return Action::make('startRegistration')
-            ->label(fn (): string => $this->isIrregularStudent() ? 'Enroll as irregular' : 'Prepare enrollment')
+            ->label(fn (): string => $this->isIrregularStudent() ? 'Enroll as irregular' : 'Enroll now')
             ->icon('heroicon-o-play')
             ->visible(fn (): bool => $this->entryContext()['can_start'])
             ->action(function (): void {
+                $this->resetEnrollmentCache();
                 $context = $this->entryContext();
                 abort_unless($context['can_start'] && $context['term'] !== null, 403);
                 try {
@@ -107,6 +122,8 @@ class Enrollment extends Page
                     Notification::make()->title('Enrollment opened')->body('Review the prepared proposal, or the named Registrar or Accounting action.')->success()->send();
                 } catch (Throwable $exception) {
                     $this->failure('Enrollment could not be prepared', $exception);
+                } finally {
+                    $this->resetEnrollmentCache();
                 }
             });
     }
@@ -114,15 +131,20 @@ class Enrollment extends Page
     /** #99 Scope 11: the student's irregular enrollment request, before the Registrar prepares subjects. */
     public function applyAsIrregularAction(): Action
     {
-        return IrregularEnrollmentRequestAction::make(fn (): ?EnrollmentRecord => $this->currentEnrollment());
+        return IrregularEnrollmentRequestAction::make(fn (): ?EnrollmentRecord => $this->currentEnrollment())
+            ->after(fn () => $this->resetEnrollmentCache());
     }
 
     private function isIrregularStudent(): bool
     {
+        if ($this->cachedIsIrregular !== null) {
+            return $this->cachedIsIrregular;
+        }
+
         $context = $this->entryContext();
         $student = $context['student_profile'] ?? null;
 
-        return $student instanceof StudentProfile
+        return $this->cachedIsIrregular = $student instanceof StudentProfile
             && app(IrregularStudentReasons::class)->forStudent($student, $context['term'] ?? null)['is_irregular'];
     }
 
@@ -141,12 +163,14 @@ class Enrollment extends Page
                 $this->reviewedProposalId = $this->currentEnrollment()?->currentProposalVersion?->id;
             })
             ->action(function (): void {
+                $this->resetEnrollmentCache();
                 try {
                     $proposal = $this->currentEnrollment()?->currentProposalVersion;
                     if (! $proposal instanceof RegistrationProposalVersion || $this->reviewedProposalId !== $proposal->id) {
                         throw ValidationException::withMessages(['proposal' => 'Your subjects changed after you opened this form. Close it and review the current subjects.']);
                     }
                     app(ConfirmRegistrationProposal::class)->execute($proposal, $this->actor());
+                    $this->resetEnrollmentCache();
                     $updatedCase = $this->currentEnrollment()?->fresh();
                     if ($updatedCase?->canonical_outcome === EnrollmentRecord::OutcomeOfficiallyEnrolled) {
                         Notification::make()->title('Officially enrolled')->body('Your subjects are confirmed and your Certificate of Registration is ready.')->success()->send();
@@ -155,6 +179,8 @@ class Enrollment extends Page
                     }
                 } catch (Throwable $exception) {
                     $this->failure('Proposal was not confirmed', $exception);
+                } finally {
+                    $this->resetEnrollmentCache();
                 }
             });
     }
@@ -196,6 +222,7 @@ class Enrollment extends Page
                 SchemaView::make('filament.student.pages.enrollment-cancel-context')->viewData(fn (): array => $this->getViewData()),
             ])
             ->action(function (): void {
+                $this->resetEnrollmentCache();
                 try {
                     $case = $this->currentEnrollment();
                     if (! $case instanceof EnrollmentRecord || $case->id !== $this->reviewedCaseId
@@ -207,6 +234,8 @@ class Enrollment extends Page
                     Notification::make()->title('Registration case cancelled')->body('Temporary seat reservations were released. Your case and financial history remain.')->success()->send();
                 } catch (Throwable $exception) {
                     $this->failure('Registration was not cancelled', $exception);
+                } finally {
+                    $this->resetEnrollmentCache();
                 }
             });
     }
@@ -224,6 +253,7 @@ class Enrollment extends Page
             })
             ->authorize(fn (): bool => app(SchoolPaymentChannels::class)->hasEnabledDigitalChannels())
             ->action(function (array $data): void {
+                $this->resetEnrollmentCache();
                 $case = $this->currentEnrollment();
                 $file = $data['evidence'] ?? null;
                 abort_unless($case?->termAccount !== null && $file instanceof UploadedFile, 404);
@@ -245,6 +275,8 @@ class Enrollment extends Page
                     Notification::make()->title('Receipt submitted for Accounting review')->body('No payment is posted by submission. You can review your submitted receipt below.')->success()->send();
                 } catch (Throwable $exception) {
                     $this->failure('Receipt was not submitted', $exception);
+                } finally {
+                    $this->resetEnrollmentCache();
                 }
             });
     }
@@ -254,6 +286,7 @@ class Enrollment extends Page
         return Action::make('resendRegistrationEmail')->label('Resend enrollment email')->icon('heroicon-o-arrow-path')
             ->visible(fn (): bool => $this->failedRegistrationNotification() !== null)
             ->action(function (): void {
+                $this->resetEnrollmentCache();
                 $event = $this->failedRegistrationNotification();
                 abort_unless($event instanceof OperationalEvent, 404);
                 try {
@@ -261,6 +294,8 @@ class Enrollment extends Page
                     Notification::make()->title('Enrollment email queued again')->success()->send();
                 } catch (Throwable $exception) {
                     $this->failure('Enrollment email was not resent', $exception);
+                } finally {
+                    $this->resetEnrollmentCache();
                 }
             });
     }
@@ -297,7 +332,9 @@ class Enrollment extends Page
                 ->with(['termOffering.curriculumEntry.courseSpecification.course', 'section'])->get() : collect(),
             'latestEvidence' => $case?->termAccount?->latestPaymentEvidenceVersion,
             'corHistory' => $this->corHistory($case), 'isStudent' => $this->actor()->hasRole('student'),
-            'irregularRequest' => $case !== null ? IrregularEnrollmentRequest::query()->where('enrollment_id', $case->id)->first() : null,
+            'irregularRequest' => (! $official && $case?->selection_basis === EnrollmentRecord::SelectionIndividuallyAdvised)
+                ? IrregularEnrollmentRequest::query()->where('enrollment_id', $case->id)->first()
+                : null,
             'irregularReview' => $case?->selection_basis === EnrollmentRecord::SelectionIndividuallyAdvised && $case->studentProfile !== null
                 ? app(IrregularStudentReasons::class)->forStudent($case->studentProfile, $case->term) : null,
         ];
@@ -306,18 +343,35 @@ class Enrollment extends Page
     /** @return array<string, mixed> */
     protected function entryContext(): array
     {
-        return app(RegistrationEntryContext::class)->forUser($this->actor(), $this->term !== null ? Term::query()->findOrFail($this->term) : null);
+        return $this->cachedEntryContext ??= app(RegistrationEntryContext::class)->forUser(
+            $this->actor(),
+            $this->term !== null ? Term::query()->findOrFail($this->term) : null,
+        );
     }
 
     protected function currentEnrollment(): ?EnrollmentRecord
     {
-        $case = $this->entryContext()['enrollment'];
+        if ($this->currentEnrollmentResolved) {
+            return $this->cachedCurrentEnrollment;
+        }
 
-        return $case?->loadMissing([
+        $case = $this->entryContext()['enrollment'];
+        $this->cachedCurrentEnrollment = $case?->loadMissing([
             'term.academicYear', 'studentProfile', 'admissionApplication.program', 'currentProposalVersion.curriculumVersion.program', 'currentProposalVersion.items.section',
-            'currentProposalVersion.items.reservation', 'currentProposalVersion.confirmation',
+            'currentProposalVersion.items.termOffering', 'currentProposalVersion.items.reservation', 'currentProposalVersion.confirmation',
             'currentProposalVersion.timetableVersion.scheduleRun', 'termAccount.latestPaymentEvidenceVersion', 'currentCorVersion.timetableVersion.scheduleRun',
         ]);
+        $this->currentEnrollmentResolved = true;
+
+        return $this->cachedCurrentEnrollment;
+    }
+
+    private function resetEnrollmentCache(): void
+    {
+        $this->cachedEntryContext = null;
+        $this->cachedCurrentEnrollment = null;
+        $this->currentEnrollmentResolved = false;
+        $this->cachedIsIrregular = null;
     }
 
     /** @return array<string, mixed>|null */
@@ -333,7 +387,7 @@ class Enrollment extends Page
             ->whereHas('corVersions')->latest('officially_enrolled_at')->get()
             ->flatMap(fn (EnrollmentRecord $case) => $case->corVersions->sortByDesc('version')->map(fn ($version): array => [
                 'term' => $case->term?->label, 'version' => $version->version,
-                'status' => (int) $case->current_cor_version_id !== (int) $version->id ? 'Superseded' : ($case->is($currentEnrollment) ? 'Current' : 'Historical'),
+                'status' => (int) $case->current_cor_version_id !== (int) $version->id ? 'Superseded' : ($case->is($currentEnrollment) ? 'Current' : 'Previous term'),
                 'url' => route('cor.print', ['enrollment' => $case->id, 'version' => $version->version]),
             ]))->values()->all();
     }

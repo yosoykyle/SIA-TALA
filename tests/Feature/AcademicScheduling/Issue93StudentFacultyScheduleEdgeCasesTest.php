@@ -32,6 +32,8 @@ use App\Models\Section;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
+use App\Models\TermCalendarWindow;
+use App\Models\TermDatedException;
 use App\Models\TermOffering;
 use App\Models\TermTeachingGridRow;
 use App\Models\User;
@@ -272,6 +274,68 @@ final class Issue93StudentFacultyScheduleEdgeCasesTest extends TestCase
         $this->actingAs($student)
             ->get(route('student.schedule.print', ['term_id' => $closedTerm->id]))
             ->assertNotFound();
+    }
+
+    #[Test]
+    public function student_schedule_shows_student_number_hides_weekly_list_toggle_and_renders_academic_calendar_tab(): void
+    {
+        $registrar = $this->staff(User::StaffRoleRegistrar, 'Calendar Tab Registrar');
+        $faculty = $this->staff(User::StaffRoleFaculty, 'Prof. Calendar');
+        [$student, $profile, $program] = $this->studentWithProfile();
+        [$term, $curriculum] = $this->activeTermAndCurriculum($program, '1st Semester 2026', '2026-08-17', '2026-12-18');
+
+        $this->attachPublishedClass($student, $profile, $term, $curriculum, $faculty, $registrar, 'CS 201', 'Algorithms', 'BSIT-2A', 1, '08:00:00', '10:00:00');
+
+        $package = TermCalendarPackage::query()->where('term_id', $term->id)->where('state', TermCalendarPackage::StateActive)->firstOrFail();
+        $package->update([
+            'classes_start_on' => '2026-08-17',
+            'classes_end_on' => '2026-12-18',
+        ]);
+        $package->teachingGridRows()->update([
+            'breaks' => [
+                ['starts_at' => '12:00:00', 'ends_at' => '13:00:00'],
+            ],
+        ]);
+        TermCalendarWindow::query()->create([
+            'term_calendar_package_id' => $package->id,
+            'window_type' => TermCalendarWindow::TypeExaminationPeriod,
+            'opens_on' => '2026-12-14',
+            'closes_on' => '2026-12-18',
+        ]);
+        TermDatedException::query()->create([
+            'term_calendar_package_id' => $package->id,
+            'label' => 'Founders Day Holiday',
+            'exception_type' => 'Institutional Holiday',
+            'starts_on' => '2026-12-01',
+            'ends_on' => '2026-12-01',
+            'blocks_teaching' => true,
+        ]);
+
+        Filament::setCurrentPanel(Filament::getPanel('student'));
+
+        Livewire::actingAs($student)
+            ->test(ScheduleView::class)
+            ->assertOk()
+            ->assertSee($profile->student_number)
+            ->assertSee('Your registered classes, meeting times, and term calendar.')
+            ->assertSee('Class Schedule')
+            ->assertSee('Academic Calendar')
+            ->assertSee('Classes:')
+            ->assertSee('Aug 17–Dec 18, 2026')
+            ->assertSee('Exam period:')
+            ->assertSee('Dec 14–Dec 18, 2026')
+            ->assertDontSee('Schedule view')
+            ->assertDontSee('Asia/Manila')
+            ->call('setActiveTab', 'calendar')
+            ->assertSet('activeTab', 'calendar')
+            ->assertSee('Teaching period & weekly hours')
+            ->assertSee('Weekly teaching hours')
+            ->assertSee('12:00 PM–1:00 PM')
+            ->assertSee('Academic windows')
+            ->assertSee('Examination Period')
+            ->assertSee('No-class holidays & dated exceptions')
+            ->assertSee('Founders Day Holiday')
+            ->assertDontSee('Asia/Manila');
     }
 
     #[Test]

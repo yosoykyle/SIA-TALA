@@ -1,4 +1,4 @@
-@props(['workspace', 'brand', 'person' => null])
+@props(['workspace', 'brand', 'person' => null, 'studentNumber' => null])
 
 <header class="tala-staff-topbar" data-tala-workspace="{{ $workspace }}">
     <div class="tala-staff-topbar__identity">{{ $brand }}</div>
@@ -8,6 +8,11 @@
             <x-filament::icon icon="heroicon-o-user-circle" class="tala-staff-topbar__person-icon" />
             <span class="fi-sr-only">Signed in as </span>
             <span class="tala-staff-topbar__person-name">{{ $person }}</span>
+            @if (filled($studentNumber))
+                <span class="tala-topbar-student-number" data-tala-student-number>
+                    <span class="fi-sr-only">Student number </span>{{ $studentNumber }}
+                </span>
+            @endif
         </p>
     @endif
 

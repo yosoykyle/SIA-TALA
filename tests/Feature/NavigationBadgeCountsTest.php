@@ -333,7 +333,7 @@ class NavigationBadgeCountsTest extends TestCase
 
         $studentEnrollmentNav = $this->flattenNavigationItems($this->studentNavigation());
         $this->assertNull($studentEnrollmentNav['Overview']->getBadge());
-        $this->assertNull($studentEnrollmentNav['Academics']->getBadge());
+        $this->assertNull($studentEnrollmentNav['Grades']->getBadge());
         $this->assertSame('1', $studentEnrollmentNav['Enrollment']->getBadge());
         $this->assertSame('warning', $studentEnrollmentNav['Enrollment']->getBadgeColor());
         $this->assertSame('1', $studentEnrollmentNav['Current registration']->getBadge());

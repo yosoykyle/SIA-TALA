@@ -141,9 +141,10 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
             'Published timetable version #'.$fixture['timetable']->id,
             $cor['state']['course_delivery_mix'],
         );
-        $this->assertStringContainsString('Curriculum record', $print);
+        $this->assertStringContainsString('Curriculum', $print);
         $this->assertStringContainsString('Year level', $print);
-        $this->assertStringContainsString('Timetable source', $print);
+        $this->assertStringContainsString('Official Certificate of Registration', $print);
+        $this->assertStringNotContainsString('Timetable source', $print);
         $this->assertStringNotContainsString('Student Modality', $print);
     }
 

@@ -9,6 +9,7 @@ use App\Filament\Pages\GradesAndCompletion;
 use App\Filament\Resources\StudentLifecycleChanges\Pages\ListStudentLifecycleChanges;
 use App\Filament\Student\Pages\Academics;
 use App\Filament\Student\Pages\GradesView;
+use App\Filament\Student\Pages\Profile;
 use App\Models\GradeRoster;
 use App\Models\GradeRosterRow;
 use App\Models\GraduationReviewBatch;
@@ -152,8 +153,10 @@ final class TAL96D4BGradesLifecycleHardeningTest extends TestCase
         Livewire::test(GradesView::class)
             ->assertRedirect(Academics::getUrl(['view' => 'record'], panel: 'student'));
         Livewire::withQueryParams(['view' => 'record'])->test(Academics::class)
-            ->assertSee('No applied changes')
-            ->assertSee('School record changes appear here after the Registrar applies them.');
+            ->assertSee('No released results yet')
+            ->assertDontSee('School record changes');
+        Livewire::test(Profile::class)
+            ->assertDontSee('School record changes');
     }
 
     #[Test]

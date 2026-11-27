@@ -79,6 +79,19 @@
             <p class="student-profile-note">For corrections, contact the Registrar.</p>
         </section>
 
+        @if ($lifecycleChanges->isNotEmpty() || $changeUnavailable)
+            <x-record-history id="school-record-changes" class="student-profile-lifecycle-changes" heading="School record changes" heading-tag="h2" description="Applied changes to your school record. Contact the Registrar about corrections." :paginator="$lifecycleChanges" :has-entries="$lifecycleChanges->isNotEmpty()" label="changes" show-count>
+                @if ($changeUnavailable)<li class="student-school-change-unavailable" role="status">This change is unavailable. Your own applied changes are shown below.</li>@endif
+                @foreach ($lifecycleChanges as $change)
+                    <x-record-history-item :heading="$change->studentLabel()" heading-tag="h3" icon="heroicon-o-arrow-path" :id="'school-change-'.$change->id" :class="$this->change === $change->id ? 'student-school-change-target' : ''" :wire:key="'school-change-'.$change->id">
+                        <p>{{ collect([$change->term?->label, $change->term?->academicYear?->label])->filter()->implode(' · ') }}</p>
+                        <p>Effective <time datetime="{{ $change->effective_on?->toDateString() }}">{{ $change->effective_on?->format('M j, Y') }}</time></p>
+                    </x-record-history-item>
+                @endforeach
+                <x-slot:empty>@if ($changeUnavailable)This change is unavailable. @endif No applied changes. School record changes appear here after the Registrar applies them.</x-slot:empty>
+            </x-record-history>
+        @endif
+
         @if ($correctionHistory !== [])
             <details class="student-profile-section student-profile-corrections tala-task-surface">
                 <summary>Recorded corrections</summary>

@@ -13,7 +13,7 @@ use App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResourc
 use App\Filament\Resources\StudentProfiles\Pages\ListStudentProfiles;
 use App\Filament\Resources\StudentProfiles\Pages\ViewStudentProfile;
 use App\Filament\Resources\StudentProfiles\StudentProfileResource;
-use App\Filament\Student\Pages\Academics;
+use App\Filament\Student\Pages\Profile;
 use App\Models\Assessment;
 use App\Models\CourseEnrollment;
 use App\Models\CurriculumVersion;
@@ -514,7 +514,7 @@ final class TAL73ProgressionLifecycleFilamentTest extends TestCase
         $this->actingAs($student);
         Filament::setCurrentPanel(Filament::getPanel('student'));
 
-        Livewire::withQueryParams(['view' => 'record'])->test(Academics::class)
+        Livewire::test(Profile::class)
             ->assertViewHas('lifecycleChanges', fn ($changes): bool => $changes->getCollection()->modelKeys() === [$own->id]);
     }
 

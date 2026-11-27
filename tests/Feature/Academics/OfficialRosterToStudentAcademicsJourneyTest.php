@@ -39,6 +39,7 @@ use App\Filament\Resources\StudentProfiles\Pages\ViewStudentProfile;
 use App\Filament\Resources\StudentProfiles\StudentProfileResource;
 use App\Filament\Resources\TranscriptRequests\TranscriptRequestResource;
 use App\Filament\Student\Pages\Academics as StudentAcademics;
+use App\Filament\Student\Pages\ScheduleView as StudentScheduleView;
 use App\Mail\AcademicRecordChangedMail;
 use App\Models\AcademicDecision;
 use App\Models\ClassOfferingTeachingAssignment;
@@ -1163,8 +1164,7 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
             ->assertSee('Complete the final reflection.')
             ->assertSee('Complete remaining work')
             ->assertSee('Review completion')
-            ->assertSee('Grades not complete')
-            ->assertSee('1 of 2')
+            ->assertSee('GWA: Pending')
             ->assertSee('Not released')
             ->assertDontSeeText('1.25')
             ->assertDontSeeText('Private unreleased Faculty note.');
@@ -1210,7 +1210,7 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Livewire::actingAs($fixture['registrar'])->test(GradesAndCompletion::class, ['viewTab' => 'academic-progress'])
             ->assertDontSee('Examination');
-        Livewire::actingAs($academicHead)->test(AcademicApprovals::class)
+        Livewire::withQueryParams(['termId' => $fixture['term']->id])->actingAs($academicHead)->test(AcademicApprovals::class)
             ->assertSee('Exam period')
             ->assertSee('May 10, 2027')
             ->assertSee('May 15, 2027')
@@ -1221,14 +1221,16 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
             ->assertSee('Exam period:')->assertSee('May 10–May 15, 2027');
         Livewire::withQueryParams([]);
 
+        $case = $fixture['course_enrollment']->enrollment;
+        $certificate = CorVersion::factory()->create(['enrollment_id' => $case->id]);
+        $case->update(['current_cor_version_id' => $certificate->id]);
+
         Filament::setCurrentPanel(Filament::getPanel('student'));
-        Livewire::actingAs($fixture['student']->user)->test(StudentAcademics::class)
-            ->assertSee('Exam period')
-            ->assertSee('May 10, 2027')
-            ->assertSee('May 15, 2027')
+        Livewire::actingAs($fixture['student']->user)->test(StudentScheduleView::class)
+            ->assertSee('Exam period:')
+            ->assertSee('May 10–May 15, 2027')
             ->assertDontSee('BOARD-CALENDAR-2026-03')
-            ->assertDontSee('Authority not recorded')
-            ->assertSee('Class-level examination arrangements are not inferred.');
+            ->assertDontSee('Authority not recorded');
     }
 
     #[Test]

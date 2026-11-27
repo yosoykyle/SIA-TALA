@@ -78,13 +78,14 @@ class Finance extends Page
         abort_unless($actor instanceof User && $actor->hasRole('student'), 403);
         $finance = app(StudentTermAccountPresenter::class)->forUser($actor);
         $account = $finance['account'] ?? null;
-        $pastAccounts = TermAccount::query()->with('term')->where('credential_user_id', $actor->id)
+        $pastAccounts = TermAccount::query()->with(['term.academicYear', 'assessments.lines', 'payments'])->where('credential_user_id', $actor->id)
             ->when($account !== null, fn ($query) => $query->where('id', '<>', $account->id))->latest('id')->get();
         $pastAccount = null;
         if ($this->pastAccountId !== null) {
             abort_unless($this->showHistory && $pastAccounts->contains('id', $this->pastAccountId), 404);
             $pastAccount = TermAccount::query()->where('credential_user_id', $actor->id)->with([
-                'term', 'assessments' => fn ($query) => $query->latest('version'),
+                'term.academicYear',
+                'assessments' => fn ($query) => $query->latest('version')->with('lines'),
                 'payments' => fn ($query) => $query->latest('paid_at'),
                 'paymentEvidenceVersions' => fn ($query) => $query->latest('version'),
                 'coverages' => fn ($query) => $query->latest('id'),
@@ -162,16 +163,16 @@ class Finance extends Page
     {
         return [
             Action::make('statement')
-                ->label('View statement')
-                ->icon('heroicon-o-document-text')
+                ->label('Print / Export Statement')
+                ->icon('heroicon-o-printer')
                 ->url(fn (): string => route('finance.statement', data_get($this->finance, 'assessment.id', 0)))
                 ->openUrlInNewTab()
                 ->visible(fn (): bool => ! $this->showHistory && ($this->finance['available'] ?? false) === true)
                 ->color('gray'),
             StudentPaymentActions::submitReceiptAction(Action::make('submitEvidence'))
                 ->label(fn (): string => data_get($this->finance, 'state.latest_evidence_state') === PaymentEvidenceVersion::StateRejected
-                    ? 'Upload corrected receipt' : 'Submit receipt')
-                ->icon('heroicon-o-arrow-up-tray')
+                    ? 'Upload corrected receipt' : 'Pay Online')
+                ->icon('heroicon-o-credit-card')
                 ->color('primary')
                 ->visible(fn (): bool => $this->hasPayableObligations()
                     && data_get($this->finance, 'account.enrollment.studentProfile.lifecycle_status') !== StudentProfile::LifecycleCompleted

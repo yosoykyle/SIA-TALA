@@ -4,6 +4,7 @@ namespace App\Filament\Student\Pages;
 
 use App\Actions\Authentication\ManageUserProfilePhoto;
 use App\Actions\StudentHub\StudentStudyContext;
+use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
 use App\Models\User;
 use DateTimeInterface;
@@ -13,9 +14,15 @@ use Filament\Pages\Page;
 use Filament\Pages\PageConfiguration;
 use Filament\Panel;
 use Filament\Support\Enums\Width;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Livewire\Attributes\Url;
+use Livewire\WithPagination;
 
 class Profile extends Page
 {
+    use WithPagination;
+
     protected static bool $isDiscovered = false;
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-user';
@@ -25,6 +32,9 @@ class Profile extends Page
     protected static ?string $title = 'Student details';
 
     protected string $view = 'filament.student.pages.profile';
+
+    #[Url]
+    public ?int $change = null;
 
     /** @var array<int, array{heading:string,secondary?:bool,description?:string,items:array<int, array{label:string,value:string}>}> */
     public array $profileSections = [];
@@ -139,6 +149,53 @@ class Profile extends Page
             ])
             ->values()
             ->all();
+
+        if ($this->change !== null) {
+            $change = $this->schoolChangesQuery($profile)->whereKey($this->change)->first();
+            if ($change instanceof StudentLifecycleChange) {
+                $newer = $this->schoolChangesQuery($profile)->where(function (Builder $query) use ($change): void {
+                    $query->where('effective_on', '>', $change->effective_on)
+                        ->orWhere(fn (Builder $sameDate): Builder => $sameDate->where('effective_on', $change->effective_on)->where('id', '>', $change->id));
+                })->count();
+                $this->setPage(intdiv($newer, 10) + 1, pageName: 'changesPage');
+            }
+        }
+    }
+
+    /** @return array<string, mixed> */
+    protected function getViewData(): array
+    {
+        $student = auth()->user()?->studentProfile;
+
+        if (! $student instanceof StudentProfile) {
+            return [
+                'lifecycleChanges' => collect(),
+                'changeUnavailable' => false,
+            ];
+        }
+
+        return [
+            'lifecycleChanges' => $this->schoolChanges($student),
+            'changeUnavailable' => $this->change !== null && ! $this->schoolChangesQuery($student)->whereKey($this->change)->exists(),
+        ];
+    }
+
+    /** @return Builder<StudentLifecycleChange> */
+    private function schoolChangesQuery(StudentProfile $student): Builder
+    {
+        return StudentLifecycleChange::query()->appliedForStudent($student);
+    }
+
+    private function schoolChanges(StudentProfile $student): LengthAwarePaginator
+    {
+        $query = $this->schoolChangesQuery($student)->with('term.academicYear')->latest('effective_on')->latest('id');
+        $changes = $query->paginate(10, pageName: 'changesPage');
+        if ($changes->currentPage() > $changes->lastPage()) {
+            $this->setPage($changes->lastPage(), pageName: 'changesPage');
+            $changes = $query->paginate(10, pageName: 'changesPage');
+        }
+
+        return $changes;
     }
 
     public function changePhotoAction(): Action

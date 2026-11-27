@@ -117,7 +117,7 @@ final class MigratedStudentFirstRunTest extends TestCase
             ->assertSee('Year 2 (provisional)')
             ->assertSee('2 subjects (6 units)')
             ->assertSee('Review your study plan')
-            ->assertSee('View academic record')
+            ->assertSee('View grades')
             ->assertDontSee('Accounting is updating your fees')
             ->assertDontSee('Your balance will appear when your assessment is ready.');
     }
@@ -160,27 +160,27 @@ final class MigratedStudentFirstRunTest extends TestCase
             ->assertDontSee('CONFIDENTIAL INTERNAL LEDGER RECONCILIATION');
     }
 
-    public function test_academics_defaults_to_study_plan_when_no_current_enrollment_but_prior_credits_exist(): void
+    public function test_academics_defaults_to_grades_record_when_no_current_enrollment_and_prior_credits_exist(): void
     {
         $fixture = $this->createMigratedStudentFixture(completedYears: [1]);
         $profile = $fixture['profile'];
 
         $this->signInStudent($profile);
 
-        // Without ?view=, defaults cleanly to Study plan instead of "Current subjects unavailable".
+        // Without ?view=, defaults cleanly to Grades (record) showing recorded prior credits instead of "Current subjects unavailable".
         Livewire::test(Academics::class)
-            ->assertSet('academicView', 'plan')
+            ->assertSet('academicView', 'record')
             ->assertSee($fixture['program']->name)
             ->assertSee('Year 2 (provisional)')
+            ->assertSee('Pre-TALA Servitech record')
             ->assertDontSee('Current subjects unavailable');
 
-        // Explicitly visiting ?view=current shows direct links to Study plan and Academic record.
+        // Legacy ?view=current bookmarks safely resolve to Grades (record) without 404 or dead-end messaging.
         Livewire::withQueryParams(['view' => 'current'])
             ->test(Academics::class)
-            ->assertSet('academicView', 'current')
-            ->assertSee('Current subjects unavailable')
-            ->assertSee('View study plan')
-            ->assertSee('View academic record');
+            ->assertSet('academicView', 'record')
+            ->assertSee('Pre-TALA Servitech record')
+            ->assertDontSee('Current subjects unavailable');
     }
 
     public function test_curriculum_evaluation_and_academics_distinguish_pre_tala_sia_tala_and_external_transfer_credits(): void

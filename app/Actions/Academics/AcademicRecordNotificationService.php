@@ -4,6 +4,7 @@ namespace App\Actions\Academics;
 
 use App\Filament\Student\Pages\Academics;
 use App\Filament\Student\Pages\Enrollment;
+use App\Filament\Student\Pages\Profile;
 use App\Mail\AcademicRecordChangedMail;
 use App\Models\AcademicDecision;
 use App\Models\ClassOfferingTeachingAssignment;
@@ -187,7 +188,7 @@ class AcademicRecordNotificationService
         $change->loadMissing('studentProfile.user');
         $recipient = $change->studentProfile?->user;
         $actionPath = $change->state === StudentLifecycleChange::StateApplied
-            ? Academics::getUrl(['view' => 'record', 'change' => $change->id], isAbsolute: false, panel: 'student').'#school-record-changes'
+            ? Profile::getUrl(['change' => $change->id], isAbsolute: false, panel: 'student').'#school-record-changes'
             : Enrollment::getUrl(['term' => $change->term_id], isAbsolute: false, panel: 'student');
 
         return $recipient instanceof User

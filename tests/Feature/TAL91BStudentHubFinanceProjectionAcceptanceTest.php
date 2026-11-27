@@ -192,7 +192,7 @@ final class TAL91BStudentHubFinanceProjectionAcceptanceTest extends TestCase
         Livewire::actingAs($fixture['student'])
             ->test(Finance::class)
             ->assertSee('Account balance')
-            ->assertSee('Submit receipt')
+            ->assertSee('Pay Online')
             ->assertDontSee('Payment checkout')
             ->assertDontSee('Pending OR Mapping')
             ->assertDontSee('Mapped OR');

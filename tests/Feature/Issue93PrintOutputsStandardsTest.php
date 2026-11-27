@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Actions\AcademicSetup\CurriculumSpreadsheetExportService;
 use App\Actions\AcademicSetup\CurriculumSpreadsheetParser;
 use App\Actions\Cor\BuildCorOutput;
+use App\Actions\Scheduling\BuildOfficialScheduleOutput;
 use App\Models\AcademicYear;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
@@ -38,10 +39,13 @@ use App\Models\SectionMeeting;
 use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\TermAccount;
+use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
+use App\Models\TermTeachingGridRow;
 use App\Models\TranscriptRequest;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use OpenSpout\Reader\XLSX\Reader as XlsxReader;
@@ -408,12 +412,17 @@ final class Issue93PrintOutputsStandardsTest extends TestCase
 
         $studentCorHtml = view('cor.print', ['cor' => [...$corBase, 'copy_context' => BuildCorOutput::CopyStudent]])->render();
         $this->assertStringContainsString('COR-'.$enrollment->id.'-1', $studentCorHtml);
-        $this->assertStringContainsString('Curriculum record', $studentCorHtml);
+        $this->assertStringContainsString('Curriculum', $studentCorHtml);
+        $this->assertStringNotContainsString('Subject selection', $studentCorHtml);
+        $this->assertStringNotContainsString('Timetable source', $studentCorHtml);
+        $this->assertStringNotContainsString('Assessment basis', $studentCorHtml);
         $this->assertStringNotContainsString('TERM-ACCOUNT-'.$account->id, $studentCorHtml);
         $this->assertStringNotContainsString('ASSESSMENT-'.$assessment->id, $studentCorHtml);
         $this->assertStringNotContainsString('AUTH-001', $studentCorHtml);
 
         $staffCorHtml = view('cor.print', ['cor' => [...$corBase, 'copy_context' => BuildCorOutput::CopyRegistrar]])->render();
+        $this->assertStringContainsString('Curriculum record', $staffCorHtml);
+        $this->assertStringContainsString('Timetable source', $staffCorHtml);
         $this->assertStringContainsString('TERM-ACCOUNT-'.$account->id, $staffCorHtml);
         $this->assertStringContainsString('ASSESSMENT-'.$assessment->id, $staffCorHtml);
     }
@@ -537,13 +546,21 @@ final class Issue93PrintOutputsStandardsTest extends TestCase
             ->assertSee('3.00')
             ->assertSee('3 hrs/wk')
             ->assertSee('Enrolled subjects and class schedule')
-            ->assertSee('<th scope="row"', escape: false);
+            ->assertSee('<th scope="col">Modality</th>', escape: false)
+            ->assertSee('<th scope="row"', escape: false)
+            ->assertSee('Student copy')
+            ->assertDontSee('<th scope="col">Class</th>', escape: false)
+            ->assertDontSee('Check Class schedule in the Student Hub')
+            ->assertDontSee('Schedule source:')
+            ->assertDontSee('Generated through TALA')
+            ->assertDontSee('Asia/Manila');
 
         $facultyResponse = $this->actingAs($faculty)->get(route('faculty.schedule.print', ['timetable_version' => $version->id]));
         $facultyResponse->assertOk()
             ->assertSee('Total units:')
             ->assertSee('3.00')
-            ->assertSee('3 hrs/wk');
+            ->assertSee('3 hrs/wk')
+            ->assertSee('Generated through TALA');
 
         $timetableResponse = $this->actingAs($registrar)->get(route('timetable.version.print', $version));
         $timetableResponse->assertOk()
@@ -553,6 +570,147 @@ final class Issue93PrintOutputsStandardsTest extends TestCase
             ->assertSee('Published version v2')
             ->assertDontSee('TALA-TT-'.$version->id)
             ->assertDontSee('Schedule built');
+    }
+
+    #[Test]
+    public function student_schedule_print_merges_multi_slot_subjects_uses_modality_header_shows_breaks_and_omits_boilerplate(): void
+    {
+        $faculty = User::factory()->create(['name' => 'Prof. Elena Santos', 'status' => User::StatusActive]);
+        $faculty->assignRole(User::StaffRoleFaculty);
+        $studentUser = User::factory()->create(['name' => 'Juan Dela Cruz', 'status' => User::StatusActive]);
+        $studentUser->assignRole('student');
+
+        $program = Program::factory()->create(['code' => 'BSIT', 'name' => 'BS Information Technology']);
+        $ay = AcademicYear::factory()->create(['label' => '2026-2027']);
+        $term = Term::factory()->for($ay)->create([
+            'label' => 'First Semester',
+            'type' => Term::TypeFirstSemester,
+            'state' => Term::StateActive,
+            'starts_on' => '2026-08-17',
+            'ends_on' => '2026-12-18',
+        ]);
+        $package = TermCalendarPackage::factory()->for($term)->create([
+            'state' => TermCalendarPackage::StateActive,
+        ]);
+        foreach ([1, 2, 3, 4, 5] as $day) {
+            TermTeachingGridRow::query()->create([
+                'term_calendar_package_id' => $package->id,
+                'day_of_week' => $day,
+                'starts_at' => '08:00:00',
+                'ends_at' => '17:00:00',
+                'breaks' => [
+                    ['starts_at' => '12:00:00', 'ends_at' => '13:00:00'],
+                ],
+            ]);
+        }
+
+        $curriculum = CurriculumVersion::factory()->for($program)->create(['state' => CurriculumVersion::StateActive]);
+        $profile = StudentProfile::factory()->for($studentUser)->for($program)->create([
+            'curriculum_version_id' => $curriculum->id,
+            'student_number' => '2026-00421',
+        ]);
+        $course = Course::factory()->create(['code' => 'IT 204']);
+        $spec = CourseSpecification::factory()->for($course)->create([
+            'title' => 'Data Structures and Algorithms',
+            'credit_units' => '3.00',
+            'state' => CourseSpecification::StateActive,
+        ]);
+        $comp = CourseComponent::factory()->for($spec)->create([
+            'component_type' => CourseComponent::TypeLecture,
+            'weekly_contact_hours' => '3.00',
+        ]);
+        $entry = CurriculumEntry::factory()->for($curriculum)->for($spec, 'courseSpecification')->create(['term_type' => $term->type]);
+        $offering = TermOffering::factory()->for($term)->for($entry, 'curriculumEntry')->create(['state' => TermOffering::StateScheduled]);
+        $section = Section::factory()->for($offering, 'termOffering')->create(['code' => 'Q']);
+        $group = SectionDeliveryGroup::factory()->create(['section_id' => $section->id]);
+        $demand = SchedulingDemand::factory()->for($offering)->for($comp)->for($group)->create([
+            'modality' => TermOffering::ModalityFaceToFace,
+        ]);
+        $room = Room::factory()->create(['code' => 'RM-204']);
+        $run = ScheduleGenerationRun::factory()->for($term)->create([
+            'status' => ScheduleGenerationRun::StatusPublished,
+        ]);
+        $version = PublishedTimetableVersion::factory()->for($term)->for($run, 'scheduleRun')->create([
+            'version' => 1,
+            'state' => PublishedTimetableVersion::StatePublished,
+            'published_at' => now(),
+        ]);
+
+        PublishedTimetableMeeting::factory()->create([
+            'published_timetable_version_id' => $version->id,
+            'scheduling_demand_id' => $demand->id,
+            'section_id' => $section->id,
+            'faculty_user_id' => $faculty->id,
+            'room_id' => $room->id,
+            'day_of_week' => 1,
+            'starts_at' => '08:00:00',
+            'ends_at' => '09:30:00',
+            'meeting_sequence' => 1,
+            'modality' => TermOffering::ModalityFaceToFace,
+        ]);
+        PublishedTimetableMeeting::factory()->create([
+            'published_timetable_version_id' => $version->id,
+            'scheduling_demand_id' => $demand->id,
+            'section_id' => $section->id,
+            'faculty_user_id' => $faculty->id,
+            'room_id' => $room->id,
+            'day_of_week' => 3,
+            'starts_at' => '08:00:00',
+            'ends_at' => '09:30:00',
+            'meeting_sequence' => 2,
+            'modality' => TermOffering::ModalityFaceToFace,
+        ]);
+
+        $enrollment = Enrollment::factory()->create([
+            'student_profile_id' => $profile->id,
+            'term_id' => $term->id,
+            'credential_user_id' => $studentUser->id,
+            'status' => 'officially_enrolled',
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+            'officially_enrolled_at' => now(),
+        ]);
+        $cor = CorVersion::factory()->create([
+            'enrollment_id' => $enrollment->id,
+            'published_timetable_version_id' => $version->id,
+        ]);
+        $enrollment->update(['current_cor_version_id' => $cor->id]);
+        CourseEnrollment::factory()->create([
+            'enrollment_id' => $enrollment->id,
+            'term_offering_id' => $offering->id,
+            'section_id' => $section->id,
+            'published_timetable_version_id' => $version->id,
+            'status' => CourseEnrollment::StatusActive,
+            'is_current' => true,
+            'units_snapshot' => '3.00',
+        ]);
+
+        $output = app(BuildOfficialScheduleOutput::class)->forStudent(
+            $studentUser,
+            Request::create('/outputs/schedules/student'),
+        );
+
+        $this->assertCount(1, $output['rows']);
+        $this->assertSame('Mon 8:00–9:30 AM, Wed 8:00–9:30 AM', $output['rows'][0]['schedule']);
+        $this->assertSame('RM-204', $output['rows'][0]['room']);
+        $this->assertSame($faculty->fresh()->name, $output['rows'][0]['faculty']);
+        $this->assertCount(1, $output['breaks']);
+        $this->assertSame('Mon–Fri: 12:00 PM–1:00 PM', $output['breaks'][0]['summary']);
+
+        $response = $this->actingAs($studentUser)->get(route('student.schedule.print'));
+        $response->assertOk()
+            ->assertSeeInOrder(['2026-00421', $studentUser->fresh()->name, 'BS Information Technology'])
+            ->assertSee('<th scope="col">Modality</th>', escape: false)
+            ->assertSee('Mon 8:00–9:30 AM, Wed 8:00–9:30 AM')
+            ->assertSee('RM-204')
+            ->assertSee('Break')
+            ->assertSee('Mon–Fri: 12:00 PM–1:00 PM')
+            ->assertSee('Student copy')
+            ->assertDontSee('<th scope="col">Class</th>', escape: false)
+            ->assertDontSee('<div>Q<br>', escape: false)
+            ->assertDontSee('Generated ')
+            ->assertDontSee('Check Class schedule in the Student Hub')
+            ->assertDontSee('Schedule source:')
+            ->assertDontSee('Asia/Manila');
     }
 
     #[Test]

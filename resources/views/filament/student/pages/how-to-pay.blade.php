@@ -71,8 +71,6 @@
         : 'gray';
     $weeklyRows = is_array($cashChannel['weekly_summary_rows'] ?? null) ? $cashChannel['weekly_summary_rows'] : [];
     $upcomingExceptions = is_array($cashChannel['upcoming_exceptions'] ?? null) ? $cashChannel['upcoming_exceptions'] : [];
-    $calendarMonths = is_array($cashChannel['calendar_months'] ?? null) ? $cashChannel['calendar_months'] : [];
-    $calendarKey = md5(json_encode($calendarMonths) ?: '[]');
 @endphp
 
 <{{ $rootTag }}
@@ -287,10 +285,7 @@
                     @endif
                 </header>
 
-                <div @class([
-                    'tala-cashier-body',
-                    'tala-cashier-body--split' => in_array($resolvedVariant, ['page', 'preview'], true) && $calendarMonths !== [],
-                ])>
+                <div class="tala-cashier-body">
                     <div class="tala-cashier-details">
                         @if ($todayStatus !== null)
                             @php
@@ -392,159 +387,22 @@
                         </footer>
                     </div>
 
-                    @if ($calendarMonths !== [] && in_array($resolvedVariant, ['page', 'preview'], true))
-                        <div class="tala-cashier-calendar-pane">
-                            <div
-                                class="tala-cashier-calendar"
-                                wire:key="cashier-calendar-{{ $resolvedVariant }}-{{ $calendarKey }}"
-                                x-data="{
-                                    months: @js($calendarMonths),
-                                    monthIndex: 0,
-                                    selectedDate: null,
-                                    init() {
-                                        this.selectDefaultForMonth(0);
-                                    },
-                                    currentMonth() {
-                                        return this.months[this.monthIndex] ?? null;
-                                    },
-                                    flatCells() {
-                                        const month = this.currentMonth();
-                                        return month ? month.weeks.flat() : [];
-                                    },
-                                    selectDefaultForMonth(index) {
-                                        this.monthIndex = index;
-                                        const inMonth = this.flatCells().filter((cell) => cell.in_month);
-                                        const today = inMonth.find((cell) => cell.is_today);
-                                        this.selectedDate = (today ?? inMonth[0] ?? null)?.date ?? null;
-                                    },
-                                    prevMonth() {
-                                        if (this.monthIndex > 0) {
-                                            this.selectDefaultForMonth(this.monthIndex - 1);
-                                        }
-                                    },
-                                    nextMonth() {
-                                        if (this.monthIndex < this.months.length - 1) {
-                                            this.selectDefaultForMonth(this.monthIndex + 1);
-                                        }
-                                    },
-                                    selectCell(cell) {
-                                        if (cell && cell.in_month) {
-                                            this.selectedDate = cell.date;
-                                        }
-                                    },
-                                    selectedCell() {
-                                        const inMonth = this.flatCells().filter((cell) => cell.in_month);
-                                        return inMonth.find((cell) => cell.date === this.selectedDate) ?? inMonth[0] ?? null;
-                                    }
-                                }"
-                            >
-                                <div class="tala-cashier-calendar__bar">
-                                    <span class="tala-cashier-calendar__month" x-text="currentMonth()?.month_label ?? ''">
-                                        {{ $calendarMonths[0]['month_label'] ?? '' }}
-                                    </span>
-                                    <div class="tala-cashier-calendar__nav-group">
-                                        <button
-                                            type="button"
-                                            class="tala-cashier-calendar__nav"
-                                            x-on:click="prevMonth()"
-                                            :disabled="monthIndex <= 0"
-                                            aria-label="Previous month"
-                                        >
-                                            <x-filament::icon icon="heroicon-o-chevron-left" aria-hidden="true" />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            class="tala-cashier-calendar__nav"
-                                            x-on:click="nextMonth()"
-                                            :disabled="monthIndex >= months.length - 1"
-                                            aria-label="Next month"
-                                        >
-                                            <x-filament::icon icon="heroicon-o-chevron-right" aria-hidden="true" />
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div class="tala-cashier-calendar__weekdays" aria-hidden="true">
-                                    <span>Mon</span>
-                                    <span>Tue</span>
-                                    <span>Wed</span>
-                                    <span>Thu</span>
-                                    <span>Fri</span>
-                                    <span>Sat</span>
-                                    <span>Sun</span>
-                                </div>
-
-                                <div class="tala-cashier-calendar__grid" role="group" aria-label="Cashier monthly operating calendar">
-                                    <template x-for="cell in flatCells()" :key="cell.date">
-                                        <div>
-                                            <template x-if="cell.in_month">
-                                                <button
-                                                    type="button"
-                                                    class="tala-cashier-calendar__day"
-                                                    :class="{
-                                                        'tala-cashier-calendar__day--open': cell.state === 'open',
-                                                        'tala-cashier-calendar__day--closed': cell.state === 'closed' || cell.state === 'holiday',
-                                                        'tala-cashier-calendar__day--custom': cell.state === 'custom_hours',
-                                                        'tala-cashier-calendar__day--holiday': cell.state === 'holiday',
-                                                        'is-today': cell.is_today,
-                                                        'is-selected': selectedDate === cell.date
-                                                    }"
-                                                    x-on:click="selectCell(cell)"
-                                                    x-on:focus="selectCell(cell)"
-                                                    :aria-label="cell.summary"
-                                                    :aria-pressed="selectedDate === cell.date ? 'true' : 'false'"
-                                                    :aria-current="cell.is_today ? 'date' : null"
-                                                >
-                                                    <span class="tala-cashier-calendar__num" x-text="cell.day"></span>
-                                                    <span
-                                                        class="tala-cashier-calendar__marker"
-                                                        :class="'tala-cashier-calendar__marker--' + cell.state"
-                                                        x-show="cell.state === 'custom_hours' || cell.state === 'holiday'"
-                                                        aria-hidden="true"
-                                                    ></span>
-                                                </button>
-                                            </template>
-                                            <template x-if="!cell.in_month">
-                                                <span class="tala-cashier-calendar__day tala-cashier-calendar__day--outside" aria-hidden="true" x-text="cell.day"></span>
-                                            </template>
-                                        </div>
-                                    </template>
-                                </div>
-
-                                <div class="tala-cashier-calendar__readout" role="status" aria-live="polite">
-                                    <span
-                                        class="tala-cashier-calendar__readout-dot"
-                                        :data-state="selectedCell()?.state ?? 'closed'"
-                                        aria-hidden="true"
-                                    ></span>
-                                    <span class="tala-cashier-calendar__readout-text" x-text="selectedCell()?.summary ?? ''"></span>
-                                </div>
-
-                                <ul class="tala-cashier-calendar__legend" aria-label="Calendar key">
-                                    <li><span class="tala-cashier-calendar__swatch tala-cashier-calendar__swatch--open" aria-hidden="true"></span>Open</li>
-                                    <li><span class="tala-cashier-calendar__swatch tala-cashier-calendar__swatch--modified" aria-hidden="true"></span>Special hours</li>
-                                    <li><span class="tala-cashier-calendar__swatch tala-cashier-calendar__swatch--closed" aria-hidden="true"></span>Closed</li>
-                                </ul>
-                            </div>
-
-                            @if ($upcomingExceptions !== [])
-                                <div class="tala-cashier-exceptions">
-                                    <p class="tala-cashier-exceptions__title">Upcoming holidays &amp; special hours</p>
-                                    <ul class="tala-cashier-exceptions__list">
-                                        @foreach (array_slice($upcomingExceptions, 0, 5) as $exception)
-                                            <li class="tala-cashier-exceptions__item">
-                                                <span class="tala-cashier-exceptions__date">{{ $exception['date_label'] }}</span>
-                                                <span class="tala-cashier-exceptions__meta">
-                                                    <strong>{{ $exception['label'] }}</strong>
-                                                    <span>
-                                                        {{ ($exception['status'] ?? '') === 'custom_hours' && ! empty($exception['hours_label']) ? $exception['hours_label'] : 'Closed' }}
-                                                    </span>
-                                                </span>
-                                            </li>
-                                        @endforeach
-                                    </ul>
-                                </div>
-                            @endif
+                    @if ($upcomingExceptions !== [] && in_array($resolvedVariant, ['page', 'preview'], true))
+                        <div class="tala-cashier-exceptions" aria-label="Cashier weekly exceptions">
+                            <p class="tala-cashier-exceptions__title">Upcoming holidays &amp; special hours</p>
+                            <ul class="tala-cashier-exceptions__list">
+                                @foreach (array_slice($upcomingExceptions, 0, 5) as $exception)
+                                    <li class="tala-cashier-exceptions__item">
+                                        <span class="tala-cashier-exceptions__date">{{ $exception['date_label'] }}</span>
+                                        <span class="tala-cashier-exceptions__meta">
+                                            <strong>{{ $exception['label'] }}</strong>
+                                            <span>
+                                                {{ ($exception['status'] ?? '') === 'custom_hours' && ! empty($exception['hours_label']) ? $exception['hours_label'] : 'Closed' }}
+                                            </span>
+                                        </span>
+                                    </li>
+                                @endforeach
+                            </ul>
                         </div>
                     @endif
                 </div>

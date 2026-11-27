@@ -93,7 +93,7 @@ class LearnerWorkspaceNavigationBoundaryTest extends TestCase
             'Overview',
             'Class schedule',
             'Enrollment',
-            'Academics',
+            'Grades',
             'Fees and payments',
         ], $labels);
         $this->assertSame($labels, array_values(array_unique($labels)));

@@ -663,7 +663,7 @@ final class TermAccountToVerifiedManualPaymentJourneyTest extends TestCase
         $this->actingAs($fixture['learner'])
             ->get(route('filament.student.pages.finance'))
             ->assertOk()
-            ->assertSee('Submit receipt')
+            ->assertSee('Pay Online')
             ->assertDontSee('Billing Slip')
             ->assertDontSee('Financial Accommodation');
     }

@@ -57,120 +57,267 @@
     @include('filament.student.pages.finance-student-changes')
     <div wire:loading.delay wire:target="refreshFinance" role="status">Refreshing your account…</div>
     @if (! $available)
-        <section class="student-finance-task tala-task-surface" aria-labelledby="finance-unavailable"><h2 id="finance-unavailable">Account information unavailable</h2><p>Your fees or payment records need an Accounting review. Contact Accounting before making a payment.</p><x-filament::button wire:click="refreshFinance" wire:loading.attr="disabled" color="gray">Refresh account</x-filament::button></section>
+        <section class="tala-task-surface student-card--two-tone student-finance-task" aria-labelledby="finance-unavailable">
+            <div class="student-card__body">
+                <h2 id="finance-unavailable">Account information unavailable</h2>
+                <p>Your fees or payment records need an Accounting review. Contact Accounting before making a payment.</p>
+            </div>
+            <div class="student-card__footer">
+                <x-filament::button wire:click="refreshFinance" wire:loading.attr="disabled" color="gray" icon="heroicon-o-arrow-path">Refresh account</x-filament::button>
+            </div>
+        </section>
     @else
-        <div class="student-finance-pair tala-task-surface">
-            <section class="student-finance-task {{ $latestRejected ? 'student-finance-task-review' : '' }} {{ $due && ! $latestPending && ! $latestRejected ? 'student-finance-task-due' : '' }}" aria-labelledby="finance-task-heading">
+        @php
+            $submitEvidenceAction = $this->getAction('submitEvidence', isMounting: false);
+            $canSubmitEvidence = $hasElectronicChannels && $submitEvidenceAction !== null && $submitEvidenceAction->isVisible();
+        @endphp
+        <div class="student-overview-priority-grid">
+            <section class="tala-task-surface student-card--two-tone student-finance-task {{ $latestRejected ? 'student-finance-task-review' : '' }} {{ $due && ! $latestPending && ! $latestRejected ? 'student-finance-task-due' : '' }}" aria-labelledby="finance-task-heading">
                 @if ($latestPending)
-                    <h2 id="finance-task-heading">Submitted receipt awaiting review</h2><p>Accounting will review your {{ $money($latestEvidence->claimed_amount) }} submitted receipt before your balance changes.</p>
-                    <x-workflow-handoff current-owner="Accounting" current-task="Review submitted receipt" next-owner="You" next-task="View updated account" current-icon="heroicon-o-banknotes" next-icon="heroicon-o-document-text" />
-                    <p>{{ $latestEvidence->original_name }}<span class="student-finance-secondary">Submitted {{ $date($latestEvidence->submitted_at) }}</span></p>
-                    <div class="student-finance-actions"><x-payment-proof-viewer :proof="$latestEvidence" label="View receipt" primary /><x-filament::button wire:click="refreshFinance" wire:loading.attr="disabled" color="gray" icon="heroicon-o-arrow-path">Refresh status</x-filament::button></div>
+                    <div class="student-card__body">
+                        <h2 id="finance-task-heading">Submitted receipt awaiting review</h2>
+                        <p>Accounting will review your {{ $money($latestEvidence->claimed_amount) }} submitted receipt before your balance changes.</p>
+                        <x-workflow-handoff current-owner="Accounting" current-task="Review submitted receipt" next-owner="You" next-task="View updated account" current-icon="heroicon-o-banknotes" next-icon="heroicon-o-document-text" />
+                        <p>{{ $latestEvidence->original_name }}<span class="student-finance-secondary">Submitted {{ $date($latestEvidence->submitted_at) }}</span></p>
+                    </div>
+                    <div class="student-card__footer">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <x-payment-proof-viewer :proof="$latestEvidence" label="View receipt" primary />
+                            <x-filament::button wire:click="refreshFinance" wire:loading.attr="disabled" color="gray" icon="heroicon-o-arrow-path">Refresh status</x-filament::button>
+                        </div>
+                    </div>
                 @elseif ($latestRejected)
-                    <h2 id="finance-task-heading">Submitted receipt needs correction</h2><p>{{ $latestEvidence->review_note ?: 'Contact Accounting for the review reason, or upload a clearer receipt below.' }}</p><p>{{ $latestEvidence->original_name }} · {{ $money($latestEvidence->claimed_amount) }} submitted<span class="student-finance-secondary">Reviewed {{ $date($latestEvidence->reviewed_at) }}</span></p>
-                    @if (! $hasElectronicChannels)<p class="student-finance-secondary">Electronic receipt uploads are currently turned off. Pay onsite at the Campus Cashier below; onsite payments are recorded directly without uploading a receipt.</p>@endif
-                    <div class="student-finance-actions">@if ($hasElectronicChannels){{ $this->getAction('submitEvidence', isMounting: false) }}@endif<x-payment-proof-viewer :proof="$latestEvidence" label="View receipt" /></div>
+                    <div class="student-card__body">
+                        <h2 id="finance-task-heading">Submitted receipt needs correction</h2>
+                        <p>{{ $latestEvidence->review_note ?: 'Contact Accounting for the review reason, or upload a clearer receipt below.' }}</p>
+                        <p>{{ $latestEvidence->original_name }} · {{ $money($latestEvidence->claimed_amount) }} submitted<span class="student-finance-secondary">Reviewed {{ $date($latestEvidence->reviewed_at) }}</span></p>
+                        @if (! $hasElectronicChannels)
+                            <p class="student-finance-secondary">Electronic receipt uploads are currently turned off. Pay onsite at the Campus Cashier below; onsite payments are recorded directly without uploading a receipt.</p>
+                        @endif
+                    </div>
+                    <div class="student-card__footer">
+                        <div class="flex flex-wrap items-center gap-2">
+                            @if ($canSubmitEvidence)
+                                {{ $submitEvidenceAction }}
+                            @endif
+                            <x-payment-proof-viewer :proof="$latestEvidence" label="View receipt" />
+                        </div>
+                    </div>
                 @elseif ($due)
-                    <h2 id="finance-task-heading">Your next payment</h2><p class="student-finance-next-amount">{{ $money($position['current_due']) }}</p>@if ($position['next_obligation'])<p class="student-finance-secondary">{{ $position['next_obligation']['label'] }} · Due {{ $date($position['next_obligation']['due_at']) }}</p>@endif
-                    @if ($hasElectronicChannels)
-                        <p>Pay through a school payment channel below, or visit the Campus Cashier. If you paid by bank transfer or e-wallet, submit your receipt for Accounting to review.</p>
-                        <div class="student-finance-actions">{{ $this->getAction('submitEvidence', isMounting: false)->color('primary') }}</div>
-                    @else
-                        <p>Electronic transfer channels are currently unavailable. Pay onsite at the Campus Cashier below; onsite payments are recorded directly without uploading a receipt.</p>
-                    @endif
+                    <div class="student-card__body">
+                        <h2 id="finance-task-heading">Your next payment</h2>
+                        <p class="student-finance-next-amount">{{ $money($position['current_due']) }}</p>
+                        @if ($position['next_obligation'])
+                            <p class="student-finance-secondary">{{ $position['next_obligation']['label'] }} · Due {{ $dueDate($position['next_obligation']['due_at']) }}</p>
+                        @endif
+                        @if ($hasElectronicChannels)
+                            <p>Pay through a school payment channel below, or visit the Campus Cashier. If you paid by bank transfer or e-wallet, submit your receipt for Accounting to review.</p>
+                        @else
+                            <p>Electronic transfer channels are currently unavailable. Pay onsite at the Campus Cashier below; onsite payments are recorded directly without uploading a receipt.</p>
+                        @endif
+                    </div>
+                    <div class="student-card__footer">
+                        @if ($canSubmitEvidence)
+                            {{ $submitEvidenceAction->color('primary') }}
+                        @else
+                            <x-filament::button wire:click="refreshFinance" wire:loading.attr="disabled" color="gray" icon="heroicon-o-arrow-path">Refresh account</x-filament::button>
+                        @endif
+                    </div>
                 @else
-                    <h2 class="student-record-heading" id="finance-task-heading"><x-filament::icon icon="heroicon-o-check-circle" aria-hidden="true" />No payment due today</h2>
-                    @if ($position['next_obligation'])<p class="student-finance-next-label">Next payment</p><p class="student-finance-next-amount">{{ $money($position['next_obligation']['balance']) }}</p><p class="student-finance-secondary">Due {{ $date($position['next_obligation']['due_at']) }}</p>@else<p>No payments remain for this term.</p>@endif
-                    <x-filament::button wire:click="refreshFinance" wire:loading.attr="disabled" color="gray" icon="heroicon-o-arrow-path">Refresh account</x-filament::button>
+                    <div class="student-card__body">
+                        <h2 class="student-record-heading" id="finance-task-heading"><x-filament::icon icon="heroicon-o-check-circle" aria-hidden="true" />No payment due today</h2>
+                        @if ($position['next_obligation'])
+                            <p class="student-finance-next-label">Next payment</p>
+                            <p class="student-finance-next-amount">{{ $money($position['next_obligation']['balance']) }}</p>
+                            <p class="student-finance-secondary">Due {{ $dueDate($position['next_obligation']['due_at']) }}</p>
+                        @else
+                            <p>No payments remain for this term.</p>
+                        @endif
+                    </div>
+                    <div class="student-card__footer">
+                        <x-filament::button wire:click="refreshFinance" wire:loading.attr="disabled" color="gray" icon="heroicon-o-arrow-path">Refresh account</x-filament::button>
+                    </div>
                 @endif
             </section>
-            <section class="student-finance-position" aria-labelledby="finance-position-heading"><h2 class="student-record-heading" id="finance-position-heading"><x-filament::icon icon="heroicon-o-scale" aria-hidden="true" />Account balance</h2>
-                @php
-                    $assessedTotal = (float) data_get($accountData, 'assessment.total', 0);
-                    $settled = max(0, $assessedTotal - (float) $position['remaining_balance']);
-                    $settledPercent = $assessedTotal > 0 ? (int) round(min(1, $settled / $assessedTotal) * 100) : 0;
-                @endphp
-                @if ($assessedTotal > 0)
-                    <div class="student-tile-bar" role="img" aria-label="{{ $settledPercent }} percent of this term's fees settled"><span style="inline-size: {{ $settledPercent }}%"></span></div>
-                    <p class="student-finance-secondary">{{ $money($settled) }} settled of {{ $money($assessedTotal) }}</p>
-                @endif
-                <dl><div><dt>Amount due now</dt><dd>{{ $money($position['current_due']) }}</dd></div><div><dt>Later fees</dt><dd>{{ $money($later) }}</dd></div><div><dt>Remaining term balance</dt><dd>{{ $money($position['remaining_balance']) }}</dd></div></dl><div class="student-finance-actions">{{ $this->getAction('statement', isMounting: false) }}</div></section>
+            <section class="tala-task-surface student-card--two-tone student-finance-position" aria-labelledby="finance-position-heading">
+                <div class="student-card__body">
+                    <h2 class="student-record-heading" id="finance-position-heading"><x-filament::icon icon="heroicon-o-scale" aria-hidden="true" />Account balance</h2>
+                    @php
+                        $assessedTotal = (float) data_get($accountData, 'assessment.total', 0);
+                        $settled = max(0, $assessedTotal - (float) $position['remaining_balance']);
+                        $settledPercent = $assessedTotal > 0 ? (int) round(min(1, $settled / $assessedTotal) * 100) : 0;
+                    @endphp
+                    @if ($assessedTotal > 0)
+                        <div class="student-tile-bar" role="img" aria-label="{{ $settledPercent }} percent of this term's fees settled"><span style="inline-size: {{ $settledPercent }}%"></span></div>
+                        <p class="student-finance-secondary">{{ $money($settled) }} settled of {{ $money($assessedTotal) }}</p>
+                    @endif
+                    <dl>
+                        <div><dt>Amount due now</dt><dd>{{ $money($position['current_due']) }}</dd></div>
+                        <div><dt>Later fees</dt><dd>{{ $money($later) }}</dd></div>
+                        <div class="border-b-0"><dt>Remaining term balance</dt><dd>{{ $money($position['remaining_balance']) }}</dd></div>
+                    </dl>
+                </div>
+                <div class="student-card__footer">
+                    {{ $this->getAction('statement', isMounting: false) }}
+                </div>
+            </section>
         </div>
 
-        @if ((float) ($position['remaining_balance'] ?? 0) > 0)
-            @include('filament.student.pages.how-to-pay', [
-                'display' => $resolvedHowToPayDisplay,
-                'channels' => data_get($accountData, 'payment_channels', []),
-                'variant' => 'page',
-                'surface' => 'finance',
-            ])
+        @php
+            $cashChannel = is_array($resolvedHowToPayDisplay['cashChannel'] ?? null) ? $resolvedHowToPayDisplay['cashChannel'] : null;
+        @endphp
+        @if (is_array($cashChannel) && ((float) ($position['remaining_balance'] ?? 0) > 0 || ! $hasElectronicChannels))
+            @php
+                $cashToday = is_array($cashChannel['today_status'] ?? null) ? $cashChannel['today_status'] : null;
+                $cashTone = in_array($cashToday['tone'] ?? '', ['success', 'warning', 'gray'], true) ? $cashToday['tone'] : 'gray';
+                $cashTodayDetail = filled($cashToday['detail'] ?? null)
+                    ? preg_replace('/\s*·\s*\d{1,2}:\d{2}\s*[AP]M\s*[–-]\s*\d{1,2}:\d{2}\s*[AP]M$/u', '', (string) $cashToday['detail'])
+                    : null;
+                $cashWeeklySummary = collect($cashChannel['weekly_summary_rows'] ?? [])
+                    ->map(fn (array $row): string => $row['days'].' '.(strtolower(trim((string) ($row['hours'] ?? ''))) === 'closed' ? 'Closed' : $row['hours']))
+                    ->implode(', ');
+                $cashLocationParts = array_values(array_filter([
+                    filled($cashChannel['location'] ?? null) ? $cashChannel['location'] : null,
+                    filled($cashChannel['cutoff_note'] ?? null) ? $cashChannel['cutoff_note'] : null,
+                ]));
+                $cashNow = \Carbon\CarbonImmutable::now($cashToday['timezone'] ?? config('app.display_timezone'));
+                $weekStart = $cashNow->startOfWeek(\Carbon\CarbonInterface::MONDAY)->toDateString();
+                $weekEnd = $cashNow->endOfWeek(\Carbon\CarbonInterface::SUNDAY)->toDateString();
+                $weekExceptions = collect($cashChannel['upcoming_exceptions'] ?? [])
+                    ->filter(fn (array $ex): bool => ($ex['ends_on'] ?? '') >= $weekStart && ($ex['starts_on'] ?? '') <= $weekEnd)
+                    ->values();
+            @endphp
+            <section class="tala-task-surface student-finance-cashier-summary" aria-labelledby="finance-cashier-heading">
+                <div class="student-finance-cashier-summary__head">
+                    <h2 class="student-record-heading" id="finance-cashier-heading">
+                        <x-filament::icon icon="heroicon-o-building-storefront" aria-hidden="true" />
+                        <span>Pay in cash · {{ $cashChannel['label'] ?? 'Campus Cashier' }}</span>
+                    </h2>
+                    <div class="student-finance-cashier-summary__badges">
+                        @if ($cashToday !== null)
+                            <x-filament::badge :color="$cashTone" size="sm">{{ $cashToday['badge'] }}</x-filament::badge>
+                        @endif
+                        <span class="tala-channel-card__mode-pill">Onsite · No upload</span>
+                    </div>
+                </div>
+                @if (filled($cashTodayDetail) || $cashLocationParts !== [])
+                    <p class="student-finance-cashier-summary__line">
+                        @if (filled($cashTodayDetail))
+                            <strong>{{ $cashTodayDetail }}</strong>@if ($cashLocationParts !== [])<span> · {{ implode(' · ', $cashLocationParts) }}</span>@endif
+                        @else
+                            <span>{{ implode(' · ', $cashLocationParts) }}</span>
+                        @endif
+                    </p>
+                @endif
+                @if ($cashWeeklySummary !== '' || $weekExceptions->isNotEmpty())
+                    <p class="student-finance-secondary">
+                        @if ($cashWeeklySummary !== '')
+                            <span>This week: {{ $cashWeeklySummary }}</span>
+                        @endif
+                        @foreach ($weekExceptions as $ex)
+                            <span>{{ $cashWeeklySummary !== '' || ! $loop->first ? ' · ' : '' }}{{ $ex['date_label'] }}: {{ $ex['label'] }} ({{ ($ex['status'] ?? '') === 'custom_hours' && ! empty($ex['hours_label']) ? $ex['hours_label'] : 'Closed' }})</span>
+                        @endforeach
+                    </p>
+                @endif
+            </section>
         @endif
     @endif
 
-    @if ($available || $assessmentLines->isNotEmpty())
-        <div class="student-finance-pair tala-task-surface">
-            @if ($available)
-                <section class="student-finance-section" aria-labelledby="payment-schedule-heading">
-                    <h2 class="student-record-heading" id="payment-schedule-heading">
-                        <x-filament::icon icon="heroicon-o-calendar-days" aria-hidden="true" />Payment schedule
-                    </h2>
-                    @if (empty($position['obligations']))
-                        <p class="student-finance-secondary">No installments are recorded for this term.</p>
-                    @else
-                        <ul class="student-payment-schedule">
-                            @foreach ($position['obligations'] as $obligation)
-                                <li wire:key="account-obligation-{{ $obligation['id'] }}"
-                                    @class(['student-schedule-done' => $obligation['balance'] === '0.00', 'student-schedule-due' => $obligation['balance'] !== '0.00' && $obligation['is_due']])>
-                                    <div>
-                                        <h3>{{ $obligation['label'] }}</h3>
-                                        <p class="student-finance-secondary">Due {{ $date($obligation['due_at']) }}</p>
-                                        @if ((float) $obligation['payment_applied'] > 0)
-                                            <p class="student-finance-secondary">{{ $money($obligation['payment_applied']) }} verified payment</p>
-                                        @endif
-                                        @if ((float) $obligation['coverage_applied'] > 0)
-                                            <p class="student-finance-secondary">{{ $money($obligation['coverage_applied']) }} approved fee assistance</p>
-                                        @endif
-                                    </div>
-                                    <div class="student-finance-installment">
-                                        <strong class="student-finance-number">{{ $money($obligation['amount']) }}</strong>
-                                        @if ((float) $obligation['balance'] > 0 && (float) $obligation['balance'] < (float) $obligation['amount'])
-                                            <span class="student-finance-secondary">{{ $money($obligation['balance']) }} remaining</span>
-                                        @endif
-                                        <x-filament::badge :color="$obligation['balance'] === '0.00' ? 'success' : ($obligation['is_due'] ? 'warning' : 'gray')">
-                                            {{ $obligation['balance'] === '0.00' ? 'Satisfied' : ($obligation['is_due'] ? 'Due' : 'Upcoming') }}
-                                        </x-filament::badge>
-                                    </div>
-                                </li>
-                            @endforeach
-                        </ul>
-                    @endif
-                </section>
+    @if ($available)
+        <section class="student-finance-section tala-task-surface" aria-labelledby="payment-schedule-heading">
+            <h2 class="student-record-heading" id="payment-schedule-heading">
+                <x-filament::icon icon="heroicon-o-calendar-days" aria-hidden="true" />Payment schedule
+            </h2>
+            @if (empty($position['obligations']))
+                <x-servitech-empty-state
+                    illustrated
+                    heading="No installments scheduled"
+                    description="No installments are recorded for this term."
+                    heading-tag="h3"
+                />
+            @else
+                <ul class="student-payment-schedule">
+                    @foreach ($position['obligations'] as $obligation)
+                        <li wire:key="account-obligation-{{ $obligation['id'] }}"
+                            @class(['student-schedule-done' => $obligation['balance'] === '0.00', 'student-schedule-due' => $obligation['balance'] !== '0.00' && $obligation['is_due']])>
+                            <div>
+                                <h3>{{ $obligation['label'] }}</h3>
+                                <p class="student-finance-secondary">Due {{ $dueDate($obligation['due_at']) }}</p>
+                                @if ((float) $obligation['payment_applied'] > 0)
+                                    <p class="student-finance-secondary">{{ $money($obligation['payment_applied']) }} verified payment</p>
+                                @endif
+                                @if ((float) $obligation['coverage_applied'] > 0)
+                                    <p class="student-finance-secondary">{{ $money($obligation['coverage_applied']) }} approved fee assistance</p>
+                                @endif
+                            </div>
+                            <div class="student-finance-installment">
+                                <strong class="student-finance-number">{{ $money($obligation['amount']) }}</strong>
+                                @if ((float) $obligation['balance'] > 0 && (float) $obligation['balance'] < (float) $obligation['amount'])
+                                    <span class="student-finance-secondary">{{ $money($obligation['balance']) }} remaining</span>
+                                @endif
+                                <x-filament::badge :color="$obligation['balance'] === '0.00' ? 'success' : ($obligation['is_due'] ? 'warning' : 'gray')">
+                                    {{ $obligation['balance'] === '0.00' ? 'Satisfied' : ($obligation['is_due'] ? 'Due' : 'Upcoming') }}
+                                </x-filament::badge>
+                            </div>
+                        </li>
+                    @endforeach
+                </ul>
             @endif
-            @if ($assessmentLines->isNotEmpty())
-                <section class="student-finance-records" aria-labelledby="finance-fees-heading"><h2 class="student-record-heading" id="finance-fees-heading"><x-filament::icon icon="heroicon-o-receipt-percent" />What you're paying for</h2><p class="student-finance-secondary">Your assessed fees for this term.</p>
-                    <ul class="student-fee-breakdown">
-                        @foreach ($assessmentLines as $line)
-                            <li><div><span>{{ $line->description_snapshot }}</span><strong>{{ $money($line->amount) }}</strong></div><div class="student-tile-bar" aria-hidden="true"><span style="inline-size: {{ (float) data_get($accountData, 'assessment.total', 0) > 0 ? (int) round((float) $line->amount / (float) data_get($accountData, 'assessment.total') * 100) : 0 }}%"></span></div></li>
-                        @endforeach
-                        <li class="student-fee-total"><div><span>Total fees</span><strong>{{ $money(data_get($accountData, 'assessment.total')) }}</strong></div></li>
-                    </ul>
-                </section>
-            @endif
-        </div>
-    @endif
-
-    <section class="student-finance-section tala-task-surface" aria-labelledby="payments-heading"><h2 class="student-record-heading" id="payments-heading"><x-filament::icon icon="heroicon-o-banknotes" />Payments</h2>
-        @if ($payments->isEmpty())<p class="student-finance-secondary">No verified payment is recorded for this term. Submitted receipts do not change your balance.</p>
-        @else<div class="tala-data-table-scroll student-finance-table-wrap" tabindex="0" role="region" aria-label="Recorded payments"><table class="tala-data-table student-finance-table"><thead><tr><th scope="col">Date</th><th scope="col">Method</th><th scope="col">Amount</th><th scope="col">Status</th><th scope="col">Documents</th></tr></thead><tbody>
-            @foreach ($payments->sortByDesc('paid_at') as $payment)<tr wire:key="finance-payment-{{ $payment->id }}"><td>{{ $date($payment->state === \App\Models\Payment::StateReversal ? ($payment->external_refund_at ?? $payment->paid_at) : $payment->paid_at) }}</td><td>{{ $payment->channelDetailLabel() }}</td><td class="student-finance-number">{{ $money($payment->amount) }}</td><td>{{ $payment->state === \App\Models\Payment::StatePosted ? 'Verified' : 'Reversal' }}</td><td>@if ($payment->state === \App\Models\Payment::StatePosted)<x-filament::link :href="route('finance.payments.acknowledgement', $payment)" target="_blank" rel="noopener">View acknowledgment</x-filament::link>@endif</td></tr>@endforeach
-        </tbody></table></div>@endif
-    </section>
-    @php($otherReceipts = $evidence->reject(fn ($item) => $available && $item->is($latestEvidence) && ($latestPending || $latestRejected)))
-    @if ($otherReceipts->isNotEmpty())
-        <section class="student-finance-records tala-task-surface" aria-labelledby="finance-receipts-heading"><h2 id="finance-receipts-heading">Submitted receipts</h2>
-            @foreach ($otherReceipts as $item)<article class="student-receipt-row" wire:key="finance-evidence-{{ $item->id }}"><div><h3>{{ $item->original_name }}</h3><p>{{ $money($item->claimed_amount) }} · {{ str($item->state)->headline() }} · {{ $date($item->submitted_at) }}</p>@if ($item->review_note)<p>{{ $item->review_note }}</p>@endif</div><x-payment-proof-viewer :proof="$item" /></article>@endforeach
         </section>
     @endif
+
+    <section class="student-finance-records tala-task-surface" aria-labelledby="payments-heading">
+        <div class="student-finance-activity-head">
+            <h2 class="student-record-heading" id="payments-heading"><x-filament::icon icon="heroicon-o-banknotes" />Payments &amp; recent activity</h2>
+        </div>
+        @if ($payments->isEmpty())
+            <x-servitech-empty-state
+                illustrated
+                heading="No verified payments recorded"
+                description="No verified payment is recorded for this term. Submitted receipts do not change your balance."
+                heading-tag="h3"
+            />
+        @else
+            @php($latestPayments = $payments->sortByDesc('paid_at')->take(3))
+            <ul class="student-finance-compact-activity" aria-label="Recent payment activity">
+                @foreach ($latestPayments as $payment)
+                    <li wire:key="finance-payment-{{ $payment->id }}">
+                        <div>
+                            <strong>{{ $payment->state === \App\Models\Payment::StatePosted ? 'Verified payment' : 'Payment reversal' }}</strong>
+                            <span class="student-finance-secondary">{{ $date($payment->state === \App\Models\Payment::StateReversal ? ($payment->external_refund_at ?? $payment->paid_at) : $payment->paid_at) }} · {{ $payment->channelDetailLabel() }}</span>
+                        </div>
+                        <div class="student-finance-compact-activity__end">
+                            <strong class="student-finance-number">{{ $money($payment->amount) }}</strong>
+                            @if ($payment->state === \App\Models\Payment::StatePosted)
+                                <x-filament::button tag="a" size="xs" color="gray" outlined :href="route('finance.payments.acknowledgement', $payment)" target="_blank" rel="noopener">Acknowledgment</x-filament::button>
+                            @endif
+                        </div>
+                    </li>
+                @endforeach
+            </ul>
+            @if ($payments->count() > 3)
+                <p class="student-finance-secondary">Showing latest 3 of {{ $payments->count() }} entries. Open Print / Export Statement for the full chronological record.</p>
+            @endif
+        @endif
+        @php($otherReceipts = $evidence->reject(fn ($item) => $available && $item->is($latestEvidence) && ($latestPending || $latestRejected)))
+        @if ($otherReceipts->isNotEmpty())
+            <details class="learner-disclosure student-finance-receipts-disclosure">
+                <summary>Submitted receipts ({{ $otherReceipts->count() }})</summary>
+                <div class="student-finance-receipts-list">
+                    @foreach ($otherReceipts as $item)
+                        <article class="student-receipt-row" wire:key="finance-evidence-{{ $item->id }}">
+                            <div>
+                                <h3>{{ $item->original_name }}</h3>
+                                <p>{{ $money($item->claimed_amount) }} · {{ str($item->state)->headline() }} · {{ $date($item->submitted_at) }}</p>
+                                @if ($item->review_note)<p>{{ $item->review_note }}</p>@endif
+                            </div>
+                            <x-payment-proof-viewer :proof="$item" />
+                        </article>
+                    @endforeach
+                </div>
+            </details>
+        @endif
+    </section>
     @if (data_get($accountData, 'state.coverages', []) !== [])
         <section class="student-finance-records tala-task-surface" aria-labelledby="finance-coverage-heading"><h2 id="finance-coverage-heading">Fee assistance</h2>
             @foreach (data_get($accountData, 'state.coverages', []) as $coverage)<article class="student-receipt-row"><div><h3>{{ $coverage['source'] }}</h3><p>{{ str($coverage['state'])->headline() }}@if ($coverage['effective_date'] ?? null) · {{ $coverage['effective_date'] }}@endif</p></div><strong>{{ $coverage['amount'] }}</strong></article>@endforeach

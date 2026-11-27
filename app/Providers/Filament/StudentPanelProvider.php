@@ -39,8 +39,10 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
+use Illuminate\Foundation\Vite;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Support\HtmlString;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 use function Filament\Support\original_request;
@@ -63,6 +65,26 @@ class StudentPanelProvider extends PanelProvider
                     ->icon('heroicon-o-user')
                     ->url(fn (): string => AccountSecurity::getUrl(panel: 'student'))
                     ->visible(fn (): bool => ! TalaPanelTheme::isMandatoryMfaSetupRoute()),
+                'quick_tour' => Action::make('quick_tour')
+                    ->label('Quick tour')
+                    ->icon('heroicon-o-map')
+                    ->sort(-1)
+                    ->url(null)
+                    ->postToUrl(false)
+                    ->visible(fn (): bool => ! TalaPanelTheme::isMandatoryMfaSetupRoute())
+                    ->alpineClickHandler(<<<'JS'
+                        close();
+                        const mobile = window.innerWidth < 1024;
+                        if (mobile && $store?.sidebar?.isOpen) {
+                            $store.sidebar.close();
+                        }
+                        $nextTick(() => {
+                            const trigger = mobile
+                                ? document.querySelector('.fi-layout-sidebar-toggle-btn, .fi-topbar-open-sidebar-btn')
+                                : ($el.closest('.fi-user-menu')?.querySelector('.fi-user-menu-trigger') ?? document.querySelector('.fi-user-menu-trigger'));
+                            window.dispatchEvent(new CustomEvent('tala:start-student-tour', { detail: { returnFocusEl: trigger } }));
+                        });
+                        JS),
             ])
             ->multiFactorAuthentication(
                 TalaAppAuthentication::make()->recoverable(),
@@ -97,6 +119,18 @@ class StudentPanelProvider extends PanelProvider
                         || in_array(ResetPassword::class, $scopes, true)
                         || request()->routeIs('filament.*.auth.password-reset.*', 'filament.applicant.auth.register'),
                 ]),
+            )
+            ->renderHook(
+                PanelsRenderHook::CONTENT_START,
+                fn (): HtmlString => auth()->check() && ! TalaPanelTheme::isMandatoryMfaSetupRoute()
+                    ? new HtmlString(view('filament.components.student-quick-tour')->render())
+                    : new HtmlString(''),
+            )
+            ->renderHook(
+                PanelsRenderHook::SCRIPTS_AFTER,
+                fn (): HtmlString => auth()->check() && ! TalaPanelTheme::isMandatoryMfaSetupRoute()
+                    ? app(Vite::class)(['resources/js/student-tour.js'])
+                    : new HtmlString(''),
             )
             ->discoverResources(in: app_path('Filament/Student/Resources'), for: 'App\Filament\Student\Resources')
             ->discoverPages(in: app_path('Filament/Student/Pages'), for: 'App\Filament\Student\Pages')
@@ -212,30 +246,22 @@ class StudentPanelProvider extends PanelProvider
         $panel = Filament::getPanel('student');
         $academicsRoute = Academics::getRouteName($panel);
         $inAcademics = original_request()->routeIs($academicsRoute);
-        $item = $this->navigationItem(Academics::class, 'Academics');
+        $item = $this->navigationItem(Academics::class, 'Grades');
 
         if (! $inAcademics) {
             return $item;
         }
 
-        $activeView = (string) original_request()->query('view', 'current');
-        if ($activeView === 'graduation') {
+        $activeView = (string) original_request()->query('view', 'record');
+        if (in_array($activeView, ['current', 'graduation'], true)) {
             $activeView = 'record';
         }
 
         return $item->childItems([
-            NavigationItem::make('Current subjects')
-                ->icon('heroicon-o-book-open')
-                ->url(fn (): string => Academics::getUrl(['view' => 'current'], panel: 'student'))
-                ->isActiveWhen(fn (): bool => $inAcademics && ! in_array($activeView, ['plan', 'record'], true)),
             NavigationItem::make('Study plan')
                 ->icon('heroicon-o-map')
                 ->url(fn (): string => Academics::getUrl(['view' => 'plan'], panel: 'student'))
                 ->isActiveWhen(fn (): bool => $inAcademics && $activeView === 'plan'),
-            NavigationItem::make('Academic record')
-                ->icon('heroicon-o-document-text')
-                ->url(fn (): string => Academics::getUrl(['view' => 'record'], panel: 'student'))
-                ->isActiveWhen(fn (): bool => $inAcademics && $activeView === 'record'),
         ]);
     }
 }

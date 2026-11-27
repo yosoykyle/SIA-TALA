@@ -327,7 +327,9 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
 
         Filament::setCurrentPanel(Filament::getPanel('student'));
         Livewire::actingAs($application->user->fresh())->test(Dashboard::class)
-            ->assertSee('Your enrollment is official')->assertSee('View enrollment')->assertSee('Class schedule');
+            ->assertSee('Your enrollment is official')->assertSee('View enrollment');
+        Livewire::actingAs($application->user->fresh())->test(ScheduleView::class)
+            ->assertSee('Class Schedule');
         Livewire::actingAs($application->user->fresh())->test(Finance::class)
             ->assertSee('No payment due today')->assertSee('PHP 0.00')
             ->assertActionHidden('submitEvidence');
@@ -403,11 +405,15 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->assertSame('8:00 AM–9:30 AM', $frozenSchedule['meetings'][0]['time']);
         $this->assertSame($corBefore['subjects'], $corAfterSuccessor['subjects']);
         $this->assertSame($timetable->id, $corAfterSuccessor['schedule_version']);
-        Livewire::actingAs($application->user->fresh())->test(Dashboard::class)
-            ->assertSee('Class schedule')->assertSee('2:00 PM')->assertDontSee('8:00 AM');
+        Livewire::actingAs($application->user->fresh())->test(ScheduleView::class)
+            ->assertSee('Class Schedule')->assertSee('2:00 PM')->assertDontSee('8:00 AM');
         Livewire::actingAs($application->user->fresh())->test(StudentEnrollmentPage::class)
             ->assertSee('Registered subjects')->assertSee('View registration')
-            ->assertSee('CHANGED-AFTER-FINALIZATION')->assertSee('View fees and payments')
+            ->assertSee('Sec. CHANGED-AFTER-FINALIZATION')
+            ->assertDontSee('View class schedule')
+            ->assertDontSee('View grades and results')
+            ->assertDontSee('View fees and payments')
+            ->assertDontSee('Contact the Registrar to request a subject change or report an enrollment error.')
             ->assertDontSee('Charges and payment requirement')->assertDontSee('Case history and recovery')
             ->assertViewHas('registeredSubjects', fn ($subjects): bool => $subjects->pluck('id')->all() === [$membership->id]);
 
@@ -1920,8 +1926,11 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->assertSame($section->id, $official->courseEnrollments()->where('is_current', true)->sole()->section_id);
         Filament::setCurrentPanel(Filament::getPanel('student'));
         Livewire::actingAs($profile->user->fresh())->test(StudentEnrollmentPage::class)
-            ->assertSeeHtml('href="'.ScheduleView::getUrl(panel: 'student').'"')
+            ->assertSeeHtml('href="'.CorView::getUrl(panel: 'student').'"')
+            ->assertDontSee('View class schedule')
             ->assertSee('1 subject');
+        Livewire::actingAs($profile->user->fresh())->test(ScheduleView::class)
+            ->assertSee('Class Schedule');
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Livewire::actingAs($registrar)->test(RegistrarEnrollment::class, ['record' => $official->id])
             ->set('enrollmentView', 'history')->assertSee('Confirmed by the Registrar');
@@ -3985,14 +3994,17 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('student'));
 
         $page = Livewire::actingAs($student)->test(CorView::class)
-            ->assertSet('cor.summary.document_status', 'Historical')
-            ->assertSee('Historical');
+            ->assertSet('cor.summary.document_status', 'Previous term')
+            ->assertSee('Previous term')
+            ->assertSee('Last completed term · '.$term->label)
+            ->assertDontSee('Class schedule')
+            ->assertDontSee('View fees and payments');
 
         $document = new \DOMDocument;
         @$document->loadHTML($page->html());
         $statuses = (new \DOMXPath($document))->query('//header[@aria-label="Issued certificate summary"]//span[@class="fi-badge-label"]');
         $this->assertCount(1, $statuses);
-        $this->assertSame('Historical', trim($statuses->item(0)->textContent));
+        $this->assertSame('Previous term', trim($statuses->item(0)->textContent));
     }
 
     private function recordApprovedTransferEvaluation(Enrollment $case, array $credits = []): void

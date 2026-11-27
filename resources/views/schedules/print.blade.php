@@ -15,10 +15,15 @@
         ->filter()
         ->unique()
         ->implode('; ');
+    $timetableAcademicYear = filled($schedule['academic_year'] ?? null)
+        ? trim((string) $schedule['academic_year'])
+        : null;
     $headerSubtitle = match (true) {
         $timetableOutput => collect([
             $schedule['term_label'] ?? null,
-            filled($schedule['academic_year'] ?? null) ? 'AY '.$schedule['academic_year'] : null,
+            $timetableAcademicYear !== null
+                ? (str_starts_with(strtoupper($timetableAcademicYear), 'AY ') ? $timetableAcademicYear : 'AY '.$timetableAcademicYear)
+                : null,
             ($schedule['version_state'] ?? null) === \App\Models\PublishedTimetableVersion::StateSuperseded ? 'Superseded' : null,
         ])->filter()->implode(' · '),
         $studentOutput => $studentTerms !== '' ? $studentTerms : ($schedule['version_label'] ?? ''),
@@ -30,12 +35,17 @@
         $studentOutput => 'portrait',
         default => 'landscape',
     };
-    $resolvedPageMargin = $isWeeklyTimetablePrint ? '10mm' : ($schedule['page_margin'] ?? '12mm');
+    $resolvedPageMargin = match (true) {
+        $isWeeklyTimetablePrint => '10mm',
+        $studentOutput => '9mm',
+        default => $schedule['page_margin'] ?? '12mm',
+    };
+    $studentBreaks = $studentOutput ? ($schedule['breaks'] ?? []) : [];
 @endphp
 <x-official-output-layout
     :title="$schedule['title']"
     :subtitle="$headerSubtitle"
-    :generated-at="$schedule['generated_at']"
+    :generated-at="$studentOutput ? null : $schedule['generated_at']"
     :page-orientation="$resolvedPageOrientation"
     :page-margin="$resolvedPageMargin"
     :context="$studentOutput ? null : ($schedule['role_filter_context'] ?? $schedule['owner'])"
@@ -43,6 +53,154 @@
     :back-url="$studentOutput ? ($schedule['back_url'] ?? \App\Filament\Student\Pages\ScheduleView::getUrl(panel: 'student')) : ($schedule['back_url'] ?? null)"
     :back-label="$studentOutput ? 'Back to class schedule' : ($schedule['back_label'] ?? 'Back')"
 >
+    @if ($studentOutput)
+        <x-slot:documentStyles>
+            <style>
+                .official-output-header {
+                    border-bottom: 2px solid var(--tala-brand-foreground, #1f5f2c);
+                    margin-bottom: 10px;
+                    padding-bottom: 8px;
+                }
+                .official-output-logo {
+                    width: 44px;
+                    height: 44px;
+                }
+                .official-output-header h1 {
+                    font-size: 18px;
+                    margin-top: 2px;
+                }
+                .student-print-owner {
+                    display: flex;
+                    flex-wrap: wrap;
+                    align-items: baseline;
+                    justify-content: space-between;
+                    gap: 4px 12px;
+                    margin: 0 0 10px 0;
+                    padding: 7px 10px;
+                    border: 1px solid #d4d4d8;
+                    border-left: 3px solid #2f7d3b;
+                    border-radius: 4px;
+                    background: #f4f4f5;
+                    font-size: 12px;
+                    line-height: 1.35;
+                    font-variant-numeric: tabular-nums;
+                }
+                .student-print-owner__identity,
+                .student-print-owner__metrics {
+                    margin: 0;
+                }
+                .student-print-owner__number {
+                    color: #1f5f2c;
+                }
+                .student-print-owner__metrics {
+                    color: #3f3f46;
+                    font-size: 11px;
+                }
+                .student-print-table {
+                    table-layout: fixed;
+                    font-size: 11.5px;
+                    line-height: 1.3;
+                }
+                .student-print-table thead th {
+                    padding: 6px 7px;
+                    font-size: 9.5px;
+                    font-weight: 700;
+                    text-transform: uppercase;
+                    letter-spacing: 0.04em;
+                    border-bottom: 1.5px solid #1f5f2c;
+                }
+                .student-print-table tbody th,
+                .student-print-table tbody td {
+                    padding: 6px 7px;
+                    line-height: 1.3;
+                }
+                .student-print-table .student-print-course-code {
+                    color: #52525b;
+                    font-size: 10px;
+                    font-weight: 500;
+                }
+                .student-print-break {
+                    display: flex;
+                    flex-wrap: wrap;
+                    align-items: center;
+                    gap: 4px 10px;
+                    margin-top: 8px;
+                    padding: 5px 9px;
+                    border: 1px solid #d4d4d8;
+                    border-left: 3px solid #a16207;
+                    border-radius: 4px;
+                    background: #fafafa;
+                    color: #27272a;
+                    font-size: 10.5px;
+                    line-height: 1.35;
+                    font-variant-numeric: tabular-nums;
+                }
+                .student-print-break strong {
+                    color: #18181b;
+                }
+                .student-print-footer {
+                    margin-top: 10px;
+                    padding-top: 6px;
+                    border-top: 1px solid #d4d4d8;
+                    font-size: 9.5px;
+                    color: #52525b;
+                }
+                @media print {
+                    .official-output-header {
+                        margin-bottom: 6px;
+                        padding-bottom: 5px;
+                    }
+                    .official-output-logo {
+                        width: 36px;
+                        height: 36px;
+                    }
+                    .official-output-header h1 {
+                        font-size: 15px;
+                    }
+                    .student-print-owner {
+                        margin: 0 0 6px 0;
+                        padding: 5px 8px;
+                        font-size: 10px;
+                        background: #f4f4f5 !important;
+                    }
+                    .student-print-owner__metrics {
+                        font-size: 9.5px;
+                    }
+                    .official-output .student-print-table {
+                        font-size: 9.25px;
+                        line-height: 1.25;
+                    }
+                    .official-output .student-print-table thead th {
+                        padding: 4.5px 5px;
+                        font-size: 8.5px;
+                    }
+                    .official-output .student-print-table tbody th,
+                    .official-output .student-print-table tbody td {
+                        padding: 4px 5px;
+                    }
+                    .student-print-table .student-print-course-code {
+                        font-size: 8.5px;
+                    }
+                    .student-print-break {
+                        margin-top: 5px;
+                        padding: 4px 7px;
+                        font-size: 9px;
+                        background: #f4f4f5 !important;
+                    }
+                    .student-print-footer {
+                        margin-top: 7px;
+                        padding-top: 5px;
+                        font-size: 8.5px;
+                    }
+                }
+            </style>
+        </x-slot:documentStyles>
+        <x-slot:documentFooter>
+            <footer class="official-output-footer student-print-footer">
+                Student copy · {{ config('institution.name') }} — Office of the Registrar
+            </footer>
+        </x-slot:documentFooter>
+    @endif
     @if ($timetableOutput)
         <style>
             .official-output-header {
@@ -577,23 +735,56 @@
     @if ($schedule['rows'] === [] && $externallyArranged === [])
         <div class="schedule-empty">No schedule is available for this exact timetable version.</div>
     @elseif ($studentOutput)
-        <p class="schedule-owner">
-            <strong>{{ $schedule['owner'] }}</strong>@if (filled($schedule['student_number'] ?? null)) · {{ $schedule['student_number'] }}@endif @if (filled($schedule['program_name'] ?? null))<br>{{ $schedule['program_name'] }}@endif
+        <div class="schedule-owner student-print-owner">
+            <p class="student-print-owner__identity">
+                @if (filled($schedule['student_number'] ?? null))
+                    <strong class="student-print-owner__number">{{ $schedule['student_number'] }}</strong>
+                    <span aria-hidden="true">·</span>
+                @endif
+                <strong>{{ $schedule['owner'] }}</strong>
+                @if (filled($schedule['program_name'] ?? null))
+                    <span aria-hidden="true">·</span>
+                    <span>{{ $schedule['program_name'] }}</span>
+                @endif
+            </p>
             @if (filled($schedule['total_units'] ?? null))
-                <br><strong>Total units:</strong> {{ $schedule['total_units'] }} · <strong>Weekly contact hours:</strong> {{ $schedule['weekly_contact_hours'] ?? '0' }} hrs/wk
+                <p class="student-print-owner__metrics">
+                    <strong>Total units:</strong> {{ $schedule['total_units'] }} · <strong>Weekly contact hours:</strong> {{ $schedule['weekly_contact_hours'] ?? '0' }} hrs/wk
+                </p>
             @endif
-        </p>
+        </div>
         @if ($schedule['rows'] !== [])
             <div class="official-output-table finance-responsive-table">
-                <table class="schedule-table">
+                <table class="schedule-table student-print-table">
                     <caption class="tala-sr-only">Enrolled subjects and class schedule for {{ $schedule['owner'] }}</caption>
-                    <thead><tr><th scope="col">Subject</th><th scope="col">Class</th><th scope="col">Day and time</th><th scope="col">Room</th><th scope="col">Faculty</th></tr></thead>
+                    <colgroup>
+                        <col style="width: 30%;">
+                        <col style="width: 12%;">
+                        <col style="width: 26%;">
+                        <col style="width: 13%;">
+                        <col style="width: 19%;">
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th scope="col">Subject</th>
+                            <th scope="col">Modality</th>
+                            <th scope="col">Day and time</th>
+                            <th scope="col">Room</th>
+                            <th scope="col">Faculty</th>
+                        </tr>
+                    </thead>
                     <tbody>
                         @foreach ($schedule['rows'] as $row)
                             <tr>
-                                <th scope="row" data-label="Subject"><div><strong>{{ $row['description'] }}</strong><br>{{ $row['course'] }}</div></th>
-                                <td data-label="Class"><div>{{ $row['section'] }}<br>{{ $row['modality'] }}</div></td>
-                                <td data-label="Day and time"><div>{{ $row['day'] }}<br>{{ $row['time'] }}</div></td>
+                                <th scope="row" data-label="Subject">
+                                    <div>
+                                        <strong>{{ $row['description'] }}</strong>
+                                        <br>
+                                        <span class="student-print-course-code">{{ $row['course'] }}</span>
+                                    </div>
+                                </th>
+                                <td data-label="Modality"><div>{{ $row['modality'] }}</div></td>
+                                <td data-label="Day and time"><div>{{ $row['schedule'] ?? trim($row['day'].' '.$row['time']) }}</div></td>
                                 <td data-label="Room"><div>{{ $row['room'] }}</div></td>
                                 <td data-label="Faculty"><div>{{ $row['faculty'] ?: 'Not assigned' }}</div></td>
                             </tr>
@@ -602,15 +793,21 @@
                 </table>
             </div>
         @endif
+        @if ($studentBreaks !== [])
+            <div class="student-print-break" role="note" aria-label="Scheduled break">
+                <strong>Break</strong>
+                <span>{{ collect($studentBreaks)->pluck('summary')->implode(' · ') }}</span>
+            </div>
+        @endif
         @if ($externallyArranged !== [])
-            <div class="official-output-table finance-responsive-table" style="margin-top: 1rem;">
-                <table class="schedule-table">
-                    <caption style="caption-side: top; text-align: start; font-weight: 600; padding: 8px 0; border-bottom: 1px solid #d4d4d8;">Externally arranged classes</caption>
+            <div class="official-output-table finance-responsive-table" style="margin-top: 0.75rem;">
+                <table class="schedule-table student-print-table">
+                    <caption style="caption-side: top; text-align: start; font-weight: 600; padding: 6px 0; border-bottom: 1px solid #d4d4d8;">Externally arranged classes</caption>
                     <thead><tr><th scope="col">Subject</th><th scope="col">Class</th><th scope="col">Units</th><th scope="col">Faculty / Adviser</th><th scope="col">Arrangement</th></tr></thead>
                     <tbody>
                         @foreach ($externallyArranged as $item)
                             <tr>
-                                <th scope="row" data-label="Subject"><div><strong>{{ $item['description'] }}</strong><br>{{ $item['course'] }}</div></th>
+                                <th scope="row" data-label="Subject"><div><strong>{{ $item['description'] }}</strong><br><span class="student-print-course-code">{{ $item['course'] }}</span></div></th>
                                 <td data-label="Class"><div>{{ $item['section'] }}</div></td>
                                 <td data-label="Units"><div>{{ $item['units'] }}</div></td>
                                 <td data-label="Faculty / Adviser"><div>{{ $item['faculty'] ?: 'Not assigned' }}</div></td>
@@ -621,8 +818,6 @@
                 </table>
             </div>
         @endif
-        <p>Check Class schedule in the Student Hub for later changes.</p>
-        <p class="official-output-meta">Schedule source: {{ $schedule['version_label'] }} · {{ $schedule['version_state'] }}</p>
     @else
         @if ($schedule['rows'] !== [])
             @php

@@ -409,11 +409,16 @@ final class PaymentChannelsAndOnsitePaymentTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('student'));
         Livewire::actingAs($studentFixture['learner'])
             ->test(StudentFinance::class)
-            ->assertSee('How to pay')
-            ->assertSee('Land Bank of the Philippines')
-            ->assertSee('0011-2233-44')
+            ->assertSee('Pay Online')
             ->assertSee('Finance Window 1')
-            ->assertDontSee('09998887777');
+            ->assertSee('This week:')
+            ->assertDontSee('09998887777')
+            ->mountAction('submitEvidence')
+            ->assertMountedActionModalSee('How to pay')
+            ->assertMountedActionModalSee('Land Bank of the Philippines')
+            ->assertMountedActionModalSee('0011-2233-44')
+            ->assertMountedActionModalDontSee('09998887777')
+            ->call('unmountAction');
 
         Livewire::actingAs($studentFixture['learner'])
             ->test(StudentEnrollment::class)
@@ -787,19 +792,21 @@ final class PaymentChannelsAndOnsitePaymentTest extends TestCase
 
         $financePage = Livewire::actingAs($studentFixture['learner'])
             ->test(StudentFinance::class)
-            ->assertSee('Submit receipt')
+            ->assertSee('Pay Online')
             ->assertSee('Onsite · No upload')
             ->assertSee('Open now')
             ->assertSee('Open today until 5:00 PM')
-            ->assertSee('Cashier monthly operating calendar')
-            ->assertSee('Special hours')
+            ->assertSee('This week:')
+            ->assertSee('Finance Window 1, Ground Floor')
+            ->assertDontSee('Cashier monthly operating calendar')
             ->assertDontSee('Modified / Holiday')
-            ->assertSee('November 2026')
-            ->assertSee('Bonifacio Day')
             ->assertDontSee('upload your receipt here');
 
         $financePage->mountAction('submitEvidence')
             ->assertActionMounted('submitEvidence')
+            ->assertMountedActionModalSee('1. Send payment via an approved school channel below')
+            ->assertMountedActionModalSee('2. Enter payment details and upload your receipt')
+            ->assertMountedActionModalSee('3. Wait for Accounting verification')
             ->assertMountedActionModalSee('Send your payment to an enabled bank or e-wallet account below, then attach your receipt in the form.')
             ->assertMountedActionModalSee('Land Bank of the Philippines')
             ->assertMountedActionModalSee('0011-2233-44')
@@ -819,7 +826,9 @@ final class PaymentChannelsAndOnsitePaymentTest extends TestCase
             ->assertSee('Submit receipt')
             ->assertSee('Onsite · No upload')
             ->assertSee('Open now')
-            ->assertSee('Cashier monthly operating calendar')
+            ->assertSee('Weekly hours')
+            ->assertSee('Bonifacio Day')
+            ->assertDontSee('Cashier monthly operating calendar')
             ->assertDontSee('upload your receipt here');
 
         Filament::setCurrentPanel(Filament::getPanel('applicant'));
@@ -829,7 +838,9 @@ final class PaymentChannelsAndOnsitePaymentTest extends TestCase
             ->assertSee('Submit receipt')
             ->assertSee('Onsite · No upload')
             ->assertSee('Open now')
-            ->assertSee('Cashier monthly operating calendar')
+            ->assertSee('Weekly hours')
+            ->assertSee('Bonifacio Day')
+            ->assertDontSee('Cashier monthly operating calendar')
             ->assertDontSee('upload your receipt here');
 
         app(SchoolPaymentChannels::class)->update([
@@ -1459,15 +1470,17 @@ final class PaymentChannelsAndOnsitePaymentTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('student'));
         Livewire::actingAs($fixture['learner'])
             ->test(StudentFinance::class)
-            ->assertSeeHtml('Copy<span class="sr-only"> BDO Unibank ending 1111 account number</span>')
-            ->assertSeeHtml('Copy<span class="sr-only"> BDO Unibank ending 2222 account number</span>')
-            ->assertSeeHtml('Copy<span class="sr-only"> Land Bank of the Philippines (Talisay) account number</span>')
-            ->assertSeeHtml('Copy<span class="sr-only"> Maya mobile / account number</span>')
             ->assertSeeHtml('tala-document-viewer-modal')
             ->assertDontSee('@js(', false)
             ->assertSeeHtml('data-modal-id=')
             ->assertSee(route('finance.payment-evidence.view', $evidence), false)
-            ->assertSee('Download receipt');
+            ->assertSee('Download receipt')
+            ->mountAction('submitEvidence')
+            ->assertMountedActionModalSeeHtml('Copy<span class="sr-only"> BDO Unibank ending 1111 account number</span>')
+            ->assertMountedActionModalSeeHtml('Copy<span class="sr-only"> BDO Unibank ending 2222 account number</span>')
+            ->assertMountedActionModalSeeHtml('Copy<span class="sr-only"> Land Bank of the Philippines (Talisay) account number</span>')
+            ->assertMountedActionModalSeeHtml('Copy<span class="sr-only"> Maya mobile / account number</span>')
+            ->call('unmountAction');
 
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Livewire::actingAs($accounting)

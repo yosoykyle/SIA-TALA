@@ -2,12 +2,25 @@
 
 namespace Tests;
 
+use App\Actions\Academics\OfficialCourseResultProjection;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use LogicException;
 
 abstract class TestCase extends BaseTestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        OfficialCourseResultProjection::clearCache();
+    }
+
+    protected function tearDown(): void
+    {
+        OfficialCourseResultProjection::clearCache();
+        parent::tearDown();
+    }
+
     public function createApplication(): Application
     {
         $application = parent::createApplication();

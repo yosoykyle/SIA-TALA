@@ -34,46 +34,32 @@ class RegistrationEntryContext
         $contextState = 'unavailable';
         $guidanceTerm = null;
         if ($profile instanceof StudentProfile) {
-            $terms = $requestedTerm instanceof Term ? collect([$requestedTerm]) : Term::query()
-                ->with('academicYear')
-                ->where('state', '!=', Term::StateClosed)
-                ->whereHas('calendarPackages', fn ($query) => $query->where('state', TermCalendarPackage::StateActive)
-                    ->whereHas('windows', fn ($window) => $window->where('window_type', TermCalendarWindow::TypeEnrollment)))
-                ->orderBy('starts_on')->get()->filter(function (Term $candidate) use ($profile): bool {
-                    try {
-                        $this->calendar->assertEnrollmentWindowOpen($candidate->id);
+            $evaluatedTerms = $requestedTerm instanceof Term
+                ? collect([[
+                    'term' => $requestedTerm,
+                    'evaluation' => $this->evaluateContinuingTerm($requestedTerm, $profile, checkReadyApplicants: false),
+                ]])
+                : Term::query()
+                    ->with('academicYear')
+                    ->where('state', '!=', Term::StateClosed)
+                    ->whereHas('calendarPackages', fn ($query) => $query->where('state', TermCalendarPackage::StateActive)
+                        ->whereHas('windows', fn ($window) => $window->where('window_type', TermCalendarWindow::TypeEnrollment)))
+                    ->orderBy('starts_on')->get()
+                    ->map(fn (Term $candidate): array => [
+                        'term' => $candidate,
+                        'evaluation' => $this->evaluateContinuingTerm($candidate, $profile, checkReadyApplicants: true),
+                    ])
+                    ->filter(fn (array $entry): bool => $entry['evaluation']['keep'])
+                    ->values();
 
-                        if ($candidate->registration_applicability === 'ReadyApplicants') {
-                            return false;
-                        }
-
-                        $basis = $this->selectionBasis->forContinuingStudent($profile, $candidate);
-                        app(RegistrationWindowApplicability::class)->assertPermitted($candidate, $basis, false);
-
-                        return true;
-                    } catch (ValidationException $exception) {
-                        return isset($exception->errors()['academic_effect']);
-                    } catch (CalendarGateViolation) {
-                        return false;
-                    }
-                });
-            if ($terms->count() === 1) {
-                $term = $guidanceTerm = $terms->first();
-                try {
-                    $this->calendar->assertEnrollmentWindowOpen($term->id);
-                    $basis = $this->selectionBasis->forContinuingStudent($profile, $term);
-                    app(RegistrationWindowApplicability::class)->assertPermitted($term, $basis, false);
-                    $contextState = 'open';
-                } catch (CalendarGateViolation $exception) {
-                    $reason = $exception->getMessage();
-                    $contextState = 'closed';
-                } catch (ValidationException $exception) {
-                    $reason = $exception->getMessage();
-                    $contextState = isset($exception->errors()['academic_effect']) ? 'academic_restriction' : 'unavailable';
-                }
+            if ($evaluatedTerms->count() === 1) {
+                $entry = $evaluatedTerms->first();
+                $term = $guidanceTerm = $entry['term'];
+                $contextState = $entry['evaluation']['context_state'];
+                $reason = $entry['evaluation']['reason'];
             } else {
-                $contextState = $terms->isEmpty() ? 'closed' : 'ambiguous';
-                $reason = $terms->isEmpty()
+                $contextState = $evaluatedTerms->isEmpty() ? 'closed' : 'ambiguous';
+                $reason = $evaluatedTerms->isEmpty()
                     ? 'Enrollment is not open for you right now. Ask the Registrar about the next enrollment date.'
                     : 'The Registrar needs to confirm which term you can enroll in before you can start.';
             }
@@ -114,5 +100,32 @@ class RegistrationEntryContext
             'can_start' => $user->canAuthenticate() && $term instanceof Term && ! $case instanceof Enrollment && $reason === null,
             'reason' => $reason, 'guidance_term' => $guidanceTerm, 'context_state' => $contextState,
         ];
+    }
+
+    /** @return array{keep: bool, context_state: string, reason: ?string} */
+    private function evaluateContinuingTerm(Term $candidate, StudentProfile $profile, bool $checkReadyApplicants): array
+    {
+        try {
+            $this->calendar->assertEnrollmentWindowOpen($candidate->id);
+
+            if ($checkReadyApplicants && $candidate->registration_applicability === 'ReadyApplicants') {
+                return ['keep' => false, 'context_state' => 'unavailable', 'reason' => null];
+            }
+
+            $basis = $this->selectionBasis->forContinuingStudent($profile, $candidate);
+            app(RegistrationWindowApplicability::class)->assertPermitted($candidate, $basis, false);
+
+            return ['keep' => true, 'context_state' => 'open', 'reason' => null];
+        } catch (CalendarGateViolation $exception) {
+            return ['keep' => false, 'context_state' => 'closed', 'reason' => $exception->getMessage()];
+        } catch (ValidationException $exception) {
+            $isAcademicRestriction = isset($exception->errors()['academic_effect']);
+
+            return [
+                'keep' => $isAcademicRestriction,
+                'context_state' => $isAcademicRestriction ? 'academic_restriction' : 'unavailable',
+                'reason' => $exception->getMessage(),
+            ];
+        }
     }
 }

@@ -118,13 +118,17 @@ final class TAL94D3cScheduleProjectionAcceptanceTest extends TestCase
 
         Livewire::actingAs($owned['student'])
             ->test(ScheduleView::class)
+            ->assertSee($owned['profile']->student_number)
+            ->assertSee('Class Schedule')
+            ->assertSee('Academic Calendar')
             ->assertSee($owned['course']->code)
             ->assertSee($owned['section']->code)
             ->assertSee($owned['faculty']->name)
             ->assertSee('Monday')
             ->assertSee('8:00 AM–11:00 AM')
             ->assertSee($owned['room']->code)
-            ->assertSee('Face to face');
+            ->assertSee('Face to face')
+            ->assertDontSee('Asia/Manila');
 
         $this->assertDatabaseHas('output_access_logs', [
             'output_type' => 'STUDENT_SCHEDULE',

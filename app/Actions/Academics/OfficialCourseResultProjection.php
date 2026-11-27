@@ -18,7 +18,26 @@ use Illuminate\Support\Collection;
 
 class OfficialCourseResultProjection
 {
+    /** @var array<string, Collection<int, array<string, mixed>>> */
+    private static array $requestCache = [];
+
     public function __construct(private readonly IncDeadlineService $deadlines) {}
+
+    public static function clearCache(?int $studentId = null): void
+    {
+        if ($studentId === null) {
+            self::$requestCache = [];
+
+            return;
+        }
+
+        $prefix = '|'.$studentId.'|';
+        foreach (array_keys(self::$requestCache) as $key) {
+            if (str_contains($key, $prefix)) {
+                unset(self::$requestCache[$key]);
+            }
+        }
+    }
 
     /**
      * @return Collection<int, covariant array{
@@ -38,6 +57,30 @@ class OfficialCourseResultProjection
      * }>
      */
     public function forStudent(StudentProfile $student, ?Term $term = null): Collection
+    {
+        $requestId = app()->bound('request') ? spl_object_id(request()) : 0;
+        $cacheKey = implode('|', [
+            (string) $requestId,
+            (string) $student->id,
+            (string) ($student->curriculum_version_id ?? 0),
+            today('Asia/Manila')->toDateString(),
+        ]);
+
+        if (! array_key_exists($cacheKey, self::$requestCache)) {
+            self::$requestCache[$cacheKey] = $this->computeForStudent($student);
+        }
+
+        $all = self::$requestCache[$cacheKey];
+
+        return $term instanceof Term
+            ? $all->filter(fn (array $result): bool => (int) $result['term']?->id === (int) $term->id)->values()
+            : $all;
+    }
+
+    /**
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function computeForStudent(StudentProfile $student): Collection
     {
         $results = CourseEnrollment::query()
             ->whereHas('enrollment', fn ($query) => $query
@@ -156,9 +199,7 @@ class OfficialCourseResultProjection
             }
 
             return $result;
-        })->when($term, fn (Collection $attempts): Collection => $attempts->filter(
-            fn (array $result): bool => (int) $result['term']?->id === (int) $term->id,
-        ))->values();
+        })->values();
     }
 
     /** @return Collection<int, int> */

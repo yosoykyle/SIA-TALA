@@ -128,8 +128,11 @@ class StudentStudyContextTest extends TestCase
         ], $context);
 
         $this->signInStudent($profile);
-        Livewire::test(Academics::class)->assertSee('Current subjects cannot be shown here. View your enrollment record, or contact the Registrar.')
-            ->assertSee('View enrollment')->assertDontSee('Exam dates')->assertDontSee('Year 2');
+        Livewire::test(Academics::class)
+            ->assertSet('academicView', 'record')
+            ->assertSee($profile->program->name)
+            ->assertDontSee('Exam dates')
+            ->assertDontSee('Year 2');
     }
 
     public function test_official_record_without_current_certificate_does_not_claim_readiness_or_unfinished_enrollment(): void
@@ -144,7 +147,8 @@ class StudentStudyContextTest extends TestCase
             ->assertSee('Open your enrollment record to check subjects and document availability.')
             ->assertDontSee('Your registered subjects and certificate are ready.');
         Livewire::test(Academics::class)
-            ->assertSee('Current subjects cannot be shown here. View your enrollment record, or contact the Registrar.')
+            ->assertSet('academicView', 'record')
+            ->assertSee('No released results yet')
             ->assertDontSee('Your current subjects appear after official enrollment.');
 
         $this->assertFalse(app(StudentStudyContext::class)->forStudent($profile->user)['is_official']);
@@ -201,25 +205,23 @@ class StudentStudyContextTest extends TestCase
         $this->signInStudent($profile);
 
         Livewire::test(Academics::class)
-            ->assertSee('Current subjects')
-            ->assertSee('subjects')
+            ->assertSet('academicView', 'record')
             ->assertSee('Current corrected subject')
             ->assertSee('Corrected result')
             ->assertSee('2.25')
-            ->assertSee('Term weighted average')
+            ->assertSee('Term GPA')
             ->assertSee('Information Technology')
             ->assertSee('Year 2')
             ->assertSee('Second Semester')
             ->assertSee($enrollment->term->academicYear->label)
+            ->assertSee('Historical completed subject')
+            ->assertSee('Earlier school term')
+            ->assertSee('INC completed')
             ->assertViewHas('currentResults', fn ($results): bool => $results->pluck('course_enrollment.id')->all() === [$current->id]
                 && $results->sole()['event']->id === $released->id)
             ->assertViewHas('currentUnits', 3.5)
             ->assertViewHas('currentAverage', fn (array $average): bool => $average['value'] === '2.25')
-            ->assertViewHas('historicalResults', fn ($results): bool => $results->pluck('course_enrollment.id')->all() === [$dropped->id, $superseded->id, $oldCourse->id])
-            ->set('academicView', 'record')
-            ->assertSee('Historical completed subject')
-            ->assertSee('Earlier school term')
-            ->assertSee('INC completed');
+            ->assertViewHas('historicalResults', fn ($results): bool => $results->pluck('course_enrollment.id')->all() === [$dropped->id, $superseded->id, $oldCourse->id]);
     }
 
     #[TestWith([3])]
@@ -307,9 +309,9 @@ class StudentStudyContextTest extends TestCase
         $this->signInStudent($profile);
 
         Livewire::test(Academics::class)
-            ->assertSeeHtml('href="'.\App\Filament\Student\Pages\Enrollment::getUrl(panel: 'student').'"')
             ->assertSee('Registrar Office')
             ->assertSee('Student-wide · next enrollment Term not confirmed')
+            ->assertDontSee('Review enrollment')
             ->set('academicView', 'plan')
             ->assertSee($failed->termOffering->curriculumEntry->courseSpecification->title.' needs follow-up')
             ->assertSee('Prerequisite: '.$failed->termOffering->curriculumEntry->courseSpecification->course->code)
@@ -347,7 +349,7 @@ class StudentStudyContextTest extends TestCase
 
         $page = Livewire::withQueryParams(['view' => 'plan'])->test(Academics::class)
             ->assertSee('Third Year')->assertSee('Fourth Year')->assertSee('Summer')
-            ->assertSee('Scroll across to browse all curriculum years.');
+            ->assertDontSee('Scroll across to browse all curriculum years.');
 
         $document = new \DOMDocument;
         @$document->loadHTML($page->html());

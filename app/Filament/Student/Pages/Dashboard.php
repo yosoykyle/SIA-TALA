@@ -2,6 +2,7 @@
 
 namespace App\Filament\Student\Pages;
 
+use App\Actions\Academics\CumulativeGwaProjection;
 use App\Actions\Academics\CurriculumEvaluation;
 use App\Actions\Academics\OfficialCourseResultProjection;
 use App\Actions\Enrollment\CurrentOfficialEnrollmentResolver;
@@ -11,13 +12,12 @@ use App\Actions\Finance\TermAccountProjection;
 use App\Actions\StudentHub\StudentHubPriorityResolver;
 use App\Actions\StudentHub\StudentStudyContext;
 use App\Models\CourseEnrollment;
-use App\Models\CourseSpecification;
 use App\Models\Enrollment as EnrollmentRecord;
 use App\Models\Hold;
 use App\Models\PriorAcademicCredit;
+use App\Models\PublicNotice;
 use App\Models\StudentProfile;
 use App\Models\User;
-use App\Support\RegistrationSchedulePresentation;
 use Filament\Pages\Dashboard as BaseDashboard;
 use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
@@ -40,31 +40,6 @@ class Dashboard extends BaseDashboard
                 $case = $context['enrollment'] ?? $currentOfficialEnrollment;
                 $case?->loadMissing(['termAccount', 'currentProposalVersion.confirmation', 'term']);
                 $notice = $user->studentProfile !== null ? app(StudentHubPriorityResolver::class)->resolve($user->studentProfile) : null;
-                $scheduleCase = $case?->canonical_outcome === EnrollmentRecord::OutcomeOfficiallyEnrolled
-                    ? $case
-                    : $currentOfficialEnrollment;
-                $externallyArrangedClasses = $scheduleCase instanceof EnrollmentRecord
-                    ? CourseEnrollment::query()
-                        ->with(['termOffering.curriculumEntry.courseSpecification.course', 'section'])
-                        ->where('enrollment_id', $scheduleCase->id)
-                        ->where('status', CourseEnrollment::StatusActive)
-                        ->where('is_current', true)
-                        ->whereHas('termOffering.curriculumEntry.courseSpecification', fn ($query) => $query
-                            ->where('scheduling_treatment', CourseSpecification::SchedulingExternallyArranged))
-                        ->get()
-                        ->map(function (CourseEnrollment $registration): array {
-                            $spec = $registration->termOffering?->curriculumEntry?->courseSpecification;
-
-                            return [
-                                'course_code' => (string) ($spec?->course?->code ?? 'Subject'),
-                                'course_title' => (string) ($spec?->title ?? 'Externally arranged subject'),
-                                'section_code' => (string) ($registration->section?->code ?: 'Not sectioned'),
-                            ];
-                        })
-                        ->sortBy('course_code')
-                        ->values()
-                        ->all()
-                    : [];
 
                 $activeHolds = $user->studentProfile?->holds()
                     ->where('status', Hold::StatusActive)
@@ -75,16 +50,12 @@ class Dashboard extends BaseDashboard
                 return [
                     'academicSnapshot' => $this->academicSnapshot($user->studentProfile, $case),
                     'priorCreditsSummary' => $this->priorCreditsSummary($user->studentProfile),
+                    'announcements' => PublicNotice::query()->effective()->orderBy('display_order')->orderBy('id')->limit(3)->get(),
                     'context' => $context,
                     'case' => $case,
                     'studyContext' => app(StudentStudyContext::class)->forStudent($user),
                     'requirement' => $case !== null ? app(EnrollmentPaymentRequirementProjection::class)->forEnrollment($case) : null,
                     'position' => $case?->termAccount !== null ? app(TermAccountProjection::class)->forAccount($case->termAccount) : null,
-                    'schedulePresentation' => $case?->canonical_outcome === EnrollmentRecord::OutcomeOfficiallyEnrolled
-                        ? app(RegistrationSchedulePresentation::class)->currentForEnrollment($case) : null,
-                    'recentScheduleRevisions' => ScheduleView::recentScheduleRevisionsForEnrollment($scheduleCase),
-                    'externallyArrangedClasses' => $externallyArrangedClasses,
-                    'activeOfficialTermCount' => $activeOfficialEnrollments->count(),
                     'notice' => in_array($notice['tier'] ?? null, ['Schedule Available', 'COR Available'], true) ? null : $notice,
                     'latestEvidence' => $case?->termAccount?->paymentEvidenceVersions()->latest('version')->first(),
                     'activeHolds' => $activeHolds,
@@ -95,9 +66,9 @@ class Dashboard extends BaseDashboard
     }
 
     /**
-     * Read-only counts for the Overview result and study plan tiles, from the same projections as Academics.
+     * Read-only counts for the Overview KPI strip, result, and study plan cards, from the same projections as Academics.
      *
-     * @return array{subjects:int, released:int, incomplete:int, completed_units:float, total_units:float, plan:array{done:int, active:int, attention:int, later:int}}|null
+     * @return array{subjects:int, registered_units:float, released:int, incomplete:int, cumulative_gwa:?string, cumulative_gwa_through:?string, completed_units:float, total_units:float, plan:array{done:int, active:int, attention:int, later:int}}|null
      */
     private function academicSnapshot(?StudentProfile $student, ?EnrollmentRecord $case): ?array
     {
@@ -105,19 +76,24 @@ class Dashboard extends BaseDashboard
             return null;
         }
 
+        $allResults = app(OfficialCourseResultProjection::class)->forStudent($student);
         $current = $case?->canonical_outcome === EnrollmentRecord::OutcomeOfficiallyEnrolled
-            ? app(OfficialCourseResultProjection::class)->forStudent($student)->filter(fn (array $result): bool => ($result['course_enrollment'] ?? null) instanceof CourseEnrollment
+            ? $allResults->filter(fn (array $result): bool => ($result['course_enrollment'] ?? null) instanceof CourseEnrollment
                 && (int) $result['course_enrollment']->enrollment_id === (int) $case->id
                 && $result['course_enrollment']->is_current
                 && $result['course_enrollment']->status === CourseEnrollment::StatusActive)
             : collect();
+        $cumulative = app(CumulativeGwaProjection::class)->forStudent($student);
         $curriculum = app(CurriculumEvaluation::class)->forStudent($student);
         $rows = collect($curriculum['required']);
 
         return [
             'subjects' => $current->count(),
+            'registered_units' => (float) $current->sum(fn (array $result): float => (float) $result['units']),
             'released' => $current->whereNotNull('outcome_source')->count(),
             'incomplete' => $current->where('result', 'INC')->count(),
+            'cumulative_gwa' => $cumulative['value'],
+            'cumulative_gwa_through' => $cumulative['through'],
             'completed_units' => (float) $curriculum['completed_units'],
             'total_units' => (float) $rows->sum(fn (array $row): float => (float) $row['curriculum_entry']->courseSpecification?->credit_units),
             'plan' => [

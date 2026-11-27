@@ -99,9 +99,12 @@ final class TAL70CorOutputTest extends TestCase
             ->assertOk()
             ->assertSee('Certificate of Registration')
             ->assertSee($fixture['course_code'])
-            ->assertSee('Timetable source')
-            ->assertSee('Mode')
-            ->assertSee('Face To Face')
+            ->assertSee('Document reference')
+            ->assertSee('Issued at')
+            ->assertSee('Official Certificate of Registration')
+            ->assertDontSee('Timetable source')
+            ->assertSee('Section / Modality')
+            ->assertSee('Face-to-face')
             ->assertSee('PHP 4,500.00');
 
         $this->assertDatabaseHas('output_access_logs', [
@@ -301,7 +304,8 @@ final class TAL70CorOutputTest extends TestCase
         $this->actingAs($registrar)
             ->get(route('cor.print', $fixture['enrollment']))
             ->assertOk()
-            ->assertSee('Registrar Copy');
+            ->assertSee('Registrar Copy')
+            ->assertSee('Timetable source');
 
         $this->actingAs($accounting)
             ->get(route('cor.print', $fixture['enrollment']))

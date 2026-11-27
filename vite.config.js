@@ -37,7 +37,13 @@ function privatePdfAssets() {
 export default defineConfig({
     plugins: [
         laravel({
-            input: ["resources/css/app.css", "resources/js/app.js", "resources/css/filament/tala/theme.css", "resources/js/payment-proof-preview.js"],
+            input: [
+                "resources/css/app.css",
+                "resources/js/app.js",
+                "resources/css/filament/tala/theme.css",
+                "resources/js/payment-proof-preview.js",
+                "resources/js/student-tour.js",
+            ],
             refresh: true,
         }),
         tailwindcss(),

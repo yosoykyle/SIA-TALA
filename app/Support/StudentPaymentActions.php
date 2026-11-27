@@ -23,8 +23,8 @@ final class StudentPaymentActions
         return $action
             ->visible(fn (): bool => app(SchoolPaymentChannels::class)->hasEnabledDigitalChannels())
             ->authorize(fn (): bool => app(SchoolPaymentChannels::class)->hasEnabledDigitalChannels())
-            ->modalHeading('Submit receipt')
-            ->modalDescription('Send your transfer receipt or screenshot for Accounting review. Your balance changes only after verification.')
+            ->modalHeading('Pay Online (Manual Transfer & Receipt Upload)')
+            ->modalDescription('TALA is not an automated payment gateway. Transfer via an approved school channel below, then upload your receipt for manual Accounting review.')
             ->modalSubmitActionLabel('Submit receipt')
             ->modalCancelActionLabel('Cancel')
             ->modalWidth(Width::FourExtraLarge)
@@ -32,6 +32,7 @@ final class StudentPaymentActions
             ->modalFooterActionsAlignment(Alignment::End)
             ->stickyModalHeader()->stickyModalFooter()
             ->schema([
+                SchemaView::make('filament.student.pages.pay-online-steps'),
                 SchemaView::make('filament.student.pages.how-to-pay')
                     ->viewData(fn (): array => [
                         'display' => app(SchoolPaymentChannels::class)->forDisplay(),

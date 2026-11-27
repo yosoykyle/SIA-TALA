@@ -259,8 +259,12 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
         $this->actingAs($fixture['student'])
             ->get(route('student.schedule.print'))
             ->assertOk()
+            ->assertSee($fixture['profile']->student_number)
             ->assertSee($fixture['course']->code)
+            ->assertSee('<th scope="col">Modality</th>', escape: false)
             ->assertDontSee($other['course']->code)
+            ->assertDontSee('Check Class schedule in the Student Hub')
+            ->assertDontSee('Schedule source:')
             ->assertSee('Print or save PDF');
 
         $this->assertDatabaseHas('output_access_logs', [

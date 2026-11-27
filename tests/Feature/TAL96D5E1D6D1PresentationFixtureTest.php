@@ -178,7 +178,8 @@ final class TAL96D5E1D6D1PresentationFixtureTest extends TestCase
 
         $response = $this->get(route('filament.student.pages.academics'))
             ->assertOk()
-            ->assertSee('Current subjects')
+            ->assertSee('Grades')
+            ->assertDontSee('Current subjects')
             ->assertDontSee('Showing 3 of 53 named blockers.')
             ->assertDontSee('Review remaining 50 blockers');
 

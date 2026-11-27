@@ -58,7 +58,8 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
             ->assertSee('Amount due now')
             ->assertSee('PHP 8,500.00')
             ->assertDontSee('Online payment is unavailable.')
-            ->assertSee('Submit receipt');
+            ->assertSee('Pay Online')
+            ->assertSee('Print / Export Statement');
     }
 
     public function test_finance_outputs_are_authenticated_owned_and_logged(): void
@@ -70,6 +71,7 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
             ->get(route('finance.statement', $fixture['assessment']))
             ->assertOk()
             ->assertSee('Statement of Account')
+            ->assertSee($fixture['profile']->student_number)
             ->assertSee('Tuition obligation')
             ->assertSee('PHP 8,500.00');
 
@@ -173,8 +175,11 @@ final class TAL71FinanceOutputsStudentHubTest extends TestCase
             ->test(Finance::class)
             ->assertDontSee('Pay exact current due')
             ->assertDontSee('Online payment is unavailable.')
-            ->assertSee('How to pay')
-            ->assertSee('Submit receipt');
+            ->assertSee('Pay Online')
+            ->mountAction('submitEvidence')
+            ->assertMountedActionModalSee('How manual online payment works')
+            ->assertMountedActionModalSee('1. Send payment via an approved school channel below')
+            ->assertMountedActionModalSee('How to pay');
     }
 
     public function test_student_hub_replaces_old_finance_placeholder_routes(): void

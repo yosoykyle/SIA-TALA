@@ -17,8 +17,8 @@
     page-margin="12mm"
     context="UNOFFICIAL"
     :generated-at="$asOf->format('F j, Y g:i A')"
-    :back-url="\App\Filament\Student\Pages\Academics::getUrl(['view' => 'record'], panel: 'student')"
-    back-label="Back to academic record"
+    :back-url="\App\Filament\Student\Pages\Academics::getUrl(panel: 'student')"
+    back-label="Back to grades"
     :logo-src="asset('images/brand/servitech-crest.webp')"
 >
     <section aria-labelledby="student-record-identity">

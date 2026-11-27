@@ -526,7 +526,7 @@ final class Issue93Wave1NotificationsAndProjectionsTest extends TestCase
             ->map->getLabel()
             ->values()
             ->all();
-        $this->assertSame(['Overview', 'Class schedule', 'Enrollment', 'Academics', 'Fees and payments'], $labels);
+        $this->assertSame(['Overview', 'Class schedule', 'Enrollment', 'Grades', 'Fees and payments'], $labels);
 
         // ScheduleView renders breadcrumbs, H5 revision banner, Exam period, upcoming holiday, and zero internal authority metadata.
         $schedulePage = Livewire::actingAs($student)
@@ -550,13 +550,13 @@ final class Issue93Wave1NotificationsAndProjectionsTest extends TestCase
             $schedulePage->instance()->getBreadcrumbs(),
         );
 
-        // Student Dashboard also surfaces the H5 revision banner and Open full schedule link.
+        // Student Dashboard stays focused on summary cards without embedding the full Class schedule section.
         $this->actingAs($student)
             ->get('/student')
             ->assertOk()
-            ->assertSee('Open full schedule')
-            ->assertSee('Affected by recent change')
-            ->assertSee('Moved to morning lab block.');
+            ->assertSee($student->studentProfile->student_number)
+            ->assertDontSee('Open full schedule')
+            ->assertDontSee('student-home-schedule');
     }
 
     #[Test]

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Actions\Academics\AcademicRecordNotificationService;
 use App\Filament\Student\Pages\Academics;
 use App\Filament\Student\Pages\Enrollment;
+use App\Filament\Student\Pages\Profile;
 use App\Mail\AcademicRecordChangedMail;
 use App\Models\OperationalEvent;
 use App\Models\StudentLifecycleChange;
@@ -58,8 +59,9 @@ final class StudentAppliedLifecycleHistoryTest extends TestCase
             $this->assertArrayNotHasKey($privateAttribute, $history->sole()->getAttributes());
         }
 
-        Livewire::actingAs($user)->withQueryParams(['view' => 'record'])->test(Academics::class)
+        Livewire::actingAs($user)->test(Profile::class)
             ->assertViewHas('lifecycleChanges', fn ($changes): bool => $changes->getCollection()->modelKeys() === [$applied->id])
+            ->assertSee('School record changes')
             ->assertSee('Program change')
             ->assertSee('Applied history term')
             ->assertSee($term->academicYear->label)
@@ -68,6 +70,9 @@ final class StudentAppliedLifecycleHistoryTest extends TestCase
             ->assertDontSee('PRIVATE lifecycle reason')
             ->assertDontSee('PRIVATE lifecycle authority')
             ->assertDontSee('PRIVATE evidence reference');
+
+        Livewire::actingAs($user)->withQueryParams(['view' => 'record'])->test(Academics::class)
+            ->assertDontSee('School record changes');
     }
 
     #[Test]
@@ -81,11 +86,11 @@ final class StudentAppliedLifecycleHistoryTest extends TestCase
         $cancelled = $this->change($student, StudentLifecycleChange::StateCancelled);
         $foreign = $this->change($otherStudent, StudentLifecycleChange::StateApplied);
 
-        Livewire::actingAs($user)->withQueryParams(['view' => 'record', 'change' => $applied->id])->test(Academics::class)
+        Livewire::actingAs($user)->withQueryParams(['change' => $applied->id])->test(Profile::class)
             ->assertViewHas('lifecycleChanges', fn ($changes): bool => $changes->total() === 2)
             ->assertDontSee('This change is unavailable.');
         foreach ([$pending->id, $cancelled->id, $foreign->id, 999999999] as $unavailableId) {
-            Livewire::actingAs($user)->withQueryParams(['view' => 'record', 'change' => $unavailableId])->test(Academics::class)
+            Livewire::actingAs($user)->withQueryParams(['change' => $unavailableId])->test(Profile::class)
                 ->assertSee('This change is unavailable. Your own applied changes are shown below.')
                 ->assertViewHas('lifecycleChanges', fn ($changes): bool => $changes->total() === 2)
                 ->assertDontSee('PRIVATE');
@@ -100,7 +105,7 @@ final class StudentAppliedLifecycleHistoryTest extends TestCase
             'effective_on' => '2026-10-'.str_pad((string) $day, 2, '0', STR_PAD_LEFT),
         ]));
         $ordered = $applied->sortByDesc('effective_on')->pluck('id')->values();
-        $component = Livewire::actingAs($user)->withQueryParams(['view' => 'record'])->test(Academics::class)
+        $component = Livewire::actingAs($user)->test(Profile::class)
             ->assertViewHas('lifecycleChanges', fn ($changes): bool => $changes->total() === 23 && $changes->getCollection()->modelKeys() === $ordered->take(10)->all())
             ->assertDontSee('View all changes')
             ->assertDontSee('View change');
@@ -108,7 +113,7 @@ final class StudentAppliedLifecycleHistoryTest extends TestCase
             ->assertViewHas('lifecycleChanges', fn ($changes): bool => $changes->currentPage() === 2 && $changes->getCollection()->modelKeys() === $ordered->slice(10, 10)->values()->all());
         $component->call('gotoPage', 99, 'changesPage')
             ->assertViewHas('lifecycleChanges', fn ($changes): bool => $changes->currentPage() === 3 && $changes->count() === 3);
-        Livewire::actingAs($user)->withQueryParams(['view' => 'record', 'change' => $applied->first()->id])->test(Academics::class)
+        Livewire::actingAs($user)->withQueryParams(['change' => $applied->first()->id])->test(Profile::class)
             ->assertViewHas('lifecycleChanges', fn ($changes): bool => $changes->currentPage() === 3 && $changes->getCollection()->contains('id', $applied->first()->id));
         $this->assertSame(23, $student->lifecycleChanges()->where('state', StudentLifecycleChange::StateApplied)->count());
     }
@@ -130,7 +135,7 @@ final class StudentAppliedLifecycleHistoryTest extends TestCase
             $appliedNotice = $service->recordLifecycleAfterCommit($change);
             $this->assertSame($appliedNotice->id, $service->recordLifecycleAfterCommit($change)->id);
             $this->assertNotSame($pendingNotice->id, $appliedNotice->id);
-            $this->assertSame(Academics::getUrl(['view' => 'record', 'change' => $change->id], isAbsolute: false, panel: 'student').'#school-record-changes', $appliedNotice->payload['action_path']);
+            $this->assertSame(Profile::getUrl(['change' => $change->id], isAbsolute: false, panel: 'student').'#school-record-changes', $appliedNotice->payload['action_path']);
             $this->assertSame('A school record update', $appliedNotice->payload['change_label']);
             $this->assertSame([], $appliedNotice->payload['delivery_attempts']);
             $this->assertSame(2, OperationalEvent::query()
@@ -141,7 +146,7 @@ final class StudentAppliedLifecycleHistoryTest extends TestCase
 
         Mail::assertQueued(AcademicRecordChangedMail::class, 2);
         Mail::assertQueued(AcademicRecordChangedMail::class, fn (AcademicRecordChangedMail $mail): bool => $mail->hasTo($user->email)
-            && $mail->actionUrl === Academics::getUrl(['view' => 'record', 'change' => $change->id], panel: 'student').'#school-record-changes');
+            && $mail->actionUrl === Profile::getUrl(['change' => $change->id], panel: 'student').'#school-record-changes');
     }
 
     /** @return array{User, StudentProfile} */

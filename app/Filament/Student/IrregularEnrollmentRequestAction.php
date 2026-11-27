@@ -193,15 +193,18 @@ class IrregularEnrollmentRequestAction
 
     public static function canApply(?Enrollment $case): bool
     {
-        $request = $case !== null ? IrregularEnrollmentRequest::query()->where('enrollment_id', $case->id)->first() : null;
+        if ($case === null
+            || $case->canonical_outcome !== Enrollment::OutcomeInProgress
+            || $case->selection_basis !== Enrollment::SelectionIndividuallyAdvised
+            || $case->current_proposal_version_id !== null
+            || $case->studentProfile === null
+            || $case->admissionApplication !== null) {
+            return false;
+        }
 
-        return $case !== null
-            && $case->canonical_outcome === Enrollment::OutcomeInProgress
-            && $case->selection_basis === Enrollment::SelectionIndividuallyAdvised
-            && $case->current_proposal_version_id === null
-            && $case->studentProfile !== null
-            && $case->admissionApplication === null
-            && ($request === null || $request->state === IrregularEnrollmentRequest::StateReturned);
+        $request = IrregularEnrollmentRequest::query()->where('enrollment_id', $case->id)->first();
+
+        return $request === null || $request->state === IrregularEnrollmentRequest::StateReturned;
     }
 
     /** @return array<string, mixed> */

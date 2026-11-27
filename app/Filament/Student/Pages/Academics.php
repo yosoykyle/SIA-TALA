@@ -4,6 +4,7 @@ namespace App\Filament\Student\Pages;
 
 use App\Actions\Academics\AcademicEnrollmentGuidance;
 use App\Actions\Academics\AcademicRecordNotificationService;
+use App\Actions\Academics\AcademicYearGwaProjection;
 use App\Actions\Academics\CumulativeGwaProjection;
 use App\Actions\Academics\CurriculumEvaluation;
 use App\Actions\Academics\ExaminationPeriodProjection;
@@ -18,35 +19,29 @@ use App\Models\ExternalCompetencyRequirement;
 use App\Models\ExternalCompetencyResult;
 use App\Models\OperationalEvent;
 use App\Models\PriorAcademicCredit;
-use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
 use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Enums\Width;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Url;
-use Livewire\WithPagination;
 
 class Academics extends Page
 {
-    use WithPagination;
-
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-academic-cap';
 
-    protected static ?string $navigationLabel = 'Academics';
+    protected static ?string $navigationLabel = 'Grades';
 
-    protected static ?string $title = 'Academics';
+    protected static ?string $title = 'Grades';
 
     protected string $view = 'filament.student.pages.academics';
 
     protected Width|string|null $maxContentWidth = Width::Full;
 
-    #[Url(as: 'view', except: 'current', history: true)]
-    public string $academicView = 'current';
+    #[Url(as: 'view', except: 'record', history: true)]
+    public string $academicView = 'record';
 
     #[Url]
     public ?int $change = null;
@@ -56,80 +51,47 @@ class Academics extends Page
 
     public function mount(): void
     {
+        if ($this->academicView === 'current') {
+            $this->academicView = 'record';
+        }
+
         $student = $this->actor()->studentProfile;
-        if ($student instanceof StudentProfile
-            && ! request()->query->has('view')
-            && $this->academicView === 'current'
-            && app(CurrentOfficialEnrollmentResolver::class)->forProfile($student) === null
-            && $student->priorAcademicCredits()->active()->exists()) {
-            $this->academicView = $student->curriculum_version_id !== null ? 'plan' : 'record';
+        if ($this->change !== null
+            && $student instanceof StudentProfile
+            && $student->lifecycle_status !== StudentProfile::LifecycleArchived) {
+            $this->redirect(
+                Profile::getUrl(['change' => $this->change], panel: 'student').'#school-record-changes',
+                navigate: false,
+            );
         }
-
-        if ($this->academicView !== 'record' || $this->change === null || ! $student instanceof StudentProfile) {
-            return;
-        }
-
-        $change = $this->schoolChangesQuery($student)->whereKey($this->change)->first();
-        if (! $change instanceof StudentLifecycleChange) {
-            return;
-        }
-
-        $newer = $this->schoolChangesQuery($student)->where(function (Builder $query) use ($change): void {
-            $query->where('effective_on', '>', $change->effective_on)
-                ->orWhere(fn (Builder $sameDate): Builder => $sameDate->where('effective_on', $change->effective_on)->where('id', '>', $change->id));
-        })->count();
-        $this->setPage(intdiv($newer, 10) + 1, pageName: 'changesPage');
-    }
-
-    /** @return Builder<StudentLifecycleChange> */
-    private function schoolChangesQuery(StudentProfile $student): Builder
-    {
-        return StudentLifecycleChange::query()->appliedForStudent($student);
-    }
-
-    private function schoolChanges(StudentProfile $student): LengthAwarePaginator
-    {
-        $query = $this->schoolChangesQuery($student)->with('term.academicYear')->latest('effective_on')->latest('id');
-        $changes = $query->paginate(10, pageName: 'changesPage');
-        if ($changes->currentPage() > $changes->lastPage()) {
-            $this->setPage($changes->lastPage(), pageName: 'changesPage');
-            $changes = $query->paginate(10, pageName: 'changesPage');
-        }
-
-        return $changes;
     }
 
     public function getTitle(): string
     {
         return match ($this->academicView) {
             'plan' => 'Study plan',
-            'record' => 'Academic record',
             'graduation' => 'Graduation records',
-            default => 'Academics',
+            default => 'Grades',
         };
     }
 
     /** @return array<string|int, string> */
     public function getBreadcrumbs(): array
     {
-        return $this->academicView === 'current' ? [Dashboard::getUrl(panel: 'student') => 'Overview', 'Academics'] : [
-            Dashboard::getUrl(panel: 'student') => 'Overview',
-            static::getUrl(panel: 'student') => 'Academics',
-            ...($this->academicView === 'graduation' ? [static::getUrl(['view' => 'record'], panel: 'student') => 'Academic record'] : []),
-            $this->getTitle(),
-        ];
+        return in_array($this->academicView, ['record', 'current'], true)
+            ? [Dashboard::getUrl(panel: 'student') => 'Overview', 'Grades']
+            : [
+                Dashboard::getUrl(panel: 'student') => 'Overview',
+                static::getUrl(panel: 'student') => 'Grades',
+                $this->getTitle(),
+            ];
     }
 
     /** @return list<Action> */
     protected function getHeaderActions(): array
     {
-        if ($this->academicView === 'record') {
-            $student = $this->actor()->studentProfile;
-
+        if (in_array($this->academicView, ['record', 'current'], true)) {
             return [
-                Action::make('unofficialRecord')->label('Unofficial record')->icon('heroicon-o-printer')->color('gray')
-                    ->url($student ? route('student-academics.unofficial-record', $student) : null)->openUrlInNewTab()
-                    ->visible($student instanceof StudentProfile && app(OfficialCourseResultProjection::class)->forStudent($student)->whereNotNull('outcome_source')->isNotEmpty()),
                 Action::make('graduation')->label('Graduation records')->color('gray')
                     ->url(static::getUrl(['view' => 'graduation'], panel: 'student'))
                     ->visible($this->hasGraduationHistory()),
@@ -187,7 +149,11 @@ class Academics extends Page
     /** @return array<string, mixed> */
     protected function getViewData(): array
     {
-        abort_unless(in_array($this->academicView, ['current', 'plan', 'record', 'graduation'], true), 404);
+        if ($this->academicView === 'current') {
+            $this->academicView = 'record';
+        }
+
+        abort_unless(in_array($this->academicView, ['plan', 'record', 'graduation'], true), 404);
         $student = auth()->user()?->studentProfile;
 
         if (! $student instanceof StudentProfile) {
@@ -206,6 +172,7 @@ class Academics extends Page
         $historicalResults = $results->except($currentResults->keys()->all());
         $examinationTerm = $currentEnrollment?->term ?? $terms->first();
         $termAverageProjection = app(TermWeightedAverageProjection::class);
+        $academicYearGwaProjection = app(AcademicYearGwaProjection::class);
         $termAverages = $terms->mapWithKeys(fn ($term): array => [
             $term->id => $termAverageProjection->forResults($results, $term),
         ]);
@@ -240,15 +207,34 @@ class Academics extends Page
                     ->filter()
                     ->first();
                 $yearLevelLabel = $this->yearLevelLabel($yearLevelValue);
-                $ayLabel = $first['academic_year_label'] ?? $first['term']?->academicYear?->label;
+                $ayLabel = trim((string) ($first['academic_year_label'] ?? $first['term']?->academicYear?->label ?? ''));
+                $ayLabel = $ayLabel !== '' ? $ayLabel : null;
                 $subtitle = collect([$yearLevelLabel, $ayLabel])->filter()->implode(' · ');
+                $average = $termAverageProjection->forPeriodResults($periodResults, $label);
+                $average['label'] = 'Term GPA';
 
                 return [
                     'key' => $periodKey,
                     'label' => $label,
+                    'academic_year_label' => $ayLabel ?? 'Recorded academic year',
+                    'sort_key' => (string) ($first['period_sort_key'] ?? ''),
                     'subtitle' => $subtitle,
                     'rows' => $periodResults->values(),
-                    'average' => $termAverageProjection->forPeriodResults($periodResults, $label),
+                    'average' => $average,
+                ];
+            })
+            ->values();
+
+        $recordAcademicYears = $recordPeriods
+            ->groupBy(fn (array $period): string => (string) $period['academic_year_label'])
+            ->sortByDesc(fn (Collection $yearPeriods): string => (string) $yearPeriods->max('sort_key'))
+            ->map(function (Collection $yearPeriods, string $yearLabel) use ($academicYearGwaProjection): array {
+                $yearRows = $yearPeriods->flatMap(fn (array $period): Collection => $period['rows'])->values();
+
+                return [
+                    'label' => $yearLabel,
+                    'periods' => $yearPeriods->values(),
+                    'gwa' => $academicYearGwaProjection->forYearResults($yearRows, $yearLabel),
                 ];
             })
             ->values();
@@ -264,6 +250,7 @@ class Academics extends Page
             'results' => $results,
             'recordTerms' => $terms,
             'recordPeriods' => $recordPeriods,
+            'recordAcademicYears' => $recordAcademicYears,
             'currentResults' => $currentResults,
             'currentUnits' => $currentResults->sum(fn (array $result): float => (float) $result['units']),
             'currentAverage' => $currentEnrollment !== null ? $termAverages->get($currentEnrollment->term_id) : null,
@@ -289,8 +276,6 @@ class Academics extends Page
                     ->with('requirement:id,qualification_label,qualification_level')
                     ->latest('recorded_at')->orderByDesc('id')
                     ->get(['id', 'external_competency_requirement_id', 'outcome', 'assessment_date', 'recorded_at', 'is_current']) : collect(),
-            'lifecycleChanges' => $this->academicView === 'record' ? $this->schoolChanges($student) : collect(),
-            'changeUnavailable' => $this->academicView === 'record' && $this->change !== null && ! $this->schoolChangesQuery($student)->whereKey($this->change)->exists(),
             'enrollmentUrl' => Enrollment::getUrl(array_filter(['term' => $guidance['term_id']]), panel: 'student'),
             'completion' => $completion,
             'graduationApplications' => $student->graduationApplications()->latest('version')->get(),

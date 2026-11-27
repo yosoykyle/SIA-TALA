@@ -9,7 +9,7 @@
 @endphp
 <x-official-output-layout title="Statement of Account" :context="$statement['is_historical'] ? 'Earlier account · current position' : 'Account position as of generation'" :subtitle="$statement['term']" document-class="finance-output" :back-url="$backUrl" back-label="Back to account">
     <x-slot:documentStyles><link rel="stylesheet" href="{{ asset('css/tala-finance-output.css').'?v='.filemtime(public_path('css/tala-finance-output.css')) }}"></x-slot:documentStyles>
-    <p class="finance-owner"><strong>{{ $statement['owner'] }}</strong> · {{ $statement['program'] }}</p>
+    <p class="finance-owner"><strong>{{ $statement['owner'] }}</strong>@if (filled($statement['student_number'] ?? null)) · <span style="font-variant-numeric: tabular-nums;">{{ $statement['student_number'] }}</span>@endif · {{ $statement['program'] }}</p>
     @if ($statement['is_historical'])
         <p class="finance-source">Opened from an earlier assessment. This statement shows the account position as of generation.</p>
     @endif

@@ -18,10 +18,12 @@ use App\Models\ScheduleGenerationRun;
 use App\Models\Section;
 use App\Models\SectionMeeting;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
 use App\Models\User;
 use App\Support\DisplayDateTime;
 use App\Support\FacultyScheduleFilters;
+use App\Support\TeachingWeekSummary;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -282,32 +284,169 @@ class BuildOfficialScheduleOutput
                 $externallyArranged !== [] => 'Active',
                 default => 'Unavailable',
             },
-            'rows' => $meetings
-                ->map(function (PublishedTimetableMeeting $meeting) use ($registrations, $enrollment): array {
-                    $registration = $registrations->first(fn (CourseEnrollment $registration): bool => (int) $registration->section_id === (int) $meeting->section_id);
-
-                    if (! $registration instanceof CourseEnrollment) {
-                        return [];
-                    }
-
-                    return [
-                        'term' => (string) ($enrollment !== null ? $enrollment->term?->label : $registration->termOffering?->term?->label),
-                        'course' => (string) $registration->termOffering?->curriculumEntry?->courseSpecification?->course?->code,
-                        'description' => (string) $registration->termOffering?->curriculumEntry?->courseSpecification?->title,
-                        'section' => (string) $registration->section?->code,
-                        'component' => 'Published meeting '.$meeting->meeting_sequence,
-                        'day' => SectionMeeting::dayOptions()[$meeting->day_of_week] ?? 'Unscheduled',
-                        'time' => $this->publishedTimeRange($meeting),
-                        'room' => ($meeting->room !== null ? $meeting->room->code : null) ?? $meeting->location_label ?? 'TBA',
-                        'modality' => SectionMeeting::modalityOptions()[$meeting->modality] ?? str($meeting->modality)->headline()->toString(),
-                        'faculty' => (string) $meeting->faculty?->name,
-                    ];
-                })
-                ->filter()
-                ->values()
-                ->all(),
+            'rows' => $this->mergedStudentRows($meetings, $registrations, $enrollment),
+            'breaks' => $this->scheduledBreaksForTerm($enrollment instanceof Enrollment ? (int) $enrollment->term_id : null),
             'externally_arranged' => $externallyArranged,
         ];
+    }
+
+    /**
+     * Merge multi-slot student meetings for the same course, section, and instructor into 1 row per subject.
+     *
+     * @param  Collection<int, PublishedTimetableMeeting>  $meetings
+     * @param  Collection<int, CourseEnrollment>  $registrations
+     * @return list<array<string, string>>
+     */
+    private function mergedStudentRows(Collection $meetings, Collection $registrations, ?Enrollment $enrollment): array
+    {
+        $entries = $meetings
+            ->map(function (PublishedTimetableMeeting $meeting) use ($registrations, $enrollment): ?array {
+                $registration = $registrations->first(fn (CourseEnrollment $candidate): bool => (int) $candidate->section_id === (int) $meeting->section_id);
+
+                if (! $registration instanceof CourseEnrollment) {
+                    return null;
+                }
+
+                $courseCode = (string) $registration->termOffering?->curriculumEntry?->courseSpecification?->course?->code;
+                $description = (string) $registration->termOffering?->curriculumEntry?->courseSpecification?->title;
+                $sectionCode = (string) $registration->section?->code;
+                $facultyName = (string) $meeting->faculty?->name;
+
+                return [
+                    'group_key' => implode('|', [
+                        $courseCode,
+                        $sectionCode,
+                        (string) ($meeting->faculty_user_id ?? $facultyName),
+                    ]),
+                    'term' => (string) ($enrollment !== null ? $enrollment->term?->label : $registration->termOffering?->term?->label),
+                    'course' => $courseCode,
+                    'description' => $description,
+                    'section' => $sectionCode,
+                    'day' => SectionMeeting::dayOptions()[$meeting->day_of_week] ?? 'Unscheduled',
+                    'time' => $this->publishedTimeRange($meeting),
+                    'slot' => $this->formatStudentMeetingSlot($meeting),
+                    'room' => ($meeting->room !== null ? $meeting->room->code : null) ?? $meeting->location_label ?? 'TBA',
+                    'modality' => SectionMeeting::modalityOptions()[$meeting->modality] ?? str($meeting->modality)->headline()->toString(),
+                    'faculty' => $facultyName,
+                ];
+            })
+            ->filter()
+            ->values();
+
+        return $entries
+            ->groupBy('group_key')
+            ->map(function (Collection $group): array {
+                $first = $group->first();
+
+                return [
+                    'term' => (string) $first['term'],
+                    'course' => (string) $first['course'],
+                    'description' => (string) $first['description'],
+                    'section' => (string) $first['section'],
+                    'component' => 'Published schedule',
+                    'day' => $group->pluck('day')->filter()->unique()->values()->implode(', '),
+                    'time' => $group->pluck('time')->filter()->unique()->values()->implode(', '),
+                    'schedule' => $group->pluck('slot')->filter()->unique()->values()->implode(', '),
+                    'room' => $group->pluck('room')->filter()->unique()->values()->implode(', '),
+                    'modality' => $group->pluck('modality')->filter()->unique()->values()->implode(', '),
+                    'faculty' => $group->pluck('faculty')->filter()->unique()->values()->implode(', '),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function formatStudentMeetingSlot(PublishedTimetableMeeting $meeting): string
+    {
+        $dayName = SectionMeeting::dayOptions()[$meeting->day_of_week] ?? 'Unscheduled';
+        $shortDay = $dayName === 'Unscheduled' ? $dayName : substr($dayName, 0, 3);
+
+        try {
+            $start = CarbonImmutable::createFromFormat('H:i:s', (string) $meeting->starts_at);
+            $end = CarbonImmutable::createFromFormat('H:i:s', (string) $meeting->ends_at);
+            $timeRange = $start->format('A') === $end->format('A')
+                ? $start->format('g:i').'–'.$end->format('g:i A')
+                : $start->format('g:i A').'–'.$end->format('g:i A');
+        } catch (\Throwable) {
+            $timeRange = $this->publishedTimeRange($meeting);
+        }
+
+        return $shortDay.' '.$timeRange;
+    }
+
+    /**
+     * Summarize scheduled daily breaks from the active TermCalendarPackage teaching grid.
+     *
+     * @return list<array{days:string,times:string,summary:string}>
+     */
+    private function scheduledBreaksForTerm(?int $termId): array
+    {
+        if ($termId === null) {
+            return [];
+        }
+
+        $package = TermCalendarPackage::query()
+            ->where('term_id', $termId)
+            ->where('state', TermCalendarPackage::StateActive)
+            ->with('teachingGridRows')
+            ->latest('version')
+            ->first();
+
+        if (! $package instanceof TermCalendarPackage) {
+            return [];
+        }
+
+        $dayIndexMap = array_flip(SectionMeeting::dayOptions());
+        $dayBreaks = collect(app(TeachingWeekSummary::class)->rows($package))
+            ->map(function (array $row) use ($dayIndexMap): ?array {
+                $times = collect($row['segments'] ?? [])
+                    ->where('type', 'break')
+                    ->pluck('time')
+                    ->filter()
+                    ->values()
+                    ->all();
+
+                if ($times === []) {
+                    return null;
+                }
+
+                $dayName = (string) ($row['day'] ?? '');
+
+                return [
+                    'day_number' => (int) ($dayIndexMap[$dayName] ?? 0),
+                    'short_day' => $dayName !== '' ? substr($dayName, 0, 3) : 'Day',
+                    'times' => implode(', ', $times),
+                ];
+            })
+            ->filter()
+            ->values();
+
+        if ($dayBreaks->isEmpty()) {
+            return [];
+        }
+
+        return $dayBreaks
+            ->groupBy('times')
+            ->map(function (Collection $group, string $times): array {
+                $sorted = $group->sortBy('day_number')->values();
+                $dayNumbers = $sorted->pluck('day_number')->all();
+                $shortDays = $sorted->pluck('short_day')->all();
+                $count = count($shortDays);
+                $isContiguous = $count > 2
+                    && $dayNumbers[0] > 0
+                    && $dayNumbers === range($dayNumbers[0], $dayNumbers[$count - 1]);
+                $daysLabel = $isContiguous
+                    ? $shortDays[0].'–'.$shortDays[$count - 1]
+                    : implode(', ', $shortDays);
+
+                return [
+                    'days' => $daysLabel,
+                    'times' => $times,
+                    'summary' => $daysLabel.': '.$times,
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     /**

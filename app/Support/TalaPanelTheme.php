@@ -194,6 +194,7 @@ class TalaPanelTheme
                     'workspace' => 'student',
                     'brand' => new HtmlString(self::brand($panel)->render()),
                     'person' => self::staffName($panel),
+                    'studentNumber' => self::studentNumber($panel),
                 ])->render(),
                 default => '',
             }))
@@ -285,6 +286,19 @@ class TalaPanelTheme
         $user = $panel->auth()->user();
 
         return $user instanceof User && filled($user->name) ? (string) $user->name : null;
+    }
+
+    private static function studentNumber(Panel $panel): ?string
+    {
+        $user = $panel->auth()->user();
+
+        if (! $user instanceof User) {
+            return null;
+        }
+
+        $number = $user->studentProfile?->student_number;
+
+        return filled($number) ? (string) $number : null;
     }
 
     private static function applicantName(Panel $panel): ?string
