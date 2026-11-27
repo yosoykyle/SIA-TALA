@@ -3822,51 +3822,429 @@ html:not(.dark) .fi-breadcrumbs-item-separator { color: var(--gray-600); }
     opacity: 1;
 }
 
-/* #110 item 13: the admission cycle wizard header uses the Term Planning stage bar design (.tala-stage-bar tokens). */
-.tala-cycle-wizard .fi-sc-wizard-header { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; margin: 0; padding: 1.25rem 1.5rem 0.25rem; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
-.tala-cycle-wizard .fi-sc-wizard-header-step { flex: 0 1 21.5rem; min-inline-size: 0; }
-.tala-cycle-wizard :is(.fi-sc-wizard-header-step-separator, .fi-sc-wizard-header-step-icon-ctn) { display: none; }
-.tala-cycle-wizard .fi-sc-wizard-header-step-btn { display: block; inline-size: 100%; block-size: 100%; padding: 0.75rem 0.875rem; border: 1px solid color-mix(in srgb, var(--tala-control-border) 78%, var(--tala-border)); border-radius: var(--tala-card-radius, 0.75rem); background: var(--tala-surface); color: var(--tala-text); box-shadow: var(--tala-material-detail); text-align: start; }
-.tala-cycle-wizard .fi-sc-wizard-header-step-btn:focus-visible { outline: 2px solid var(--tala-focus-ring); outline-offset: 2px; }
-.tala-cycle-wizard .fi-sc-wizard-header-step-btn:disabled { cursor: not-allowed; border-color: var(--tala-border); background: var(--tala-surface-sunken); box-shadow: none; }
-.tala-cycle-wizard .fi-sc-wizard-header-step-text { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'title badge' 'summary summary'; align-items: center; gap: 0.375rem 0.5rem; inline-size: 100%; min-inline-size: 0; max-inline-size: none; }
-.tala-cycle-wizard .fi-sc-wizard-header-step-label { grid-area: title; font-size: 0.875rem; font-weight: 600; line-height: 1.35; color: var(--tala-text); }
+/* #110 item 13: admission cycle wizard sits uncontained on --tala-canvas, matching Overview and Term Planning. */
+.fi-body .fi-sc-wizard.tala-cycle-wizard {
+    container-type: inline-size;
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-sc-wizard-header {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    --tw-shadow: 0 0 #0000;
+    --tw-ring-shadow: 0 0 #0000;
+    overflow: visible;
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-sc-wizard-header-step,
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-sc-wizard-header-step:not(.fi-active) {
+    display: flex;
+    flex: none;
+    min-inline-size: 0;
+    inline-size: 100%;
+}
+.tala-cycle-wizard :is(.fi-sc-wizard-header-step-separator, .fi-sc-wizard-header-step-icon-ctn) {
+    display: none;
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard .fi-sc-wizard-header-step-btn {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+    padding: 0.875rem 1rem;
+    border: 1px solid var(--tala-edge-strong);
+    border-radius: var(--tala-card-radius, 0.75rem);
+    background: var(--tala-surface);
+    color: var(--tala-text);
+    box-shadow: var(--tala-material-detail);
+    --tw-ring-shadow: 0 0 #0000;
+    text-align: start;
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard .fi-sc-wizard-header-step-btn:focus-visible {
+    outline: 2px solid var(--tala-focus-ring);
+    outline-offset: 2px;
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard .fi-sc-wizard-header-step-btn:disabled {
+    cursor: not-allowed;
+    border-color: var(--tala-border);
+    background: var(--tala-surface-sunken);
+    box-shadow: none;
+}
+.tala-cycle-wizard .fi-sc-wizard-header-step-text {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'title badge' 'summary summary';
+    align-items: center;
+    gap: 0.375rem 0.5rem;
+    inline-size: 100%;
+    min-inline-size: 0;
+    max-inline-size: none;
+}
+.tala-cycle-wizard .fi-sc-wizard-header-step-label {
+    grid-area: title;
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--tala-text);
+}
 .tala-cycle-wizard .fi-sc-wizard-header-step:nth-child(1) .fi-sc-wizard-header-step-label::before { content: '1. '; }
 .tala-cycle-wizard .fi-sc-wizard-header-step:nth-child(2) .fi-sc-wizard-header-step-label::before { content: '2. '; }
 .tala-cycle-wizard .fi-sc-wizard-header-step:nth-child(3) .fi-sc-wizard-header-step-label::before { content: '3. '; }
-.tala-cycle-wizard .fi-sc-wizard-header-step-description { grid-area: summary; font-size: 0.75rem; line-height: 1.4; color: var(--tala-muted); overflow-wrap: anywhere; text-wrap: pretty; }
-.tala-cycle-wizard .fi-sc-wizard-header-step-text::after { grid-area: badge; justify-self: end; padding: 0.125rem 0.5rem; border: 1px solid var(--tala-border); border-radius: 0.375rem; background: var(--tala-surface-sunken); color: var(--tala-muted); font-size: 0.75rem; font-weight: 500; line-height: 1.4; white-space: nowrap; content: 'Up next'; }
-.tala-cycle-wizard .fi-sc-wizard-header-step.fi-completed .fi-sc-wizard-header-step-text::after { border-color: var(--tala-status-success-border); background: var(--tala-status-success-bg); color: var(--tala-status-success-fg); content: 'Done'; }
-.tala-cycle-wizard .fi-sc-wizard-header-step.fi-active .fi-sc-wizard-header-step-text::after { border-color: var(--tala-selected-edge); background: var(--tala-surface); color: var(--tala-on-brand-tint); content: 'In progress'; }
-.tala-cycle-wizard .fi-sc-wizard-header-step.fi-active .fi-sc-wizard-header-step-btn { border-color: var(--tala-selected-edge); background: var(--tala-brand-tint); box-shadow: inset 0 0 0 1px var(--tala-selected-edge), var(--tala-material-raised); }
-.tala-cycle-wizard .fi-sc-wizard-header-step.fi-active :is(.fi-sc-wizard-header-step-label, .fi-sc-wizard-header-step-description) { color: var(--tala-on-brand-tint); }
-.tala-cycle-wizard .fi-sc-wizard-header-step:not(.fi-active):not(.fi-completed) .fi-sc-wizard-header-step-label { color: var(--tala-muted); }
+.tala-cycle-wizard .fi-sc-wizard-header-step-description {
+    grid-area: summary;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: var(--tala-muted);
+    overflow-wrap: anywhere;
+    text-wrap: pretty;
+}
+.tala-cycle-wizard .fi-sc-wizard-header-step-text::after {
+    grid-area: badge;
+    justify-self: end;
+    padding: 0.125rem 0.5rem;
+    border: 1px solid var(--tala-border);
+    border-radius: 0.375rem;
+    background: var(--tala-surface-sunken);
+    color: var(--tala-muted);
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.4;
+    white-space: nowrap;
+    content: 'Up next';
+}
+.tala-cycle-wizard .fi-sc-wizard-header-step.fi-completed .fi-sc-wizard-header-step-text::after {
+    border-color: var(--tala-status-success-border);
+    background: var(--tala-status-success-bg);
+    color: var(--tala-status-success-fg);
+    content: 'Done';
+}
+.tala-cycle-wizard .fi-sc-wizard-header-step.fi-active .fi-sc-wizard-header-step-text::after {
+    border-color: var(--tala-selected-edge);
+    background: var(--tala-surface);
+    color: var(--tala-on-brand-tint);
+    content: 'In progress';
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard .fi-sc-wizard-header-step.fi-active .fi-sc-wizard-header-step-btn {
+    border-color: var(--tala-selected-edge);
+    background: var(--tala-brand-tint);
+    box-shadow: var(--tala-material-raised);
+}
+.tala-cycle-wizard .fi-sc-wizard-header-step.fi-active :is(.fi-sc-wizard-header-step-label, .fi-sc-wizard-header-step-description) {
+    color: var(--tala-on-brand-tint);
+}
+.tala-cycle-wizard .fi-sc-wizard-header-step.fi-active .fi-sc-wizard-header-step-description {
+    opacity: 0.88;
+}
+.tala-cycle-wizard .fi-sc-wizard-header-step:not(.fi-active):not(.fi-completed) .fi-sc-wizard-header-step-label {
+    color: var(--tala-muted);
+}
+
+/* Raised peer Section cards inside the uncontained admission cycle wizard. */
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-sc-wizard-step.fi-active {
+    margin-block-start: 1rem;
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-sc-wizard-step > .fi-sc {
+    gap: var(--tala-section-gap, 1rem);
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-section {
+    background-color: var(--tala-surface);
+    border: 1px solid var(--tala-edge);
+    border-radius: var(--tala-card-radius);
+    box-shadow: var(--tala-material-raised);
+    --tw-shadow: 0 0 #0000;
+    --tw-ring-shadow: 0 0 #0000;
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-section > .fi-section-header {
+    padding: 0.875rem 1.25rem;
+    align-items: flex-start;
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-section > .fi-section-header > .fi-icon {
+    color: var(--tala-brand-foreground);
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-section .fi-section-header-heading {
+    font-size: 1.125rem;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--tala-text);
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-section .fi-section-header-description {
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--tala-muted);
+    max-inline-size: 70ch;
+}
+@container (max-width: 34rem) {
+    .fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-section > .fi-section-header {
+        flex-wrap: wrap;
+    }
+    .fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-section > .fi-section-header > .fi-section-header-text-ctn {
+        flex: 1 1 12rem;
+    }
+    .fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-section > .fi-section-header > .fi-section-header-after-ctn {
+        flex: 1 0 100%;
+        padding-inline-start: 2.25rem;
+    }
+    .fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-section > .fi-section-header > .fi-section-header-after-ctn > .fi-sc {
+        justify-content: flex-start;
+    }
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-section > .fi-section-content-ctn {
+    border-block-start: 1px solid var(--tala-edge);
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-section > .fi-section-content-ctn > .fi-section-content {
+    padding: 1.125rem 1.25rem;
+}
+
+/* Step 1 schedule sections: 3-milestone sunken tray mirroring Overview's .tala-calendar-facts. */
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .tala-cycle-schedule-section .fi-section > .fi-section-content-ctn {
+    padding: 1.125rem 1.25rem;
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .tala-cycle-schedule-section .fi-section > .fi-section-content-ctn > .fi-section-content {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    padding: 0;
+    border: 1px solid var(--tala-edge);
+    border-radius: 0.5rem;
+    background: var(--tala-surface-sunken);
+    box-shadow: none;
+    overflow: hidden;
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .tala-cycle-schedule-section .fi-section-content > .fi-grid-col {
+    min-inline-size: 0;
+    padding: 0.875rem 1rem;
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .tala-cycle-schedule-section .fi-section-content > .fi-grid-col + .fi-grid-col {
+    border-block-start: 1px solid var(--tala-edge);
+    border-inline-start: 0;
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .tala-cycle-schedule-section .fi-input-wrp {
+    background-color: var(--tala-surface);
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .tala-cycle-schedule-section input {
+    font-variant-numeric: tabular-nums;
+}
+@container (min-width: 56rem) {
+    .fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .tala-cycle-schedule-section .fi-section > .fi-section-content-ctn > .fi-section-content {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .tala-cycle-schedule-section .fi-section-content > .fi-grid-col + .fi-grid-col {
+        border-block-start: 0;
+        border-inline-start: 1px solid var(--tala-edge);
+    }
+}
+
+/* Step 2: student type selectable card tiles matching .tala-choice-options grammar. */
+.fi-body .fi-sc-wizard.tala-cycle-wizard .tala-cycle-student-types.fi-fo-checkbox-list-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-block-start: 0.25rem;
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard .tala-cycle-student-types .fi-fo-checkbox-list-option-ctn {
+    display: flex;
+    padding-block-start: 0;
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard .tala-cycle-student-types .fi-fo-checkbox-list-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    inline-size: 100%;
+    padding: 0.875rem 1rem;
+    border: 1px solid var(--tala-edge-strong);
+    border-radius: var(--tala-control-radius);
+    background: var(--tala-surface);
+    box-shadow: var(--tala-material-detail);
+    cursor: pointer;
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard .tala-cycle-student-types .fi-fo-checkbox-list-option-label {
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--tala-text);
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard .tala-cycle-student-types .fi-fo-checkbox-list-option-description {
+    margin-block-start: 0.125rem;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: var(--tala-muted);
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard .tala-cycle-student-types .fi-fo-checkbox-list-option:has(input:checked) {
+    background: var(--tala-brand-tint);
+    border-color: var(--tala-selected-edge);
+    color: var(--tala-on-brand-tint);
+    box-shadow: var(--tala-material-raised);
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard .tala-cycle-student-types .fi-fo-checkbox-list-option:has(input:checked) .fi-fo-checkbox-list-option-label {
+    color: var(--tala-on-brand-tint);
+    font-weight: 600;
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard .tala-cycle-student-types .fi-fo-checkbox-list-option:has(input:checked) .fi-fo-checkbox-list-option-description {
+    color: var(--tala-on-brand-tint);
+    opacity: 0.88;
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard .tala-cycle-student-types .fi-fo-checkbox-list-option:has(input:focus-visible) {
+    outline: 2px solid var(--tala-focus-ring);
+    outline-offset: 2px;
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard .tala-cycle-student-types .fi-fo-checkbox-list-option input:focus-visible {
+    outline: none;
+}
+@container (max-width: 34rem) {
+    .fi-body .fi-sc-wizard.tala-cycle-wizard .tala-cycle-student-types.fi-fo-checkbox-list-options {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* Step 2 create-only requirements callout strip (quiet sunken surface, zero thick side border). */
+.fi-body .fi-sc-wizard.tala-cycle-wizard .tala-cycle-requirements-note {
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--tala-edge);
+    border-radius: 0.5rem;
+    background: var(--tala-surface-sunken);
+    color: var(--tala-muted);
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard .tala-cycle-requirements-note .fi-in-text-item {
+    color: var(--tala-muted);
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+/* Step 2 edit-only embedded Requirement lists table card matches Section cards 1:1. */
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-ta-ctn {
+    background-color: var(--tala-surface);
+    border: 1px solid var(--tala-edge);
+    border-radius: var(--tala-card-radius);
+    box-shadow: var(--tala-material-raised);
+    --tw-shadow: 0 0 #0000;
+    --tw-ring-shadow: 0 0 #0000;
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-ta-header {
+    padding: 0.875rem 1.25rem;
+    border-block-end: 1px solid var(--tala-edge);
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-ta-header-heading {
+    font-family: var(--tala-font-heading);
+    font-size: 1.125rem;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--tala-text);
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-ta-header-description {
+    margin-block-start: 0.25rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--tala-muted);
+    max-inline-size: 70ch;
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-ta-table > thead > tr {
+    background-color: var(--tala-surface-sunken);
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-ta-header-cell {
+    padding-inline: 0.75rem;
+    padding-block: 0.625rem;
+    font-size: 0.75rem;
+    color: var(--tala-muted);
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-ta-header-cell:first-of-type {
+    padding-inline-start: 1.25rem;
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-ta-header-cell:last-of-type {
+    padding-inline-end: 1.25rem;
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-ta-text {
+    padding-inline: 0.75rem;
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-ta-cell:first-child {
+    padding-inline-start: 0.5rem;
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-ta-cell:has(.fi-ta-actions) {
+    padding-inline: 0.75rem 1.25rem;
+}
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-ta-cell:has(.fi-ta-actions) > .fi-ta-actions {
+    gap: 0.625rem;
+}
+
 @media (hover: hover) {
-    .tala-cycle-wizard .fi-sc-wizard-header-step:not(.fi-active) .fi-sc-wizard-header-step-btn:not(:disabled):hover { border-color: var(--tala-control-border); background: var(--tala-surface-sunken); }
+    .fi-body .fi-sc-wizard.tala-cycle-wizard .fi-sc-wizard-header-step:not(.fi-active) .fi-sc-wizard-header-step-btn:not(:disabled):hover {
+        border-color: var(--tala-control-border);
+        background: var(--tala-surface-sunken);
+    }
+    .fi-body .fi-sc-wizard.tala-cycle-wizard .tala-cycle-student-types .fi-fo-checkbox-list-option:not(:has(input:checked)):not(:has(input:disabled)):hover {
+        background: var(--tala-surface-sunken);
+        border-color: var(--tala-control-border);
+    }
 }
 @media (prefers-reduced-motion: no-preference) {
-    .tala-cycle-wizard .fi-sc-wizard-header-step-btn { transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease; }
+    .fi-body .fi-sc-wizard.tala-cycle-wizard .fi-sc-wizard-header-step-btn,
+    .fi-body .fi-sc-wizard.tala-cycle-wizard .tala-cycle-student-types .fi-fo-checkbox-list-option {
+        transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+    }
 }
 @media (forced-colors: active) {
-    .tala-cycle-wizard .fi-sc-wizard-header-step-btn { background: Canvas; color: CanvasText; border-color: CanvasText; box-shadow: none; }
-    .tala-cycle-wizard .fi-sc-wizard-header-step.fi-active .fi-sc-wizard-header-step-btn { border-color: Highlight; }
+    .fi-body .fi-sc-wizard.tala-cycle-wizard .fi-sc-wizard-header-step-btn,
+    .fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-section,
+    .fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-ta-ctn,
+    .fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .tala-cycle-schedule-section .fi-section > .fi-section-content-ctn > .fi-section-content,
+    .fi-body .fi-sc-wizard.tala-cycle-wizard .tala-cycle-student-types .fi-fo-checkbox-list-option,
+    .fi-body .fi-sc-wizard.tala-cycle-wizard .tala-cycle-requirements-note {
+        background: Canvas;
+        color: CanvasText;
+        border-color: CanvasText;
+        box-shadow: none;
+    }
+    .fi-body .fi-sc-wizard.tala-cycle-wizard .fi-sc-wizard-header-step.fi-active .fi-sc-wizard-header-step-btn,
+    .fi-body .fi-sc-wizard.tala-cycle-wizard .tala-cycle-student-types .fi-fo-checkbox-list-option:has(input:checked) {
+        border-color: Highlight;
+        outline: 2px solid Highlight;
+    }
 }
 
 /* #110 item 11: Back on the left; Save & continue with Cancel beside it on the right. */
-.tala-cycle-wizard .fi-sc-wizard-footer { justify-content: flex-end; gap: 0.75rem; }
+.fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-sc-wizard-footer {
+    margin-block-start: 1rem;
+    padding-block-start: 1rem;
+    border-block-start: 1px solid var(--tala-edge);
+    justify-content: flex-end;
+    gap: 0.75rem;
+}
 .tala-cycle-wizard .fi-sc-wizard-footer > :nth-child(1) { margin-inline-end: auto; }
 .tala-cycle-wizard .fi-sc-wizard-footer > :nth-child(2) { order: 3; }
 .tala-cycle-wizard .fi-sc-wizard-footer > :nth-child(3), .tala-cycle-wizard .fi-sc-wizard-footer > :nth-child(4) { order: 2; }
 .tala-cycle-wizard__submit { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
 @media (max-width: 40rem) {
-    .tala-cycle-wizard .fi-sc-wizard-header { padding: 1rem 1rem 0; }
-    .tala-cycle-wizard .fi-sc-wizard-header-step { flex-basis: 100%; }
-    .tala-cycle-wizard .fi-sc-wizard-footer { flex-direction: column; align-items: stretch; }
-    .tala-cycle-wizard .fi-sc-wizard-footer > :nth-child(1) { order: 4; margin-inline-end: 0; }
-    .tala-cycle-wizard .fi-sc-wizard-footer > * > .fi-btn,
-    .tala-cycle-wizard__submit,
-    .tala-cycle-wizard__submit > .fi-btn { inline-size: 100%; }
-    .tala-cycle-wizard__submit { flex-direction: column; align-items: stretch; }
+    .fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-sc-wizard-header {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-section > .fi-section-header,
+    .fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-section > .fi-section-content-ctn > .fi-section-content,
+    .fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .tala-cycle-schedule-section .fi-section > .fi-section-content-ctn,
+    .fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-ta-header {
+        padding-inline: 1rem;
+    }
+    .fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-sc-wizard-footer {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-sc-wizard-footer > :nth-child(1) {
+        order: 4;
+        margin-inline-end: 0;
+    }
+    .fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-sc-wizard-footer > * > .fi-btn,
+    .fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .fi-sc-wizard-footer > .fi-btn,
+    .fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .tala-cycle-wizard__submit,
+    .fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .tala-cycle-wizard__submit > .fi-btn {
+        inline-size: 100%;
+        min-block-size: 2.75rem;
+    }
+    .fi-body .fi-sc-wizard.tala-cycle-wizard:not(.fi-contained) .tala-cycle-wizard__submit {
+        flex-direction: column;
+        align-items: stretch;
+    }
 }
 
 /* Admission cycles list: fixed column shares so the status column lines up on every row. */

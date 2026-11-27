@@ -18,11 +18,13 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Livewire;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Text;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\Wizard;
 use Filament\Schemas\Components\Wizard\Step;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\GridDirection;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
 use Livewire\Component;
@@ -43,7 +45,13 @@ class AdmissionCycleForm
                     })
                     ->schema([
                         Section::make('Cycle identity')
+                            ->icon('heroicon-o-identification')
                             ->compact()
+                            ->afterHeader([
+                                Text::make(fn (?AdmissionCycle $record): string => $record instanceof AdmissionCycle ? AdmissionCycleInfolist::intakeStatus($record)['label'] : 'New draft')
+                                    ->badge()
+                                    ->color(fn (?AdmissionCycle $record): string => $record instanceof AdmissionCycle ? AdmissionCycleInfolist::intakeStatus($record)['color'] : 'gray'),
+                            ])
                             ->description('Your logged-in Registrar account and institutional privacy/support details are applied automatically.')
                             ->schema([
                                 TextInput::make('label')
@@ -62,6 +70,7 @@ class AdmissionCycleForm
                                         'autocorrect' => 'off',
                                         'autocapitalize' => 'characters',
                                         'spellcheck' => 'false',
+                                        'class' => 'tabular-nums',
                                     ])
                                     ->rules([
                                         fn (?AdmissionCycle $record): Closure => function (string $attribute, mixed $value, Closure $fail) use ($record): void {
@@ -108,14 +117,22 @@ class AdmissionCycleForm
                                     ->required()
                                     ->columnSpanFull(),
                             ])
-                            ->columns(2),
+                            ->columns(['default' => 1, 'md' => 2]),
                         Section::make('Application window')
+                            ->icon('heroicon-o-calendar-days')
                             ->compact()
+                            ->afterHeader([
+                                Text::make('Asia/Manila · PHT')
+                                    ->badge()
+                                    ->color('gray'),
+                            ])
+                            ->extraAttributes(['class' => 'tala-cycle-schedule-section'])
                             ->description('Type or pick dates in Philippine Time (Asia/Manila). New applications close stops new submissions; corrections remain open until the correction deadline.')
                             ->schema([
                                 DateTimePicker::make('opens_at')
                                     ->label('Applications open')
                                     ->validationAttribute('Applications open')
+                                    ->prefixIcon('heroicon-o-calendar-days')
                                     ->timezone('Asia/Manila')
                                     ->seconds(true)
                                     ->required()
@@ -123,6 +140,7 @@ class AdmissionCycleForm
                                 DateTimePicker::make('closes_at')
                                     ->label('New applications close')
                                     ->validationAttribute('New applications close')
+                                    ->prefixIcon('heroicon-o-calendar')
                                     ->after(fn (Get $get): ?string => filled($get('opens_at')) ? 'opens_at' : null)
                                     ->validationMessages([
                                         'after' => 'New applications close must be after Applications open.',
@@ -134,6 +152,7 @@ class AdmissionCycleForm
                                 DateTimePicker::make('correction_closes_at')
                                     ->label('Correction request deadline')
                                     ->validationAttribute('Correction request deadline')
+                                    ->prefixIcon('heroicon-o-clock')
                                     ->afterOrEqual(fn (Get $get): ?string => filled($get('closes_at')) ? 'closes_at' : null)
                                     ->validationMessages([
                                         'after_or_equal' => 'Correction request deadline must be on or after New applications close.',
@@ -145,12 +164,20 @@ class AdmissionCycleForm
                             ])
                             ->columns(['default' => 1, 'lg' => 3]),
                         Section::make('Post-admission deadlines')
+                            ->icon('heroicon-o-clock')
                             ->compact()
+                            ->afterHeader([
+                                Text::make('Required before publication')
+                                    ->badge()
+                                    ->color('gray'),
+                            ])
+                            ->extraAttributes(['class' => 'tala-cycle-schedule-section'])
                             ->description('Admitted applicants who miss the papers or payment deadline are marked Expired. After the final admission cutoff, unfinished applications are permanently closed.')
                             ->schema([
                                 DateTimePicker::make('requirements_due_at')
                                     ->label('Physical papers due')
                                     ->validationAttribute('Physical papers due')
+                                    ->prefixIcon('heroicon-o-document-check')
                                     ->afterOrEqual(fn (Get $get): ?string => filled($get('closes_at')) ? 'closes_at' : null)
                                     ->beforeOrEqual(fn (Get $get): ?string => filled($get('period_ends_at')) ? 'period_ends_at' : null)
                                     ->validationMessages([
@@ -164,6 +191,7 @@ class AdmissionCycleForm
                                 DateTimePicker::make('payment_due_at')
                                     ->label('Enrollment payment due')
                                     ->validationAttribute('Enrollment payment due')
+                                    ->prefixIcon('heroicon-o-banknotes')
                                     ->afterOrEqual(fn (Get $get): ?string => filled($get('closes_at')) ? 'closes_at' : null)
                                     ->beforeOrEqual(fn (Get $get): ?string => filled($get('period_ends_at')) ? 'period_ends_at' : null)
                                     ->validationMessages([
@@ -177,6 +205,7 @@ class AdmissionCycleForm
                                 DateTimePicker::make('period_ends_at')
                                     ->label('Final admission cutoff')
                                     ->validationAttribute('Final admission cutoff')
+                                    ->prefixIcon('heroicon-o-lock-closed')
                                     ->afterOrEqual(fn (Get $get): ?string => filled($get('closes_at')) ? 'closes_at' : null)
                                     ->validationMessages([
                                         'after_or_equal' => 'Final admission cutoff must be on or after New applications close.',
@@ -193,12 +222,27 @@ class AdmissionCycleForm
                     ->icon('heroicon-o-academic-cap')
                     ->schema([
                         Section::make('Who can apply')
+                            ->icon('heroicon-o-user-plus')
                             ->compact()
+                            ->afterHeader([
+                                Text::make(fn (Get $get): string => self::programsStepSummary($get))
+                                    ->badge()
+                                    ->color(fn (Get $get): string => (count(array_filter((array) $get('accepted_paths'))) > 0 && count(array_filter((array) $get('programs'))) > 0) ? 'success' : 'gray'),
+                            ])
+                            ->extraAttributes(['class' => 'tala-cycle-intake-section'])
                             ->description('Programs are auto-detected from active programs with a published curriculum assigned for the target school year batch.')
                             ->schema([
                                 CheckboxList::make('accepted_paths')
                                     ->label('Student types')
                                     ->options(AdmissionCycle::studentTypeOptions())
+                                    ->descriptions([
+                                        AdmissionCycle::PathFirstYear => 'Senior high school graduates applying to college for the first time.',
+                                        AdmissionCycle::PathTransferee => 'Previously attended another college and applying to transfer here.',
+                                    ])
+                                    ->columns(['default' => 1, 'sm' => 2])
+                                    ->gridDirection(GridDirection::Row)
+                                    ->extraAttributes(['class' => 'tala-cycle-student-types'])
+                                    ->live()
                                     ->default([AdmissionCycle::PathFirstYear, AdmissionCycle::PathTransferee])
                                     ->required()
                                     ->validationMessages([
@@ -247,11 +291,13 @@ class AdmissionCycleForm
                                     ->multiple()
                                     ->searchable()
                                     ->preload()
+                                    ->live()
                                     ->required()
                                     ->validationMessages([
                                         'required' => 'Select at least one eligible accepting program.',
                                     ])
                                     ->helperText('Inactive programs or programs without an assigned curriculum for the target school year batch are disabled automatically.')
+                                    ->columnSpanFull()
                                     ->saveRelationshipsUsing(function (AdmissionCycle $record, array $state, Get $get): void {
                                         $paths = (array) $get('accepted_paths');
                                         $record->programs()->sync(collect($state)->mapWithKeys(fn (int|string $programId): array => [
@@ -264,10 +310,11 @@ class AdmissionCycleForm
                                 Placeholder::make('requirements_note')
                                     ->label('Requirements')
                                     ->content('After you save, you set the Freshman and Transferee requirements right here in this step.')
+                                    ->extraAttributes(['class' => 'tala-cycle-requirements-note'])
                                     ->visible(fn ($livewire): bool => ! $livewire instanceof EditAdmissionCycle)
                                     ->columnSpanFull(),
                             ])
-                            ->columns(2),
+                            ->columns(1),
                         Livewire::make(
                             RequirementSetsRelationManager::class,
                             fn ($livewire): array => $livewire instanceof EditAdmissionCycle ? $livewire->requirementSetsManagerProperties() : [],
@@ -277,10 +324,12 @@ class AdmissionCycleForm
                             ->columnSpanFull(),
                     ]),
             ])
+                ->contained(false)
                 ->skippable(fn (?AdmissionCycle $record): bool => $record instanceof AdmissionCycle)
                 ->persistStepInQueryString()
                 ->extraAttributes(['class' => 'tala-cycle-wizard'])
-                ->nextAction(fn (Action $action): Action => $action->label('Save & continue'))
+                ->previousAction(fn (Action $action): Action => $action->icon('heroicon-m-arrow-left')->labeledFrom(null))
+                ->nextAction(fn (Action $action): Action => $action->label('Save & continue')->icon('heroicon-m-arrow-right')->labeledFrom(null))
                 ->cancelAction(view('filament.admin.admission-cycles.wizard-cancel'))
                 ->submitAction(view('filament.admin.admission-cycles.wizard-submit'))
                 ->columnSpanFull(),
