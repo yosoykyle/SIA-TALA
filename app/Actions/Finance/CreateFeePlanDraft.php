@@ -31,7 +31,7 @@ class CreateFeePlanDraft
             Term::query()->whereKey($term->id)->lockForUpdate()->firstOrFail();
 
             if ($charges === [] || $obligations === []) {
-                throw ValidationException::withMessages(['fee_plan' => 'A Fee Plan requires reconciled fixed charges and explicit dated obligations.']);
+                throw ValidationException::withMessages(['fee_plan' => 'Add at least one charge and one scheduled payment date before saving this fee plan.']);
             }
             $this->validateRows($charges, $obligations);
 
@@ -68,7 +68,7 @@ class CreateFeePlanDraft
                 $amount = number_format((float) $obligation['amount'], 2, '.', '');
                 if (blank($obligation['code']) || blank($obligation['label']) || blank($obligation['purpose'])
                     || blank($obligation['due_at']) || (float) $amount < 0) {
-                    throw ValidationException::withMessages(['obligations' => 'Each obligation requires a code, label, purpose, due time, and non-negative amount.']);
+                    throw ValidationException::withMessages(['obligations' => 'Each scheduled payment requires a name, due date and time, and non-negative amount.']);
                 }
 
                 FeePlanObligation::query()->create([
@@ -86,7 +86,7 @@ class CreateFeePlanDraft
             $chargeTotal = number_format((float) collect($charges)->sum('amount'), 2, '.', '');
             $obligationTotal = number_format((float) collect($obligations)->sum('amount'), 2, '.', '');
             if ($chargeTotal !== $obligationTotal) {
-                throw ValidationException::withMessages(['obligations' => 'Obligations must reconcile exactly to fixed charges.']);
+                throw ValidationException::withMessages(['obligations' => 'Scheduled payment amounts must add up to the exact total charges.']);
             }
 
             return $plan->load(['charges', 'obligations']);
@@ -98,7 +98,7 @@ class CreateFeePlanDraft
     {
         foreach (['charges' => $charges, 'obligations' => $obligations] as $key => $rows) {
             if (collect($rows)->map(fn (array $row): string => mb_strtolower(trim((string) ($row['code'] ?? ''))))->duplicates()->isNotEmpty()) {
-                throw ValidationException::withMessages([$key => 'Use a different code for each '.($key === 'charges' ? 'charge' : 'payment obligation').'.']);
+                throw ValidationException::withMessages([$key => 'Use a different code for each '.($key === 'charges' ? 'charge' : 'scheduled payment').'.']);
             }
         }
         Validator::make(['obligations' => $obligations], ['obligations.*.due_at' => ['required', 'date']])->validate();

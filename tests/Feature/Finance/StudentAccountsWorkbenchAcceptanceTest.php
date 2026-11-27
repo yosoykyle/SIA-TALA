@@ -14,9 +14,12 @@ use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\Enrollments\Pages\AccountingAccountInspector;
 use App\Filament\Resources\Enrollments\Pages\ListEnrollments;
 use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
+use App\Filament\Resources\Enrollments\Tables\StudentAccountsTable;
+use App\Filament\Resources\FeePlans\FeePlanResource;
 use App\Filament\Resources\FeePlans\Pages\ListFeePlans;
 use App\Filament\Resources\StudentLifecycleChanges\Pages\ListStudentLifecycleChanges;
 use App\Filament\Resources\StudentLifecycleChanges\StudentLifecycleChangeResource;
+use App\Models\AcademicYear;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
 use App\Models\AdmissionDecision;
@@ -55,9 +58,9 @@ use App\Models\TermOffering;
 use App\Models\TranscriptRequest;
 use App\Models\User;
 use Carbon\CarbonImmutable;
-use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\Select;
+use Filament\Support\Facades\FilamentView;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
@@ -65,6 +68,8 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use Livewire\Features\SupportAttributes\AttributeCollection;
+use Livewire\Features\SupportQueryString\BaseUrl;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -1328,8 +1333,7 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
                 'tuition_rate_per_unit' => '1500',
                 'tuition_units' => '4',
             ])
-            ->assertMountedActionModalSee('Computed tuition: PHP 6,000.00 · Tuition Fee (4 units @ PHP 1,500.00/unit)')
-            ->callAction(TestAction::make('applyTuitionToCharges')->schemaComponent(schema: 'mountedActionSchema0'));
+            ->assertMountedActionModalSee('Computed tuition: PHP 6,000.00 · Tuition Fee (4 units @ PHP 1,500.00/unit)');
 
         $charges = array_values($component->get('mountedActions.0.data.charges') ?? []);
         $this->assertCount(1, $charges);
@@ -1365,8 +1369,7 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
                 'tuition_rate_per_unit' => '1200',
                 'tuition_units' => '18',
             ])
-            ->assertMountedActionModalSee('Computed tuition: PHP 21,600.00 · Tuition Fee (18 units @ PHP 1,200.00/unit)')
-            ->callAction(TestAction::make('applyTuitionToCharges')->schemaComponent(schema: 'mountedActionSchema0'));
+            ->assertMountedActionModalSee('Computed tuition: PHP 21,600.00 · Tuition Fee (18 units @ PHP 1,200.00/unit)');
 
         $charges = array_values($component->get('mountedActions.0.data.charges') ?? []);
         $this->assertCount(1, $charges);
@@ -1377,8 +1380,7 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
             ->setActionData([
                 'tuition_rate_per_unit' => '1250',
                 'tuition_units' => '18',
-            ])
-            ->callAction(TestAction::make('applyTuitionToCharges')->schemaComponent(schema: 'mountedActionSchema0'));
+            ]);
 
         $updatedCharges = array_values($component->get('mountedActions.0.data.charges') ?? []);
         $this->assertCount(1, $updatedCharges);
@@ -1410,6 +1412,182 @@ final class StudentAccountsWorkbenchAcceptanceTest extends TestCase
             ->withQueryParams(['view' => 'history'])
             ->test(ViewEnrollment::class, ['record' => $fixture['enrollment']->id])
             ->assertSee('Export verified payments (Excel CSV)');
+    }
+
+    public function test_student_accounts_term_filter_formats_academic_year_and_excludes_unactivated_draft_terms(): void
+    {
+        $accounting = $this->accounting();
+        $academicYear = AcademicYear::factory()->create(['label' => 'AY 2026-2027']);
+        $activeTerm = Term::factory()->create([
+            'academic_year_id' => $academicYear->id,
+            'label' => '1st Semester',
+            'state' => Term::StateActive,
+            'starts_on' => now(),
+            'ends_on' => now()->addMonths(4),
+        ]);
+        $emptyDraftTerm = Term::factory()->create([
+            'academic_year_id' => $academicYear->id,
+            'label' => 'Draft Future Term',
+            'state' => Term::StateDraft,
+            'starts_on' => now()->addMonths(6),
+            'ends_on' => now()->addMonths(10),
+        ]);
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+        $singleValidOptions = StudentAccountsTable::termFilterOptions();
+        $this->assertSame('AY 2026-2027 · 1st Semester', $singleValidOptions[$activeTerm->id] ?? null);
+        $this->assertArrayNotHasKey($emptyDraftTerm->id, $singleValidOptions);
+
+        // An unactivated Draft term must not force a multi-term gate when only one valid term exists.
+        $singleTermWorkspace = Livewire::actingAs($accounting)
+            ->withQueryParams(['tab' => 'accounts'])
+            ->test(ListEnrollments::class);
+        $this->assertFalse($singleTermWorkspace->instance()->accountingTermGateActive());
+        Livewire::withQueryParams([]);
+
+        // A historical Draft term that already holds a Term Account remains selectable.
+        $historicalDraftTerm = Term::factory()->create([
+            'academic_year_id' => $academicYear->id,
+            'label' => 'Historical Draft Term',
+            'state' => Term::StateDraft,
+            'starts_on' => now()->subYear(),
+        ]);
+        $historicalEnrollment = Enrollment::factory()->create([
+            'term_id' => $historicalDraftTerm->id,
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+        ]);
+        TermAccount::factory()->create([
+            'enrollment_id' => $historicalEnrollment->id,
+            'credential_user_id' => $historicalEnrollment->credential_user_id,
+            'term_id' => $historicalDraftTerm->id,
+        ]);
+
+        $options = StudentAccountsTable::termFilterOptions();
+        $this->assertSame('AY 2026-2027 · 1st Semester', $options[$activeTerm->id] ?? null);
+        $this->assertSame('AY 2026-2027 · Historical Draft Term', $options[$historicalDraftTerm->id] ?? null);
+        $this->assertArrayNotHasKey($emptyDraftTerm->id, $options);
+    }
+
+    public function test_accounting_workspace_actions_and_inspector_controls_succeed_for_accounting_and_remain_forbidden_for_other_roles(): void
+    {
+        Storage::fake('local');
+        $this->travelTo(CarbonImmutable::parse('2026-10-18 10:00:00', 'Asia/Manila'));
+
+        $accounting = $this->accounting();
+        Role::findOrCreate(User::StaffRoleRegistrar, 'web');
+        $registrar = User::factory()->create([
+            'status' => User::StatusActive,
+            'email_verified_at' => now(),
+        ]);
+        $registrar->assignRole(User::StaffRoleRegistrar);
+
+        $fixture = $this->accountFixture('workspace-actions@example.test', 'SYN-ACT-0100');
+        $fixture['term']->update(['state' => Term::StateActive, 'label' => '1st Semester']);
+        Term::factory()->create([
+            'state' => Term::StateClosed,
+            'label' => '2nd Semester Prior',
+            'starts_on' => now()->subYear(),
+        ]);
+        $obligation = $fixture['assessment']->obligations()->firstOrFail();
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        Filament::bootCurrentPanel();
+
+        // Targeted SPA exception protects /admin/enrollments* without disabling panel-wide SPA mode.
+        $this->assertFalse(FilamentView::hasSpaMode(EnrollmentResource::getUrl('index', ['tab' => 'accounts'])));
+        $this->assertTrue(FilamentView::hasSpaMode(FeePlanResource::getUrl('index')));
+
+        // Nested AccountingAccountInspector must not register competing #[Url] attributes.
+        $inspectorUrlAttributes = AttributeCollection::fromComponent(new AccountingAccountInspector)
+            ->filter(fn (object $attribute): bool => $attribute instanceof BaseUrl);
+        $this->assertCount(0, $inspectorUrlAttributes);
+
+        // Accounting: gated workspace always mounts action-modals container, header actions execute, and section switches.
+        $workspace = Livewire::actingAs($accounting)
+            ->withQueryParams(['tab' => 'accounts'])
+            ->test(ListEnrollments::class)
+            ->assertSeeHtml('wire:partial="action-modals"')
+            ->call('selectAccountingTerm', $fixture['term']->id)
+            ->assertActionVisible('accountingAllTerms')
+            ->assertActionVisible('accountingChangeTerm')
+            ->assertActionVisible('exportAccountStatus')
+            ->call('showAccountingSection', 'history')
+            ->assertSet('accountingSection', 'history')
+            ->assertSet('selectedAccountingId', $fixture['enrollment']->id)
+            ->callAction('accountingAllTerms')
+            ->assertSet('accountingScope', 'all')
+            ->callAction('accountingChangeTerm')
+            ->assertSee('Choose a term or student');
+
+        $this->assertTrue($workspace->instance()->accountingTermGateActive());
+
+        $workspace
+            ->call('selectAccountingTerm', $fixture['term']->id)
+            ->callAction('exportAccountStatus')
+            ->assertHasNoActionErrors()
+            ->assertRedirect();
+        Livewire::withQueryParams([]);
+
+        // Accounting: inspector recordOnsitePayment and recordApprovedCoverage succeed inside split-pane workspace.
+        Livewire::actingAs($accounting)
+            ->test(AccountingAccountInspector::class, [
+                'record' => $fixture['enrollment']->id,
+                'returnQueue' => 'accounts',
+            ])
+            ->callAction('recordOnsitePayment', [
+                'channel' => 'cash',
+                'amount' => '2000.00',
+                'or_number' => 'OR-QA-107-001',
+                'payment_reference' => 'CASH-QA-107',
+                'confirmed_at' => '2026-10-18 10:00:00',
+            ])
+            ->assertHasNoActionErrors()
+            ->assertNotified('Onsite payment recorded and applied to this account.')
+            ->assertDispatched('accounting-record-updated')
+            ->callAction('recordApprovedCoverage', [
+                'mode' => 'new',
+                'obligation_id' => $obligation->id,
+                'category' => ApprovedCoverage::CategoryScholarship,
+                'amount' => '1000.00',
+                'safe_source_description' => 'Academic Scholarship Grant',
+                'authority_reference' => 'SCH-QA-107',
+                'authority_date' => '2026-10-18',
+                'effective_date' => '2026-10-18',
+            ])
+            ->assertHasNoActionErrors()
+            ->assertNotified('Approved coverage recorded')
+            ->assertDispatched('accounting-record-updated')
+            ->assertNoRedirect();
+
+        $this->assertSame(1, Payment::query()->where('term_account_id', $fixture['account']->id)->count());
+        $this->assertSame(1, ApprovedCoverage::query()->where('term_account_id', $fixture['account']->id)->count());
+
+        // Non-Accounting (Registrar): Accounting methods and actions remain forbidden / blocked.
+        Livewire::actingAs($registrar)
+            ->test(ListEnrollments::class)
+            ->assertActionDoesNotExist('exportAccountStatus');
+
+        foreach ([
+            ['showAccountingSection', ['history']],
+            ['showAllAccountingTerms', []],
+            ['resetAccountingScope', []],
+            ['accountStatusExportData', []],
+        ] as [$method, $args]) {
+            Livewire::actingAs($registrar)
+                ->test(ListEnrollments::class)
+                ->call($method, ...$args)
+                ->assertForbidden();
+        }
+
+        Livewire::actingAs($registrar)
+            ->test(AccountingAccountInspector::class, ['record' => $fixture['enrollment']->id])
+            ->assertForbidden();
+
+        Livewire::actingAs($registrar)
+            ->test(ViewEnrollment::class, ['record' => $fixture['enrollment']->id])
+            ->assertActionHidden('recordOnsitePayment')
+            ->assertActionHidden('recordApprovedCoverage');
     }
 
     /** @return array{Enrollment,Program,Term,CurriculumVersion,Section,User} */

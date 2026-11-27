@@ -51,7 +51,7 @@
                                 <span class="tala-workspace-card__icon payment-channels-preview-card__icon" aria-hidden="true">
                                     <x-filament::icon icon="heroicon-o-eye" />
                                 </span>
-                                <h3 id="payment-channels-preview-heading">Students and applicants &ldquo;How to pay&rdquo; preview</h3>
+                                <h2 id="payment-channels-preview-heading">Live &ldquo;How to pay&rdquo; preview</h2>
                             </div>
                             @if ($preview['isDirty'])
                                 <x-filament::badge color="warning" size="sm">Unsaved</x-filament::badge>
@@ -69,7 +69,7 @@
                         <div class="payment-channels-preview-card__footer">
                             <p class="payment-channels-actions__note">
                                 @if ($preview['isDirty'])
-                                    Preview reflects your unsaved changes. Click <strong>Save payment channels</strong> above to confirm and publish.
+                                    Preview reflects your unsaved changes. Select <strong>Save payment channels</strong> above to confirm and publish.
                                 @else
                                     Live preview of student and applicant instructions. Change any channel on the left to save updates.
                                 @endif
@@ -85,7 +85,7 @@
                         <span class="tala-workspace-card__icon payment-channels-preview-card__icon" aria-hidden="true">
                             <x-filament::icon icon="heroicon-o-eye" />
                         </span>
-                        <h3 id="payment-channels-preview-heading">Students and applicants &ldquo;How to pay&rdquo; preview</h3>
+                        <h2 id="payment-channels-preview-heading">&ldquo;How to pay&rdquo; preview</h2>
                     </div>
                     <x-filament::badge color="gray" size="sm">View only</x-filament::badge>
                 </header>
@@ -100,7 +100,7 @@
 
                 <div class="payment-channels-preview-card__footer">
                     <p class="payment-channels-actions__note">
-                        Read-only preview of live payment instructions. Click <strong>Edit payment channels</strong> above to update Bank Transfer, E-Wallets, or Campus Cashier details.
+                        Read-only preview of live payment instructions. Select <strong>Edit payment channels</strong> above to update Bank Transfer, E-Wallets, or Campus Cashier details.
                     </p>
                 </div>
             </section>

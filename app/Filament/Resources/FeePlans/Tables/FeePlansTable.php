@@ -74,6 +74,9 @@ class FeePlansTable
                     ->preload()
                     ->options(fn (): array => Term::query()
                         ->with('academicYear')
+                        ->where(fn (Builder $query): Builder => $query
+                            ->where('state', '!=', Term::StateDraft)
+                            ->orWhereIn('id', FeePlan::query()->select('term_id')))
                         ->orderByDesc('starts_on')
                         ->get()
                         ->mapWithKeys(fn (Term $term): array => [

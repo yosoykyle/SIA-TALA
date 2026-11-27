@@ -140,6 +140,7 @@
                     <div @class([
                         'tala-how-to-pay__accounts-grid',
                         'tala-where-to-pay__electronic-grid',
+                        'tala-how-to-pay__accounts-grid--single' => ! $isMultiAccounts,
                         'tala-how-to-pay__accounts-grid--multi' => $isMultiAccounts,
                         'tala-where-to-pay__electronic-grid--two' => $isMultiAccounts,
                     ])>
@@ -161,7 +162,11 @@
                                     .($needsDisambiguation && $accountNumber !== '' ? ' ending '.substr($accountNumber, -4) : '');
                                 $copyScreenReaderSuffix = $copyLabelSubject.' '.strtolower($accountNumberLabel);
                             @endphp
-                            <article class="tala-channel-card tala-channel-card--electronic">
+                            <article @class([
+                                'tala-channel-card',
+                                'tala-channel-card--electronic',
+                                'tala-channel-card--single-meta' => $showAccountNameRow && ! $showBranchRow,
+                            ])>
                                 @if ($isBlankPreview)
                                     <p class="tala-channel-preview-empty">{{ $isBankGroup ? 'Add bank account details above to preview payment instructions.' : 'Add e-wallet account details above to preview payment instructions.' }}</p>
                                 @else

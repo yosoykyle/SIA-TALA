@@ -47,16 +47,21 @@
                         @endif
                     </h2>
                     <p class="accounting-overview-strip__meta">Across all active and prior terms</p>
+                    @if (! $hasPendingWork)
+                        <p class="accounting-overview-strip__detail">Assessments, submitted receipts, unpaid enrollments, and student status changes are all caught up.</p>
+                    @endif
                 </div>
             </div>
             <dl class="accounting-overview-strip__metrics">
                 <div>
                     <dt>Open term accounts</dt>
                     <dd>{{ $openAccounts }}</dd>
+                    <dd class="accounting-overview-strip__metric-note">Active term accounts with balances or ongoing billing</dd>
                 </div>
                 <div @class(['is-warning' => $torRestricted > 0])>
                     <dt>TOR restrictions</dt>
                     <dd>{{ $torRestricted }}</dd>
+                    <dd class="accounting-overview-strip__metric-note">Transcript of Records holds awaiting Accounting clearance</dd>
                 </div>
             </dl>
         </header>
@@ -113,7 +118,7 @@
                     <div class="tala-workflow-step__figure">
                         <x-workspace-figure :value="$awaitingPaymentCount" :label="\Illuminate\Support\Str::plural('account', $awaitingPaymentCount)" />
                     </div>
-                    <p class="tala-workflow-step__desc">Assessed enrollments. Record the payment to finish enrollment.</p>
+                    <p class="tala-workflow-step__desc">Assessed applicant and student enrollments. Record the payment to finish enrollment.</p>
                 </div>
                 <div class="tala-workflow-step__action tala-workspace-feature__action">
                     <x-filament::button tag="a" :href="$queueUrl('awaiting_payment')" :color="$priorityStep === 'awaiting_payment' ? 'primary' : 'gray'" icon="heroicon-m-arrow-right" icon-position="after">Record payments</x-filament::button>
@@ -163,29 +168,31 @@
         </ul>
     </section>
     <div class="accounting-overview-tools">
-        <form method="get" action="{{ \App\Filament\Resources\Enrollments\EnrollmentResource::getUrl('index') }}" class="tala-task-surface accounting-student-lookup" aria-labelledby="accounting-student-lookup-label">
-            <input type="hidden" name="tab" value="accounts">
-            <label id="accounting-student-lookup-label" for="accounting-student-lookup-input" class="accounting-student-lookup__label">
-                <span class="tala-workspace-card__icon" aria-hidden="true">
-                    <x-filament::icon icon="heroicon-o-users" />
-                </span>
-                <span>Find a student</span>
-            </label>
-            <div class="accounting-student-lookup__row">
-                <div class="accounting-student-lookup__field">
-                    <x-filament::input.wrapper prefix-icon="heroicon-m-magnifying-glass">
-                        <x-filament::input type="search" name="search" id="accounting-student-lookup-input" placeholder="Name or student number" />
-                    </x-filament::input.wrapper>
+        <search>
+            <form method="get" action="{{ \App\Filament\Resources\Enrollments\EnrollmentResource::getUrl('index') }}" class="tala-task-surface accounting-student-lookup" aria-labelledby="accounting-student-lookup-label">
+                <input type="hidden" name="tab" value="accounts">
+                <label id="accounting-student-lookup-label" for="accounting-student-lookup-input" class="accounting-student-lookup__label">
+                    <span class="tala-workspace-card__icon" aria-hidden="true">
+                        <x-filament::icon icon="heroicon-o-users" />
+                    </span>
+                    <span>Find a student or applicant</span>
+                </label>
+                <div class="accounting-student-lookup__row">
+                    <div class="accounting-student-lookup__field">
+                        <x-filament::input.wrapper prefix-icon="heroicon-m-magnifying-glass">
+                            <x-filament::input type="search" name="search" id="accounting-student-lookup-input" placeholder="Name, student number, or application ref" autocorrect="off" autocapitalize="none" spellcheck="false" enterkeyhint="search" />
+                        </x-filament::input.wrapper>
+                    </div>
+                    <x-filament::button type="submit" color="gray" icon="heroicon-m-arrow-right" icon-position="after" class="accounting-student-lookup__submit">Search accounts</x-filament::button>
                 </div>
-                <x-filament::button type="submit" color="gray" icon="heroicon-m-arrow-right" icon-position="after" class="accounting-student-lookup__submit">Search accounts</x-filament::button>
-            </div>
-        </form>
+            </form>
+        </search>
         <nav class="tala-task-surface accounting-records-launcher" aria-label="Accounts and transcript restrictions">
             <a {{ \Filament\Support\generate_href_html($queueUrl('accounts')) }} class="tala-workspace-card tala-workspace-card--compact accounting-record-link">
                 <span class="tala-workspace-card__icon" aria-hidden="true"><x-filament::icon icon="heroicon-o-folder-open" /></span>
                 <span class="tala-workspace-card__content">
                     <span class="tala-workspace-card__title">All student accounts</span>
-                    <span class="tala-workspace-card__description">Check balances, record onsite payments and manage coverage.</span>
+                    <span class="tala-workspace-card__description">Check applicant and student balances, record onsite payments and manage coverage.</span>
                 </span>
                 <x-filament::icon icon="heroicon-m-chevron-right" class="tala-workspace-card__arrow" aria-hidden="true" />
             </a>

@@ -12,6 +12,8 @@ use App\Filament\Resources\Enrollments\Pages\ViewEnrollment;
 use App\Filament\Resources\FeePlans\FeePlanResource;
 use App\Filament\Resources\FeePlans\Pages\ListFeePlans;
 use App\Filament\Resources\FeePlans\Pages\ViewFeePlan;
+use App\Filament\Resources\FeePlans\Schemas\FeePlanForm;
+use App\Models\AcademicYear;
 use App\Models\Assessment;
 use App\Models\CurriculumEntry;
 use App\Models\Enrollment;
@@ -86,7 +88,7 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
     {
         $accounting = $this->staff(User::StaffRoleAccounting);
         $program = Program::factory()->create();
-        $term = Term::factory()->create();
+        $term = Term::factory()->create(['state' => Term::StateActive]);
 
         $component = Livewire::actingAs($accounting)
             ->test(ListFeePlans::class)
@@ -139,7 +141,7 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
     {
         $actor = $this->staff(User::StaffRoleAccounting);
         $program = Program::factory()->create();
-        $term = Term::factory()->create();
+        $term = Term::factory()->create(['state' => Term::StateActive]);
         Livewire::actingAs($actor)->test(ListFeePlans::class)->mountAction('createDraft')
             ->setActionData([
                 'program_id' => $program->id, 'term_id' => $term->id,
@@ -167,7 +169,7 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
     {
         $actor = $this->staff(User::StaffRoleAccounting);
         $program = Program::factory()->create();
-        $term = Term::factory()->create();
+        $term = Term::factory()->create(['state' => Term::StateActive]);
         $component = Livewire::actingAs($actor)->test(ListFeePlans::class)->mountAction('createDraft');
         $chargeKey = array_key_first($component->get('mountedActions.0.data.charges'));
         $paymentKey = array_key_first($component->get('mountedActions.0.data.obligations'));
@@ -184,7 +186,7 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
     public function test_new_draft_modal_has_somewhere_to_open_while_the_term_gate_hides_the_table(): void
     {
         $accounting = $this->staff(User::StaffRoleAccounting);
-        Term::factory()->count(2)->create();
+        Term::factory()->count(2)->create(['state' => Term::StateActive]);
 
         $page = Livewire::actingAs($accounting)->test(ListFeePlans::class);
 
@@ -788,6 +790,130 @@ final class TAL68FinanceAssessmentLedgerTest extends TestCase
             ->assertDontSee('PAY-ENROLLMENT-CODE')
             ->assertDontSee('PAY-LATER-CODE')
             ->assertDontSee('TermPayment');
+    }
+
+    public function test_fee_plan_term_options_disambiguate_academic_year_and_exclude_unlinked_draft_terms(): void
+    {
+        $accounting = $this->staff(User::StaffRoleAccounting);
+        $yearA = AcademicYear::factory()->create(['label' => 'AY 2026-2027']);
+        $yearB = AcademicYear::factory()->create(['label' => 'AY 2027-2028']);
+        $activeTerm = Term::factory()->for($yearA)->create([
+            'label' => '1st Semester',
+            'state' => Term::StateActive,
+            'starts_on' => '2026-08-01',
+            'ends_on' => '2026-12-15',
+        ]);
+        $closedTerm = Term::factory()->for($yearB)->create([
+            'label' => '1st Semester',
+            'state' => Term::StateClosed,
+            'starts_on' => '2027-08-01',
+            'ends_on' => '2027-12-15',
+        ]);
+        $unlinkedDraftTerm = Term::factory()->for($yearB)->create([
+            'label' => 'Draft-Only Term',
+            'state' => Term::StateDraft,
+            'starts_on' => '2028-08-01',
+            'ends_on' => '2028-12-15',
+        ]);
+        $linkedDraftTerm = Term::factory()->for($yearA)->create([
+            'label' => 'Historical Draft Term',
+            'state' => Term::StateDraft,
+            'starts_on' => '2025-08-01',
+            'ends_on' => '2025-12-15',
+        ]);
+        $this->draftPlan($accounting, term: $linkedDraftTerm);
+
+        $formOptions = FeePlanForm::termOptions();
+        $this->assertSame('AY 2026-2027 · 1st Semester', $formOptions[$activeTerm->id] ?? null);
+        $this->assertSame('AY 2027-2028 · 1st Semester', $formOptions[$closedTerm->id] ?? null);
+        $this->assertArrayNotHasKey($unlinkedDraftTerm->id, $formOptions);
+        $this->assertArrayNotHasKey($linkedDraftTerm->id, $formOptions);
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $page = Livewire::actingAs($accounting)->test(ListFeePlans::class);
+        $tableTermOptions = $page->instance()->getTable()->getFilter('term')->getOptions();
+
+        $this->assertSame('AY 2026-2027 · 1st Semester', $tableTermOptions[$activeTerm->id] ?? null);
+        $this->assertSame('AY 2027-2028 · 1st Semester', $tableTermOptions[$closedTerm->id] ?? null);
+        $this->assertSame('AY 2026-2027 · Historical Draft Term', $tableTermOptions[$linkedDraftTerm->id] ?? null);
+        $this->assertArrayNotHasKey($unlinkedDraftTerm->id, $tableTermOptions);
+    }
+
+    public function test_fee_plans_term_gate_ignores_unactivated_draft_terms_without_plans(): void
+    {
+        $accounting = $this->staff(User::StaffRoleAccounting);
+        Term::factory()->create(['state' => Term::StateActive]);
+        Term::factory()->create(['state' => Term::StateDraft]);
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $page = Livewire::actingAs($accounting)->test(ListFeePlans::class);
+
+        $this->assertFalse($page->instance()->hasMultipleTerms());
+        $this->assertFalse($page->instance()->feePlanGateActive());
+    }
+
+    public function test_fee_plan_tuition_calculator_rejects_fractional_units_and_auto_applies_whole_units(): void
+    {
+        $accounting = $this->staff(User::StaffRoleAccounting);
+        $program = Program::factory()->create(['is_active' => true]);
+        $term = Term::factory()->create(['state' => Term::StateActive]);
+
+        $this->assertNull(FeePlanForm::applyTuitionToCharges([['label' => '', 'amount' => null]], '1500', '20.5'));
+        $this->assertSame('Units must be a whole number (e.g., 18 or 21).', FeePlanForm::tuitionCalculatorSummary('1500', '20.5'));
+
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $component = Livewire::actingAs($accounting)
+            ->test(ListFeePlans::class)
+            ->mountAction('createDraft')
+            ->setActionData([
+                'program_id' => $program->id,
+                'term_id' => $term->id,
+                'tuition_rate_per_unit' => '1,500',
+                'tuition_units' => '21',
+            ]);
+
+        $charges = array_values($component->get('mountedActions.0.data.charges') ?? []);
+        $this->assertCount(1, $charges);
+        $this->assertSame('Tuition Fee (21 units @ PHP 1,500.00/unit)', $charges[0]['label']);
+        $this->assertSame('31500.00', $charges[0]['amount']);
+
+        $component
+            ->setActionData([
+                'tuition_rate_per_unit' => '1500',
+                'tuition_units' => '20.5',
+            ])
+            ->callMountedAction()
+            ->assertHasActionErrors(['tuition_units' => 'integer']);
+    }
+
+    public function test_fee_plan_draft_reconciliation_returns_plain_language_error(): void
+    {
+        $actor = $this->staff(User::StaffRoleAccounting);
+        $plan = $this->draftPlan($actor);
+        $charges = [['code' => 'TUITION', 'label' => 'Tuition Fee', 'amount' => '31500.00']];
+        $obligations = [[
+            'code' => 'ENROLLMENT',
+            'label' => 'Enrollment payment',
+            'purpose' => 'Enrollment',
+            'amount' => '30000.00',
+            'due_at' => '2026-10-01 12:00:00',
+            'required_for_enrollment' => true,
+        ]];
+
+        foreach ([
+            fn () => app(CreateFeePlanDraft::class)->execute($plan->program, $plan->term, $charges, $actor, $obligations),
+            fn () => app(UpdateFeePlanDraft::class)->execute($plan, $charges, $obligations, $actor),
+        ] as $operation) {
+            try {
+                $operation();
+                $this->fail('Mismatched obligations were accepted.');
+            } catch (ValidationException $exception) {
+                $this->assertSame(
+                    'Scheduled payment amounts must add up to the exact total charges.',
+                    $exception->errors()['obligations'][0],
+                );
+            }
+        }
     }
 
     private function draftPlan(User $actor, ?Program $program = null, ?Term $term = null): FeePlan

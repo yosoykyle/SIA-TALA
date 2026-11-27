@@ -119,7 +119,7 @@ class ListEnrollments extends ListRecords
 
     private function totalTermsCount(): int
     {
-        return $this->memoTotalTerms ??= Term::query()->count();
+        return $this->memoTotalTerms ??= StudentAccountsTable::applicableTermsQuery()->count();
     }
 
     /** @return list<int> */
@@ -223,7 +223,8 @@ class ListEnrollments extends ListRecords
 
     public function showAccountingSection(string $section): void
     {
-        abort_unless($this->isAccounting() && in_array($section, ['work', 'history'], true), 404);
+        abort_unless($this->isAccounting(), 403);
+        abort_unless(in_array($section, ['work', 'history'], true), 404);
         $case = $this->selectedAccountingRecord();
         $hasLifecycleHistory = $case !== null && app(LifecycleAccountingReview::class)->safeStatus($case)['reviewed'] > 0;
         abort_unless($case !== null && ($section !== 'history' || $case->termAccount !== null || $hasLifecycleHistory), 404);
@@ -489,6 +490,7 @@ class ListEnrollments extends ListRecords
     private function accountingActiveTerms(): Collection
     {
         return $this->memoActiveTerms ??= Term::query()
+            ->with('academicYear')
             ->where('state', Term::StateActive)
             ->latest('starts_on')
             ->latest('id')
@@ -880,6 +882,7 @@ class ListEnrollments extends ListRecords
                 Action::make('accountingAllTerms')
                     ->label('All terms')
                     ->color('gray')
+                    ->authorize(fn (): bool => $this->isAccounting())
                     ->visible(fn (): bool => $this->activeTab === 'accounts'
                         && ! $this->accountingTermGateActive()
                         && filled(data_get($this->tableFilters, 'term.value')))
@@ -888,6 +891,7 @@ class ListEnrollments extends ListRecords
                     ->label('Change term')
                     ->icon(Heroicon::OutlinedCalendarDays)
                     ->color('gray')
+                    ->authorize(fn (): bool => $this->isAccounting())
                     ->visible(fn (): bool => $this->activeTab === 'accounts'
                         && ! $this->accountingTermGateActive()
                         && $this->totalTermsCount() > 1)
@@ -895,6 +899,7 @@ class ListEnrollments extends ListRecords
                 Action::make('exportAccountStatus')
                     ->label('Export account status')->color('gray')
                     ->icon('heroicon-o-arrow-down-tray')
+                    ->authorize(fn (): bool => $this->isAccounting())
                     ->disabled(fn (): bool => $this->activeTab !== 'accounts'
                         || $this->accountingTermGateActive()
                         || ! (clone $this->getFilteredSortedTableQuery())->whereHas('termAccount')->exists())
@@ -932,6 +937,7 @@ class ListEnrollments extends ListRecords
                     ])
                     ->visible(fn (): bool => $this->activeTab === 'accounts' && ! $this->accountingTermGateActive())
                     ->action(function (Action $action): void {
+                        abort_unless($this->isAccounting(), 403);
                         try {
                             $query = clone $this->getFilteredSortedTableQuery();
                             $excluded = (clone $query)->whereDoesntHave('termAccount')->count();
@@ -987,10 +993,12 @@ class ListEnrollments extends ListRecords
         $termId = data_get($this->tableFilters, 'term.value');
         $programId = data_get($this->tableFilters, 'program.value');
 
+        $term = filled($termId) ? Term::query()->with('academicYear')->find($termId) : null;
+
         return [
             'count' => $count,
             'excluded' => $excluded,
-            'term' => filled($termId) ? (Term::find($termId)?->label ?? 'Selected term') : 'All terms',
+            'term' => filled($termId) ? ($term instanceof Term ? StudentAccountsTable::formatTermLabel($term) : 'Selected term') : 'All terms',
             'program' => filled($programId) ? (Program::find($programId)?->name ?? 'Selected program') : 'All programs',
             'search' => $this->getTableSearch(),
             'purpose' => CreateContextualFinanceExport::AccountStatusPurpose,

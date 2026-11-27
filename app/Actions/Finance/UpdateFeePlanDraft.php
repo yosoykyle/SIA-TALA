@@ -28,7 +28,7 @@ class UpdateFeePlanDraft
                 throw ValidationException::withMessages(['fee_plan' => 'This Fee Plan changed after you opened it. Close this form and review the current version before saving.']);
             }
             if ($locked->state !== FeePlan::StateDraft || $charges === [] || $obligations === []) {
-                throw ValidationException::withMessages(['charges' => 'Only a Draft Fee Plan with fixed lines may be edited.']);
+                throw ValidationException::withMessages(['charges' => 'Only a Draft Fee Plan with at least one charge and one scheduled payment may be edited.']);
             }
             app(CreateFeePlanDraft::class)->validateRows($charges, $obligations);
             $locked->charges()->delete();
@@ -42,7 +42,7 @@ class UpdateFeePlanDraft
             }
             foreach ($obligations as $index => $obligation) {
                 if (blank($obligation['code']) || blank($obligation['label']) || blank($obligation['purpose']) || blank($obligation['due_at']) || (float) $obligation['amount'] < 0) {
-                    throw ValidationException::withMessages(['obligations' => 'Each obligation requires a code, label, purpose, due time, and non-negative amount.']);
+                    throw ValidationException::withMessages(['obligations' => 'Each scheduled payment requires a name, due date and time, and non-negative amount.']);
                 }
                 FeePlanObligation::query()->create([
                     'fee_plan_id' => $locked->id, 'sequence' => $index + 1, 'code' => $obligation['code'],
@@ -52,7 +52,7 @@ class UpdateFeePlanDraft
                 ]);
             }
             if (number_format((float) collect($charges)->sum('amount'), 2, '.', '') !== number_format((float) collect($obligations)->sum('amount'), 2, '.', '')) {
-                throw ValidationException::withMessages(['obligations' => 'Obligations must reconcile exactly to fixed charges.']);
+                throw ValidationException::withMessages(['obligations' => 'Scheduled payment amounts must add up to the exact total charges.']);
             }
 
             return $locked->load(['charges', 'obligations']);

@@ -16,7 +16,7 @@
             <div class="accounting-fee-plan-summary__badges">
                 <x-filament::badge :color="$statusColor">{{ $status }}</x-filament::badge>
                 @if ($plan->published_at)
-                    <span class="accounting-fee-plan-meta">Last updated {{ \App\Actions\Finance\AccountingDisplay::dateTime($plan->published_at, 'M j, Y') }}</span>
+                    <span class="accounting-fee-plan-meta">Published {{ \App\Actions\Finance\AccountingDisplay::dateTime($plan->published_at, 'M j, Y') }}</span>
                 @elseif ($plan->supersedes)
                     <span class="accounting-fee-plan-meta">Updates current plan</span>
                 @endif
@@ -193,6 +193,10 @@
                             $versionDate = $version->published_at
                                 ? 'Published '.\App\Actions\Finance\AccountingDisplay::dateTime($version->published_at, 'M j, Y')
                                 : ($version->updated_at ? 'Updated '.\App\Actions\Finance\AccountingDisplay::dateTime($version->updated_at, 'M j, Y') : null);
+                            $versionMeta = collect([
+                                $versionDate ?? 'Saved',
+                                $version->charges_sum_amount !== null ? \App\Actions\Finance\AccountingDisplay::money($version->charges_sum_amount) : null,
+                            ])->filter()->implode(' · ');
                         @endphp
                         <li @class(['is-current' => $version->id === $plan->id])>
                             @if ($version->id === $plan->id)
@@ -201,7 +205,7 @@
                                         <strong>{{ $versionHeading }}</strong>
                                         <x-filament::badge size="sm" color="success">Viewing</x-filament::badge>
                                     </div>
-                                    <p class="accounting-fee-plan-version-card__meta">{{ $versionDate ?? 'Saved' }}</p>
+                                    <p class="accounting-fee-plan-version-card__meta">{{ $versionMeta }}</p>
                                 </div>
                             @else
                                 <a class="accounting-fee-plan-version-card" {{ \Filament\Support\generate_href_html(\App\Filament\Resources\FeePlans\FeePlanResource::getUrl('view', ['record' => $version])) }}>
@@ -212,7 +216,7 @@
                                             <x-filament::icon icon="heroicon-m-chevron-right" />
                                         </span>
                                     </div>
-                                    <p class="accounting-fee-plan-version-card__meta">{{ $versionDate ?? 'Saved' }}</p>
+                                    <p class="accounting-fee-plan-version-card__meta">{{ $versionMeta }}</p>
                                 </a>
                             @endif
                         </li>
