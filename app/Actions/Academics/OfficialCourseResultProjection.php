@@ -3,12 +3,10 @@
 namespace App\Actions\Academics;
 
 use App\Actions\Grades\IncDeadlineService;
-use App\Models\AcademicYear;
 use App\Models\CourseDropRecord;
 use App\Models\CourseEnrollment;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
-use App\Models\CurriculumVersion;
 use App\Models\GradeOutcomeEvent;
 use App\Models\PriorAcademicCredit;
 use App\Models\ProgramShiftCreditEntry;
@@ -195,15 +193,12 @@ class OfficialCourseResultProjection
         $term = $courseEnrollment->enrollment?->term;
         $yearLevel = $courseEnrollment->termOffering?->curriculumEntry?->year_level;
 
-        $startYear = $term?->academicYear instanceof AcademicYear
-            ? (CurriculumVersion::extractAcademicYearStart($term->academicYear) ?? (int) ($term->starts_on?->year ?? 9999))
-            : (int) ($term?->starts_on?->year ?? 9999);
-        $termOrder = match ($term?->type) {
-            Term::TypeFirstSemester => 1,
-            Term::TypeSecondSemester => 2,
-            Term::TypeSpecialTerm => 3,
-            default => 4,
-        };
+        $periodSortKey = sprintf(
+            '%s|%s|%010d',
+            $term?->ends_on?->toDateString() ?? '9999-12-31',
+            $term?->starts_on?->toDateString() ?? '9999-12-31',
+            (int) ($term?->id ?? 0),
+        );
 
         return [
             'course_enrollment' => $courseEnrollment,
@@ -215,7 +210,7 @@ class OfficialCourseResultProjection
             'period_label' => (string) ($term?->label ?? 'Recorded Term'),
             'academic_year_label' => $term?->academicYear?->label,
             'year_level' => is_numeric($yearLevel) ? (int) $yearLevel : null,
-            'period_sort_key' => sprintf('%04d|%d|%s|%010d', $startYear, $termOrder, $term?->starts_on?->toDateString() ?? '9999-12-31', (int) ($term?->id ?? 0)),
+            'period_sort_key' => $periodSortKey,
             'event' => $latest instanceof GradeOutcomeEvent ? $latest : null,
             'result' => $latest?->result_code,
             'units' => (string) $courseEnrollment->units_snapshot,

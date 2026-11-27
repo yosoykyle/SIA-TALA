@@ -225,20 +225,9 @@ class PriorAcademicCredit extends Model
     public function periodSortKey(): string
     {
         if ($this->term instanceof Term) {
-            $startYear = $this->term->academicYear instanceof AcademicYear
-                ? (CurriculumVersion::extractAcademicYearStart($this->term->academicYear) ?? (int) ($this->term->starts_on?->year ?? 9999))
-                : (int) ($this->term->starts_on?->year ?? 9999);
-            $termOrder = match ($this->term->type) {
-                Term::TypeFirstSemester => 1,
-                Term::TypeSecondSemester => 2,
-                Term::TypeSpecialTerm => 3,
-                default => 4,
-            };
-
             return sprintf(
-                '%04d|%d|%s|%010d',
-                $startYear,
-                $termOrder,
+                '%s|%s|%010d',
+                $this->term->ends_on?->toDateString() ?? '9999-12-31',
                 $this->term->starts_on?->toDateString() ?? '9999-12-31',
                 (int) $this->term->id,
             );
@@ -254,8 +243,15 @@ class PriorAcademicCredit extends Model
             str_contains($termLower, 'sum'), str_contains($termLower, 'special'), str_contains($termLower, 'mid') => 3,
             default => 4,
         };
+        $syntheticEndDate = match (true) {
+            $yearPart <= 0 => '0000-00-00',
+            $termOrder === 1 => sprintf('%04d-12-31', $yearPart),
+            $termOrder === 2 => sprintf('%04d-05-31', $yearPart + 1),
+            $termOrder === 3 => sprintf('%04d-07-31', $yearPart + 1),
+            default => sprintf('%04d-12-31', $yearPart + 1),
+        };
         $yearLevel = sprintf('%02d', (int) ($this->year_level ?? 0));
 
-        return sprintf('%04d|%d|0000-00-00|%s|%s|%s', $yearPart, $termOrder, $yearLevel, $ay, $this->displayTermLabel());
+        return sprintf('%s|%d|%s|%s|%s', $syntheticEndDate, $termOrder, $yearLevel, $ay, $this->displayTermLabel());
     }
 }

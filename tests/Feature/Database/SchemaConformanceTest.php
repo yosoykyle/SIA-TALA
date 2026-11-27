@@ -45,7 +45,7 @@ final class SchemaConformanceTest extends TestCase
         'scheduling_commitments', 'scheduling_demands', 'section_delivery_groups', 'section_meetings',
         'section_term_cohort', 'sections',
         'staff_access_profiles', 'staff_invitations',
-        'student_lifecycle_changes', 'student_number_sequences', 'student_profile_events', 'student_profiles',
+        'student_import_batches', 'student_lifecycle_changes', 'student_number_sequences', 'student_profile_events', 'student_profiles',
         'system_settings', 'term_accounts', 'term_calendar_packages', 'term_calendar_windows', 'term_cohorts',
         'term_dated_exceptions', 'term_offerings', 'term_teaching_grid_rows', 'terms', 'transcript_issuance_events', 'transcript_requests', 'transcript_snapshots',
         'timetable_revisions',
@@ -69,9 +69,9 @@ final class SchemaConformanceTest extends TestCase
         $expected = [...self::APPLICATION_TABLES, ...self::PLATFORM_TABLES];
         sort($expected);
 
-        $this->assertCount(128, self::APPLICATION_TABLES);
+        $this->assertCount(129, self::APPLICATION_TABLES);
         $this->assertCount(17, self::PLATFORM_TABLES);
-        $this->assertCount(145, $actual);
+        $this->assertCount(146, $actual);
         $this->assertSame($expected, $actual);
     }
 
