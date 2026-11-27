@@ -1,5 +1,5 @@
 <x-filament-panels::page>
-    <div class="tala-faculty-workflow tala-faculty-overview-layout space-y-4">
+    <div class="tala-faculty-workflow tala-faculty-overview-layout">
         @if (! $term)
             <x-servitech-empty-state
                 illustrated
@@ -20,7 +20,7 @@
                 @endforeach
             </x-servitech-empty-state>
         @else
-            <x-record-scope-bar
+            <x-record-scope-bar class="tala-faculty-term-card"
                 label="Current term"
                 icon="heroicon-o-calendar-days"
                 :scope-title="$scopeTitle"
@@ -29,19 +29,20 @@
 
             @if ($actionItems !== [])
                 <section class="tala-task-surface overflow-hidden" aria-labelledby="faculty-needs-action-heading">
-                    <header class="p-4 sm:px-5 border-b border-gray-200 dark:border-gray-800 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+                    <header class="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                         <div>
-                            <h2 id="faculty-needs-action-heading" class="flex items-center gap-2 text-base font-semibold">
-                                Needs your action
+                            <h2 id="faculty-needs-action-heading" class="tala-overview-card-heading">
+                                <x-filament::icon icon="heroicon-o-bell-alert" aria-hidden="true" />
+                                <span>Needs your action</span>
                                 <x-filament::badge color="gray" class="tabular-nums">{{ count($actionItems) }}</x-filament::badge>
                             </h2>
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Each item names the affected class or task and opens the direct place to handle it.</p>
+                            <p class="tala-overview-card-subtitle">Each item names the affected class or task and opens the direct place to handle it.</p>
                         </div>
                     </header>
                     <ul class="list-none m-0 p-0 divide-y divide-gray-200 dark:divide-gray-800">
                         @foreach ($actionItems as $item)
-                            <li class="p-4 sm:px-5 flex flex-wrap items-center justify-between gap-x-5 gap-y-3">
-                                <div class="flex-1 basis-96 min-w-0 grid gap-1.5">
+                            <li class="px-4 py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                                <div class="flex-1 basis-96 min-w-0 grid gap-1">
                                     <div>
                                         <x-filament::badge :color="$item['severity']">{{ $item['badge'] }}</x-filament::badge>
                                     </div>
@@ -67,13 +68,14 @@
             @endif
 
             <section class="tala-task-surface tala-faculty-overview-calendar overflow-hidden" aria-labelledby="faculty-overview-schedule-heading">
-                <header class="p-4 sm:px-5 border-b border-gray-200 dark:border-gray-800 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                <header class="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
                     <div class="min-w-0">
-                        <h2 id="faculty-overview-schedule-heading" class="text-base font-semibold text-gray-950 dark:text-white">
-                            Weekly schedule
+                        <h2 id="faculty-overview-schedule-heading" class="tala-overview-card-heading">
+                            <x-filament::icon icon="heroicon-o-calendar-days" aria-hidden="true" />
+                            <span>Weekly schedule</span>
                         </h2>
                         @if (($scheduleSummary['totalClassCount'] ?? 0) > 0)
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5 tabular-nums">
+                            <p class="tala-overview-card-subtitle tabular-nums">
                                 {{ $scheduleSummary['totalClassCount'] }} {{ \Illuminate\Support\Str::plural('class', $scheduleSummary['totalClassCount']) }}
                                 @if ($scheduleSummary['meetingCount'] > 0)
                                     · {{ $scheduleSummary['meetingCount'] }} weekly {{ \Illuminate\Support\Str::plural('meeting', $scheduleSummary['meetingCount']) }}
@@ -84,7 +86,7 @@
                             </p>
                         @endif
                         @if (($scheduleSummary['examPeriodLabel'] ?? null) !== null)
-                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5 tabular-nums">Exam period: {{ $scheduleSummary['examPeriodLabel'] }}</p>
+                            <p class="tala-overview-card-subtitle tabular-nums">Exam period: {{ $scheduleSummary['examPeriodLabel'] }}</p>
                         @endif
                     </div>
                     <div class="flex flex-wrap items-center gap-3">
@@ -119,7 +121,7 @@
                         />
                     </div>
                 @elseif ($externallyArrangedClasses === [])
-                    <div class="p-4 sm:p-6">
+                    <div class="p-4">
                         <x-servitech-empty-state
                             icon="heroicon-o-calendar-days"
                             heading="Schedule not published yet"
@@ -129,7 +131,7 @@
                 @endif
 
                 @if ($externallyArrangedClasses !== [])
-                    <div @class(['p-4 sm:px-5 space-y-2.5', 'border-t border-gray-200 dark:border-gray-800' => $schedulePresentation !== null])>
+                    <div @class(['px-4 py-3 space-y-2.5', 'border-t border-gray-200 dark:border-gray-800' => $schedulePresentation !== null])>
                         <div class="flex flex-wrap items-baseline justify-between gap-2">
                             <h3 class="text-sm font-semibold text-gray-950 dark:text-white">Externally arranged classes</h3>
                             <x-filament::badge color="gray" size="sm" class="tabular-nums">

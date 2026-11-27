@@ -3765,3 +3765,44 @@ html:not(.dark) .fi-breadcrumbs-item-separator { color: var(--gray-600); }
     .tala-cycle-overview .tala-calendar-facts.tala-cycle-overview__facts--four { grid-template-columns: minmax(0, 1fr); }
     .tala-cycle-overview .tala-cycle-overview__facts--four .tala-calendar-facts__item + .tala-calendar-facts__item { border-inline-start: 0; border-block-start: 1px solid var(--tala-edge); }
 }
+
+/* #110: Faculty Overview card titles use the section style with a leading icon, like Term Planning cards. */
+.tala-overview-card-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0; font-size: 1.125rem; font-weight: 600; line-height: 1.3; color: var(--tala-text); }
+.tala-overview-card-heading > .fi-icon { inline-size: 1.25rem; block-size: 1.25rem; flex: none; color: var(--tala-brand-foreground); }
+.tala-overview-card-subtitle { margin: 0.25rem 0 0; font-size: 0.75rem; line-height: 1.45; color: var(--tala-muted); }
+.tala-overview-card-subtitle + .tala-overview-card-subtitle { margin-block-start: 0.125rem; }
+.tala-faculty-overview-calendar > header h2.tala-overview-card-heading { font-size: 1.125rem; line-height: 1.3; }
+
+/* #110: Faculty schedule keeps only the exam period figure. */
+.tala-faculty-schedule-figures.tala-faculty-schedule-figures--exam-only { grid-template-columns: minmax(0, 1fr); }
+
+/* #110: the faculty term header carries the page's emphasis. */
+
+/* #110: Weekly / List toggle is two outlined buttons with no filled track. */
+.tala-faculty-schedule-bar .tala-navigation.fi-tabs { padding: 0; gap: 0.5rem; background: transparent; box-shadow: none; border: 0; }
+.tala-faculty-schedule-bar .tala-navigation .fi-tabs-item { border: 1px solid var(--tala-edge-strong, var(--tala-edge)); background: transparent; box-shadow: none; }
+.tala-faculty-schedule-bar .tala-navigation .fi-tabs-item.fi-active { border-color: var(--tala-selected-edge); background: transparent; color: var(--tala-brand-foreground); }
+@media (hover: hover) {
+    .tala-faculty-schedule-bar .tala-navigation .fi-tabs-item:not(.fi-active):hover { border-color: var(--tala-control-border); background: transparent; }
+}
+.fi-body .tala-faculty-schedule-bar nav.tala-navigation.fi-tabs > .fi-tabs-item,
+.fi-body .tala-faculty-schedule-bar nav.tala-navigation.fi-tabs > .fi-tabs-item.fi-active { background-color: transparent; }
+
+/* #110: the current-term card leads every Faculty page (Overview, My schedule, Class list & grades, Academic calendar, My availability). */
+.tala-record-scope-bar.tala-faculty-term-card { border-color: var(--tala-selected-edge); background: var(--tala-brand-tint); }
+.tala-faculty-term-card .tala-record-scope-bar__title { font-size: 1.125rem; font-weight: 700; line-height: 1.3; color: var(--tala-on-brand-tint); }
+.tala-faculty-term-card .tala-record-scope-bar__meta { font-size: 0.875rem; color: var(--tala-on-brand-tint); opacity: 0.85; }
+.tala-faculty-term-card .tala-record-scope-bar__icon-wrap { background: var(--tala-surface); border-color: var(--tala-selected-edge); }
+
+/* #110: Faculty Overview cards sit 1rem apart (one gap, no stacked margins). */
+.tala-faculty-overview-layout { gap: 0.75rem; }
+.tala-faculty-overview-layout > * { margin-block: 0; }
+
+/* #110: one tighter card rhythm across the Faculty workspace. */
+.tala-faculty-workflow { --tala-section-gap: 0.75rem; --tala-card-gap: 0.625rem; --tala-card-pad: 0.875rem; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem; min-inline-size: 0; }
+.tala-faculty-workflow > * { margin-block: 0; min-inline-size: 0; }
+.tala-faculty-workflow .tala-availability-card__body { gap: 0.875rem; }
+.tala-faculty-workflow .tala-calendar-sheet > :is(.tala-task-finding, .tala-work-footnote, .tala-calendar-exceptions),
+.tala-faculty-workflow .tala-calendar-source { margin-block-start: 0.875rem; }
+.tala-faculty-workflow .tala-calendar-activity-list { margin-block-start: 0.75rem; }
+.tala-faculty-workflow > .faculty-class-pagination { margin-block-start: 0; }

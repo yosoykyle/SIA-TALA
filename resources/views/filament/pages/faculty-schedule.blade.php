@@ -1,5 +1,5 @@
 <x-filament-panels::page>
-    <div class="tala-faculty-workflow space-y-4">
+    <div class="tala-faculty-workflow">
         @if (! $term)
             <x-servitech-empty-state
                 illustrated
@@ -7,7 +7,7 @@
                 description="Your official teaching schedule appears here once the Registrar activates a term."
             />
         @else
-            <x-record-scope-bar
+            <x-record-scope-bar class="tala-faculty-term-card"
                 label="Current term"
                 icon="heroicon-o-calendar-days"
                 :scope-title="$scopeTitle"
@@ -66,22 +66,8 @@
                     </x-filament::button>
                 </x-servitech-empty-state>
             @else
-                @php
-                    $externalClassCount = count($externallyArrangedClasses ?? []);
-                    $resolvedTotalClassCount = $totalClassCount ?? ($classCount + $externalClassCount);
-                @endphp
-                <dl class="tala-faculty-schedule-figures" aria-label="Schedule summary">
-                    <div>
-                        <dt>Classes</dt>
-                        <dd>{{ $resolvedTotalClassCount }}</dd>
-                        @if ($externalClassCount > 0)
-                            <span class="tala-faculty-schedule-figures__caption">
-                                {{ $externalClassCount === $resolvedTotalClassCount ? ($externalClassCount === 1 ? '1 externally arranged' : $externalClassCount.' externally arranged') : 'Includes '.$externalClassCount.' externally arranged' }}
-                            </span>
-                        @endif
-                    </div>
-                    <div><dt>Weekly meetings</dt><dd>{{ $assignmentCount }}</dd></div>
-                    <div><dt>Teaching days</dt><dd>{{ $teachingDayCount }}</dd></div>
+                {{-- #110: only the exam period stays, so faculty see the dates at a glance. --}}
+                <dl class="tala-faculty-schedule-figures tala-faculty-schedule-figures--exam-only" aria-label="Exam period">
                     <div class="tala-faculty-schedule-figures__exam">
                         <dt>Exam period</dt>
                         <dd>
@@ -135,7 +121,7 @@
                 @endif
 
                 @if (($externallyArrangedClasses ?? []) !== [])
-                    <section class="tala-task-surface p-5 space-y-3" aria-labelledby="faculty-externally-arranged-heading">
+                    <section class="tala-task-surface px-4 py-3 space-y-2.5" aria-labelledby="faculty-externally-arranged-heading">
                         <div class="flex flex-wrap items-baseline justify-between gap-2">
                             <div>
                                 <h2 id="faculty-externally-arranged-heading" class="text-base font-semibold">Externally arranged classes</h2>
