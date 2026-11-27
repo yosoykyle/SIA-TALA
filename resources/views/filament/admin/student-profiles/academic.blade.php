@@ -29,6 +29,19 @@
             ->groupBy(fn (array $row): string => $yearLevelLabel($row['curriculum_entry']->year_level))
             ->map(fn ($yearRows) => $yearRows->groupBy(fn (array $row): string => filled($row['curriculum_entry']->term_label) ? (string) $row['curriculum_entry']->term_label : 'Term not recorded'))
         : collect();
+    // #110 item 17: GPA per curriculum semester and GWA per curriculum year, using the system's academic-average rules.
+    $periodAverage = function ($rows, string $label): array {
+        $rows = collect($rows);
+        $results = $rows->pluck('grade_attempt')->filter()->values();
+
+        return match (true) {
+            $rows->contains(fn (array $row): bool => $row['status'] === 'In progress') => ['value' => null, 'reason' => 'Grades are not complete yet for this period.'],
+            $results->isEmpty() => ['value' => null, 'reason' => 'No grades yet'],
+            default => (fn (array $average): array => ['value' => $average['value'], 'reason' => $average['reason']])(
+                app(\App\Actions\Academics\TermWeightedAverageProjection::class)->forPeriodResults($results, $label),
+            ),
+        };
+    };
 @endphp
 @if ($returnEnrollmentUrl)
     <div class="tala-profile-return-link">
@@ -235,21 +248,44 @@
                 @php
                     $yearRows = collect($termGroups)->flatten(1);
                     $yearDone = $yearRows->whereIn('status', ['Completed', 'Approved credit'])->count();
+                    $yearGwa = $periodAverage($yearRows, $yearLabel);
                 @endphp
                 <section aria-label="{{ $yearLabel }} curriculum progress" class="tala-profile-curriculum-year">
                     <div class="tala-profile-curriculum-year__header">
                         <h3>{{ $yearLabel }}</h3>
                         <p class="tala-profile-muted">{{ $yearDone }} of {{ $yearRows->count() }} {{ $yearRows->count() === 1 ? 'subject' : 'subjects' }} completed</p>
+                        <p class="tala-profile-average" title="{{ $yearGwa['reason'] }}">
+                            <span>GWA</span>
+                            <strong @class(['is-pending' => $yearGwa['value'] === null])>{{ $yearGwa['value'] ?? 'Pending' }}</strong>
+                        </p>
                     </div>
                     @foreach ($termGroups as $termLabel => $rows)
+                        @php
+                            $termGpa = $periodAverage($rows, $termLabel);
+                        @endphp
                         <div class="tala-data-table-scroll tala-profile-table-wrap" role="region" aria-label="{{ $yearLabel }} · {{ $termLabel }} required subjects" tabindex="0">
-                            <table class="tala-data-table tala-profile-table">
-                                <caption class="tala-profile-table-caption">{{ $termLabel }}</caption>
+                            <table class="tala-data-table tala-profile-table tala-profile-curriculum-table">
+                                <caption class="tala-profile-table-caption">
+                                    <span class="tala-profile-caption-row">
+                                        <span>{{ $termLabel }}</span>
+                                        <span class="tala-profile-average" title="{{ $termGpa['reason'] }}">
+                                            <span>GPA</span>
+                                            <strong @class(['is-pending' => $termGpa['value'] === null])>{{ $termGpa['value'] ?? 'Pending' }}</strong>
+                                        </span>
+                                    </span>
+                                </caption>
+                                <colgroup>
+                                    <col class="tala-profile-curriculum-table__subject">
+                                    <col class="tala-profile-curriculum-table__grade">
+                                    <col class="tala-profile-curriculum-table__status">
+                                    <col class="tala-profile-curriculum-table__units">
+                                </colgroup>
                                 <thead>
                                     <tr>
                                         <th scope="col">Required subject</th>
+                                        <th scope="col" class="tala-profile-numeric">Grade</th>
                                         <th scope="col">Status</th>
-                                        <th scope="col">Credited units</th>
+                                        <th scope="col" class="tala-profile-numeric">Credited units</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -280,6 +316,7 @@
                                                     </div>
                                                 @endif
                                             </th>
+                                            <td @class(['tala-profile-numeric', 'tala-profile-muted' => blank($row['grade'] ?? null)])>{{ $row['grade'] ?? '—' }}</td>
                                             <td>
                                                 @if ($row['credit'] ?? null)
                                                     <x-filament::badge color="gray" icon="heroicon-m-document-check" size="sm">{{ $row['credit']['label'] }}</x-filament::badge>

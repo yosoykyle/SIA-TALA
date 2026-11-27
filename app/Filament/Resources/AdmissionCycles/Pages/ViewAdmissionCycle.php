@@ -25,6 +25,9 @@ class ViewAdmissionCycle extends ViewRecord
 {
     protected static string $resource = AdmissionCycleResource::class;
 
+    /** Scopes Term Planning's full-width work-tab style to this page's Cycle overview / Requirement Sets tabs (#110). */
+    protected array $extraBodyAttributes = ['class' => 'tala-admission-cycle-view'];
+
     public function hasCombinedRelationManagerTabsWithContent(): bool
     {
         return $this->cycle()->state !== AdmissionCycle::StateDraft;
@@ -44,6 +47,11 @@ class ViewAdmissionCycle extends ViewRecord
     public function getContentTabLabel(): ?string
     {
         return 'Cycle overview';
+    }
+
+    public function getContentTabIcon(): string
+    {
+        return 'heroicon-o-squares-2x2';
     }
 
     public function getTitle(): string

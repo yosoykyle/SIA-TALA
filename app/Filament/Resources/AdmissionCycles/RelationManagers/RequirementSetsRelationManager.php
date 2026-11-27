@@ -7,6 +7,7 @@ use App\Models\AdmissionCycle;
 use App\Models\AdmissionRequirement;
 use App\Models\AdmissionRequirementSet;
 use App\Models\User;
+use BackedEnum;
 use Closure;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
@@ -47,6 +48,8 @@ class RequirementSetsRelationManager extends RelationManager
     protected static bool $isLazy = false;
 
     protected static string $relationship = 'requirementSets';
+
+    protected static string|BackedEnum|null $icon = 'heroicon-o-clipboard-document-check';
 
     public function form(Schema $schema): Schema
     {

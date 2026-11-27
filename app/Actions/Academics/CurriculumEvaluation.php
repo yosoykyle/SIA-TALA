@@ -122,6 +122,9 @@ class CurriculumEvaluation
                         default => 'Deficient',
                     },
                     'credit' => $creditMetadata,
+                    // #110 item 17: the result that decides this row (passing attempt, else the latest result) for the grade column and averages.
+                    'grade_attempt' => $passingAttempts->last() ?? $latestUnpassed,
+                    'grade' => self::displayGrade($passingAttempts->last() ?? $latestUnpassed),
                     'attempt_count' => $entryAttempts->count(),
                     'credited_units' => $passed || $credited ? (string) $entry->courseSpecification->credit_units : '0.00',
                     'requirements' => $entry->courseSpecification->requirements->map(fn ($requirement): array => [
@@ -150,6 +153,22 @@ class CurriculumEvaluation
             'completed_units' => number_format($rows->sum(fn (array $row): float => (float) $row['credited_units']), 2, '.', ''),
             'deficiency_count' => $rows->reject(fn (array $row): bool => in_array($row['status'], ['Completed', 'Approved credit'], true))->count(),
         ];
+    }
+
+    /**
+     * Registrar-facing grade for a curriculum row: a numeric final grade to two decimals, or the recorded result code.
+     *
+     * @param  array<string, mixed>|null  $attempt
+     */
+    public static function displayGrade(?array $attempt): ?string
+    {
+        $result = $attempt['result'] ?? null;
+
+        if ($result === null || $result === '') {
+            return null;
+        }
+
+        return is_numeric($result) ? number_format((float) $result, 2, '.', '') : (string) $result;
     }
 
     /**

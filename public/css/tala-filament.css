@@ -816,14 +816,14 @@
 .tala-scoped-directory .fi-ta-col,
 .tala-scoped-directory .tala-student-label > div { min-inline-size:0; }
 .tala-scoped-directory .tala-student-label strong { white-space:normal; overflow-wrap:anywhere; }
-.tala-directory-program .fi-ta-text-description { max-inline-size:12rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; line-height:1.4; }
+.tala-directory-program .fi-ta-text-description { max-inline-size:none; white-space:normal; overflow-wrap:anywhere; line-height:1.4; }
 @container tala-directory (min-width: 65rem) {
  .tala-scoped-directory .fi-ta-filters-before-content-ctn { display:block; position:static; z-index:auto; inline-size:16rem; flex:none; }
  .tala-scoped-directory .fi-ta-main .fi-ta-filters-trigger-action-ctn, .tala-scoped-directory .fi-ta-header-toolbar { display:none; }
 }
 
-/* Bound the desktop directory through layout, keeping collection controls visible. */
-@media (min-width: 48rem) and (min-height: 36rem) {
+/* Bound the directory to the window only on tall screens (#110 item 15); laptops scroll the page instead of a nested list. */
+@media (min-width: 48rem) and (min-height: 60rem) {
  .fi-page:has(.tala-scoped-directory) .fi-page-header-main-ctn { display:grid; grid-template-rows:auto minmax(0,1fr); block-size:100dvh; row-gap:1rem; padding-block:1rem; }
  .fi-page:has(.tala-scoped-directory) :is(.fi-page-main,.fi-page-content) { min-block-size:0; block-size:100%; }
  .tala-scoped-directory { min-block-size:0; block-size:100%; grid-template-rows:auto minmax(0,1fr); }

@@ -56,9 +56,11 @@ class Issue57AdmissionCycleDraftWorkflowTest extends TestCase
         ]);
 
         Livewire::test(ViewAdmissionCycle::class, ['record' => $closed->id])
-            ->assertSee('Closed — existing reviews continue');
+            ->assertSee('Closed')
+            ->assertSee('New applications are closed; existing reviews continue.');
         Livewire::test(ViewAdmissionCycle::class, ['record' => $missing->id])
-            ->assertSee('Application window unavailable — review the cycle dates');
+            ->assertSee('Dates needed')
+            ->assertSee('Review the application window before applicants can apply.');
         Livewire::test(ListAdmissionCycles::class)
             ->assertTableColumnStateSet('availability', 'Closed', $closed)
             ->assertTableColumnStateSet('availability', 'Window unavailable', $missing);

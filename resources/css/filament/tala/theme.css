@@ -3692,3 +3692,76 @@ html:not(.dark) .fi-breadcrumbs-item-separator { color: var(--gray-600); }
     .tala-admission-cycles-table .fi-ta-record .fi-ta-split .fi-ta-text-item { white-space: normal; overflow-wrap: anywhere; }
     .tala-admission-cycles-table .fi-ta-record .fi-ta-split > .fi-growable:nth-child(2) { flex: 1 1 0; min-inline-size: 0; }
 }
+
+/* #110: admission cycle overview cards reuse Term Planning's calendar fact strip and row list. */
+.tala-cycle-overview { container-type: inline-size; display: grid; gap: 1rem; }
+.tala-cycle-overview .tala-calendar-facts { margin-block: 0; }
+.tala-cycle-overview__note { margin: 0; font-size: 0.875rem; line-height: 1.5; color: var(--tala-muted); }
+.tala-cycle-overview__group { display: grid; gap: 0.5rem; min-inline-size: 0; }
+.tala-cycle-overview__group-heading { margin: 0; font-size: 0.875rem; font-weight: 600; line-height: 1.35; color: var(--tala-text); }
+.tala-cycle-overview .tala-calendar-facts dd.tala-cycle-overview__missing,
+.tala-cycle-overview p.tala-cycle-overview__missing { font-weight: 500; color: var(--tala-muted); }
+.tala-cycle-overview p.tala-cycle-overview__missing { margin: 0; font-size: 0.875rem; }
+.tala-cycle-overview__badges { display: inline-flex; flex-wrap: wrap; gap: 0.375rem; }
+.tala-cycle-overview .tala-calendar-admissions__list { margin: 0; padding: 0.25rem 1rem; border: 1px solid var(--tala-edge); border-radius: 0.5rem; background: var(--tala-surface-sunken); }
+.tala-cycle-overview .tala-calendar-admissions__item { padding-block: 0.625rem; }
+.tala-cycle-overview .tala-calendar-admissions__item:first-child { padding-block-start: 0.625rem; }
+.tala-cycle-overview .tala-calendar-admissions__item:last-child { padding-block-end: 0.625rem; }
+
+/* #110: Cycle overview / Requirement Sets tabs use Term Planning's full-width work tabs (Faculty / Rooms). */
+.tala-admission-cycle-view [id='content.relationManagerTabs'] > .fi-tabs { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; align-items: stretch; inline-size: 100%; max-inline-size: 100%; margin-inline: 0; padding: 0.25rem; gap: 0.25rem; }
+.tala-admission-cycle-view [id='content.relationManagerTabs'] > .fi-tabs > .fi-tabs-item { display: inline-flex; align-items: center; justify-content: center; inline-size: 100%; min-inline-size: 0; min-block-size: 2.5rem; padding-block: 0.375rem; padding-inline: 0.875rem; white-space: nowrap; }
+@media (max-width: 34rem) {
+    .tala-admission-cycle-view [id='content.relationManagerTabs'] > .fi-tabs > .fi-tabs-item { padding-inline: 0.5rem; white-space: normal; }
+}
+
+/* #110 item 15: on laptops the Student records page scrolls as a whole; the filter panel stays in view. */
+@container tala-directory (min-width: 65rem) {
+    .tala-scoped-directory .fi-ta-filters-before-content-ctn { position: sticky; inset-block-start: 5rem; align-self: start; }
+}
+
+/* #110 item 17: curriculum progress tables share one column grid, with grades and GPA / GWA. */
+.tala-profile-curriculum-groups .tala-profile-table-wrap { max-block-size: none; overflow-x: auto; overflow-y: visible; overscroll-behavior: auto; }
+.tala-profile-curriculum-table { table-layout: fixed; min-inline-size: 34rem; }
+.tala-profile-curriculum-table__grade { inline-size: 6.5rem; }
+.tala-profile-curriculum-table__status { inline-size: 11rem; }
+.tala-profile-curriculum-table__units { inline-size: 8rem; }
+.tala-profile-curriculum-table th.tala-profile-numeric,
+.tala-profile-curriculum-table td.tala-profile-numeric { text-align: end; }
+.tala-profile-caption-row { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.25rem 1rem; }
+.tala-profile-average { display: inline-flex; align-items: baseline; gap: 0.375rem; margin: 0; }
+.tala-profile-average > span { font-size: 0.75rem; font-weight: 600; color: var(--tala-muted); }
+.tala-profile-average > strong { font-size: 0.875rem; font-weight: 600; color: var(--tala-text); font-variant-numeric: tabular-nums; }
+.tala-profile-average > strong.is-pending { font-weight: 500; color: var(--tala-muted); }
+.tala-profile-curriculum-year__header .tala-profile-average { margin-inline-start: auto; }
+.tala-profile-curriculum-year__header .tala-profile-average > strong { font-size: 1rem; }
+
+/* Semester headings carry the emphasis in curriculum progress (#110 item 17 follow-up). */
+.tala-profile-curriculum-table caption.tala-profile-table-caption { padding: 0.75rem 1rem; border-block-end: 1px solid var(--tala-selected-edge); background: var(--tala-brand-tint); color: var(--tala-on-brand-tint); font-size: 1rem; font-weight: 600; line-height: 1.35; }
+.tala-profile-curriculum-table caption .tala-profile-average > span { color: var(--tala-on-brand-tint); opacity: 0.8; }
+.tala-profile-curriculum-table caption .tala-profile-average > strong { font-size: 1rem; color: var(--tala-on-brand-tint); }
+.tala-profile-curriculum-table caption .tala-profile-average > strong.is-pending { font-weight: 500; opacity: 0.8; }
+
+/* #110: a selected Student records filter wraps its full name compactly instead of stretching the field. */
+.tala-scoped-directory .fi-ta-filters .fi-select-input-btn { block-size: auto; min-block-size: 2.25rem; align-items: center; }
+.tala-scoped-directory .fi-ta-filters .fi-select-input-value-ctn { min-inline-size: 0; }
+.tala-scoped-directory .fi-ta-filters .fi-select-input-value-label { display: block; white-space: normal; overflow-wrap: anywhere; font-size: 0.8125rem; line-height: 1.35; padding-block: 0.125rem; }
+
+/* #110: admission cycle overview header actions sit centred above the tabs. */
+.tala-admission-cycle-view .fi-page-header-main-ctn .fi-header { grid-template-columns: minmax(0, 1fr); }
+.tala-admission-cycle-view .fi-page-header-main-ctn .fi-header-actions-ctn { justify-self: stretch; justify-content: center; inline-size: 100%; }
+.tala-admission-cycle-view .fi-page-header-main-ctn .fi-header-actions-ctn > .fi-ac { justify-content: center; flex-wrap: wrap; }
+
+/* #110: guidance card uses a four-cell fact strip and a sunken instructions block, matching Intake. */
+.tala-cycle-overview .tala-calendar-facts.tala-cycle-overview__facts--four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.tala-cycle-overview .tala-calendar-facts dd { overflow-wrap: anywhere; }
+.tala-cycle-overview__prose { margin: 0; padding: 0.875rem 1rem; border: 1px solid var(--tala-edge); border-radius: 0.5rem; background: var(--tala-surface-sunken); font-size: 0.875rem; line-height: 1.6; color: var(--tala-text); max-inline-size: none; white-space: pre-line; }
+@container (max-width: 56rem) {
+    .tala-cycle-overview .tala-calendar-facts.tala-cycle-overview__facts--four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .tala-cycle-overview .tala-cycle-overview__facts--four .tala-calendar-facts__item:nth-child(3) { border-inline-start: 0; }
+    .tala-cycle-overview .tala-cycle-overview__facts--four .tala-calendar-facts__item:nth-child(n+3) { border-block-start: 1px solid var(--tala-edge); }
+}
+@container (max-width: 32rem) {
+    .tala-cycle-overview .tala-calendar-facts.tala-cycle-overview__facts--four { grid-template-columns: minmax(0, 1fr); }
+    .tala-cycle-overview .tala-cycle-overview__facts--four .tala-calendar-facts__item + .tala-calendar-facts__item { border-inline-start: 0; border-block-start: 1px solid var(--tala-edge); }
+}
