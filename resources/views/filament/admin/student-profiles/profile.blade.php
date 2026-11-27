@@ -129,6 +129,14 @@
                 <x-filament::section icon="heroicon-o-clipboard-document-check" icon-color="primary" compact>
                     <x-slot:heading>Requirements &amp; follow-up</x-slot:heading>
                     <x-slot:description>Documents and office follow-up.</x-slot:description>
+                    @php($papers = $this->admissionPapers)
+                    @if ($papers['items'] !== [])
+                        <div class="tala-profile-inset">
+                            <strong>{{ $papers['followed'] === [] ? 'All admission papers passed' : count($papers['followed']).' admission '.\Illuminate\Support\Str::plural('paper', count($papers['followed'])).' to be followed' }}</strong>
+                            @if ($papers['followed'] !== [])<p class="tala-profile-muted">{{ implode(', ', $papers['followed']) }}</p>@endif
+                            @if ($this->updateAdmissionPapersAction->isVisible())<div>{{ $this->updateAdmissionPapersAction }}</div>@endif
+                        </div>
+                    @endif
                     <div class="tala-profile-inset">
                         <strong>{{ $profile['holds']->isEmpty() ? 'No active restrictions recorded' : $profile['holds']->count().' active '.\Illuminate\Support\Str::plural('restriction', $profile['holds']->count()) }}</strong>
                         <p class="tala-profile-muted">Review the document checklist and any unresolved restrictions.</p>

@@ -3,11 +3,11 @@
 namespace App\Filament\Resources\AdmissionApplications\Pages;
 
 use App\Actions\Admissions\AdmissionNotificationLedger;
+use App\Actions\Admissions\AdmissionPaperChecklist;
 use App\Actions\Admissions\AdmissionReviewGuard;
 use App\Actions\Admissions\ChangeAdmissionApplicationLifecycle;
 use App\Actions\Admissions\ExtendAdmissionDeadline;
 use App\Actions\Admissions\RecordAdmissionOutcome;
-use App\Actions\Admissions\RecordOfficialCredentialResult;
 use App\Actions\Admissions\RecordRegistrarEnrollmentClearance;
 use App\Actions\Admissions\RequestAdmissionCorrection;
 use App\Actions\Admissions\ResolveAdmissionIdentity;
@@ -18,6 +18,7 @@ use App\Actions\Enrollment\StartRegistrationCase;
 use App\Filament\Resources\AdmissionApplications\AdmissionApplicationResource;
 use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
+use App\Filament\Support\AdmissionPaperFields;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionApplicationEvent;
 use App\Models\AdmissionCycle;
@@ -29,7 +30,6 @@ use App\Models\ApplicationCorrectionRequest;
 use App\Models\DocumentEvidence;
 use App\Models\Enrollment;
 use App\Models\IdentityMatchReview;
-use App\Models\OfficialCredentialResult;
 use App\Models\OperationalEvent;
 use App\Models\Payment;
 use App\Models\PreliminaryEvidenceReview;
@@ -65,9 +65,7 @@ use Filament\Schemas\Components\Utilities\Set;
 use Filament\Support\Enums\Size;
 use Filament\Support\Enums\Width;
 use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\HtmlString;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Url;
 
@@ -1373,40 +1371,9 @@ class ViewAdmissionApplication extends ViewRecord
      */
     private function clearanceChecklist(): array
     {
-        $application = $this->application();
-        $requirements = $application->currentSubmissionVersion?->requirementSet?->requirements ?? collect();
-        $results = $application->credentialResults()->whereDoesntHave('successor')->get()->keyBy('admission_requirement_id');
-        $categories = [
-            AdmissionRequirement::SubmissionInPerson => 'Physical papers passed on-site',
-            AdmissionRequirement::SubmissionSchoolToSchool => 'Records sent school-to-school',
-        ];
-
-        return collect($categories)->map(function (string $label, string $method) use ($requirements, $results): array {
-            /** @var Collection<int, AdmissionRequirement> $papers */
-            $papers = $requirements->where('official_submission_method', $method)->sortBy('display_order')->values();
-
-            return [
-                'label' => $label,
-                'items' => $papers->map(function (AdmissionRequirement $requirement) use ($results): array {
-                    $result = $results->get($requirement->id);
-
-                    return [
-                        'id' => $requirement->id,
-                        'label' => $requirement->label,
-                        'due' => $requirement->dueStageLabel(),
-                        'required' => $requirement->due_stage !== AdmissionRequirement::DuePostEnrollmentFollowUp,
-                        'result' => $result?->result,
-                        'result_id' => $result?->id,
-                        'status' => $result?->result === OfficialCredentialResult::ResultVerified ? 'Passed' : 'To be followed',
-                        'tone' => $result?->result === OfficialCredentialResult::ResultVerified ? 'verified' : 'held',
-                        'requirement' => $requirement,
-                    ];
-                })->all(),
-            ];
-        })->filter(fn (array $category): bool => $category['items'] !== [])->all();
+        return app(AdmissionPaperChecklist::class)->categories($this->application());
     }
 
-    /** @param array<string, mixed> $data */
     /**
      * #103 Scope 7: one checkbox per paper. Ticked papers become Passed; unticked ones stay To be followed.
      * A paper already Passed is never un-passed from here; Update papers lists only the papers still to be followed.
@@ -1415,31 +1382,13 @@ class ViewAdmissionApplication extends ViewRecord
      */
     private function paperChecklistFields(bool $onlyFollowed = false): array
     {
-        return collect($this->clearanceChecklist())
-            ->map(fn (array $category): array => [
-                ...$category,
-                'items' => $onlyFollowed
-                    ? array_values(array_filter($category['items'], fn (array $item): bool => $item['result'] !== OfficialCredentialResult::ResultVerified))
-                    : $category['items'],
-            ])
-            ->filter(fn (array $category): bool => $category['items'] !== [])
-            ->map(fn (array $category, string $key): CheckboxList => CheckboxList::make('checklist_'.$key)
-                ->label($category['label'])
-                ->options(collect($category['items'])->mapWithKeys(fn (array $item): array => [
-                    $item['id'] => new HtmlString(e($item['label']).' <span class="tala-paper-status tala-paper-status--'.$item['tone'].'">'.e($item['status']).'</span>'),
-                ])->all())
-                ->descriptions(collect($category['items'])->mapWithKeys(fn (array $item): array => [$item['id'] => $item['due']])->all())
-                ->default(collect($category['items'])->where('result', OfficialCredentialResult::ResultVerified)->pluck('id')->all())
-                ->allowHtml()
-                ->extraAttributes(['class' => 'tala-paper-checklist']))->values()->all();
+        return AdmissionPaperFields::make($this->clearanceChecklist(), $onlyFollowed);
     }
 
     /** @return list<string> labels of papers not yet Passed */
     private function followedPapers(): array
     {
-        return collect($this->clearanceChecklist())->flatMap(fn (array $category): array => $category['items'])
-            ->reject(fn (array $item): bool => $item['result'] === OfficialCredentialResult::ResultVerified)
-            ->pluck('label')->values()->all();
+        return app(AdmissionPaperChecklist::class)->followed($this->application());
     }
 
     /** @param array<string, mixed> $data */
@@ -1450,10 +1399,10 @@ class ViewAdmissionApplication extends ViewRecord
             throw ValidationException::withMessages(['external_checks_confirmed' => 'Confirm the required external enrollment checks are complete.']);
         }
 
-        DB::transaction(function () use ($actor, $data, $items): void {
+        DB::transaction(function () use ($actor, $data): void {
             $application = $this->application();
-            $authority = filled($data['authority_reference'] ?? null) ? (string) $data['authority_reference'] : 'Registrar enrollment clearance';
-            $this->recordCheckedPapers($actor, $items, $this->checkedPaperIds($data), $authority);
+            $authority = filled($data['authority_reference'] ?? null) ? (string) $data['authority_reference'] : AdmissionPaperChecklist::PassedAuthority;
+            app(AdmissionPaperChecklist::class)->recordPassed($application, $actor, AdmissionPaperFields::checkedIds($data), $authority);
 
             app(RecordRegistrarEnrollmentClearance::class)->execute(
                 $application,
@@ -1473,48 +1422,7 @@ class ViewAdmissionApplication extends ViewRecord
     /** @param array<string, mixed> $data */
     private function recordPassedPapers(User $actor, array $data): void
     {
-        $items = collect($this->clearanceChecklist())->flatMap(fn (array $category): array => $category['items']);
-
-        DB::transaction(fn () => $this->recordCheckedPapers($actor, $items, $this->checkedPaperIds($data), 'Registrar enrollment clearance'));
-    }
-
-    /**
-     * @param  array<string, mixed>  $data
-     * @return list<int>
-     */
-    private function checkedPaperIds(array $data): array
-    {
-        return collect($data)
-            ->filter(fn (mixed $value, string $key): bool => str_starts_with($key, 'checklist_'))
-            ->flatten()
-            ->map(fn (mixed $id): int => (int) $id)
-            ->values()
-            ->all();
-    }
-
-    /**
-     * @param  Collection<int, array<string, mixed>>  $items
-     * @param  list<int>  $checked
-     */
-    private function recordCheckedPapers(User $actor, Collection $items, array $checked, string $authority): void
-    {
-        foreach ($items as $item) {
-            if (! in_array($item['id'], $checked, true) || $item['result'] === OfficialCredentialResult::ResultVerified) {
-                continue;
-            }
-
-            app(RecordOfficialCredentialResult::class)->execute(
-                $this->application(),
-                $item['requirement'],
-                $actor,
-                OfficialCredentialResult::ResultVerified,
-                'On-site paper check',
-                'Paper checked by the Registrar.',
-                $authority,
-                exceptionExpiresAt: null,
-                expectedCurrentResultId: $item['result_id'],
-            );
-        }
+        DB::transaction(fn () => app(AdmissionPaperChecklist::class)->recordPassed($this->application(), $actor, AdmissionPaperFields::checkedIds($data)));
     }
 
     private function application(): AdmissionApplication

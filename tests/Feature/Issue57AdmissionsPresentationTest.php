@@ -22,6 +22,7 @@ use App\Filament\Resources\AdmissionApplications\Pages\ListAdmissionApplications
 use App\Filament\Resources\AdmissionApplications\Pages\ViewAdmissionApplication;
 use App\Filament\Resources\AdmissionCycles\Pages\ListAdmissionCycles;
 use App\Filament\Resources\AdmissionCycles\Pages\ViewAdmissionCycle;
+use App\Filament\Resources\StudentProfiles\Pages\ViewStudentProfile;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionApplicationEvent;
 use App\Models\AdmissionCycle;
@@ -38,6 +39,7 @@ use App\Models\OfficialCredentialResult;
 use App\Models\OperationalEvent;
 use App\Models\PreliminaryEvidenceReview;
 use App\Models\RegistrarEnrollmentClearance;
+use App\Models\StudentProfile;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
 use App\Models\TermCalendarWindow;
@@ -1962,6 +1964,54 @@ class Issue57AdmissionsPresentationTest extends TestCase
             ->where('event_type', OperationalEvent::TypeAdmissionProcessRemarkSent)
             ->where('related_record_id', $application->id)
             ->exists());
+    }
+
+    public function test_student_record_shows_admission_papers_to_be_followed_and_the_registrar_passes_them_there(): void
+    {
+        Mail::fake();
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $registrar = $this->registrar();
+        [$application, $requirement] = $this->admittedApplication($registrar);
+        app(RecordRegistrarEnrollmentClearance::class)->execute(
+            $application->fresh(), $registrar, RegistrarEnrollmentClearance::ResultCleared, true,
+            expectedDecisionId: $application->decisions()->whereDoesntHave('successor')->value('id'),
+            expectedSubmissionVersionId: $application->current_submission_version_id,
+        );
+        $student = StudentProfile::factory()->create(['user_id' => $application->user_id]);
+        Enrollment::factory()->create([
+            'admission_application_id' => $application->id,
+            'student_profile_id' => $student->id,
+            'credential_user_id' => $application->user_id,
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+            'officially_enrolled_at' => now(),
+        ]);
+
+        $page = Livewire::actingAs($registrar)->test(ViewStudentProfile::class, ['record' => $student->id])
+            ->assertSee('1 admission paper to be followed')
+            ->assertSee('School review copy');
+        $this->assertSame(['School review copy'], $page->instance()->admissionPapers()['followed']);
+
+        $page->call('selectRecordTab', 'requirements')
+            ->assertSee('Admission papers')
+            ->assertSee('To be followed')
+            ->assertDontSee('No document checklist recorded')
+            ->assertActionVisible('updateAdmissionPapers')
+            ->callAction('updateAdmissionPapers', ['checklist_InPerson' => [$requirement->id]])
+            ->assertNotified('Papers updated');
+
+        $this->assertSame(
+            OfficialCredentialResult::ResultVerified,
+            $application->credentialResults()->where('admission_requirement_id', $requirement->id)->whereDoesntHave('successor')->value('result'),
+        );
+        Livewire::actingAs($registrar)->test(ViewStudentProfile::class, ['record' => $student->id])
+            ->assertSee('All admission papers passed')
+            ->assertActionHidden('updateAdmissionPapers');
+
+        $imported = StudentProfile::factory()->create();
+        Livewire::actingAs($registrar)->test(ViewStudentProfile::class, ['record' => $imported->id])
+            ->assertDontSee('Admission papers')
+            ->assertDontSee('admission paper')
+            ->assertActionHidden('updateAdmissionPapers');
     }
 
     public function test_enrollment_clearance_tags_unticked_papers_to_be_followed_and_update_papers_passes_them_later(): void
