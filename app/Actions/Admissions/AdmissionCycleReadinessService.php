@@ -4,8 +4,11 @@ namespace App\Actions\Admissions;
 
 use App\Models\AdmissionCycle;
 use App\Models\AdmissionRequirementSet;
+use App\Models\CurriculumVersion;
+use App\Models\Program;
 use App\Models\Term;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 
 class AdmissionCycleReadinessService
 {
@@ -49,28 +52,53 @@ class AdmissionCycleReadinessService
                 'accepting_programs',
                 'Admission Cycle program selection and active Program authority',
                 'Registrar',
-                'No active program accepts an enabled student type.',
-                'Select an active accepting program.',
-                'Activate or correct the Program authority, select it for the cycle, and rerun readiness.',
+                'No active accepting program with an open curriculum batch is enabled for this cycle.',
+                'Select at least one active program whose curriculum is assigned for the target school year batch.',
+                'Activate the program or assign a published curriculum for the incoming batch, select it for the cycle, and rerun readiness.',
             );
         }
 
+        $now = now(config('app.timezone'));
+        $effectiveReference = $cycle->opens_at instanceof Carbon && $cycle->opens_at->greaterThan($now)
+            ? $cycle->opens_at
+            : $now;
+
         foreach ($enabledPaths as $path) {
-            $hasApplicableVersion = $cycle->requirementSets
+            $publishedSets = $cycle->requirementSets
                 ->where('application_path', $path)
                 ->where('state', AdmissionRequirementSet::StatePublished)
-                ->contains(fn (AdmissionRequirementSet $set): bool => $set->effective_at !== null
-                    && $set->effective_at->lessThanOrEqualTo(now(config('app.timezone')))
-                    && $this->requirementSetCompleteness->isComplete($set));
+                ->sortByDesc('version');
+
+            $hasApplicableVersion = $publishedSets->contains(
+                fn (AdmissionRequirementSet $set): bool => $set->effective_at !== null
+                    && $set->effective_at->lessThanOrEqualTo($effectiveReference)
+                    && $this->requirementSetCompleteness->isComplete($set),
+            );
 
             if (! $hasApplicableVersion) {
                 $studentType = AdmissionCycle::studentTypeLabel($path);
+                $latestPublished = $publishedSets->first();
+                $reason = "{$studentType} applicants have no published requirement list yet.";
+                $nextAction = "Create and publish the {$studentType} requirements.";
+
+                if ($latestPublished instanceof AdmissionRequirementSet) {
+                    $completenessErrors = $this->requirementSetCompleteness->errors($latestPublished);
+
+                    if ($completenessErrors !== []) {
+                        $reason = "{$studentType} requirements are incomplete: {$completenessErrors[0]}";
+                        $nextAction = "Update and republish the {$studentType} requirements.";
+                    } elseif ($latestPublished->effective_at === null || $latestPublished->effective_at->greaterThan($effectiveReference)) {
+                        $reason = "{$studentType} requirements are scheduled to take effect after the cycle opens.";
+                        $nextAction = "Publish a {$studentType} requirement list effective on or before the cycle opening date.";
+                    }
+                }
+
                 $blockers[] = $this->blocker(
                     'requirement_set_'.str($path)->snake(),
                     "Published Admission Requirement Set for {$studentType} applicants",
                     'Registrar',
-                    "{$studentType} applicants have no effective, complete published requirement version with its mandatory core credential and valid exception classifications.",
-                    'Publish an applicable requirement-set version.',
+                    $reason,
+                    $nextAction,
                     "Complete and publish the {$studentType} requirement version, then rerun readiness.",
                 );
             }
@@ -126,13 +154,24 @@ class AdmissionCycleReadinessService
     private function enabledPaths(AdmissionCycle $cycle): array
     {
         $paths = [];
-        $programs = $cycle->programs()->where('programs.is_active', true);
+        $hasConfiguredCurricula = CurriculumVersion::query()->exists();
+        $programs = $cycle->programs()
+            ->where('programs.is_active', true)
+            ->with(['curriculumVersions.academicYears'])
+            ->get()
+            ->filter(function (Program $program) use ($cycle, $hasConfiguredCurricula): bool {
+                if (! $hasConfiguredCurricula) {
+                    return true;
+                }
 
-        if ((clone $programs)->wherePivot('accepts_first_year', true)->exists()) {
+                return $program->admissionsAvailability($cycle)['available'];
+            });
+
+        if ($programs->contains(fn (Program $program): bool => (bool) data_get($program->getRelation('pivot'), 'accepts_first_year'))) {
             $paths[] = AdmissionCycle::PathFirstYear;
         }
 
-        if ((clone $programs)->wherePivot('accepts_transferee', true)->exists()) {
+        if ($programs->contains(fn (Program $program): bool => (bool) data_get($program->getRelation('pivot'), 'accepts_transferee'))) {
             $paths[] = AdmissionCycle::PathTransferee;
         }
 

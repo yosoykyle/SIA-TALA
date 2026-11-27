@@ -79,10 +79,10 @@ class AdmissionCycleInfolist
                         ->schema([
                             TextEntry::make('opens_at')->label('Applications open')->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')->placeholder('Not set'),
                             TextEntry::make('closes_at')->label('New applications close')->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')->placeholder('Not set'),
-                            TextEntry::make('correction_closes_at')->label('New correction requests end')->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')->placeholder('Not set'),
+                            TextEntry::make('correction_closes_at')->label('Correction request deadline')->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')->placeholder('Not set'),
                             TextEntry::make('requirements_due_at')->label('Physical papers due')->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')->placeholder('Not set'),
                             TextEntry::make('payment_due_at')->label('Enrollment payment due')->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')->placeholder('Not set'),
-                            TextEntry::make('period_ends_at')->label('Admission period ends')->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')->placeholder('Not set'),
+                            TextEntry::make('period_ends_at')->label('Final admission cutoff')->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')->placeholder('Not set'),
                         ]),
                 ])->columnSpanFull(),
                 Section::make('Applicant guidance and source details')

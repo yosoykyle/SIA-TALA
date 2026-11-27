@@ -17,9 +17,69 @@ class EditAdmissionCycle extends EditRecord
 {
     protected static string $resource = AdmissionCycleResource::class;
 
+    /**
+     * Keep relation managers on ViewAdmissionCycle (Step 3: Requirements & Publish) so Save actions never sit above required sections.
+     *
+     * @return array<class-string>
+     */
+    public function getRelationManagers(): array
+    {
+        return [];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    protected function mutateFormDataBeforeFill(array $data): array
+    {
+        $record = $this->getRecord();
+
+        if ($record instanceof AdmissionCycle) {
+            $record->loadMissing('programs');
+            $paths = [];
+
+            if ($record->programs->contains(fn ($program): bool => (bool) data_get($program->getRelation('pivot'), 'accepts_first_year'))) {
+                $paths[] = AdmissionCycle::PathFirstYear;
+            }
+
+            if ($record->programs->contains(fn ($program): bool => (bool) data_get($program->getRelation('pivot'), 'accepts_transferee'))) {
+                $paths[] = AdmissionCycle::PathTransferee;
+            }
+
+            $data['accepted_paths'] = $paths !== []
+                ? $paths
+                : [AdmissionCycle::PathFirstYear, AdmissionCycle::PathTransferee];
+        }
+
+        return $data;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        $defaults = AdmissionCycle::defaultGuidance();
+
+        $data['registrar_owner_id'] = $this->getRecord()->registrar_owner_id ?? auth()->id();
+        $data['applicant_instructions'] = filled($this->getRecord()->applicant_instructions)
+            ? $this->getRecord()->applicant_instructions
+            : $defaults['applicant_instructions'];
+        $data['support_contact'] = filled($this->getRecord()->support_contact)
+            ? $this->getRecord()->support_contact
+            : $defaults['support_contact'];
+        $data['privacy_notice_reference'] = filled($this->getRecord()->privacy_notice_reference)
+            ? $this->getRecord()->privacy_notice_reference
+            : $defaults['privacy_notice_reference'];
+
+        return $data;
+    }
+
     protected function getSaveFormAction(): Action
     {
-        return parent::getSaveFormAction()->label('Save and exit');
+        return parent::getSaveFormAction()->label('Save & continue');
     }
 
     protected function getRedirectUrl(): ?string
@@ -44,7 +104,7 @@ class EditAdmissionCycle extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            ViewAction::make(),
+            ViewAction::make()->label('Back to overview'),
             DeleteAction::make()->label('Discard draft')
                 ->modalWidth(Width::Large)
                 ->stickyModalHeader()
