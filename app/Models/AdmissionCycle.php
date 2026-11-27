@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Actions\Applicants\ApplicantEntryReadinessService;
 use Database\Factories\AdmissionCycleFactory;
 use Filament\Support\Colors\Color;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -31,6 +32,21 @@ class AdmissionCycle extends Model
     public const PathFirstYear = 'FirstYear';
 
     public const PathTransferee = 'Transferee';
+
+    public const CodeReservedMessage = 'A published admission cycle already uses this code. Choose a different code.';
+
+    /**
+     * Whether a cycle that left Draft already holds this Internal cycle code (#110 item 8).
+     * Draft cycles never reserve a code, so an unpublished draft does not block a new cycle.
+     */
+    public static function codeIsReservedByAnotherCycle(string $code, ?int $ignoreCycleId = null): bool
+    {
+        return self::query()
+            ->where('state', '!=', self::StateDraft)
+            ->where('code', trim($code))
+            ->when($ignoreCycleId !== null, fn (Builder $query): Builder => $query->whereKeyNot($ignoreCycleId))
+            ->exists();
+    }
 
     /**
      * Reader-facing Student type labels for the unchanged canonical paths (PRD 02 §10.1).

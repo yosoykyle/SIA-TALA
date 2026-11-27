@@ -82,7 +82,10 @@
                                     <p>{{ collect($projection['blockers'])->firstWhere('source', 'Registrar enrollment clearance')['recovery'] ?? '' }}</p>
                                 @endif
                                 @if ($currentDecision?->applicant_explanation)
-                                    <p class="tala-application-next-action"><strong>Admission decision remarks:</strong> {{ $currentDecision->applicant_explanation }}</p>
+                                    <div class="tala-decision-remarks">
+                                        <p class="tala-decision-remarks__label">Admission decision remarks</p>
+                                        <p class="tala-decision-remarks__text">{{ $currentDecision->applicant_explanation }}</p>
+                                    </div>
                                 @endif
                             @endif
                         </div>
@@ -200,14 +203,6 @@
                 @endif
             </div>
 
-            @php($registrationCase = $this->registrationCase())
-            @if ($registrationCase)
-                <x-filament::section heading="Enrollment" :description="($registrationCase->term?->label ?? 'Exact Term').' · '.$registrationCase->case_reference" icon="heroicon-o-academic-cap">
-                    <p>{{ $registrationCase->canonical_outcome === \App\Models\Enrollment::OutcomeOfficiallyEnrolled ? 'Your official enrollment is available.' : 'Review your subjects, schedule, charges, and next action in Enrollment.' }}</p>
-                    <x-enrollment-proposal-explanation :enrollment="$registrationCase" :proposal="$registrationCase->currentProposalVersion" audience="applicant" compact />
-                    <x-filament::link :href="\App\Filament\Applicant\Pages\Enrollment::getUrl()">Open enrollment</x-filament::link>
-                </x-filament::section>
-            @endif
 
         </div>
 

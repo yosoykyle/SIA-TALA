@@ -628,20 +628,19 @@ class Issue93Checkpoint2PrereqAndExplainTest extends TestCase
         $this->assertNull($projection['evaluation_url']);
         $this->assertSame(['TR-101'], $projection['credited_course_codes']);
 
-        // Applicant Enrollment shows inline explanation + transfer-credit facts, NO Study Plan link
+        // #110 items 6–7 (owner decision, Nov 27, 2026): pre-student Applicants no longer see the subject
+        // breakdown or its explanation; it appears in the Student account after official enrollment.
         Livewire::actingAs($applicantUser)
             ->test(ApplicantEnrollment::class)
-            ->assertSee('Why these subjects')
-            ->assertSee('TR-101')
-            ->assertSee('Transfer credit evaluation')
+            ->assertDontSee('Why these subjects')
+            ->assertDontSee('Transfer credit evaluation')
             ->assertDontSee('View study plan')
             ->assertDontSee('View full study plan');
 
-        // Applicant Dashboard summary shows inline explanation + transfer-credit facts, NO Study Plan link
         Livewire::actingAs($applicantUser)
             ->test(ApplicantDashboard::class)
-            ->assertSee('Why these subjects')
-            ->assertSee('TR-101')
+            ->assertDontSee('Why these subjects')
+            ->assertDontSee('TR-101')
             ->assertDontSee('View study plan')
             ->assertDontSee('View full study plan');
     }

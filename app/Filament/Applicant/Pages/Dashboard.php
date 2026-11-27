@@ -807,7 +807,7 @@ class Dashboard extends BaseDashboard implements HasTable
         if ($application->application_state === AdmissionApplication::StateAdmitted) {
             $projection = app(ReadyApplicantProjectionQuery::class)->forApplication($application);
             if ($projection['ready'] ?? false) {
-                return app(ReadyApplicantProjectionQuery::class)->enrollmentNextAction($application);
+                return app(ReadyApplicantProjectionQuery::class)->applicantEnrollmentNextAction($application);
             }
 
             return 'Follow the Registrar instructions for external school checks and enrollment clearance.';

@@ -660,6 +660,18 @@ class OfficialRosterToStudentAcademicsJourneyTest extends TestCase
         $this->assertSame('Approved credit', $evaluation['required'][0]['status']);
         $this->assertSame(0, $evaluation['deficiency_count']);
         $this->assertSame(number_format((float) $creditEntry->courseSpecification->credit_units, 2, '.', ''), $evaluation['completed_units']);
+        $this->assertArrayHasKey('grade', $evaluation['required'][0]);
+        $this->assertArrayHasKey('grade_attempt', $evaluation['required'][0]);
+    }
+
+    #[Test]
+    public function curriculum_rows_show_the_deciding_grade_for_registrar_progress(): void
+    {
+        $this->assertSame('2.25', CurriculumEvaluation::displayGrade(['result' => '2.25']));
+        $this->assertSame('1.00', CurriculumEvaluation::displayGrade(['result' => '1']));
+        $this->assertSame('INC', CurriculumEvaluation::displayGrade(['result' => 'INC']));
+        $this->assertNull(CurriculumEvaluation::displayGrade(null));
+        $this->assertNull(CurriculumEvaluation::displayGrade(['result' => '']));
     }
 
     #[Test]

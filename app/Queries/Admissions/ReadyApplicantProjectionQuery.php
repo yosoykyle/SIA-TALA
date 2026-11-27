@@ -229,6 +229,22 @@ class ReadyApplicantProjectionQuery
             : $availability['explanation'];
     }
 
+    /**
+     * Applicant-facing next step once an admitted Applicant is ready for enrollment (#110 item 5).
+     */
+    public function applicantEnrollmentNextAction(AdmissionApplication $application): string
+    {
+        if ($this->registrationHasStarted($application)) {
+            return 'Your enrollment has started. Open Enrollment to confirm your subjects and payment, then sign in to your Student account once you are officially enrolled.';
+        }
+
+        $availability = $this->enrollmentAvailability($application);
+
+        return $availability['available']
+            ? 'Enrollment is open. Open Enrollment to prepare your subjects.'
+            : $availability['explanation'];
+    }
+
     /** @return array{available: bool, status: string, explanation: string, opens_at: ?CarbonImmutable, closes_at: ?CarbonImmutable} */
     public function enrollmentAvailability(AdmissionApplication $application): array
     {

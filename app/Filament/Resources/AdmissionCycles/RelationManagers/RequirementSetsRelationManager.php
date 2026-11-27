@@ -7,12 +7,12 @@ use App\Models\AdmissionCycle;
 use App\Models\AdmissionRequirement;
 use App\Models\AdmissionRequirementSet;
 use App\Models\User;
+use BackedEnum;
+use Closure;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
-use Filament\Forms\Components\Checkbox;
-use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
@@ -49,6 +49,8 @@ class RequirementSetsRelationManager extends RelationManager
 
     protected static string $relationship = 'requirementSets';
 
+    protected static string|BackedEnum|null $icon = 'heroicon-o-clipboard-document-check';
+
     public function form(Schema $schema): Schema
     {
         return $schema
@@ -65,6 +67,10 @@ class RequirementSetsRelationManager extends RelationManager
                                     self::PathBoth => 'Both Freshman & Transferee',
                                 ])
                             ->default(AdmissionCycle::PathFirstYear)
+                            ->live()
+                            ->afterStateUpdated(function (Get $get, Set $set, ?string $state): void {
+                                $set('requirements', self::withMainCredentialFor((array) $get('requirements'), (string) $state));
+                            })
                             ->descriptions(fn (?AdmissionRequirementSet $record): array => $record instanceof AdmissionRequirementSet
                                 ? []
                                 : [
@@ -74,20 +80,23 @@ class RequirementSetsRelationManager extends RelationManager
                             ->inlineLabel(false)
                             ->required()
                             ->columnSpanFull(),
-                        DateTimePicker::make('effective_at')
-                            ->label('Effective from')
-                            ->validationAttribute('Effective from')
-                            ->helperText('Defaults to now (Asia/Manila). Existing submitted applications retain their original requirements.')
-                            ->timezone('Asia/Manila')
-                            ->seconds(true)
-                            ->default(fn (): string => now('Asia/Manila')->format('Y-m-d H:i:s'))
-                            ->required(),
                     ])
                     ->columns(2)
                     ->columnSpanFull(),
                 Repeater::make('requirements')
                     ->label('Requirements')
                     ->relationship()
+                    ->default(fn (): array => [self::mainCredentialRow(AdmissionCycle::PathFirstYear)])
+                    ->rules([
+                        fn (Get $get, ?AdmissionRequirementSet $record): Closure => function (string $attribute, mixed $value, Closure $fail) use ($get, $record): void {
+                            $path = $record instanceof AdmissionRequirementSet ? $record->application_path : (string) $get('application_path');
+                            $problem = self::mainCredentialProblem(collect((array) $value)->pluck('credential_classification')->all(), $path);
+
+                            if ($problem !== null) {
+                                $fail($problem);
+                            }
+                        },
+                    ])
                     ->itemLabel(fn (array $state): ?string => filled($state['label'] ?? null) ? (string) $state['label'] : 'New requirement')
                     ->mutateRelationshipDataBeforeFillUsing(function (array $data): array {
                         $data['submission_mode'] = self::resolveSubmissionMode(
@@ -113,22 +122,24 @@ class RequirementSetsRelationManager extends RelationManager
                             ->maxLength(1000)
                             ->rows(2)
                             ->columnSpanFull(),
-                        Select::make('credential_classification')
-                            ->label('Credential classification')
-                            ->options([
-                                AdmissionRequirement::ClassificationCoreFirstYearCompletionCredential => 'Core: first-year completion credential (Form 138)',
-                                AdmissionRequirement::ClassificationCoreTransferCredential => 'Core: transfer credential (Honorable Dismissal / TOR)',
-                                AdmissionRequirement::ClassificationCoreOtherOfficialCredential => 'Core: other official credential',
-                                AdmissionRequirement::ClassificationNonCore => 'Non-core requirement',
-                            ])
+                        Radio::make('credential_classification')
+                            ->label('Requirement type')
+                            ->options(fn (Get $get): array => self::requirementTypeOptions($get('credential_classification')))
+                            ->descriptions(fn (Get $get): array => self::requirementTypeDescriptions($get('credential_classification')))
+                            ->default(AdmissionRequirement::ClassificationCoreOtherOfficialCredential)
+                            ->disabled(fn (Get $get): bool => self::isMainCredential($get('credential_classification')))
+                            ->dehydrated()
                             ->required()
                             ->live()
                             ->afterStateUpdated(function (Set $set, ?string $state): void {
-                                if (AdmissionRequirement::isCoreClassification($state)) {
-                                    $set('exception_permitted', false);
+                                $canBeHeld = $state === AdmissionRequirement::ClassificationNonCore;
+                                $set('exception_permitted', $canBeHeld);
+
+                                if (! $canBeHeld) {
                                     $set('required_approving_authority', null);
                                 }
-                            }),
+                            })
+                            ->columnSpanFull(),
                         Select::make('due_stage')
                             ->label('When it is due')
                             ->options([
@@ -164,22 +175,14 @@ class RequirementSetsRelationManager extends RelationManager
                             ->maxLength(1500)
                             ->rows(2)
                             ->columnSpanFull(),
-                        Checkbox::make('exception_permitted')
-                            ->label('Allow temporary hold / exception')
-                            ->live()
-                            ->visible(fn (Get $get): bool => $get('credential_classification') === AdmissionRequirement::ClassificationNonCore)
-                            ->afterStateUpdated(function (Set $set, bool $state): void {
-                                if (! $state) {
-                                    $set('required_approving_authority', null);
-                                }
-                            }),
                         TextInput::make('required_approving_authority')
-                            ->label('Approving authority for exception')
-                            ->required(fn (Get $get): bool => $get('credential_classification') === AdmissionRequirement::ClassificationNonCore
-                                && (bool) $get('exception_permitted'))
-                            ->visible(fn (Get $get): bool => $get('credential_classification') === AdmissionRequirement::ClassificationNonCore
-                                && (bool) $get('exception_permitted'))
-                            ->maxLength(255),
+                            ->label('Who approves a hold')
+                            ->placeholder('e.g., Registrar')
+                            ->helperText('The applicant may be cleared while this paper is still owed, with this approval and a due date.')
+                            ->required(fn (Get $get): bool => $get('credential_classification') === AdmissionRequirement::ClassificationNonCore)
+                            ->visible(fn (Get $get): bool => $get('credential_classification') === AdmissionRequirement::ClassificationNonCore)
+                            ->maxLength(255)
+                            ->columnSpanFull(),
                     ])
                     ->columns(2)
                     ->minItems(1)
@@ -246,6 +249,8 @@ class RequirementSetsRelationManager extends RelationManager
 
                         $data['application_path'] = $primaryPath;
                         $data['version'] = $nextVersion;
+                        // #110: a requirement list takes effect when it is created; submitted applications keep their original requirements.
+                        $data['effective_at'] = now(config('app.timezone'));
                         $data['replaces_requirement_set_id'] = $latestPublished?->id;
 
                         return $data;
@@ -401,6 +406,16 @@ class RequirementSetsRelationManager extends RelationManager
         $data['official_submission_method'] = $officialMethod;
         unset($data['submission_mode']);
 
+        if (array_key_exists('credential_classification', $data)) {
+            // #110 item 14: "Can be held with approval" is the only type that permits a hold.
+            $canBeHeld = $data['credential_classification'] === AdmissionRequirement::ClassificationNonCore;
+            $data['exception_permitted'] = $canBeHeld;
+
+            if (! $canBeHeld) {
+                $data['required_approving_authority'] = null;
+            }
+        }
+
         if (blank($data['code'] ?? null)) {
             $data['code'] = self::generateRequirementCode((string) ($data['label'] ?? 'REQUIREMENT'));
         }
@@ -523,5 +538,131 @@ class RequirementSetsRelationManager extends RelationManager
         return $path === AdmissionCycle::PathFirstYear
             ? AdmissionCycle::PathTransferee
             : AdmissionCycle::PathFirstYear;
+    }
+
+    /**
+     * The main admission credential a list must carry for its student type (#110 item 14).
+     */
+    public static function mainCredentialClassificationFor(string $path): string
+    {
+        return $path === AdmissionCycle::PathTransferee
+            ? AdmissionRequirement::ClassificationCoreTransferCredential
+            : AdmissionRequirement::ClassificationCoreFirstYearCompletionCredential;
+    }
+
+    public static function isMainCredential(?string $classification): bool
+    {
+        return in_array($classification, [
+            AdmissionRequirement::ClassificationCoreFirstYearCompletionCredential,
+            AdmissionRequirement::ClassificationCoreTransferCredential,
+        ], true);
+    }
+
+    /**
+     * Why a list's rows do not carry exactly one main credential for its student type, or null when they do.
+     *
+     * @param  list<mixed>  $classifications
+     */
+    public static function mainCredentialProblem(array $classifications, string $path): ?string
+    {
+        $expected = self::mainCredentialClassificationFor($path === self::PathBoth ? AdmissionCycle::PathFirstYear : $path);
+        $mainRows = array_values(array_filter($classifications, fn (mixed $classification): bool => self::isMainCredential(is_string($classification) ? $classification : null)));
+        $name = $expected === AdmissionRequirement::ClassificationCoreTransferCredential ? 'Honorable Dismissal / TOR' : 'Form 138';
+
+        return match (true) {
+            $mainRows === [] => "Add the main admission credential ({$name}) for this student type.",
+            count($mainRows) > 1 => 'A requirement list can have only one main admission credential.',
+            $mainRows[0] !== $expected => "This student type's main admission credential is {$name}.",
+            default => null,
+        };
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function requirementTypeOptions(?string $current): array
+    {
+        if (self::isMainCredential($current)) {
+            return [$current => $current === AdmissionRequirement::ClassificationCoreTransferCredential
+                ? 'Main admission credential (Honorable Dismissal / TOR)'
+                : 'Main admission credential (Form 138)'];
+        }
+
+        return [
+            AdmissionRequirement::ClassificationCoreOtherOfficialCredential => "Required, can't be held",
+            AdmissionRequirement::ClassificationNonCore => 'Can be held with approval',
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function requirementTypeDescriptions(?string $current): array
+    {
+        if (self::isMainCredential($current)) {
+            return [$current => "Every applicant of this student type must submit it before enrollment. It can't be held or removed."];
+        }
+
+        return [
+            AdmissionRequirement::ClassificationCoreOtherOfficialCredential => 'The applicant must hand it in before enrollment clearance.',
+            AdmissionRequirement::ClassificationNonCore => 'The Registrar may clear the applicant while it is still owed, with approval and a due date.',
+        ];
+    }
+
+    /**
+     * A new list's pre-filled main credential row for its student type.
+     *
+     * @return array<string, mixed>
+     */
+    private static function mainCredentialRow(string $path): array
+    {
+        $isTransferee = $path === AdmissionCycle::PathTransferee;
+
+        return [
+            'label' => $isTransferee ? 'Honorable Dismissal and Transcript of Records' : 'Form 138 (Senior High School Report Card)',
+            'purpose' => $isTransferee
+                ? 'Shows the applicant may transfer and lists the grades earned at the previous college.'
+                : 'Shows the applicant completed senior high school.',
+            'credential_classification' => self::mainCredentialClassificationFor($path),
+            'due_stage' => AdmissionRequirement::DueEnrollmentReadiness,
+            'submission_mode' => $isTransferee ? self::ModeSchoolToSchoolWithOnline : self::ModeBothOnlineAndF2f,
+            'applicant_instructions' => $isTransferee
+                ? 'Upload a copy, then request your previous school to send the official record to the Registrar.'
+                : 'Upload a clear copy, then bring the original to the Registrar\'s office before enrollment.',
+            'registrar_instructions' => $isTransferee
+                ? 'Check the official record received from the previous school against the uploaded copy.'
+                : 'Check the original against the uploaded copy.',
+            'exception_permitted' => false,
+            'required_approving_authority' => null,
+        ];
+    }
+
+    /**
+     * Keeps the pre-filled main credential row in step with the chosen student type.
+     *
+     * @param  array<string, array<string, mixed>>  $rows
+     * @return array<string, array<string, mixed>>
+     */
+    private static function withMainCredentialFor(array $rows, string $path): array
+    {
+        $mainPath = $path === self::PathBoth ? AdmissionCycle::PathFirstYear : $path;
+        $fresh = self::mainCredentialRow($mainPath);
+        $otherDefaults = self::mainCredentialRow($mainPath === AdmissionCycle::PathTransferee ? AdmissionCycle::PathFirstYear : AdmissionCycle::PathTransferee);
+
+        foreach ($rows as $key => $row) {
+            if (! self::isMainCredential($row['credential_classification'] ?? null)) {
+                continue;
+            }
+
+            $rows[$key]['credential_classification'] = $fresh['credential_classification'];
+
+            foreach (['label', 'purpose', 'submission_mode', 'applicant_instructions', 'registrar_instructions'] as $field) {
+                if (($row[$field] ?? null) === $otherDefaults[$field]) {
+                    $rows[$key][$field] = $fresh[$field];
+                }
+            }
+        }
+
+        return $rows;
     }
 }

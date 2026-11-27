@@ -405,7 +405,9 @@ final class TAL96D3AMasterScheduleFunctionalHardeningTest extends TestCase
 
         Livewire::actingAs($fixture['faculty'])->test(FacultySchedule::class, ['termId' => $fixture['term']->id])
             ->filterTable('day_of_week', 2)
-            ->assertSeeInOrder(['Classes', '1', 'Weekly meetings', '2', 'Teaching days', '2'])
+            ->assertSee('Exam period')
+            ->assertDontSee('Weekly meetings')
+            ->assertDontSee('Teaching days')
             ->assertSee('Academic calendar')
             ->assertSee('Showing filtered classes:')
             ->assertSee('Tuesday');

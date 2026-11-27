@@ -50,14 +50,6 @@
         @if ($receipt->id !== $application->current_submission_version_id)
             <p class="mt-2">These are earlier submitted facts. Follow the current version for any action you need to take.</p>
         @endif
-        <details class="mt-4">
-            <summary class="cursor-pointer">Instructions issued with version {{ $receipt->version }}</summary>
-        @foreach ($snapshot['requirements'] ?? [] as $requirement)
-            @if (filled($requirement['applicant_instructions'] ?? null) && ($requirement['due_stage'] ?? null) !== \App\Models\AdmissionRequirement::DuePreliminaryReview)
-                <p class="mt-4"><strong>{{ $requirement['label'] ?? 'Requirement' }}:</strong> {{ $requirement['applicant_instructions'] }}</p>
-            @endif
-        @endforeach
-        </details>
         <div class="tala-action-block">
             <x-filament::button tag="a" :href="\App\Filament\Applicant\Pages\Requirements::getUrl(['application' => $application->id])" icon="heroicon-o-arrow-right">View application status</x-filament::button>
             @if ($application->allowsSubmittedEdit())

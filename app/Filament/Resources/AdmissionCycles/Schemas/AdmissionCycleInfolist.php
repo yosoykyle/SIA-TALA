@@ -7,11 +7,10 @@ use App\Filament\Pages\TermCalendar;
 use App\Filament\Pages\TermOverview;
 use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use App\Models\AdmissionCycle;
-use App\Models\AdmissionCycleEvent;
 use App\Models\Program;
-use Filament\Infolists\Components\TextEntry;
-use Filament\Schemas\Components\Grid;
+use App\Models\Term;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Text;
 use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
 
@@ -38,98 +37,130 @@ class AdmissionCycleInfolist
                             ]),
                     ])
                     ->columnSpanFull(),
-                Grid::make(['default' => 1, 'lg' => 2])->schema([
-                    Section::make('Intake')
-                        ->compact()
-                        ->schema([
-                            TextEntry::make('availability')->label('Applications')
-                                ->state(fn (AdmissionCycle $record): string => match (true) {
-                                    $record->state === AdmissionCycle::StateDraft => 'Draft — finish setup before publication',
-                                    $record->state === AdmissionCycle::StateCancelled => 'Cancelled',
-                                    $record->state !== AdmissionCycle::StatePublished || ! $record->opens_at || ! $record->closes_at => 'Application window unavailable — review the cycle dates',
-                                    $record->opens_at->isFuture() => 'Scheduled',
-                                    $record->closes_at <= now() => 'Closed — existing reviews continue',
-                                    default => 'Open for new applications',
-                                })->badge()
-                                ->color(fn (AdmissionCycle $record): string => $record->state === AdmissionCycle::StatePublished && $record->opens_at?->isPast() && $record->closes_at?->isFuture() ? 'success' : 'gray'),
-                            TextEntry::make('term.label')
-                                ->label('Target term')
-                                ->placeholder('Not selected')
-                                ->url(fn (AdmissionCycle $record): ?string => $record->term_id !== null && TermOverview::canAccess()
-                                    ? TermCalendar::getUrl(['termId' => $record->term_id])
-                                    : null)
-                                ->color(fn (AdmissionCycle $record): ?string => $record->term_id !== null && TermOverview::canAccess() ? 'primary' : null),
-                            TextEntry::make('program_acceptance')
-                                ->label('Programs and student types')
-                                ->state(fn (AdmissionCycle $record): array => $record->programs
-                                    ->map(function (Program $program): string {
-                                        $pivot = $program->getRelation('pivot');
-                                        $paths = collect([
-                                            data_get($pivot, 'accepts_first_year') ? AdmissionCycle::studentTypeLabel(AdmissionCycle::PathFirstYear) : null,
-                                            data_get($pivot, 'accepts_transferee') ? AdmissionCycle::studentTypeLabel(AdmissionCycle::PathTransferee) : null,
-                                        ])->filter()->implode(', ');
-
-                                        return "{$program->name}: ".($paths ?: 'No student type enabled');
-                                    })->values()->all() ?: ['Choose accepting programs before publication.'])
-                                ->listWithLineBreaks()->limitList(3)->expandableLimitedList(),
-                            TextEntry::make('registrarOwner.email')->label('Responsible Registrar')->placeholder('Assign before publication'),
-                        ]),
-                    Section::make('Application dates')
-                        ->compact()
-                        ->schema([
-                            TextEntry::make('opens_at')->label('Applications open')->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')->placeholder('Not set'),
-                            TextEntry::make('closes_at')->label('New applications close')->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')->placeholder('Not set'),
-                            TextEntry::make('correction_closes_at')->label('Correction request deadline')->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')->placeholder('Not set'),
-                            TextEntry::make('requirements_due_at')->label('Physical papers due')->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')->placeholder('Not set'),
-                            TextEntry::make('payment_due_at')->label('Enrollment payment due')->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')->placeholder('Not set'),
-                            TextEntry::make('period_ends_at')->label('Final admission cutoff')->dateTime('M j, Y · g:i A')->timezone('Asia/Manila')->placeholder('Not set'),
-                        ]),
-                ])->columnSpanFull(),
-                Section::make('Applicant guidance and source details')
+                Section::make('Intake')
+                    ->icon('heroicon-o-user-plus')
+                    ->compact()
+                    ->afterHeader([
+                        Text::make(fn (AdmissionCycle $record): string => self::intakeStatus($record)['label'])
+                            ->badge()
+                            ->color(fn (AdmissionCycle $record): string => self::intakeStatus($record)['color']),
+                    ])
+                    ->schema([
+                        View::make('filament.admin.admission-cycles.overview-intake')
+                            ->viewData(fn (AdmissionCycle $record): array => self::intakeViewData($record)),
+                    ])
+                    ->columnSpanFull(),
+                Section::make('Application dates')
+                    ->icon('heroicon-o-calendar-days')
                     ->compact()
                     ->schema([
-                        TextEntry::make('applicant_instructions')->label('Instructions for applicants')->columnSpanFull(),
-                        TextEntry::make('support_contact')->label('Admissions support contact'),
-                        TextEntry::make('privacy_notice_reference')->label('Approved privacy notice reference'),
-                        TextEntry::make('code')->label('Internal cycle code')->copyable(),
-                        TextEntry::make('publication_summary')->label('Publication checks')
-                            ->state(fn (AdmissionCycle $record): string => app(AdmissionCycleReadinessService::class)->for($record)['blockers'] === []
-                                ? 'All setup checks passed' : 'Resolve the setup findings before publication'),
-                    ])->columns(['default' => 1, 'md' => 2])->collapsible()->collapsed()->columnSpanFull(),
-                Section::make('Publication and date-change history')
-                    ->schema([
-                        TextEntry::make('event_history')
-                            ->label('Immutable events')
-                            ->state(fn (AdmissionCycle $record): string => $record->events
-                                ->sortByDesc('occurred_at')
-                                ->map(fn (AdmissionCycleEvent $event): string => sprintf(
-                                    '%s — %s — %s → %s — %s — %s — %s',
-                                    $event->occurred_at->timezone(config('app.display_timezone'))->format('M j, Y g:i A'),
-                                    str($event->event_type)->headline(),
-                                    self::boundarySummary((array) $event->previous_values),
-                                    self::boundarySummary((array) $event->new_values),
-                                    $event->reason ?: 'No reason recorded',
-                                    $event->authority_reference ?: 'No authority recorded',
-                                    $event->actor?->email ?: 'Actor unavailable',
-                                ))->implode("\n") ?: 'No publication or change event yet.')
-                            ->listWithLineBreaks(),
+                        View::make('filament.admin.admission-cycles.overview-dates')
+                            ->viewData(fn (AdmissionCycle $record): array => self::datesViewData($record)),
                     ])
-                    ->collapsible()->collapsed()
+                    ->columnSpanFull(),
+                Section::make('Applicant guidance and source details')
+                    ->icon('heroicon-o-document-text')
+                    ->compact()
+                    ->schema([
+                        View::make('filament.admin.admission-cycles.overview-guidance')
+                            ->viewData(fn (AdmissionCycle $record): array => self::guidanceViewData($record)),
+                    ])
                     ->columnSpanFull(),
             ]);
     }
 
-    /** @param array<string, mixed> $values */
-    private static function boundarySummary(array $values): string
+    /**
+     * @return array<string, mixed>
+     */
+    private static function guidanceViewData(AdmissionCycle $record): array
     {
-        return collect([
-            'opening' => $values['opens_at'] ?? null,
-            'public close' => $values['closes_at'] ?? null,
-            'new-correction close' => $values['correction_closes_at'] ?? null,
-            'state' => $values['state'] ?? null,
-        ])->filter(fn (mixed $value): bool => filled($value))
-            ->map(fn (mixed $value, string $label): string => "{$label}: {$value}")
-            ->implode(', ') ?: 'No boundary value';
+        $blockers = app(AdmissionCycleReadinessService::class)->for($record)['blockers'];
+
+        return [
+            'code' => $record->code,
+            'codeNote' => $record->state === AdmissionCycle::StateDraft ? 'Reserved once the cycle is published' : 'Reserved for this cycle',
+            'supportContact' => $record->support_contact,
+            'privacyReference' => $record->privacy_notice_reference,
+            'checksPassed' => $blockers === [],
+            'checksLabel' => trans_choice(':count item to fix|:count items to fix', count($blockers)),
+            'instructions' => $record->applicant_instructions,
+        ];
+    }
+
+    /**
+     * Short header badge for the Intake card, with the longer guidance shown under it (#110).
+     *
+     * @return array{label: string, color: string, note: ?string}
+     */
+    public static function intakeStatus(AdmissionCycle $record): array
+    {
+        return match (true) {
+            $record->state === AdmissionCycle::StateDraft => ['label' => 'Draft', 'color' => 'gray', 'note' => 'Finish setup and publish to open applications.'],
+            $record->state === AdmissionCycle::StateCancelled => ['label' => 'Cancelled', 'color' => 'danger', 'note' => null],
+            $record->state !== AdmissionCycle::StatePublished || ! $record->opens_at || ! $record->closes_at => ['label' => 'Dates needed', 'color' => 'warning', 'note' => 'Review the application window before applicants can apply.'],
+            $record->opens_at->isFuture() => ['label' => 'Scheduled', 'color' => 'info', 'note' => null],
+            $record->closes_at <= now() => ['label' => 'Closed', 'color' => 'gray', 'note' => 'New applications are closed; existing reviews continue.'],
+            default => ['label' => 'Open', 'color' => 'success', 'note' => null],
+        };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function intakeViewData(AdmissionCycle $record): array
+    {
+        $record->loadMissing(['term.academicYear', 'programs', 'registrarOwner']);
+
+        $programs = $record->programs->map(function (Program $program): array {
+            $pivot = $program->getRelation('pivot');
+            $types = collect([
+                AdmissionCycle::PathFirstYear => (bool) data_get($pivot, 'accepts_first_year'),
+                AdmissionCycle::PathTransferee => (bool) data_get($pivot, 'accepts_transferee'),
+            ])->filter()->keys()->map(fn (string $path): array => [
+                'label' => AdmissionCycle::studentTypeLabel($path),
+                'color' => AdmissionCycle::studentTypeColor($path),
+            ])->values()->all();
+
+            return ['name' => $program->name, 'types' => $types];
+        })->values()->all();
+
+        $studentTypes = collect($programs)->flatMap(fn (array $program): array => array_column($program['types'], 'label'))->unique()->values()->all();
+
+        return [
+            'statusNote' => self::intakeStatus($record)['note'],
+            'academicYear' => $record->term instanceof Term ? AdmissionCycleForm::academicYearOptionLabel($record->term) : null,
+            'academicYearUrl' => $record->term_id !== null && TermOverview::canAccess() ? TermCalendar::getUrl(['termId' => $record->term_id]) : null,
+            'studentTypes' => $studentTypes,
+            'programs' => $programs,
+            'registrar' => $record->registrarOwner?->email,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function datesViewData(AdmissionCycle $record): array
+    {
+        $isDraft = $record->state === AdmissionCycle::StateDraft;
+        $date = fn (string $label, mixed $value): array => [
+            'label' => $label,
+            'day' => $value?->timezone('Asia/Manila')->format('M j, Y'),
+            'time' => $value?->timezone('Asia/Manila')->format('g:i A'),
+            'required' => $isDraft,
+        ];
+
+        return ['groups' => [
+            ['heading' => 'Application window', 'dates' => [
+                $date('Applications open', $record->opens_at),
+                $date('New applications close', $record->closes_at),
+                $date('Correction request deadline', $record->correction_closes_at),
+            ]],
+            ['heading' => 'After admission', 'dates' => [
+                $date('Physical papers due', $record->requirements_due_at),
+                $date('Enrollment payment due', $record->payment_due_at),
+                $date('Final admission cutoff', $record->period_ends_at),
+            ]],
+        ]];
     }
 
     /**
@@ -141,10 +172,14 @@ class AdmissionCycleInfolist
     public static function fixLink(array $finding, AdmissionCycle $record): ?array
     {
         if (str_starts_with($finding['code'], 'requirement_set_')) {
-            return ['label' => 'Open requirement sets', 'url' => AdmissionCycleResource::getUrl('view', ['record' => $record, 'relation' => '0'])];
+            return $record->state === AdmissionCycle::StateDraft
+                ? ['label' => 'Set requirements', 'url' => AdmissionCycleResource::getUrl('edit', ['record' => $record, 'step' => 'form.programs-student-types::data::wizard-step'])]
+                : ['label' => 'Open requirement sets', 'url' => AdmissionCycleResource::getUrl('view', ['record' => $record, 'relation' => '0'])];
         }
 
         $label = match ($finding['code']) {
+            'cycle_code_reserved' => 'Change cycle code',
+            'post_admission_deadlines' => 'Set post-admission deadlines',
             'target_term_and_dates' => 'Fix term and dates',
             'accepting_programs' => 'Choose accepting programs',
             'applicant_guidance' => 'Add applicant guidance',

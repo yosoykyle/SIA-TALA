@@ -4,7 +4,9 @@ namespace App\Filament\Resources\AdmissionCycles\Tables;
 
 use App\Actions\Admissions\ChangeAdmissionCycle;
 use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
+use App\Filament\Resources\AdmissionCycles\Schemas\AdmissionCycleForm;
 use App\Models\AdmissionCycle;
+use App\Models\Term;
 use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
@@ -17,6 +19,7 @@ use Filament\Tables\Columns\Layout\Stack;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Validation\ValidationException;
 
 class AdmissionCyclesTable
@@ -24,7 +27,7 @@ class AdmissionCyclesTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->extraAttributes(['class' => 'tala-admissions-table'])
+            ->extraAttributes(['class' => 'tala-admissions-table tala-admission-cycles-table'])
             ->striped()
             ->searchPlaceholder('Search cycles')
             ->columns([
@@ -32,7 +35,9 @@ class AdmissionCyclesTable
                     Stack::make([
                         TextColumn::make('label')->label('Admission cycle')->searchable(['label', 'code'])->wrap()->weight('semibold')
                             ->description(fn (AdmissionCycle $record): string => $record->code),
-                        TextColumn::make('term.label')->label('Target term')->prefix('Target term: ')->wrap()->placeholder('Target term not selected'),
+                        TextColumn::make('term.label')->label('Academic Year')->prefix('Academic Year: ')
+                            ->formatStateUsing(fn (?string $state, AdmissionCycle $record): ?string => $record->term instanceof Term ? AdmissionCycleForm::academicYearOptionLabel($record->term) : $state)
+                            ->wrap()->placeholder('Academic Year not selected'),
                     ])->space(1),
                     TextColumn::make('availability')->label('Public applications')
                         ->prefix('Applications: ')
@@ -93,8 +98,9 @@ class AdmissionCyclesTable
                     AdmissionCycle::StateCancelled => 'Cancelled',
                 ]),
                 SelectFilter::make('term_id')
-                    ->label('Target term')
-                    ->relationship('term', 'label')
+                    ->label('Academic Year')
+                    ->relationship('term', 'label', fn (Builder $query): Builder => $query->with('academicYear'))
+                    ->getOptionLabelFromRecordUsing(fn (Term $record): string => AdmissionCycleForm::academicYearOptionLabel($record))
                     ->searchable()
                     ->preload(),
             ])

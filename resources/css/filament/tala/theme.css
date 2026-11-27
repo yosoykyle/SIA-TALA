@@ -85,6 +85,10 @@
 .fi-panel-applicant .fi-callout-description { max-inline-size: none; }
 .fi-panel-applicant :is(.fi-in-text, .fi-sc-text, .fi-fo-field-wrp-error-message, .fi-ta-text-item, .filepond--file-info-main, .filepond--file-status-main) { overflow-wrap: anywhere; }
 .fi-panel-applicant :is(.tala-journey__stage, .tala-home > *, .tala-record-group) { min-width: 0; }
+/* #110 item 2: the required privacy acknowledgement on Review copies reads as its own callout. */
+.fi-panel-applicant .tala-privacy-acknowledgement .fi-section { border: 1px solid var(--tala-selected-edge); background: var(--tala-brand-tint); box-shadow: none; }
+.fi-panel-applicant .tala-privacy-acknowledgement .fi-fo-checkbox-input { inline-size: 1.25rem; block-size: 1.25rem; }
+.fi-panel-applicant .tala-privacy-acknowledgement .fi-fo-field-label-content { font-weight: 600; }
 .tala-record-groups { display: grid; gap: 1.5rem; }
 .tala-record-group { display: grid; gap: 0.75rem; }
 .tala-record-group h3 { font-size: 1rem; font-weight: 600; line-height: 1.5; }
@@ -1387,6 +1391,12 @@
 .tala-journey-next__copy { display: grid; flex: 1 1 28rem; gap: 0.5rem; min-width: 0; }
 .tala-journey-next__copy p { margin: 0; line-height: 1.6; }
 .tala-journey-next__step { font-size: 0.875rem; font-weight: 600; color: var(--primary-700); }
+/* #110 item 5: decision remarks sit apart from the next step as a quieter labelled block. */
+.tala-decision-remarks { display: grid; gap: 0.25rem; max-width: 65ch; margin-block-start: 0.25rem; padding: 0.75rem 1rem; border: 1px solid var(--gray-200); border-radius: 0.5rem; background: var(--gray-50); }
+.dark .tala-decision-remarks { border-color: var(--gray-700); background: color-mix(in srgb, var(--gray-800) 60%, transparent); }
+.tala-journey-next__copy .tala-decision-remarks__label { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.01em; color: var(--gray-600); }
+.dark .tala-journey-next__copy .tala-decision-remarks__label { color: var(--gray-400); }
+.tala-journey-next__copy .tala-decision-remarks__text { font-size: 0.875rem; line-height: 1.55; text-wrap: pretty; }
 .dark .tala-journey-next__step { color: var(--primary-300); }
 .tala-journey-next .tala-application-next-action { max-width: 60ch; font-size: 1.125rem; font-weight: 600; line-height: 1.45; text-wrap: pretty; }
 .tala-journey-next__action { flex: 0 0 auto; }
@@ -3626,3 +3636,173 @@ html:not(.dark) .fi-breadcrumbs-item-separator { color: var(--gray-600); }
     color: color-mix(in srgb, var(--tala-muted) 74%, var(--tala-surface));
     opacity: 1;
 }
+
+/* #110 item 13: the admission cycle wizard header uses the Term Planning stage bar design (.tala-stage-bar tokens). */
+.tala-cycle-wizard .fi-sc-wizard-header { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; margin: 0; padding: 1.25rem 1.5rem 0.25rem; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.tala-cycle-wizard .fi-sc-wizard-header-step { flex: 0 1 21.5rem; min-inline-size: 0; }
+.tala-cycle-wizard :is(.fi-sc-wizard-header-step-separator, .fi-sc-wizard-header-step-icon-ctn) { display: none; }
+.tala-cycle-wizard .fi-sc-wizard-header-step-btn { display: block; inline-size: 100%; block-size: 100%; padding: 0.75rem 0.875rem; border: 1px solid color-mix(in srgb, var(--tala-control-border) 78%, var(--tala-border)); border-radius: var(--tala-card-radius, 0.75rem); background: var(--tala-surface); color: var(--tala-text); box-shadow: var(--tala-material-detail); text-align: start; }
+.tala-cycle-wizard .fi-sc-wizard-header-step-btn:focus-visible { outline: 2px solid var(--tala-focus-ring); outline-offset: 2px; }
+.tala-cycle-wizard .fi-sc-wizard-header-step-btn:disabled { cursor: not-allowed; border-color: var(--tala-border); background: var(--tala-surface-sunken); box-shadow: none; }
+.tala-cycle-wizard .fi-sc-wizard-header-step-text { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'title badge' 'summary summary'; align-items: center; gap: 0.375rem 0.5rem; inline-size: 100%; min-inline-size: 0; max-inline-size: none; }
+.tala-cycle-wizard .fi-sc-wizard-header-step-label { grid-area: title; font-size: 0.875rem; font-weight: 600; line-height: 1.35; color: var(--tala-text); }
+.tala-cycle-wizard .fi-sc-wizard-header-step:nth-child(1) .fi-sc-wizard-header-step-label::before { content: '1. '; }
+.tala-cycle-wizard .fi-sc-wizard-header-step:nth-child(2) .fi-sc-wizard-header-step-label::before { content: '2. '; }
+.tala-cycle-wizard .fi-sc-wizard-header-step:nth-child(3) .fi-sc-wizard-header-step-label::before { content: '3. '; }
+.tala-cycle-wizard .fi-sc-wizard-header-step-description { grid-area: summary; font-size: 0.75rem; line-height: 1.4; color: var(--tala-muted); overflow-wrap: anywhere; text-wrap: pretty; }
+.tala-cycle-wizard .fi-sc-wizard-header-step-text::after { grid-area: badge; justify-self: end; padding: 0.125rem 0.5rem; border: 1px solid var(--tala-border); border-radius: 0.375rem; background: var(--tala-surface-sunken); color: var(--tala-muted); font-size: 0.75rem; font-weight: 500; line-height: 1.4; white-space: nowrap; content: 'Up next'; }
+.tala-cycle-wizard .fi-sc-wizard-header-step.fi-completed .fi-sc-wizard-header-step-text::after { border-color: var(--tala-status-success-border); background: var(--tala-status-success-bg); color: var(--tala-status-success-fg); content: 'Done'; }
+.tala-cycle-wizard .fi-sc-wizard-header-step.fi-active .fi-sc-wizard-header-step-text::after { border-color: var(--tala-selected-edge); background: var(--tala-surface); color: var(--tala-on-brand-tint); content: 'In progress'; }
+.tala-cycle-wizard .fi-sc-wizard-header-step.fi-active .fi-sc-wizard-header-step-btn { border-color: var(--tala-selected-edge); background: var(--tala-brand-tint); box-shadow: inset 0 0 0 1px var(--tala-selected-edge), var(--tala-material-raised); }
+.tala-cycle-wizard .fi-sc-wizard-header-step.fi-active :is(.fi-sc-wizard-header-step-label, .fi-sc-wizard-header-step-description) { color: var(--tala-on-brand-tint); }
+.tala-cycle-wizard .fi-sc-wizard-header-step:not(.fi-active):not(.fi-completed) .fi-sc-wizard-header-step-label { color: var(--tala-muted); }
+@media (hover: hover) {
+    .tala-cycle-wizard .fi-sc-wizard-header-step:not(.fi-active) .fi-sc-wizard-header-step-btn:not(:disabled):hover { border-color: var(--tala-control-border); background: var(--tala-surface-sunken); }
+}
+@media (prefers-reduced-motion: no-preference) {
+    .tala-cycle-wizard .fi-sc-wizard-header-step-btn { transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease; }
+}
+@media (forced-colors: active) {
+    .tala-cycle-wizard .fi-sc-wizard-header-step-btn { background: Canvas; color: CanvasText; border-color: CanvasText; box-shadow: none; }
+    .tala-cycle-wizard .fi-sc-wizard-header-step.fi-active .fi-sc-wizard-header-step-btn { border-color: Highlight; }
+}
+
+/* #110 item 11: Back on the left; Save & continue with Cancel beside it on the right. */
+.tala-cycle-wizard .fi-sc-wizard-footer { justify-content: flex-end; gap: 0.75rem; }
+.tala-cycle-wizard .fi-sc-wizard-footer > :nth-child(1) { margin-inline-end: auto; }
+.tala-cycle-wizard .fi-sc-wizard-footer > :nth-child(2) { order: 3; }
+.tala-cycle-wizard .fi-sc-wizard-footer > :nth-child(3), .tala-cycle-wizard .fi-sc-wizard-footer > :nth-child(4) { order: 2; }
+.tala-cycle-wizard__submit { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
+@media (max-width: 40rem) {
+    .tala-cycle-wizard .fi-sc-wizard-header { padding: 1rem 1rem 0; }
+    .tala-cycle-wizard .fi-sc-wizard-header-step { flex-basis: 100%; }
+    .tala-cycle-wizard .fi-sc-wizard-footer { flex-direction: column; align-items: stretch; }
+    .tala-cycle-wizard .fi-sc-wizard-footer > :nth-child(1) { order: 4; margin-inline-end: 0; }
+    .tala-cycle-wizard .fi-sc-wizard-footer > * > .fi-btn,
+    .tala-cycle-wizard__submit,
+    .tala-cycle-wizard__submit > .fi-btn { inline-size: 100%; }
+    .tala-cycle-wizard__submit { flex-direction: column; align-items: stretch; }
+}
+
+/* Admission cycles list: fixed column shares so the status column lines up on every row. */
+@media (min-width: 48rem) {
+    .tala-admission-cycles-table .fi-ta-record .fi-ta-split { align-items: flex-start; }
+    .tala-admission-cycles-table .fi-ta-record .fi-ta-split > .fi-growable:first-child { flex: 0 0 55%; min-inline-size: 0; }
+    .tala-admission-cycles-table .fi-ta-record .fi-ta-actions { min-inline-size: 13rem; justify-content: flex-start; }
+    .tala-admission-cycles-table .fi-ta-record .fi-ta-split .fi-ta-text-item { white-space: normal; overflow-wrap: anywhere; }
+    .tala-admission-cycles-table .fi-ta-record .fi-ta-split > .fi-growable:nth-child(2) { flex: 1 1 0; min-inline-size: 0; }
+}
+
+/* #110: admission cycle overview cards reuse Term Planning's calendar fact strip and row list. */
+.tala-cycle-overview { container-type: inline-size; display: grid; gap: 1rem; }
+.tala-cycle-overview .tala-calendar-facts { margin-block: 0; }
+.tala-cycle-overview__note { margin: 0; font-size: 0.875rem; line-height: 1.5; color: var(--tala-muted); }
+.tala-cycle-overview__group { display: grid; gap: 0.5rem; min-inline-size: 0; }
+.tala-cycle-overview__group-heading { margin: 0; font-size: 0.875rem; font-weight: 600; line-height: 1.35; color: var(--tala-text); }
+.tala-cycle-overview .tala-calendar-facts dd.tala-cycle-overview__missing,
+.tala-cycle-overview p.tala-cycle-overview__missing { font-weight: 500; color: var(--tala-muted); }
+.tala-cycle-overview p.tala-cycle-overview__missing { margin: 0; font-size: 0.875rem; }
+.tala-cycle-overview__badges { display: inline-flex; flex-wrap: wrap; gap: 0.375rem; }
+.tala-cycle-overview .tala-calendar-admissions__list { margin: 0; padding: 0.25rem 1rem; border: 1px solid var(--tala-edge); border-radius: 0.5rem; background: var(--tala-surface-sunken); }
+.tala-cycle-overview .tala-calendar-admissions__item { padding-block: 0.625rem; }
+.tala-cycle-overview .tala-calendar-admissions__item:first-child { padding-block-start: 0.625rem; }
+.tala-cycle-overview .tala-calendar-admissions__item:last-child { padding-block-end: 0.625rem; }
+
+/* #110: Cycle overview / Requirement Sets tabs use Term Planning's full-width work tabs (Faculty / Rooms). */
+.tala-admission-cycle-view [id='content.relationManagerTabs'] > .fi-tabs { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; align-items: stretch; inline-size: 100%; max-inline-size: 100%; margin-inline: 0; padding: 0.25rem; gap: 0.25rem; }
+.tala-admission-cycle-view [id='content.relationManagerTabs'] > .fi-tabs > .fi-tabs-item { display: inline-flex; align-items: center; justify-content: center; inline-size: 100%; min-inline-size: 0; min-block-size: 2.5rem; padding-block: 0.375rem; padding-inline: 0.875rem; white-space: nowrap; }
+@media (max-width: 34rem) {
+    .tala-admission-cycle-view [id='content.relationManagerTabs'] > .fi-tabs > .fi-tabs-item { padding-inline: 0.5rem; white-space: normal; }
+}
+
+/* #110 item 15: on laptops the Student records page scrolls as a whole; the filter panel stays in view. */
+@container tala-directory (min-width: 65rem) {
+    .tala-scoped-directory .fi-ta-filters-before-content-ctn { position: sticky; inset-block-start: 5rem; align-self: start; }
+}
+
+/* #110 item 17: curriculum progress tables share one column grid, with grades and GPA / GWA. */
+.tala-profile-curriculum-groups .tala-profile-table-wrap { max-block-size: none; overflow-x: auto; overflow-y: visible; overscroll-behavior: auto; }
+.tala-profile-curriculum-table { table-layout: fixed; min-inline-size: 34rem; }
+.tala-profile-curriculum-table__grade { inline-size: 6.5rem; }
+.tala-profile-curriculum-table__status { inline-size: 11rem; }
+.tala-profile-curriculum-table__units { inline-size: 8rem; }
+.tala-profile-curriculum-table th.tala-profile-numeric,
+.tala-profile-curriculum-table td.tala-profile-numeric { text-align: end; }
+.tala-profile-caption-row { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.25rem 1rem; }
+.tala-profile-average { display: inline-flex; align-items: baseline; gap: 0.375rem; margin: 0; }
+.tala-profile-average > span { font-size: 0.75rem; font-weight: 600; color: var(--tala-muted); }
+.tala-profile-average > strong { font-size: 0.875rem; font-weight: 600; color: var(--tala-text); font-variant-numeric: tabular-nums; }
+.tala-profile-average > strong.is-pending { font-weight: 500; color: var(--tala-muted); }
+.tala-profile-curriculum-year__header .tala-profile-average { margin-inline-start: auto; }
+.tala-profile-curriculum-year__header .tala-profile-average > strong { font-size: 1rem; }
+
+/* Semester headings carry the emphasis in curriculum progress (#110 item 17 follow-up). */
+.tala-profile-curriculum-table caption.tala-profile-table-caption { padding: 0.75rem 1rem; border-block-end: 1px solid var(--tala-selected-edge); background: var(--tala-brand-tint); color: var(--tala-on-brand-tint); font-size: 1rem; font-weight: 600; line-height: 1.35; }
+.tala-profile-curriculum-table caption .tala-profile-average > span { color: var(--tala-on-brand-tint); opacity: 0.8; }
+.tala-profile-curriculum-table caption .tala-profile-average > strong { font-size: 1rem; color: var(--tala-on-brand-tint); }
+.tala-profile-curriculum-table caption .tala-profile-average > strong.is-pending { font-weight: 500; opacity: 0.8; }
+
+/* #110: a selected Student records filter wraps its full name compactly instead of stretching the field. */
+.tala-scoped-directory .fi-ta-filters .fi-select-input-btn { block-size: auto; min-block-size: 2.25rem; align-items: center; }
+.tala-scoped-directory .fi-ta-filters .fi-select-input-value-ctn { min-inline-size: 0; }
+.tala-scoped-directory .fi-ta-filters .fi-select-input-value-label { display: block; white-space: normal; overflow-wrap: anywhere; font-size: 0.8125rem; line-height: 1.35; padding-block: 0.125rem; }
+
+/* #110: admission cycle overview header actions sit centred above the tabs. */
+.tala-admission-cycle-view .fi-page-header-main-ctn .fi-header { grid-template-columns: minmax(0, 1fr); }
+.tala-admission-cycle-view .fi-page-header-main-ctn .fi-header-actions-ctn { justify-self: stretch; justify-content: center; inline-size: 100%; }
+.tala-admission-cycle-view .fi-page-header-main-ctn .fi-header-actions-ctn > .fi-ac { justify-content: center; flex-wrap: wrap; }
+
+/* #110: guidance card uses a four-cell fact strip and a sunken instructions block, matching Intake. */
+.tala-cycle-overview .tala-calendar-facts.tala-cycle-overview__facts--four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.tala-cycle-overview .tala-calendar-facts dd { overflow-wrap: anywhere; }
+.tala-cycle-overview__prose { margin: 0; padding: 0.875rem 1rem; border: 1px solid var(--tala-edge); border-radius: 0.5rem; background: var(--tala-surface-sunken); font-size: 0.875rem; line-height: 1.6; color: var(--tala-text); max-inline-size: none; white-space: pre-line; }
+@container (max-width: 56rem) {
+    .tala-cycle-overview .tala-calendar-facts.tala-cycle-overview__facts--four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .tala-cycle-overview .tala-cycle-overview__facts--four .tala-calendar-facts__item:nth-child(3) { border-inline-start: 0; }
+    .tala-cycle-overview .tala-cycle-overview__facts--four .tala-calendar-facts__item:nth-child(n+3) { border-block-start: 1px solid var(--tala-edge); }
+}
+@container (max-width: 32rem) {
+    .tala-cycle-overview .tala-calendar-facts.tala-cycle-overview__facts--four { grid-template-columns: minmax(0, 1fr); }
+    .tala-cycle-overview .tala-cycle-overview__facts--four .tala-calendar-facts__item + .tala-calendar-facts__item { border-inline-start: 0; border-block-start: 1px solid var(--tala-edge); }
+}
+
+/* #110: Faculty Overview card titles use the section style with a leading icon, like Term Planning cards. */
+.tala-overview-card-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0; font-size: 1.125rem; font-weight: 600; line-height: 1.3; color: var(--tala-text); }
+.tala-overview-card-heading > .fi-icon { inline-size: 1.25rem; block-size: 1.25rem; flex: none; color: var(--tala-brand-foreground); }
+.tala-overview-card-subtitle { margin: 0.25rem 0 0; font-size: 0.75rem; line-height: 1.45; color: var(--tala-muted); }
+.tala-overview-card-subtitle + .tala-overview-card-subtitle { margin-block-start: 0.125rem; }
+.tala-faculty-overview-calendar > header h2.tala-overview-card-heading { font-size: 1.125rem; line-height: 1.3; }
+
+/* #110: Faculty schedule keeps only the exam period figure. */
+.tala-faculty-schedule-figures.tala-faculty-schedule-figures--exam-only { grid-template-columns: minmax(0, 1fr); }
+
+/* #110: the faculty term header carries the page's emphasis. */
+
+/* #110: Weekly / List toggle is two outlined buttons with no filled track. */
+.tala-faculty-schedule-bar .tala-navigation.fi-tabs { padding: 0; gap: 0.5rem; background: transparent; box-shadow: none; border: 0; }
+.tala-faculty-schedule-bar .tala-navigation .fi-tabs-item { border: 1px solid var(--tala-edge-strong, var(--tala-edge)); background: transparent; box-shadow: none; }
+.tala-faculty-schedule-bar .tala-navigation .fi-tabs-item.fi-active { border-color: var(--tala-selected-edge); background: transparent; color: var(--tala-brand-foreground); }
+@media (hover: hover) {
+    .tala-faculty-schedule-bar .tala-navigation .fi-tabs-item:not(.fi-active):hover { border-color: var(--tala-control-border); background: transparent; }
+}
+.fi-body .tala-faculty-schedule-bar nav.tala-navigation.fi-tabs > .fi-tabs-item,
+.fi-body .tala-faculty-schedule-bar nav.tala-navigation.fi-tabs > .fi-tabs-item.fi-active { background-color: transparent; }
+
+/* #110: the current-term card leads every Faculty page (Overview, My schedule, Class list & grades, Academic calendar, My availability). */
+.tala-record-scope-bar.tala-faculty-term-card { border-color: var(--tala-selected-edge); background: var(--tala-brand-tint); }
+.tala-faculty-term-card .tala-record-scope-bar__title { font-size: 1.125rem; font-weight: 700; line-height: 1.3; color: var(--tala-on-brand-tint); }
+.tala-faculty-term-card .tala-record-scope-bar__meta { font-size: 0.875rem; color: var(--tala-on-brand-tint); opacity: 0.85; }
+.tala-faculty-term-card .tala-record-scope-bar__icon-wrap { background: var(--tala-surface); border-color: var(--tala-selected-edge); }
+
+/* #110: Faculty Overview cards sit 1rem apart (one gap, no stacked margins). */
+.tala-faculty-overview-layout { gap: 0.75rem; }
+.tala-faculty-overview-layout > * { margin-block: 0; }
+
+/* #110: one tighter card rhythm across the Faculty workspace. */
+.tala-faculty-workflow { --tala-section-gap: 0.75rem; --tala-card-gap: 0.625rem; --tala-card-pad: 0.875rem; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem; min-inline-size: 0; }
+.tala-faculty-workflow > * { margin-block: 0; min-inline-size: 0; }
+.tala-faculty-workflow .tala-availability-card__body { gap: 0.875rem; }
+.tala-faculty-workflow .tala-calendar-sheet > :is(.tala-task-finding, .tala-work-footnote, .tala-calendar-exceptions),
+.tala-faculty-workflow .tala-calendar-source { margin-block-start: 0.875rem; }
+.tala-faculty-workflow .tala-calendar-activity-list { margin-block-start: 0.75rem; }
+.tala-faculty-workflow > .faculty-class-pagination { margin-block-start: 0; }

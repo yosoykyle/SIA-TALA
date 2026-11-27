@@ -409,7 +409,7 @@ final class TermCalendarPackageActivationAndEnrollmentRecoveryTest extends TestC
         Livewire::actingAs($application->user)
             ->test(ApplicantDashboard::class)
             ->assertSee('Enrollment is open.')
-            ->assertSee('Enrollment is open. Start enrollment to begin your Registration Case.')
+            ->assertSee('Enrollment is open. Open Enrollment to prepare your subjects.')
             ->assertActionVisible('openEnrollment');
 
         Livewire::actingAs($application->user)->test(ApplicantEnrollment::class)->assertActionVisible('startRegistration');

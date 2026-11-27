@@ -56,9 +56,11 @@ class Issue57AdmissionCycleDraftWorkflowTest extends TestCase
         ]);
 
         Livewire::test(ViewAdmissionCycle::class, ['record' => $closed->id])
-            ->assertSee('Closed — existing reviews continue');
+            ->assertSee('Closed')
+            ->assertSee('New applications are closed; existing reviews continue.');
         Livewire::test(ViewAdmissionCycle::class, ['record' => $missing->id])
-            ->assertSee('Application window unavailable — review the cycle dates');
+            ->assertSee('Dates needed')
+            ->assertSee('Review the application window before applicants can apply.');
         Livewire::test(ListAdmissionCycles::class)
             ->assertTableColumnStateSet('availability', 'Closed', $closed)
             ->assertTableColumnStateSet('availability', 'Window unavailable', $missing);
@@ -81,6 +83,9 @@ class Issue57AdmissionCycleDraftWorkflowTest extends TestCase
                 'opens_at' => '2027-01-02 08:00:00',
                 'closes_at' => '2027-01-10 17:00:00',
                 'correction_closes_at' => '2027-01-12 17:00:00',
+                'requirements_due_at' => '2027-01-20 17:00:00',
+                'payment_due_at' => '2027-01-25 17:00:00',
+                'period_ends_at' => '2027-01-31 17:00:00',
                 'accepted_paths' => [AdmissionCycle::PathFirstYear],
                 'programs' => [$program->id],
             ])
@@ -112,7 +117,7 @@ class Issue57AdmissionCycleDraftWorkflowTest extends TestCase
             ->assertSeeHtml(e(AdmissionCycleResource::getUrl('edit', ['record' => $cycle])))
             ->assertSee('Fix term and dates');
         $this->assertSame(
-            ['label' => 'Open requirement sets', 'url' => AdmissionCycleResource::getUrl('view', ['record' => $cycle, 'relation' => '0'])],
+            ['label' => 'Set requirements', 'url' => AdmissionCycleResource::getUrl('edit', ['record' => $cycle, 'step' => 'form.programs-student-types::data::wizard-step'])],
             AdmissionCycleInfolist::fixLink(['code' => 'requirement_set_transferee'], $cycle),
         );
         $this->assertNull(AdmissionCycleInfolist::fixLink(['code' => 'private_evidence_storage'], $cycle));
@@ -148,6 +153,9 @@ class Issue57AdmissionCycleDraftWorkflowTest extends TestCase
             'opens_at' => '2027-01-02 00:10:37',
             'closes_at' => '2027-01-04 11:20:43',
             'correction_closes_at' => '2027-01-06 13:30:59',
+            'requirements_due_at' => '2027-01-10 17:00:00',
+            'payment_due_at' => '2027-01-15 17:00:00',
+            'period_ends_at' => '2027-01-20 17:00:00',
         ]);
         $cycle->programs()->attach($program->id, [
             'accepts_first_year' => true,
