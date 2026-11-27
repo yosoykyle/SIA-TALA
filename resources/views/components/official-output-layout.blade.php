@@ -23,24 +23,34 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $title }} | {{ config('institution.name') }}</title>
-    @if ($schedulePresentation)<link rel="stylesheet" href="{{ asset('fonts/filament/filament/inter/index.css') }}">@endif
+    <link rel="stylesheet" href="{{ asset('fonts/filament/filament/inter/index.css') }}">
     <link rel="stylesheet" href="{{ asset('css/tala-foundation.css').'?v='.filemtime(public_path('css/tala-foundation.css')) }}">
     <style>
         :root {
-            color: #09090b;
-            font-family: Arial, sans-serif;
+            color: var(--tala-text, #09090b);
+            font-family: var(--tala-font-body, 'Inter Variable', Inter, system-ui, sans-serif);
             font-size: 13px;
         }
 
         body {
-            background: #f4f4f5;
+            background: var(--tala-canvas, #f4f4f5);
             margin: 0;
+        }
+
+        .tala-sr-only {
+            position: absolute;
+            inline-size: 1px;
+            block-size: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip-path: inset(50%);
+            white-space: nowrap;
         }
 
         .official-output-toolbar,
         .official-output {
-            margin-left: auto;
-            margin-right: auto;
+            margin-inline: auto;
             max-width: 1100px;
         }
 
@@ -59,13 +69,13 @@
             justify-content: center;
             min-height: 44px;
             padding: 10px 16px;
-            border: 1px solid var(--tala-control-border);
+            border: 1px solid var(--tala-control-border, #71717b);
             border-radius: 8px;
-            background-color: var(--tala-surface);
+            background-color: var(--tala-surface, #ffffff);
             background-image: var(--tala-control-gloss);
             box-shadow: var(--tala-control-depth);
-            color: var(--tala-text);
-            font: 600 14px/1.4 Arial, sans-serif;
+            color: var(--tala-text, #18181b);
+            font: 600 14px/1.4 var(--tala-font-body, 'Inter Variable', Inter, system-ui, sans-serif);
             text-decoration: none;
             cursor: pointer;
         }
@@ -215,9 +225,10 @@
 
             .official-output-table {
                 overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
             }
 
-            .finance-responsive-table thead {
+            .finance-responsive-table:has([data-label]) thead {
                 position: absolute;
                 width: 1px;
                 height: 1px;
@@ -229,33 +240,35 @@
                 border: 0;
             }
 
-            .finance-responsive-table table,
-            .finance-responsive-table tbody,
-            .finance-responsive-table tr,
-            .finance-responsive-table td {
+            .finance-responsive-table:has([data-label]) table,
+            .finance-responsive-table:has([data-label]) tbody,
+            .finance-responsive-table:has([data-label]) tr,
+            .finance-responsive-table:has([data-label]) tbody :is(th, td) {
                 display: block;
                 width: 100%;
                 box-sizing: border-box;
             }
 
-            .finance-responsive-table tr {
+            .finance-responsive-table:has([data-label]) tr {
                 border: 1px solid #d4d4d8;
                 margin-bottom: 12px;
             }
 
-            .finance-responsive-table td {
+            .finance-responsive-table:has([data-label]) tbody :is(th, td) {
                 display: grid;
                 grid-template-columns: minmax(96px, 40%) minmax(0, 1fr);
                 gap: 12px;
                 border: 0;
                 border-bottom: 1px solid #e4e4e7;
+                background: transparent;
+                font-weight: 400;
             }
 
-            .finance-responsive-table td:last-child {
+            .finance-responsive-table:has([data-label]) tbody :is(th, td):last-child {
                 border-bottom: 0;
             }
 
-            .finance-responsive-table td::before {
+            .finance-responsive-table:has([data-label]) tbody :is(th, td)[data-label]::before {
                 content: attr(data-label);
                 font-weight: 700;
             }
@@ -266,7 +279,7 @@
         }
 
         @if ($schedulePresentation)
-        :root { font-family: 'Inter Variable', Arial, sans-serif; font-size:14px; }
+        :root { font-family: var(--tala-font-body, 'Inter Variable', Inter, system-ui, sans-serif); font-size:14px; }
         .official-output { padding:24px; }
         .official-output-header { margin-bottom:16px; }
         .schedule-owner { margin-block:12px; line-height:1.5; }
@@ -281,6 +294,10 @@
         @endif
 
         @media print {
+            .official-output-table {
+                overflow: visible;
+            }
+
             thead {
                 display: table-header-group;
             }

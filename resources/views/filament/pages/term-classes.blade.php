@@ -404,7 +404,7 @@
                                         :href="\App\Filament\Pages\TermClasses::getUrl(['termId' => $term->id, 'classesView' => 'classes'])"
                                         wire:click.prevent="chooseClassesView('classes')"
                                     >
-                                        Classes tab
+                                        Open classes
                                     </x-filament::button>
                                 </div>
                             @else

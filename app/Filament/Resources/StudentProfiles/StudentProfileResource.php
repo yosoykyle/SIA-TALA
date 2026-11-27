@@ -477,7 +477,19 @@ class StudentProfileResource extends Resource
                 TextColumn::make('irregular_status')
                     ->label('Standing')
                     ->state(fn (StudentProfile $record): string => app(IrregularStudentReasons::class)->forStudent($record)['status_label'])
-                    ->description(fn (StudentProfile $record): ?string => app(IrregularStudentReasons::class)->needsReview($record) ? 'Needs Irregular review' : null)
+                    ->description(function (StudentProfile $record): ?string {
+                        $reasons = app(IrregularStudentReasons::class);
+                        $review = $reasons->forStudent($record);
+                        $parts = [];
+                        if ($reasons->needsReview($record)) {
+                            $parts[] = 'Needs Irregular review';
+                        }
+                        if ($review['has_high_deficiency_count']) {
+                            $parts[] = $review['unresolved_deficiency_count'].' unresolved deficiencies (advisory)';
+                        }
+
+                        return $parts !== [] ? implode(' · ', $parts) : null;
+                    })
                     ->badge()
                     ->color(fn (string $state): string => str_starts_with($state, 'Irregular') ? 'warning' : 'success')
                     ->wrap()

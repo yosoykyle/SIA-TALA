@@ -3,6 +3,7 @@
 namespace App\Actions\Scheduling;
 
 use App\Models\CandidateScheduleRow;
+use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\ScheduleGenerationRun;
 use App\Models\Term;
 use App\Models\User;
@@ -14,7 +15,11 @@ use Illuminate\Validation\ValidationException;
 
 final class AdjustCandidateMeeting
 {
-    public function __construct(private readonly ScheduleAssignmentRevalidationService $revalidator) {}
+    public function __construct(
+        private readonly ScheduleAssignmentRevalidationService $revalidator,
+        private readonly ?RecordFacultyAvailabilityDeclaration $recordAvailability = null,
+        private readonly ?ScheduleSolverSnapshotService $snapshots = null,
+    ) {}
 
     /**
      * @param  array{faculty_user_id?: int, room_id?: int|null, day_of_week?: int, starts_at?: string, ends_at?: string}  $assignment
@@ -25,11 +30,25 @@ final class AdjustCandidateMeeting
         array $assignment,
         ?string $reason = null,
         ?string $authority = null,
+        bool $expandTeacherAvailability = false,
+        ?string $availabilityExpansionReason = null,
     ): ScheduleGenerationRun {
         Gate::forUser($actor)->authorize('reviewCandidates', $requestedRow->scheduleRun);
 
-        return DB::transaction(function () use ($requestedRow, $actor, $assignment, $reason, $authority): ScheduleGenerationRun {
-            Term::query()->whereKey($requestedRow->scheduleRun->term_id)->lockForUpdate()->firstOrFail();
+        if ($expandTeacherAvailability && ! $actor->hasRole(User::StaffRoleRegistrar)) {
+            abort(403);
+        }
+
+        return DB::transaction(function () use (
+            $requestedRow,
+            $actor,
+            $assignment,
+            $reason,
+            $authority,
+            $expandTeacherAvailability,
+            $availabilityExpansionReason,
+        ): ScheduleGenerationRun {
+            $term = Term::query()->whereKey($requestedRow->scheduleRun->term_id)->lockForUpdate()->firstOrFail();
             $run = ScheduleGenerationRun::query()->whereKey($requestedRow->schedule_run_id)->lockForUpdate()->firstOrFail();
             Gate::forUser($actor)->authorize('reviewCandidates', $run);
 
@@ -71,6 +90,43 @@ final class AdjustCandidateMeeting
                     ? $this->withCapturedTimeBlock($run, array_replace($payload, $assignment))
                     : $payload;
             })->values()->all();
+
+            $targetIndex = $rows->search(fn (CandidateScheduleRow $row): bool => $row->is($target));
+            $targetPayload = is_int($targetIndex) ? ($payloads[$targetIndex] ?? null) : null;
+            $expandedDeclaration = null;
+            $expansionReason = null;
+
+            if ($expandTeacherAvailability && is_array($targetPayload)) {
+                $expansionReason = trim((string) ($availabilityExpansionReason ?? ''));
+                if ($expansionReason === '') {
+                    $expansionReason = $reason;
+                }
+                if ($expansionReason === '') {
+                    throw ValidationException::withMessages([
+                        'availability_expansion_reason' => 'A reason is required when expanding a teacher\'s availability for a scheduled class.',
+                    ]);
+                }
+
+                $targetFaculty = User::query()->findOrFail((int) $targetPayload['faculty_user_id']);
+                $recorder = $this->recordAvailability ?? app(RecordFacultyAvailabilityDeclaration::class);
+                $expandedDeclaration = $recorder->expandForScheduledSlot(
+                    term: $term,
+                    faculty: $targetFaculty,
+                    actor: $actor,
+                    dayOfWeek: (int) $targetPayload['day_of_week'],
+                    startsAt: (string) $targetPayload['starts_at'],
+                    endsAt: (string) $targetPayload['ends_at'],
+                    reason: $expansionReason,
+                    preserveRunId: (int) $run->id,
+                    context: [
+                        'source' => 'candidate_adjustment',
+                        'schedule_run_id' => (int) $run->id,
+                        'candidate_row_id' => (int) $target->id,
+                        'scheduling_demand_id' => (int) $target->scheduling_demand_id,
+                    ],
+                );
+            }
+
             $validation = $this->revalidator->validateCandidateSet($run, $payloads);
 
             if (! $validation->passes()) {
@@ -104,12 +160,27 @@ final class AdjustCandidateMeeting
                 'reason' => $reason,
                 'authority' => $authority ?? (string) $actor->id,
             ];
+
+            $successorInputSnapshot = is_array($run->input_snapshot) ? $run->input_snapshot : [];
+            if ($expandedDeclaration instanceof FacultyAvailabilityDeclaration) {
+                $snapshotService = $this->snapshots ?? app(ScheduleSolverSnapshotService::class);
+                $liveSnapshot = $snapshotService->currentForRun($run);
+                $successorInputSnapshot['faculty_availability'] = $liveSnapshot['faculty_availability']
+                    ?? ($successorInputSnapshot['faculty_availability'] ?? []);
+                $successorInputSnapshot['calendar_blocks'] = $liveSnapshot['calendar_blocks']
+                    ?? ($successorInputSnapshot['calendar_blocks'] ?? []);
+                $adjustmentSnapshot['availability_expansion'] = [
+                    'faculty_user_id' => (int) $expandedDeclaration->faculty_user_id,
+                    'declaration_id' => (int) $expandedDeclaration->id,
+                    'declaration_version' => (int) $expandedDeclaration->version,
+                    'reason' => $expansionReason,
+                ];
+            }
+            $successorInputSnapshot['candidate_adjustment'] = $adjustmentSnapshot;
+
             $successor->forceFill([
                 'status' => ScheduleGenerationRun::StatusUnderReview,
-                'input_snapshot' => [
-                    ...$run->input_snapshot,
-                    'candidate_adjustment' => $adjustmentSnapshot,
-                ],
+                'input_snapshot' => $successorInputSnapshot,
                 'input_hash' => hash('sha256', $run->input_hash.'|candidate-adjustment|'.json_encode($adjustmentSnapshot, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)),
                 'objective_value' => null,
                 'quality_measures' => null,

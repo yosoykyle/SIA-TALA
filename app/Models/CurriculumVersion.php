@@ -241,6 +241,70 @@ class CurriculumVersion extends Model
         return $last instanceof AcademicYear ? 'Batch '.self::formatBatchShort($last) : null;
     }
 
+    public function latestBatchStartYear(): ?int
+    {
+        $last = $this->sortedBatchAcademicYears()->last();
+
+        return $last instanceof AcademicYear ? self::extractAcademicYearStart($last) : null;
+    }
+
+    public function latestBatchStartsOnTimestamp(): int
+    {
+        $last = $this->sortedBatchAcademicYears()->last();
+
+        return $last instanceof AcademicYear && $last->starts_on !== null
+            ? (int) $last->starts_on->timestamp
+            : 0;
+    }
+
+    public function coversAcademicYearStart(int $startYear): bool
+    {
+        return $this->sortedBatchAcademicYears()->contains(
+            fn (AcademicYear $year): bool => self::extractAcademicYearStart($year) === $startYear,
+        );
+    }
+
+    /**
+     * Sort curricula chronologically by latest assigned batch year DESC (with deterministic tie-breakers).
+     *
+     * @param  Collection<int, self>  $curricula
+     * @return Collection<int, self>
+     */
+    public static function sortByLatestBatch(Collection $curricula, bool $groupByState = false): Collection
+    {
+        $stateRank = [
+            self::StateActive => 0,
+            self::StateDraft => 1,
+            self::StateSuperseded => 2,
+            self::StateArchived => 3,
+        ];
+
+        return $curricula
+            ->sort(function (self $left, self $right) use ($groupByState, $stateRank): int {
+                if ($groupByState) {
+                    $stateCmp = ($stateRank[$left->state] ?? 9) <=> ($stateRank[$right->state] ?? 9);
+                    if ($stateCmp !== 0) {
+                        return $stateCmp;
+                    }
+                }
+
+                $leftYear = $left->latestBatchStartYear() ?? -1;
+                $rightYear = $right->latestBatchStartYear() ?? -1;
+                if ($leftYear !== $rightYear) {
+                    return $rightYear <=> $leftYear;
+                }
+
+                $leftTs = $left->latestBatchStartsOnTimestamp();
+                $rightTs = $right->latestBatchStartsOnTimestamp();
+                if ($leftTs !== $rightTs) {
+                    return $rightTs <=> $leftTs;
+                }
+
+                return (int) $right->id <=> (int) $left->id;
+            })
+            ->values();
+    }
+
     public function studentCountForBatches(): int
     {
         return $this->studentProfiles()

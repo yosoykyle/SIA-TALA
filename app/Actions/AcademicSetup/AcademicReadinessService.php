@@ -18,6 +18,7 @@ class AcademicReadinessService
     public function currentCurriculum(Program $program, ?int $academicYearId = null): ?CurriculumVersion
     {
         $program->loadMissing([
+            'curriculumVersions.academicYears',
             'curriculumVersions.entries.courseSpecification.components',
             'curriculumVersions.entries.courseSpecification.course',
         ]);
@@ -36,6 +37,18 @@ class AcademicReadinessService
 
                 if ($stateComparison !== 0) {
                     return $stateComparison;
+                }
+
+                $batchYearComparison = ($right->latestBatchStartYear() ?? -1) <=> ($left->latestBatchStartYear() ?? -1);
+
+                if ($batchYearComparison !== 0) {
+                    return $batchYearComparison;
+                }
+
+                $batchTsComparison = $right->latestBatchStartsOnTimestamp() <=> $left->latestBatchStartsOnTimestamp();
+
+                if ($batchTsComparison !== 0) {
+                    return $batchTsComparison;
                 }
 
                 $createdComparison = $right->created_at <=> $left->created_at;

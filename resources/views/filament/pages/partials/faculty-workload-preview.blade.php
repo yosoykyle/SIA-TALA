@@ -40,7 +40,7 @@
     );
 @endphp
 
-<div @class(['tala-workload-preview', 'is-warning' => $hasWarning]) role="region" aria-label="Term workload preview" aria-live="polite">
+<div @class(['tala-workload-preview', 'is-warning' => $hasWarning]) role="region" aria-label="Term workload preview">
     <div class="tala-workload-preview__header">
         <span class="tala-workload-preview__title">Term workload preview</span>
         <span class="tala-workload-preview__caps tabular-nums">

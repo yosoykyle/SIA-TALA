@@ -2441,7 +2441,7 @@ html.dark .fi-body .fi-section.tala-term-settings-identity.tala-term-settings-id
 }
 
 .tala-solver-matrix__days {
-    font-size: 0.68rem;
+    font-size: 0.75rem;
     font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -4483,7 +4483,7 @@ p.tala-stage-next__copy {
     gap: 0.375rem 1rem;
 }
 
-.tala-conflict-guide__head h3 {
+.tala-conflict-guide__head :is(h2, h3) {
     margin: 0;
     font-size: 0.9375rem;
     font-weight: 600;
@@ -4832,7 +4832,7 @@ p.tala-stage-next__copy {
     display: inline-flex;
     align-items: center;
     gap: 0.4375rem;
-    min-block-size: 2.125rem;
+    min-block-size: 2.5rem;
     padding: 0.3125rem 0.6875rem;
     border: 1px solid var(--tala-edge-strong);
     border-radius: 999px;
@@ -4929,8 +4929,9 @@ p.tala-stage-next__copy {
 }
 
 @media (pointer: coarse) {
-    .tala-triage-chip {
-        min-block-size: 2.5rem;
+    .tala-triage-chip,
+    .tala-rail-triage .tala-triage-chip {
+        min-block-size: 2.75rem;
         padding-inline: 0.75rem;
     }
 }
@@ -5007,7 +5008,7 @@ p.tala-stage-next__copy {
 }
 
 .tala-rail-triage__label {
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -5015,18 +5016,18 @@ p.tala-stage-next__copy {
 }
 
 .tala-rail-triage .tala-triage-chips {
-    gap: 0.3125rem;
+    gap: 0.375rem;
 }
 
 .tala-rail-triage .tala-triage-chip {
-    min-block-size: 1.875rem;
-    padding: 0.1875rem 0.5625rem;
+    min-block-size: 2.5rem;
+    padding: 0.25rem 0.625rem;
     font-size: 0.75rem;
 }
 
 .tala-rail-triage .tala-triage-chip__count {
     min-inline-size: 1.25rem;
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
 }
 
 .tala-timetable-meeting[data-late-impact='true'],
@@ -5044,7 +5045,7 @@ p.tala-stage-next__copy {
     border-radius: 0.25rem;
     background: var(--tala-status-danger-bg);
     color: var(--tala-status-danger-fg);
-    font-size: 0.65rem;
+    font-size: 0.75rem;
     font-weight: 700;
     line-height: 1.3;
     white-space: nowrap;
@@ -5076,7 +5077,12 @@ p.tala-stage-next__copy {
     border-radius: 0.75rem;
     background: var(--tala-surface, #ffffff);
     box-shadow: var(--tala-material-raised, 0 1px 2px rgb(16 24 18 / 6%), 0 4px 12px -4px rgb(16 24 18 / 8%));
-    transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .tala-auto-classes-card.fi-section {
+        transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+    }
 }
 
 .tala-auto-classes-card.fi-section.is-enabled {
@@ -5142,7 +5148,7 @@ p.tala-stage-next__copy {
     border: 1px solid color-mix(in srgb, var(--tala-brand, #2f7d3b) 35%, transparent);
     background: color-mix(in srgb, var(--tala-brand, #2f7d3b) 12%, transparent);
     color: var(--tala-brand-strong, #1f5f2c);
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     font-weight: 700;
     line-height: 1.35;
     letter-spacing: 0.01em;
@@ -5508,7 +5514,12 @@ p.tala-stage-next__copy {
     background: var(--tala-surface);
     box-shadow: var(--tala-material-raised);
     min-block-size: 2.75rem;
-    transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .tala-faculty-overview-actions > :is(.tala-workspace-card--compact, li > .tala-workspace-card--compact) {
+        transition: border-color 140ms ease, background-color 140ms ease;
+    }
 }
 
 .tala-faculty-overview-actions > li {

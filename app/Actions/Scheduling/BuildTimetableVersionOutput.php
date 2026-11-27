@@ -54,6 +54,10 @@ final class BuildTimetableVersionOutput
             'occurred_at' => now(),
         ]);
 
+        $termDates = ($version->term?->starts_on && $version->term?->ends_on)
+            ? $version->term->starts_on->format('M j, Y').' – '.$version->term->ends_on->format('M j, Y')
+            : null;
+
         return [
             'title' => 'PUBLISHED TIMETABLE',
             'is_timetable_output' => true,
@@ -62,11 +66,11 @@ final class BuildTimetableVersionOutput
             'owner' => $actor->hasRole(User::StaffRoleRegistrar) ? 'Registrar copy' : 'Academic Head oversight copy',
             'role_filter_context' => $actor->hasRole(User::StaffRoleRegistrar) ? 'All published classes' : 'Read-only academic oversight',
             'generated_at' => DisplayDateTime::format(now(), 'F j, Y g:i A'),
-            'solver_generated_at' => $this->solverGeneratedAt($version),
             'published_at' => DisplayDateTime::format(CarbonImmutable::parse((string) $version->published_at), 'F j, Y g:i A'),
             'academic_year' => (string) $version->term?->academicYear?->label,
             'term_label' => (string) ($version->term?->typeLabel() ?: $version->term?->label),
-            'reference' => sprintf('TALA-TT-%d-V%d', $version->id, $version->version),
+            'term_dates' => $termDates,
+            'reference' => 'Published version v'.$version->version,
             'authority_reference' => filled($version->authority_reference) ? (string) $version->authority_reference : null,
             'version_label' => 'Timetable v'.$version->version,
             'version_state' => $version->state,
@@ -106,20 +110,5 @@ final class BuildTimetableVersionOutput
         return $room instanceof Room
             ? (string) $room->code
             : (string) ($meeting->location_label ?? 'TBA');
-    }
-
-    private function solverGeneratedAt(PublishedTimetableVersion $version): ?string
-    {
-        $generatedAt = data_get($version->scheduleRun?->diagnostics, 'solver_result.generated_at');
-
-        if (! is_string($generatedAt) || trim($generatedAt) === '') {
-            return null;
-        }
-
-        try {
-            return DisplayDateTime::format(CarbonImmutable::parse($generatedAt), 'F j, Y g:i A');
-        } catch (\Throwable) {
-            return null;
-        }
     }
 }

@@ -108,12 +108,16 @@ class ListTermOfferings extends ListRecords
                         Select::make('curriculum_version_id')
                             ->label('Active Curriculum Version')
                             ->default(fn (): ?int => $this->curriculumVersionId)->disabled(fn (): bool => $this->curriculumVersionId !== null)->dehydrated()
-                            ->options(fn (Get $get): array => CurriculumVersion::query()
-                                ->where('program_id', $get('program_id'))
-                                ->where('state', CurriculumVersion::StateActive)
-                                ->orderByDesc('id')
-                                ->pluck('name', 'id')
-                                ->all())
+                            ->options(fn (Get $get): array => CurriculumVersion::sortByLatestBatch(
+                                CurriculumVersion::query()
+                                    ->where('program_id', $get('program_id'))
+                                    ->whereIn('state', [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded])
+                                    ->with('academicYears')
+                                    ->get(),
+                                groupByState: true,
+                            )->mapWithKeys(fn (CurriculumVersion $cv): array => [
+                                $cv->id => $cv->batchLabel().($cv->isRetired() ? ' (Retired)' : ''),
+                            ])->all())
                             ->required()
                             ->live()
                             ->afterStateUpdated(fn (Get $get, Set $set, BuildTermOfferings $builder) => $this->loadEligibleRows($get, $set, $builder)),

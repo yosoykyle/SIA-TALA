@@ -7,6 +7,7 @@ use App\Filament\Pages\TermClasses;
 use App\Filament\Pages\TermResources;
 use App\Models\CandidateScheduleRow;
 use App\Models\FacultyAvailabilityDeclaration;
+use App\Models\FacultyTermLoadOverride;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
@@ -1476,6 +1477,107 @@ final class TimetableConflictDiagnosticService
             ->where('state', TermCalendarPackage::StateActive)
             ->with('teachingGridRows')
             ->first();
+
+        $facultyIds = $candidateRows
+            ->pluck('faculty_user_id')
+            ->filter()
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values();
+
+        $latestDeclarationsByFaculty = $facultyIds->isEmpty()
+            ? collect()
+            : FacultyAvailabilityDeclaration::query()
+                ->where('term_id', $term->id)
+                ->whereIn('faculty_user_id', $facultyIds)
+                ->orderByDesc('version')
+                ->orderByDesc('id')
+                ->get()
+                ->unique('faculty_user_id')
+                ->keyBy('faculty_user_id');
+
+        $zeroUnitOverrideFacultyIds = $facultyIds->isEmpty()
+            ? []
+            : FacultyTermLoadOverride::query()
+                ->where('term_id', $term->id)
+                ->where('is_active', true)
+                ->whereIn('faculty_user_id', $facultyIds)
+                ->latest('id')
+                ->get()
+                ->unique('faculty_user_id')
+                ->filter(fn (FacultyTermLoadOverride $override): bool => $override->allowedLoadUnits() <= 0.0)
+                ->pluck('faculty_user_id')
+                ->map(fn (mixed $id): int => (int) $id)
+                ->flip()
+                ->all();
+
+        $facultyNamesById = $facultyIds->isEmpty()
+            ? collect()
+            : User::query()->whereIn('id', $facultyIds)->pluck('name', 'id');
+
+        $availabilityDriftCollisions = [];
+        foreach ($candidateRows as $row) {
+            $facultyId = $row->faculty_user_id !== null ? (int) $row->faculty_user_id : null;
+            if ($facultyId === null) {
+                continue;
+            }
+            $day = (int) $row->day_of_week;
+            $start = $this->clockToMinutes($row->starts_at);
+            $end = $this->clockToMinutes($row->ends_at);
+            if ($start === null || $end === null) {
+                continue;
+            }
+
+            $rowLabel = $this->rowLabel($row, $context);
+            $slotLabel = sprintf('%s %s', $this->dayShort($day), $this->formatTimeRange($start, $end));
+            $teacherName = (string) ($facultyNamesById->get($facultyId) ?? $context['facultyNames'][$facultyId] ?? "Faculty #{$facultyId}");
+
+            if (isset($zeroUnitOverrideFacultyIds[$facultyId])) {
+                $availabilityDriftCollisions[] = sprintf(
+                    '%s · %s (%s marked Not teaching)',
+                    $rowLabel,
+                    $slotLabel,
+                    $teacherName,
+                );
+
+                continue;
+            }
+
+            /** @var FacultyAvailabilityDeclaration|null $declaration */
+            $declaration = $latestDeclarationsByFaculty->get($facultyId);
+            if ($declaration instanceof FacultyAvailabilityDeclaration
+                && $declaration->conflictsWithMeeting($day, (string) $row->starts_at, (string) $row->ends_at)) {
+                $availabilityDriftCollisions[] = sprintf(
+                    '%s · %s (%s: %s)',
+                    $rowLabel,
+                    $slotLabel,
+                    $teacherName,
+                    $declaration->modeLabel(),
+                );
+            }
+        }
+
+        if ($availabilityDriftCollisions !== []) {
+            $count = count($availabilityDriftCollisions);
+            $addItem('stale-availability-drift', [
+                'category' => 'Faculty availability change',
+                'severity' => 'danger',
+                'title' => sprintf(
+                    '%d scheduled %s now %s with updated faculty availability',
+                    $count,
+                    Str::plural('meeting', $count),
+                    $count === 1 ? 'conflicts' : 'conflict',
+                ),
+                'involved' => $this->limitInvolved($availabilityDriftCollisions),
+                'why' => 'One or more teachers had their availability or teaching load updated after this draft was generated, so this draft is stale and cannot be published as-is.',
+                'how_to_fix' => [
+                    'Click New draft above to generate a fresh timetable that respects the updated faculty availability.',
+                    'Or review and adjust the teacher\'s hours via Edit availability in Faculty & rooms.',
+                ],
+                'action_label' => 'Review Faculty & rooms',
+                'action_url' => $this->resourcesUrl($termId, 'faculty'),
+            ]);
+        }
 
         if (! $activePackage instanceof TermCalendarPackage || $activePackage->teachingGridRows->isEmpty()) {
             return;

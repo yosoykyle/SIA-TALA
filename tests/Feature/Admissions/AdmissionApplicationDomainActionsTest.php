@@ -244,7 +244,8 @@ class AdmissionApplicationDomainActionsTest extends TestCase
             'application' => $submitted, 'version' => $version,
         ]))->assertOk()
             ->assertSee('Accepted As Preliminary Evidence')
-            ->assertSee('Evidence '.$evidence->id)
+            ->assertSee('Document submitted')
+            ->assertDontSee('Evidence '.$evidence->id)
             ->assertDontSee('Action Needed');
     }
 

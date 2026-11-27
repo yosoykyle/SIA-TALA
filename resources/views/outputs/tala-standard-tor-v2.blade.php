@@ -39,7 +39,7 @@
         </style>
     </x-slot:documentStyles>
     <x-slot:documentHeader>
-        <header class="tor-paper-heading"><img src="{{ asset('images/brand/servitech-crest.webp') }}" alt="{{ $institution['name'] }} logo"><div><p><strong>{{ $institution['name'] }}</strong></p><p>{{ $institution['address'] }}</p><p>{{ $institution['phone'] ?: $institution['facebook_url'] }}</p><h1>TRANSCRIPT OF RECORDS</h1></div></header>
+        <header class="tor-paper-heading"><img src="{{ asset('images/brand/servitech-crest.webp') }}" alt="{{ $institution['name'] }} logo"><div><p><strong>{{ $institution['name'] }}</strong></p><p>{{ $institution['address'] }}</p>@if (filled($institution['phone'] ?? null))<p>{{ $institution['phone'] }}</p>@endif<h1>TRANSCRIPT OF RECORDS</h1></div></header>
         <p class="tor-paper-status">{{ strtoupper($status) }} · {{ $document['reference'] }}</p>
     </x-slot:documentHeader>
     <dl class="tor-paper-identity">

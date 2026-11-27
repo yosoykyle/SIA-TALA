@@ -26,6 +26,11 @@
             />
             <span>Status: {{ $review['status_label'] }}</span>
         </p>
+        @if ($audience !== 'student' && ($review['has_high_deficiency_count'] ?? false))
+            <span class="tala-irregular-reasons__count" title="Advisory only (PRD 05 §246): does not auto-block enrollment or assign probation/repeat-year.">
+                {{ $review['unresolved_deficiency_count'] }} unresolved deficiencies · Review advisory
+            </span>
+        @endif
         @if ($reasonCount > 1)
             <span class="tala-irregular-reasons__count">{{ $reasonCount }} factors</span>
         @endif

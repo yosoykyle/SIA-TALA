@@ -8,6 +8,8 @@ use App\Models\CurriculumVersion;
 use App\Models\Program;
 use App\Models\Term;
 use App\Models\User;
+use Carbon\CarbonImmutable;
+use Closure;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\DatePicker;
@@ -26,6 +28,7 @@ use Filament\Support\Enums\GridDirection;
 use Filament\Support\Enums\Width;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class CurriculumVersionForm
 {
@@ -254,16 +257,35 @@ class CurriculumVersionForm
                 abort_unless($actor instanceof User, 403);
                 Gate::forUser($actor)->authorize('create', AcademicYear::class);
 
+                $label = trim((string) $data['label']);
+                $startsOn = (string) $data['starts_on'];
+                $endsOn = (string) $data['ends_on'];
+
+                if (($duplicateError = AcademicYear::duplicateLabelError($label)) !== null) {
+                    throw ValidationException::withMessages(['label' => $duplicateError]);
+                }
+
+                if (($overlapError = AcademicYear::overlappingDateError($startsOn, $endsOn)) !== null) {
+                    throw ValidationException::withMessages(['ends_on' => $overlapError]);
+                }
+
+                $today = CarbonImmutable::today(config('app.display_timezone', 'Asia/Manila'))->startOfDay();
+                $endsInPast = CarbonImmutable::parse($endsOn)->startOfDay()->lt($today);
+                $isOperational = ! $endsInPast && ! (bool) ($data['is_historical_batch_only'] ?? false);
+
                 $academicYear = AcademicYear::query()->create([
-                    'label' => trim((string) $data['label']),
-                    'starts_on' => $data['starts_on'],
-                    'ends_on' => $data['ends_on'],
+                    'label' => $label,
+                    'starts_on' => $startsOn,
+                    'ends_on' => $endsOn,
                     'state' => (string) ($data['state'] ?? AcademicYear::StateDraft),
+                    'is_operational' => $isOperational,
                 ]);
 
                 Notification::make()
-                    ->title('Academic year created')
-                    ->body("{$academicYear->label} is now available and selected for batch assignment.")
+                    ->title($isOperational ? 'Academic year created' : 'Historical intake batch created')
+                    ->body($isOperational
+                        ? "{$academicYear->label} is now available and selected for batch assignment."
+                        : "{$academicYear->label} was recorded as a historical intake batch (hidden from operational Term Planning) and selected for this curriculum.")
                     ->success()
                     ->send();
 
@@ -285,7 +307,17 @@ class CurriculumVersionForm
                 ->helperText('Use the school year label, for example AY 2027-2028.')
                 ->required()
                 ->maxLength(255)
-                ->unique((new AcademicYear)->getTable(), 'label', ignoreRecord: false),
+                ->unique((new AcademicYear)->getTable(), 'label', ignoreRecord: false)
+                ->rules([
+                    fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
+                        if (blank($value)) {
+                            return;
+                        }
+                        if (($error = AcademicYear::duplicateLabelError((string) $value)) !== null) {
+                            $fail($error);
+                        }
+                    },
+                ]),
             Grid::make(['default' => 1, 'sm' => 2])->schema([
                 DatePicker::make('starts_on')
                     ->label('Start date')
@@ -293,7 +325,18 @@ class CurriculumVersionForm
                 DatePicker::make('ends_on')
                     ->label('End date')
                     ->required()
-                    ->after('starts_on'),
+                    ->after('starts_on')
+                    ->rules([
+                        fn (Get $get): Closure => function (string $attribute, mixed $value, Closure $fail) use ($get): void {
+                            $startsOn = $get('starts_on');
+                            if (blank($startsOn) || blank($value)) {
+                                return;
+                            }
+                            if (($error = AcademicYear::overlappingDateError((string) $startsOn, (string) $value)) !== null) {
+                                $fail($error);
+                            }
+                        },
+                    ]),
             ]),
             Select::make('state')
                 ->label('Status')
@@ -304,6 +347,10 @@ class CurriculumVersionForm
                 ->default(AcademicYear::StateDraft)
                 ->required()
                 ->helperText('Use Draft for upcoming school years or Active for the current school year.'),
+            Checkbox::make('is_historical_batch_only')
+                ->label('Historical intake batch only (hide from Term Planning)')
+                ->helperText('Automatically applied when the end date is in the past so prior continuing batches do not clutter operational Term Planning.')
+                ->default(false),
         ];
     }
 

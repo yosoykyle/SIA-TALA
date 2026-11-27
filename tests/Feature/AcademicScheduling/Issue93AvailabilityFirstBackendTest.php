@@ -118,6 +118,7 @@ final class Issue93AvailabilityFirstBackendTest extends TestCase
             1 => ['08:00:00', '17:00:00', [['starts_at' => '12:00:00', 'ends_at' => '13:00:00']]],
         ]);
         $faculty = $this->staff(User::StaffRoleFaculty);
+        $otherFaculty = $this->staff(User::StaffRoleFaculty);
         $registrar = $this->staff(User::StaffRoleRegistrar);
         $run = ScheduleGenerationRun::factory()->create([
             'term_id' => $term->id,
@@ -129,12 +130,24 @@ final class Issue93AvailabilityFirstBackendTest extends TestCase
             app(RecordFacultyAvailabilityDeclaration::class)->execute(
                 term: $term,
                 faculty: $faculty,
+                actor: $otherFaculty,
+                availabilityMode: FacultyAvailabilityDeclaration::ModeAnyApproved,
+            );
+            $this->fail('Non-owner faculty actor must be rejected.');
+        } catch (HttpException $exception) {
+            $this->assertSame(403, $exception->getStatusCode());
+        }
+
+        try {
+            app(RecordFacultyAvailabilityDeclaration::class)->execute(
+                term: $term,
+                faculty: $faculty,
                 actor: $registrar,
                 availabilityMode: FacultyAvailabilityDeclaration::ModeAnyApproved,
             );
-            $this->fail('Non-faculty actor must be rejected.');
-        } catch (HttpException $exception) {
-            $this->assertSame(403, $exception->getStatusCode());
+            $this->fail('Registrar update without correction_reason must be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('correction_reason', $exception->errors());
         }
 
         foreach ([
@@ -409,7 +422,7 @@ final class Issue93AvailabilityFirstBackendTest extends TestCase
 
         $outsideResult = $validator->validateCandidateAssignments($run, $snapshot, [$outsideWindow]);
         $this->assertFalse($outsideResult->passes());
-        $this->assertContains('calendar_block_overlap', array_column($outsideResult->blockingFindings(), 'code'));
+        $this->assertContains('outside_faculty_availability', array_column($outsideResult->blockingFindings(), 'code'));
 
         $nonResponder = $baseAssignment;
         $nonResponder['faculty_id'] = $facultyB->id;

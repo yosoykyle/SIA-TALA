@@ -364,24 +364,103 @@ class CurriculumWorkbenchService
                 ];
             }
 
-            $placements = $applyTo === 'custom'
-                ? $this->customSubjectPlacements($data)
-                : $this->uniformSubjectPlacements($applyTo, $data);
+            $explicitCurriculumIds = collect($data['curriculum_version_ids'] ?? [])
+                ->map(fn (mixed $id): int => (int) $id)
+                ->filter(fn (int $id): bool => $id > 0)
+                ->unique()
+                ->values();
 
             $addedCurricula = 0;
             $skippedPrograms = [];
+
+            if ($explicitCurriculumIds->isNotEmpty() && $applyTo !== 'custom') {
+                $validatedPlacement = Validator::make([
+                    'year_level' => $data['placement_year_level'] ?? ($data['year_level'] ?? null),
+                    'term_type' => $data['placement_term_type'] ?? ($data['term_type'] ?? null),
+                ], [
+                    'year_level' => ['required', 'integer', 'min:1', 'max:8'],
+                    'term_type' => ['required', Rule::in(array_keys(Term::typeOptions()))],
+                ])->validate();
+
+                $targetYear = (int) $validatedPlacement['year_level'];
+                $targetTermType = (string) $validatedPlacement['term_type'];
+
+                $drafts = CurriculumVersion::sortByLatestBatch(
+                    CurriculumVersion::query()
+                        ->whereIn('id', $explicitCurriculumIds)
+                        ->where('state', CurriculumVersion::StateDraft)
+                        ->with(['program', 'academicYears'])
+                        ->get()
+                        ->filter(fn (CurriculumVersion $version): bool => $version->isEditableDraft())
+                        ->values(),
+                );
+
+                foreach ($drafts as $draft) {
+                    $program = $draft->program;
+                    $yearLimit = $this->yearLevelLimit($draft);
+
+                    if ($targetYear > $yearLimit) {
+                        $skippedPrograms[] = ($program?->code ?? $draft->batchLabel())." (program length is {$yearLimit} ".Str::plural('year', $yearLimit).')';
+
+                        continue;
+                    }
+
+                    $alreadyPlaced = CurriculumEntry::query()
+                        ->where('curriculum_version_id', $draft->id)
+                        ->whereHas('courseSpecification', fn ($query) => $query->where('course_id', $subject->course_id))
+                        ->exists();
+
+                    if ($alreadyPlaced) {
+                        continue;
+                    }
+
+                    $this->createEntry($actor, $draft, [
+                        'course_specification_id' => $subject->id,
+                        'year_level' => $targetYear,
+                        'term_type' => $targetTermType,
+                        'requirement_group' => CurriculumEntry::RequirementGroupRequired,
+                    ]);
+
+                    $addedCurricula++;
+                }
+
+                return [
+                    'added_curricula' => $addedCurricula,
+                    'skipped_programs' => $skippedPrograms,
+                ];
+            }
+
+            $placements = $applyTo === 'custom'
+                ? $this->customSubjectPlacements($data)
+                : $this->uniformSubjectPlacements($applyTo, $data);
 
             foreach ($placements as $placement) {
                 $program = $placement['program'];
                 $targetYear = $placement['year_level'];
                 $targetTermType = $placement['term_type'];
+                $targetCurriculumId = isset($placement['curriculum_version_id']) ? (int) $placement['curriculum_version_id'] : null;
 
-                $draft = CurriculumVersion::query()
-                    ->where('program_id', $program->id)
-                    ->where('state', CurriculumVersion::StateDraft)
-                    ->orderByDesc('id')
-                    ->get()
-                    ->first(fn (CurriculumVersion $version): bool => $version->isEditableDraft());
+                if ($targetCurriculumId !== null && $targetCurriculumId > 0) {
+                    $draft = CurriculumVersion::query()
+                        ->whereKey($targetCurriculumId)
+                        ->where('program_id', $program->id)
+                        ->where('state', CurriculumVersion::StateDraft)
+                        ->with('academicYears')
+                        ->first();
+                    if ($draft instanceof CurriculumVersion && ! $draft->isEditableDraft()) {
+                        $draft = null;
+                    }
+                } else {
+                    $draft = CurriculumVersion::sortByLatestBatch(
+                        CurriculumVersion::query()
+                            ->where('program_id', $program->id)
+                            ->where('state', CurriculumVersion::StateDraft)
+                            ->with('academicYears')
+                            ->get()
+                            ->filter(fn (CurriculumVersion $version): bool => $version->isEditableDraft())
+                            ->values(),
+                    )->first();
+                }
 
                 if (! $draft instanceof CurriculumVersion) {
                     $skippedPrograms[] = "{$program->code} (no editable draft curriculum)";
@@ -473,6 +552,7 @@ class CurriculumWorkbenchService
         ], [
             'placements' => ['required', 'array', 'min:1'],
             'placements.*.program_id' => ['required', 'integer', 'distinct', 'exists:programs,id'],
+            'placements.*.curriculum_version_id' => ['nullable', 'integer', 'exists:curriculum_versions,id'],
             'placements.*.year_level' => ['required', 'integer', 'min:1', 'max:8'],
             'placements.*.term_type' => ['required', Rule::in(array_keys(Term::typeOptions()))],
         ])->validate();
@@ -485,6 +565,7 @@ class CurriculumWorkbenchService
         return collect($validated['placements'])
             ->map(fn (array $row): array => [
                 'program' => $programs->get((int) $row['program_id']),
+                'curriculum_version_id' => filled($row['curriculum_version_id'] ?? null) ? (int) $row['curriculum_version_id'] : null,
                 'year_level' => (int) $row['year_level'],
                 'term_type' => (string) $row['term_type'],
             ])

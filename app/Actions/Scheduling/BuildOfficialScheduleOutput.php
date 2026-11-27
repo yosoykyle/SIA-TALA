@@ -130,6 +130,23 @@ class BuildOfficialScheduleOutput
             ]);
         }
 
+        $facultyUnits = $this->calculateDistinctOfferingUnits(
+            $meetings->map(fn (SectionMeeting $meeting): ?object => $meeting->schedulingDemand?->termOffering?->curriculumEntry?->courseSpecification ? (object) [
+                'key' => (int) ($meeting->schedulingDemand?->term_offering_id ?? 0).'|'.(int) ($meeting->schedulingDemand?->sectionDeliveryGroup?->section_id ?? 0),
+                'units' => (float) $meeting->schedulingDemand->termOffering->curriculumEntry->courseSpecification->credit_units,
+            ] : null)->filter(),
+            collect($externallyArranged)->map(fn (array $item): object => (object) [
+                'key' => 'ext|'.$item['course'].'|'.$item['section'],
+                'units' => is_numeric(str_replace(' units', '', $item['units'])) ? (float) str_replace(' units', '', $item['units']) : 0.0,
+            ]),
+        );
+        $facultyWeeklyHours = $this->calculateWeeklyContactHours(
+            $meetings->map(fn (SectionMeeting $meeting): array => [
+                'starts_at' => (string) $meeting->starts_at,
+                'ends_at' => (string) $meeting->ends_at,
+            ]),
+        );
+
         return [
             'title' => $filtered ? 'Faculty Filtered Schedule' : 'Faculty Assigned Schedule',
             'is_faculty_output' => true,
@@ -137,6 +154,8 @@ class BuildOfficialScheduleOutput
             'back_label' => 'Back to My Schedule',
             'filter_description' => $filtered ? $criteriaDescription : null,
             'owner' => $faculty->name,
+            'total_units' => $facultyUnits,
+            'weekly_contact_hours' => $facultyWeeklyHours,
             'generated_at' => DisplayDateTime::format(now(), 'F j, Y g:i A'),
             'version_label' => match (true) {
                 $version instanceof PublishedTimetableVersion => $version->term?->label.' · Timetable v'.$version->version,
@@ -216,6 +235,23 @@ class BuildOfficialScheduleOutput
             ? $this->externallyArrangedForStudentEnrollment($enrollment, $activeRegistrations)
             : [];
 
+        $student->loadMissing('studentProfile.program');
+        $studentProfile = $enrollment?->studentProfile ?? $student->studentProfile;
+        $studentTotalUnits = $this->calculateDistinctOfferingUnits(
+            $activeRegistrations->map(fn (CourseEnrollment $registration): object => (object) [
+                'key' => 'ce|'.$registration->id,
+                'units' => (float) ($registration->units_snapshot
+                    ?? $registration->termOffering?->curriculumEntry?->courseSpecification?->credit_units
+                    ?? 0),
+            ]),
+        );
+        $studentWeeklyHours = $this->calculateWeeklyContactHours(
+            $meetings->map(fn (PublishedTimetableMeeting $meeting): array => [
+                'starts_at' => (string) $meeting->starts_at,
+                'ends_at' => (string) $meeting->ends_at,
+            ]),
+        );
+
         app(RecordStudentScheduleAccess::class)->execute(
             $student,
             $request,
@@ -226,6 +262,10 @@ class BuildOfficialScheduleOutput
         return [
             'title' => 'Student Class Schedule',
             'owner' => $student->name,
+            'student_number' => $studentProfile?->student_number,
+            'program_name' => $studentProfile?->program?->name ?? $studentProfile?->program?->code,
+            'total_units' => $studentTotalUnits,
+            'weekly_contact_hours' => $studentWeeklyHours,
             'generated_at' => DisplayDateTime::format(now(), 'F j, Y g:i A'),
             'back_url' => ScheduleView::getUrl(
                 $requestedTermId > 0 && $enrollment instanceof Enrollment ? ['termId' => $enrollment->term_id] : [],
@@ -457,5 +497,41 @@ class BuildOfficialScheduleOutput
             'user_agent' => $request->userAgent(),
             'route' => $request->route()?->getName(),
         ];
+    }
+
+    /**
+     * @param  Collection<int, object>  ...$collections
+     */
+    private function calculateDistinctOfferingUnits(Collection ...$collections): string
+    {
+        $total = collect($collections)
+            ->flatten(1)
+            ->unique('key')
+            ->sum(fn (object $item): float => (float) $item->units);
+
+        return number_format((float) $total, 2, '.', '');
+    }
+
+    /**
+     * @param  Collection<int, array{starts_at:string,ends_at:string}>  $intervals
+     */
+    private function calculateWeeklyContactHours(Collection $intervals): string
+    {
+        $minutes = $intervals->sum(function (array $interval): int {
+            try {
+                $start = CarbonImmutable::createFromFormat('H:i:s', $interval['starts_at']);
+                $end = CarbonImmutable::createFromFormat('H:i:s', $interval['ends_at']);
+
+                return max(0, (int) $start->diffInMinutes($end));
+            } catch (\Throwable) {
+                return 0;
+            }
+        });
+
+        $hours = round($minutes / 60, 2);
+
+        return fmod($hours, 1.0) === 0.0
+            ? number_format($hours, 0, '.', '')
+            : rtrim(rtrim(number_format($hours, 2, '.', ''), '0'), '.');
     }
 }

@@ -18,6 +18,7 @@ use App\Models\ScheduleRevisionEvent;
 use App\Models\Section;
 use App\Models\SectionMeeting;
 use App\Models\Term;
+use App\Models\TermCalendarPackage;
 use App\Models\TermOffering;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -204,6 +205,19 @@ final class PublishedScheduleRevisionForm
                         ->visible(fn (Get $get): bool => $get('change_type') === ScheduleRevisionEvent::ChangeFacultyReassignment
                             && filled($get('replacement_faculty_user_id')))
                         ->columnSpanFull(),
+                    Placeholder::make('teacher_availability_summary')
+                        ->hiddenLabel()
+                        ->content(fn (Get $get): HtmlString => self::teacherAvailabilitySummaryHtml(
+                            $run,
+                            $get('change_type'),
+                            $get('section_meeting_ids'),
+                            is_numeric($get('replacement_faculty_user_id')) ? (int) $get('replacement_faculty_user_id') : null,
+                        ))
+                        ->visible(fn (Get $get): bool => ($get('change_type') === ScheduleRevisionEvent::ChangeFacultyReassignment
+                            && filled($get('replacement_faculty_user_id')))
+                            || ($get('change_type') === ScheduleRevisionEvent::ChangeTime
+                                && ! empty(self::selectedMeetingIds($get('section_meeting_ids')))))
+                        ->columnSpanFull(),
                     Radio::make('reassignment_scope')
                         ->label('Reassignment scope')
                         ->options(self::reassignmentScopeOptions())
@@ -269,6 +283,13 @@ final class PublishedScheduleRevisionForm
                     Placeholder::make('impact_preview')
                         ->hiddenLabel()
                         ->content(fn (Get $get): HtmlString => self::previewContent($run, $get))
+                        ->columnSpanFull(),
+                    Checkbox::make('expand_availability')
+                        ->label("Move & expand teacher's availability (outside original request)")
+                        ->helperText("Expands the affected teacher's availability declaration monotonically to cover this slot when published, records an audit log entry, and notifies the teacher. All hard scheduling rules still apply.")
+                        ->default(false)
+                        ->visible(fn (Get $get): bool => self::canOfferAvailabilityExpansion($run, $get))
+                        ->live()
                         ->columnSpanFull(),
                     Textarea::make('reason')
                         ->label('Approved reason')
@@ -342,6 +363,7 @@ final class PublishedScheduleRevisionForm
             $run,
             (string) ($data['change_type'] ?? ''),
             self::impactChanges(self::changes($run, $data)),
+            simulateAvailabilityExpansion: (bool) ($data['expand_availability'] ?? false),
         );
     }
 
@@ -353,6 +375,9 @@ final class PublishedScheduleRevisionForm
     {
         $changeType = (string) ($data['change_type'] ?? '');
         $meetingIds = self::selectedMeetingIds($data['section_meeting_ids'] ?? null);
+        $expandMetadata = (bool) ($data['expand_availability'] ?? false)
+            ? ['expand_availability' => true]
+            : [];
 
         if ($meetingIds === []) {
             throw ValidationException::withMessages([
@@ -372,6 +397,7 @@ final class PublishedScheduleRevisionForm
                     'section_meeting_id' => $meetingId,
                     'faculty_user_id' => self::requiredId($data, 'replacement_faculty_user_id', 'Select a replacement teacher.'),
                     ...self::facultyReassignmentMetadata($data),
+                    ...$expandMetadata,
                 ])
                 ->all(),
             ScheduleRevisionEvent::ChangeTime => collect($meetingIds)
@@ -380,6 +406,7 @@ final class PublishedScheduleRevisionForm
                     'day_of_week' => self::requiredId($data, 'day_of_week', 'Select a replacement day.'),
                     'starts_at' => self::requiredString($data, 'starts_at', 'Select a replacement start time.'),
                     'ends_at' => self::requiredString($data, 'ends_at', 'Select a replacement end time.'),
+                    ...$expandMetadata,
                 ])
                 ->all(),
             ScheduleRevisionEvent::ChangeDeliveryModality => self::modalityChanges($run, $meetingIds, $data),
@@ -414,7 +441,7 @@ final class PublishedScheduleRevisionForm
     public static function impactChanges(array $changes): array
     {
         return array_map(function (array $change): array {
-            unset($change['reassignment_scope'], $change['add_co_faculty']);
+            unset($change['reassignment_scope'], $change['add_co_faculty'], $change['expand_availability']);
 
             return $change;
         }, $changes);
@@ -514,6 +541,7 @@ final class PublishedScheduleRevisionForm
             'replacement_faculty_user_id' => $get('replacement_faculty_user_id'),
             'reassignment_scope' => $get('reassignment_scope'),
             'add_co_faculty' => $get('add_co_faculty'),
+            'expand_availability' => (bool) ($get('expand_availability') ?? false),
             'day_of_week' => $get('day_of_week'),
             'starts_at' => $get('starts_at'),
             'ends_at' => $get('ends_at'),
@@ -529,7 +557,9 @@ final class PublishedScheduleRevisionForm
 
         $statusClass = $impact->passes() ? 'is-pass' : 'is-blocked';
         $status = $impact->passes()
-            ? 'Meeting checks passed: publication rechecks the complete change'
+            ? ($data['expand_availability']
+                ? 'Meeting checks passed · Teacher\'s availability will expand monotonically on publish'
+                : 'Meeting checks passed: publication rechecks the complete change')
             : 'Change blocked';
         $meetingCount = count($impact->meetingChanges());
         $studentCount = $impact->affectedStudents();
@@ -1527,5 +1557,284 @@ final class PublishedScheduleRevisionForm
     private static function shortTime(mixed $time): string
     {
         return filled($time) ? mb_substr((string) $time, 0, 5) : '-';
+    }
+
+    private static function canOfferAvailabilityExpansion(ScheduleGenerationRun $run, Get $get): bool
+    {
+        $changeType = (string) ($get('change_type') ?? '');
+        if (! in_array($changeType, [
+            ScheduleRevisionEvent::ChangeFacultyReassignment,
+            ScheduleRevisionEvent::ChangeTime,
+        ], true)) {
+            return false;
+        }
+
+        $data = [
+            'change_type' => $changeType,
+            'section_meeting_ids' => $get('section_meeting_ids'),
+            'replacement_faculty_user_id' => $get('replacement_faculty_user_id'),
+            'reassignment_scope' => $get('reassignment_scope'),
+            'add_co_faculty' => $get('add_co_faculty'),
+            'day_of_week' => $get('day_of_week'),
+            'starts_at' => $get('starts_at'),
+            'ends_at' => $get('ends_at'),
+            'expand_availability' => false,
+        ];
+
+        try {
+            $baseImpact = self::preview($run, $data);
+        } catch (ValidationException) {
+            return false;
+        }
+
+        $blockingFindings = collect($baseImpact->findings())
+            ->where('severity', 'blocking')
+            ->values();
+
+        if ($blockingFindings->isEmpty()) {
+            return false;
+        }
+
+        $onlyAvailabilityBlocked = $blockingFindings->every(
+            fn (array $finding): bool => ($finding['code'] ?? null) === 'outside_faculty_availability',
+        );
+
+        if (! $onlyAvailabilityBlocked) {
+            return false;
+        }
+
+        $simulatedImpact = self::preview($run, [...$data, 'expand_availability' => true]);
+
+        return $simulatedImpact->passes();
+    }
+
+    private static function teacherAvailabilitySummaryHtml(
+        ScheduleGenerationRun $run,
+        mixed $changeType,
+        mixed $selectedMeetingIds,
+        ?int $replacementFacultyId,
+    ): HtmlString {
+        $term = $run->term;
+        if (! $term instanceof Term) {
+            return new HtmlString('');
+        }
+
+        $meetingIds = self::selectedMeetingIds($selectedMeetingIds);
+        $allMeetings = self::meetingsForRun($run);
+
+        $facultyIds = [];
+        if ($changeType === ScheduleRevisionEvent::ChangeFacultyReassignment && $replacementFacultyId !== null && $replacementFacultyId > 0) {
+            $facultyIds = [$replacementFacultyId];
+        } elseif ($changeType === ScheduleRevisionEvent::ChangeTime && $meetingIds !== []) {
+            $facultyIds = $allMeetings
+                ->whereIn('id', $meetingIds)
+                ->pluck('faculty_user_id')
+                ->filter(fn (mixed $id): bool => is_numeric($id) && (int) $id > 0)
+                ->map(fn (mixed $id): int => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+        }
+
+        if ($facultyIds === []) {
+            return new HtmlString('');
+        }
+
+        $facultyNames = User::query()->whereIn('id', $facultyIds)->pluck('name', 'id');
+        $declarations = FacultyAvailabilityDeclaration::query()
+            ->where('term_id', $term->id)
+            ->whereIn('faculty_user_id', $facultyIds)
+            ->orderByDesc('version')
+            ->orderByDesc('id')
+            ->get()
+            ->unique('faculty_user_id')
+            ->keyBy('faculty_user_id');
+
+        $overrides = FacultyTermLoadOverride::query()
+            ->where('term_id', $term->id)
+            ->where('is_active', true)
+            ->whereIn('faculty_user_id', $facultyIds)
+            ->latest('id')
+            ->get()
+            ->unique('faculty_user_id')
+            ->keyBy('faculty_user_id');
+
+        $package = TermCalendarPackage::query()
+            ->where('term_id', $term->id)
+            ->where('state', TermCalendarPackage::StateActive)
+            ->with('teachingGridRows')
+            ->first();
+
+        $dayShort = [1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 7 => 'Sun'];
+        $selectedLookup = array_flip($meetingIds);
+
+        $blocksHtml = [];
+        foreach ($facultyIds as $facultyId) {
+            $name = (string) ($facultyNames->get($facultyId) ?? 'Teacher #'.$facultyId);
+            /** @var FacultyTermLoadOverride|null $override */
+            $override = $overrides->get($facultyId);
+            /** @var FacultyAvailabilityDeclaration|null $declaration */
+            $declaration = $declarations->get($facultyId);
+
+            if ($override instanceof FacultyTermLoadOverride && $override->allowedLoadUnits() <= 0.0) {
+                $declaredText = 'Marked Not teaching (0 units) for this term.';
+                $freeText = 'None';
+            } elseif (! $declaration instanceof FacultyAvailabilityDeclaration) {
+                $declaredText = 'No response yet for this term.';
+                $freeText = 'Record availability in Faculty & rooms first';
+            } else {
+                $mode = $declaration->effectiveMode();
+                $declaredText = match ($mode) {
+                    FacultyAvailabilityDeclaration::ModeCannotTeach => 'Declared Cannot teach this term.',
+                    FacultyAvailabilityDeclaration::ModeAnyApproved => 'Available any approved school hours.',
+                    FacultyAvailabilityDeclaration::ModeWindows => self::formatWindowsSummary($declaration->normalizedTeachingWindows(), $dayShort),
+                    default => 'Available except marked unavailable blocks.',
+                };
+
+                $freeSegments = self::remainingFreeSummaryForFaculty(
+                    $declaration,
+                    $package,
+                    $allMeetings->filter(fn (SectionMeeting $m): bool => (int) $m->faculty_user_id === $facultyId && ! isset($selectedLookup[(int) $m->id])),
+                    $dayShort,
+                );
+                $freeText = $freeSegments !== '' ? $freeSegments : 'No remaining free blocks inside declared hours';
+            }
+
+            $blocksHtml[] = '<div class="tala-revision-availability-row">'
+                .'<p class="font-medium text-gray-900 dark:text-white">'.e($name).' · Availability</p>'
+                .'<p class="text-xs text-gray-600 dark:text-gray-300"><strong>Declared:</strong> '.e($declaredText).'</p>'
+                .'<p class="text-xs text-gray-600 dark:text-gray-300"><strong>Remaining free blocks:</strong> '.e($freeText).'</p>'
+                .'</div>';
+        }
+
+        return new HtmlString(
+            '<div class="tala-context-inset space-y-2" role="status" aria-live="polite">'
+            .implode('', $blocksHtml)
+            .'</div>',
+        );
+    }
+
+    /**
+     * @param  list<array{day_of_week: int, start_time: string, end_time: string}>  $windows
+     * @param  array<int, string>  $dayShort
+     */
+    private static function formatWindowsSummary(array $windows, array $dayShort): string
+    {
+        if ($windows === []) {
+            return 'No teaching windows declared.';
+        }
+
+        $parts = [];
+        foreach ($windows as $window) {
+            $day = (int) ($window['day_of_week'] ?? 0);
+            $start = substr((string) ($window['start_time'] ?? ''), 0, 5);
+            $end = substr((string) ($window['end_time'] ?? ''), 0, 5);
+            if ($day >= 1 && $day <= 7 && $start !== '' && $end !== '') {
+                $parts[] = ($dayShort[$day] ?? "Day {$day}").' '.self::formatTimeWindow($start, $end);
+            }
+        }
+
+        return $parts !== [] ? implode(', ', $parts) : 'No teaching windows declared.';
+    }
+
+    /**
+     * @param  Collection<int, SectionMeeting>  $busyMeetings
+     * @param  array<int, string>  $dayShort
+     */
+    private static function remainingFreeSummaryForFaculty(
+        FacultyAvailabilityDeclaration $declaration,
+        ?TermCalendarPackage $package,
+        Collection $busyMeetings,
+        array $dayShort,
+    ): string {
+        $mode = $declaration->effectiveMode();
+        if ($mode === FacultyAvailabilityDeclaration::ModeCannotTeach) {
+            return 'None';
+        }
+
+        $openByDay = [];
+        if ($mode === FacultyAvailabilityDeclaration::ModeWindows) {
+            foreach ($declaration->normalizedTeachingWindows() as $window) {
+                $day = (int) $window['day_of_week'];
+                $start = FacultyAvailabilityDeclaration::clockToMinutes((string) $window['start_time']);
+                $end = FacultyAvailabilityDeclaration::clockToMinutes((string) $window['end_time']);
+                if ($start !== null && $end !== null && $start < $end) {
+                    $openByDay[$day][] = ['start' => $start, 'end' => $end];
+                }
+            }
+        } elseif ($package instanceof TermCalendarPackage) {
+            foreach ($package->teachingGridRows->sortBy('day_of_week') as $gridRow) {
+                $day = (int) $gridRow->day_of_week;
+                $start = FacultyAvailabilityDeclaration::clockToMinutes((string) $gridRow->starts_at);
+                $end = FacultyAvailabilityDeclaration::clockToMinutes((string) $gridRow->ends_at);
+                if ($start !== null && $end !== null && $start < $end) {
+                    $openByDay[$day][] = ['start' => $start, 'end' => $end];
+                }
+            }
+        }
+
+        $blockedByDay = [];
+        if ($package instanceof TermCalendarPackage) {
+            foreach ($package->teachingGridRows as $gridRow) {
+                $day = (int) $gridRow->day_of_week;
+                foreach (is_array($gridRow->breaks) ? $gridRow->breaks : [] as $break) {
+                    if (! is_array($break)) {
+                        continue;
+                    }
+                    $bStart = FacultyAvailabilityDeclaration::clockToMinutes((string) ($break['starts_at'] ?? ''));
+                    $bEnd = FacultyAvailabilityDeclaration::clockToMinutes((string) ($break['ends_at'] ?? ''));
+                    if ($bStart !== null && $bEnd !== null && $bStart < $bEnd) {
+                        $blockedByDay[$day][] = ['start' => $bStart, 'end' => $bEnd];
+                    }
+                }
+            }
+        }
+
+        if ($mode === FacultyAvailabilityDeclaration::ModeLegacyUnavailability) {
+            foreach (is_array($declaration->hard_unavailability) ? $declaration->hard_unavailability : [] as $interval) {
+                if (! is_array($interval)) {
+                    continue;
+                }
+                $day = (int) ($interval['day_of_week'] ?? 0);
+                $start = FacultyAvailabilityDeclaration::clockToMinutes((string) ($interval['starts_at'] ?? $interval['start_time'] ?? ''));
+                $end = FacultyAvailabilityDeclaration::clockToMinutes((string) ($interval['ends_at'] ?? $interval['end_time'] ?? ''));
+                if ($start !== null && $end !== null && $start < $end) {
+                    $blockedByDay[$day][] = ['start' => $start, 'end' => $end];
+                }
+            }
+        }
+
+        foreach ($busyMeetings as $meeting) {
+            $day = (int) $meeting->day_of_week;
+            $start = FacultyAvailabilityDeclaration::clockToMinutes((string) $meeting->starts_at);
+            $end = FacultyAvailabilityDeclaration::clockToMinutes((string) $meeting->ends_at);
+            if ($start !== null && $end !== null && $start < $end) {
+                $blockedByDay[$day][] = ['start' => $start, 'end' => $end];
+            }
+        }
+
+        ksort($openByDay);
+        $parts = [];
+        foreach ($openByDay as $day => $intervals) {
+            $free = FacultyAvailabilityDeclaration::subtractIntervals(
+                FacultyAvailabilityDeclaration::mergeIntervals($intervals),
+                $blockedByDay[$day] ?? [],
+            );
+            foreach ($free as $segment) {
+                if (($segment['end'] - $segment['start']) < 30) {
+                    continue;
+                }
+                $parts[] = ($dayShort[$day] ?? "Day {$day}").' '.self::formatTimeWindow(
+                    FacultyAvailabilityDeclaration::minutesToHourMinute($segment['start']),
+                    FacultyAvailabilityDeclaration::minutesToHourMinute($segment['end']),
+                );
+            }
+        }
+
+        if (count($parts) > 6) {
+            return implode(', ', array_slice($parts, 0, 6)).' (+'.(count($parts) - 6).' more)';
+        }
+
+        return implode(', ', $parts);
     }
 }

@@ -16,6 +16,20 @@
         if (in_array($queue, ['needs_review', 'waiting_for_applicant', 'official_credentials', 'ready_for_enrollment', 'history'], true)) {
             $recordParameters['queue'] = $queue;
         }
+        $application->loadMissing(['admissionCycle', 'term', 'program']);
+        $admissionCycleLabel = str_starts_with((string) ($source['admission_cycle'] ?? ''), 'Admission Cycle record #')
+            ? ($application->admissionCycle?->label ?? 'Not recorded')
+            : ($source['admission_cycle'] ?? 'Not recorded');
+        $targetTermLabel = str_starts_with((string) ($source['term'] ?? ''), 'Term record #')
+            ? ($application->term?->label ?? 'Not recorded')
+            : ($source['term'] ?? 'Not recorded');
+        $programLabel = str_starts_with((string) ($source['program'] ?? ''), 'Program record #')
+            ? ($application->program?->name ?? 'Not recorded')
+            : ($source['program'] ?? 'Not recorded');
+        $rawSubmissionState = data_get($version->snapshot, 'application_state_at_submission');
+        $submissionStateLabel = filled($rawSubmissionState)
+            ? str((string) $rawSubmissionState)->replace('_', ' ')->lower()->headline()->toString()
+            : 'Unavailable in this historical snapshot';
     @endphp
     <nav class="controls" aria-label="Acknowledgment actions">
         <a href="{{ $actor->id === $application->user_id
@@ -51,9 +65,9 @@
                     data_get($version->snapshot, 'last_name'),
                     data_get($version->snapshot, 'extension_name'),
                 ])->filter()->implode(' ') }}</dd>
-                <dt>Admission Cycle</dt><dd>{{ $source['admission_cycle'] }}{{ filled($source['admission_cycle_code']) ? ' ('.$source['admission_cycle_code'].')' : '' }}</dd>
-                <dt>Target term</dt><dd>{{ $source['term'] }}</dd>
-                <dt>Program</dt><dd>{{ $source['program'] }}</dd>
+                <dt>Admission Cycle</dt><dd>{{ $admissionCycleLabel }}{{ filled($source['admission_cycle_code']) ? ' ('.$source['admission_cycle_code'].')' : '' }}</dd>
+                <dt>Target term</dt><dd>{{ $targetTermLabel }}</dd>
+                <dt>Program</dt><dd>{{ $programLabel }}</dd>
                 <dt>Student type</dt><dd>{{ \App\Models\AdmissionCycle::studentTypeLabel($source['application_path']) }}</dd>
             </dl>
         </section>
@@ -93,7 +107,7 @@
                     <p>{{ $requirement['applicant_instructions'] ?: 'No instruction recorded' }}</p>
                     <dl>
                         <dt>Due stage / method</dt><dd>{{ str($requirement['due_stage'])->headline() }} · {{ str($requirement['official_submission_method'])->headline() }}</dd>
-                        <dt>Preliminary copy</dt><dd>{{ str($requirement['preliminary_result'])->headline() }}{{ isset($requirement['evidence']['id']) ? ' · Evidence '.$requirement['evidence']['id'] : '' }}</dd>
+                        <dt>Preliminary copy</dt><dd>{{ str($requirement['preliminary_result'])->headline() }}{{ isset($requirement['evidence']['id']) ? ' · Document submitted' : '' }}</dd>
                         <dt>Retained credential result</dt><dd>{{ filled($requirement['official_credential_result'] ?? null) ? str($requirement['official_credential_result'])->headline() : 'No individual result recorded' }}</dd>
                     </dl>
                 </section>
@@ -113,7 +127,7 @@
                 <dt>Requirement Set version</dt><dd>{{ $version->requirementSet->version }}</dd>
                 <dt>Version status</dt><dd>{{ $source['is_current'] ? 'Current' : 'Historical and superseded' }}</dd>
                 <dt>Submitted</dt><dd>{{ $version->submitted_at?->timezone(config('app.display_timezone'))->format('F j, Y, g:i A') }}</dd>
-                <dt>Application state at submission</dt><dd>{{ data_get($version->snapshot, 'application_state_at_submission', 'Unavailable in this historical snapshot') }}</dd>
+                <dt>Application state at submission</dt><dd>{{ $submissionStateLabel }}</dd>
                 <dt>Output reference</dt><dd>{{ $outputReference }}</dd>
                 <dt>Generated</dt><dd>{{ $generatedAt->timezone(config('app.display_timezone'))->format('F j, Y, g:i A') }}</dd>
             </dl>

@@ -759,6 +759,8 @@ class ViewProgram extends ViewRecord
             ->orderByDesc('id')
             ->get();
 
+        $curricula = CurriculumVersion::sortByLatestBatch($curricula, groupByState: true);
+
         $program->setRelation('curriculumVersions', $curricula);
 
         $curriculaRows = $curricula->map(function (CurriculumVersion $cv) use ($program, $canManage, $lifecycle): array {
@@ -1341,13 +1343,14 @@ class ViewProgram extends ViewRecord
      */
     private function copyableCurricula(Program $program): Collection
     {
-        return $program->curriculumVersions()
-            ->whereIn('state', [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded])
-            ->with('academicYears')
-            ->withCount('entries')
-            ->orderByRaw("CASE state WHEN 'ACTIVE' THEN 1 WHEN 'SUPERSEDED' THEN 2 ELSE 3 END")
-            ->orderByDesc('id')
-            ->get();
+        return CurriculumVersion::sortByLatestBatch(
+            $program->curriculumVersions()
+                ->whereIn('state', [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded])
+                ->with('academicYears')
+                ->withCount('entries')
+                ->get(),
+            groupByState: true,
+        );
     }
 
     private function generateUniqueVersionCode(Program $program, string $batchShort): string

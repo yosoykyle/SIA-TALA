@@ -1,3 +1,15 @@
+@php
+    $student->loadMissing(['program', 'curriculumVersion.academicYears']);
+    $curriculumVersion = $student->curriculumVersion;
+    $batchLabels = $curriculumVersion?->academicYears
+        ?->sortBy('starts_on')
+        ->pluck('label')
+        ->filter()
+        ->implode(', ');
+    $curriculumDisplay = $curriculumVersion
+        ? collect([$curriculumVersion->name ?: 'Assigned curriculum', filled($batchLabels) ? 'Batch '.$batchLabels : null])->filter()->implode(' · ')
+        : 'Not recorded';
+@endphp
 <x-official-output-layout
     title="UNOFFICIAL STUDENT RECORD"
     subtitle="Unofficial — for student reference"
@@ -15,7 +27,7 @@
             <p><strong>Student number</strong><br>{{ $student->student_number }}</p>
             <p><strong>Legal name</strong><br>{{ collect([$student->last_name, $student->first_name, $student->middle_name])->filter()->implode(', ') }}</p>
             <p><strong>Program</strong><br>{{ $student->program?->name ?? $student->program?->code ?? 'Not recorded' }}</p>
-            <p><strong>Curriculum</strong><br>{{ $student->curriculumVersion?->version_code ?? 'Not recorded' }}</p>
+            <p><strong>Curriculum</strong><br>{{ $curriculumDisplay }}</p>
         </div>
         <p class="official-output-notice">UNOFFICIAL — FOR STUDENT REFERENCE. This is not a Transcript of Records and carries no certification, signatory, or seal.</p>
     </section>
@@ -25,6 +37,7 @@
             <h2 id="record-term-{{ $period['id_slug'] }}" class="finance-heading">{{ $period['heading'] }}</h2>
             <div class="official-output-table finance-responsive-table">
                 <table>
+                    <caption class="tala-sr-only">{{ $period['heading'] }} released academic results</caption>
                     <thead>
                         <tr><th colspan="4" style="background: #f4f4f5; font-weight: 700; border-bottom: 2px solid #09090b;">{{ $student->student_number }} · {{ collect([$student->last_name, $student->first_name])->filter()->implode(', ') }} · {{ $period['label'] }} · UNOFFICIAL RECORD</th></tr>
                         <tr><th scope="col">Subject</th><th scope="col">Units</th><th scope="col">Released result</th><th scope="col">Released</th></tr>
@@ -32,7 +45,7 @@
                     <tbody>
                         @foreach ($period['rows'] as $result)
                             <tr>
-                                <td data-label="Subject"><div><strong>{{ $result['course_specification']?->title }}</strong><br>{{ $result['course_specification']?->course?->code }}</div></td>
+                                <th scope="row" data-label="Subject"><div><strong>{{ $result['course_specification']?->title }}</strong><br>{{ $result['course_specification']?->course?->code }}</div></th>
                                 <td data-label="Units">{{ (float) $result['units'] }}</td>
                                 <td data-label="Released result"><div>
                                     {{ $result['result'] }}

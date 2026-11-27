@@ -9,6 +9,7 @@ use App\Models\ScheduleRevisionEvent;
 use App\Models\SchedulingDemand;
 use App\Models\Section;
 use App\Models\SectionMeeting;
+use App\Models\Term;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Validation\ValidationException;
@@ -26,8 +27,9 @@ final class ScheduleRevisionImpactService
         ScheduleGenerationRun $run,
         string $changeType,
         array $changes,
+        bool $simulateAvailabilityExpansion = false,
     ): ScheduleRevisionImpact {
-        return $this->revisionImpact($run, $changeType, $changes, lock: false);
+        return $this->revisionImpact($run, $changeType, $changes, lock: false, simulateAvailabilityExpansion: $simulateAvailabilityExpansion);
     }
 
     /**
@@ -37,8 +39,9 @@ final class ScheduleRevisionImpactService
         ScheduleGenerationRun $run,
         string $changeType,
         array $changes,
+        bool $simulateAvailabilityExpansion = false,
     ): ScheduleRevisionImpact {
-        return $this->revisionImpact($run, $changeType, $changes, lock: true);
+        return $this->revisionImpact($run, $changeType, $changes, lock: true, simulateAvailabilityExpansion: $simulateAvailabilityExpansion);
     }
 
     public function previewCancellation(
@@ -63,6 +66,7 @@ final class ScheduleRevisionImpactService
         string $changeType,
         array $changes,
         bool $lock,
+        bool $simulateAvailabilityExpansion = false,
     ): ScheduleRevisionImpact {
         $run = $this->publishedRun($run);
         $changesByMeeting = $this->normalizedChanges($changeType, $changes);
@@ -116,6 +120,12 @@ final class ScheduleRevisionImpactService
             array_map(fn (array $snapshot): array => $this->assignment($snapshot), $proposedSnapshots),
             $selected->modelKeys(),
         );
+        $findings = $validation->findings();
+
+        if ($simulateAvailabilityExpansion) {
+            $findings = $this->applySimulatedAvailabilityExpansion($run, $proposedSnapshots, $findings);
+        }
+
         $affectedStudents = collect($studentIdsByMeeting)->flatten()->unique()->count();
         $affectedFaculty = collect($meetingChanges)
             ->flatMap(fn (array $change): array => [
@@ -132,8 +142,55 @@ final class ScheduleRevisionImpactService
             meetingChanges: $meetingChanges,
             affectedStudents: $affectedStudents,
             affectedFaculty: $affectedFaculty,
-            findings: $validation->findings(),
+            findings: $findings,
         );
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $proposedSnapshots
+     * @param  list<array<string, mixed>>  $findings
+     * @return list<array<string, mixed>>
+     */
+    private function applySimulatedAvailabilityExpansion(
+        ScheduleGenerationRun $run,
+        array $proposedSnapshots,
+        array $findings,
+    ): array {
+        $term = Term::query()->find($run->term_id);
+        if (! $term instanceof Term) {
+            return $findings;
+        }
+
+        $facultyByMeetingKey = [];
+        foreach ($proposedSnapshots as $snapshot) {
+            $key = ((int) ($snapshot['scheduling_demand_id'] ?? 0)).':'.((int) ($snapshot['meeting_sequence'] ?? 0));
+            $facultyByMeetingKey[$key] = (int) ($snapshot['faculty_user_id'] ?? 0);
+        }
+
+        $eligibilityCache = [];
+
+        return array_map(function (array $finding) use ($term, $facultyByMeetingKey, &$eligibilityCache): array {
+            if (($finding['severity'] ?? null) !== 'blocking'
+                || ($finding['code'] ?? null) !== 'outside_faculty_availability') {
+                return $finding;
+            }
+
+            $key = ((int) ($finding['scheduling_demand_id'] ?? 0)).':'.((int) ($finding['meeting_sequence'] ?? 0));
+            $facultyId = $facultyByMeetingKey[$key] ?? 0;
+            if ($facultyId <= 0) {
+                return $finding;
+            }
+
+            $eligibility = $eligibilityCache[$facultyId] ??= RecordFacultyAvailabilityDeclaration::expansionEligibility($term, $facultyId);
+            if (! $eligibility['eligible']) {
+                return $finding;
+            }
+
+            $finding['severity'] = 'warning';
+            $finding['message'] = rtrim((string) ($finding['message'] ?? ''), '.').'. Teacher\'s availability will expand monotonically to include this slot when published.';
+
+            return $finding;
+        }, $findings);
     }
 
     private function cancellationImpact(

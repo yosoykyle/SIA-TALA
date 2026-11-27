@@ -48,9 +48,11 @@ class ProgramsTable
                     ->extraHeaderAttributes(['class' => 'tala-programs-col-curriculum'])
                     ->extraCellAttributes(['class' => 'tala-programs-col-curriculum'])
                     ->state(function (Program $record): string {
-                        $active = $record->curriculumVersions
-                            ->where('state', CurriculumVersion::StateActive)
-                            ->values();
+                        $active = CurriculumVersion::sortByLatestBatch(
+                            $record->curriculumVersions
+                                ->where('state', CurriculumVersion::StateActive)
+                                ->values(),
+                        );
 
                         if ($active->isEmpty()) {
                             return 'None yet';

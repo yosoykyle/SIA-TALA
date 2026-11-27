@@ -1,8 +1,9 @@
 @php
     $available = $statement['position']['state'] !== 'Unavailable';
+    $isAccounting = auth()->user()?->hasRole(\App\Models\User::StaffRoleAccounting) ?? false;
     $money = fn ($value) => $value === null ? 'Unavailable' : 'PHP '.number_format((float) $value, 2);
     $date = fn ($value) => $value === null ? 'Not recorded' : \App\Support\DisplayDateTime::format(\Carbon\CarbonImmutable::parse($value), 'M j, Y');
-    $backUrl = auth()->user()->hasRole(\App\Models\User::StaffRoleAccounting)
+    $backUrl = $isAccounting
         ? \App\Filament\Resources\Enrollments\EnrollmentResource::getUrl('view', ['record' => $statement['account']->enrollment_id], panel: 'admin')
         : (auth()->user()->hasRole('student') ? \App\Filament\Student\Pages\Finance::getUrl(panel: 'student') : \App\Filament\Applicant\Pages\Enrollment::getUrl(panel: 'applicant'));
 @endphp
@@ -33,7 +34,15 @@
     <section><h2>{{ $available ? 'Account activity' : 'Recorded account activity' }}</h2>
         @if ($statement['activity']->isEmpty())<p>No verified payment or approved coverage is recorded. Submitted receipts are separate from a verified payment.</p>
         @else<div class="official-output-table finance-responsive-table"><table><thead><tr><th scope="col">Date</th><th scope="col">Activity</th><th scope="col">Details</th><th scope="col">Amount</th></tr></thead><tbody>
-            @foreach ($statement['activity'] as $event)<tr><td data-label="Date">{{ $date($event['date']) }}</td><td data-label="Activity">{{ $event['description'] }}<span class="finance-source">{{ $event['state'] }}</span></td><td data-label="Details">{{ $event['details'] }}<span class="finance-source">{{ $event['reference'] ?: 'Reference not recorded' }}@if ($event['external_reference']) · External reference {{ $event['external_reference'] }}@endif</span></td><td data-label="Amount">{{ $money($event['amount']) }}</td></tr>@endforeach
+            @foreach ($statement['activity'] as $event)
+                @php
+                    $isPaymentEvent = in_array($event['description'], ['Verified payment', 'Payment reversal'], true);
+                    $referenceText = ($isAccounting || ! $isPaymentEvent)
+                        ? ($event['reference'] ?: 'Reference not recorded')
+                        : 'Verified TALA posting';
+                @endphp
+                <tr><td data-label="Date">{{ $date($event['date']) }}</td><td data-label="Activity">{{ $event['description'] }}<span class="finance-source">{{ $event['state'] }}</span></td><td data-label="Details">{{ $event['details'] }}<span class="finance-source">{{ $referenceText }}@if ($event['external_reference']) · External reference {{ $event['external_reference'] }}@endif</span></td><td data-label="Amount">{{ $money($event['amount']) }}</td></tr>
+            @endforeach
         </tbody></table></div>@endif
     </section>
     @if ($available)
@@ -41,6 +50,6 @@
             @foreach ($statement['position']['obligations'] as $obligation)<tr><td data-label="Description">{{ $obligation['label'] }}</td><td data-label="Due">{{ $date($obligation['due_at']) }}</td><td data-label="Scheduled">{{ $money($obligation['amount']) }}</td><td data-label="Remaining">{{ $money($obligation['balance']) }}</td><td data-label="Status">{{ $obligation['balance'] === '0.00' ? 'Satisfied' : ($obligation['is_due'] ? 'Due' : 'Upcoming') }}</td></tr>@endforeach
         </tbody></table></div></section>
     @endif
-    <p class="finance-source">Account TERM-ACCOUNT-{{ $statement['account']->id }} · {{ $statement['has_current_assessment'] ? 'Assessment' : 'Historical assessment' }} {{ $statement['assessment']->version }} · {{ \App\Actions\Finance\AccountingDisplay::assessmentBasisLabel($statement['assessment']->assessment_basis) }}{{ filled($statement['authority_reference']) ? ' · Approval '.$statement['authority_reference'] : '' }}{{ filled($statement['authority_date']) ? ' · '.$statement['authority_date'] : '' }}<br>As of {{ \App\Support\DisplayDateTime::format($statement['generated_at']) }} · {{ config('app.display_timezone') }}</p>
+    <p class="finance-source">@if ($isAccounting)Account TERM-ACCOUNT-{{ $statement['account']->id }} · @endif{{ $statement['has_current_assessment'] ? 'Assessment' : 'Historical assessment' }} {{ $statement['assessment']->version }} · {{ \App\Actions\Finance\AccountingDisplay::assessmentBasisLabel($statement['assessment']->assessment_basis) }}{{ filled($statement['authority_reference']) ? ' · Approval '.$statement['authority_reference'] : '' }}{{ filled($statement['authority_date']) ? ' · '.$statement['authority_date'] : '' }}<br>As of {{ \App\Support\DisplayDateTime::format($statement['generated_at']) }} · {{ config('app.display_timezone') }}</p>
     <div class="official-output-notice">{{ $statement['disclaimer'] }}</div>
 </x-official-output-layout>

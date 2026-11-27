@@ -241,7 +241,7 @@
                 </div>
 
                 @if ($isEditableDraft && $isPostEnrollmentLocked)
-                    <section class="tala-studio-context-strip is-warning" role="status" aria-label="Whole-term publication locked">
+                    <section class="tala-studio-context-strip is-warning" aria-label="Whole-term publication locked">
                         <div class="tala-studio-context-strip__body">
                             <x-filament::icon icon="heroicon-o-exclamation-triangle" aria-hidden="true" />
                             <span>Whole-term publishing and regeneration are locked because students are officially enrolled. Use <strong>Revise official schedule</strong> on the official timetable for approved changes.</span>
@@ -251,7 +251,7 @@
                         @endif
                     </section>
                 @elseif ($isEditableDraft && $currentVersion)
-                    <section class="tala-studio-context-strip is-neutral" role="status" aria-label="Draft editing notice">
+                    <section class="tala-studio-context-strip is-neutral" aria-label="Draft editing notice">
                         <div class="tala-studio-context-strip__body">
                             <x-filament::icon icon="heroicon-o-information-circle" aria-hidden="true" />
                             <span>Editing unpublished draft: <strong>Official Rev {{ $currentVersion->version }}</strong> stays live until you publish.</span>
@@ -259,14 +259,14 @@
                         <x-filament::button color="gray" size="sm" wire:click="chooseTimetable('official:{{ $currentVersion->id }}')">View official</x-filament::button>
                     </section>
                 @elseif ($isOfficialPublished && ! $isTermClosed && $isPostEnrollmentLocked)
-                    <section class="tala-studio-context-strip is-neutral" role="status" aria-label="Whole-term draft generation locked">
+                    <section class="tala-studio-context-strip is-neutral" aria-label="Whole-term draft generation locked">
                         <div class="tala-studio-context-strip__body">
                             <x-filament::icon icon="heroicon-o-lock-closed" aria-hidden="true" />
                             <span>Whole-term draft generation is locked because active student enrollments exist for this term. Use <strong>Revise official schedule</strong> for approved changes.</span>
                         </div>
                     </section>
                 @elseif ($isOfficialPublished && ! $isTermClosed && ! $isPostEnrollmentLocked && $activeDraftOption !== null)
-                    <section class="tala-studio-context-strip is-warning" role="status" aria-label="Unpublished draft in progress">
+                    <section class="tala-studio-context-strip is-warning" aria-label="Unpublished draft in progress">
                         <div class="tala-studio-context-strip__body">
                             <x-filament::icon icon="heroicon-o-pencil-square" aria-hidden="true" />
                             <span>Unpublished draft (<strong>Attempt #{{ $activeDraftOption['id'] }}</strong>) is in progress. Official stays live until published.</span>
@@ -274,7 +274,7 @@
                         <x-filament::button color="gray" size="sm" wire:click="chooseTimetable('draft:{{ $activeDraftOption['id'] }}')">Open draft</x-filament::button>
                     </section>
                 @elseif ($isOfficialPublished && ! $isTermClosed && ! $isPostEnrollmentLocked && ! $hasActiveDraft && ($canStartNewDraftAttempt ?? false))
-                    <section class="tala-studio-context-strip is-neutral" role="status" aria-label="Pre-enrollment draft option">
+                    <section class="tala-studio-context-strip is-neutral" aria-label="Pre-enrollment draft option">
                         <div class="tala-studio-context-strip__body">
                             <x-filament::icon icon="heroicon-o-sparkles" aria-hidden="true" />
                             <span>No active student enrollments yet. Start a new whole-term draft anytime without affecting the live schedule until you publish.</span>
@@ -290,7 +290,7 @@
                         </x-filament::button>
                     </section>
                 @elseif ($isPastAttempt && $scopeMeetingCount > 0)
-                    <section class="tala-studio-context-strip is-neutral" role="status" aria-label="Past attempt notice">
+                    <section class="tala-studio-context-strip is-neutral" aria-label="Past attempt notice">
                         <div class="tala-studio-context-strip__body">
                             <x-filament::icon icon="heroicon-o-clock" aria-hidden="true" />
                             <span>Viewing a past attempt (<strong>Attempt #{{ $activeRun->id }}</strong> · {{ $this->plainAttemptStatusLabel($activeRun) }}). Past attempts are read-only and cannot be published.</span>
@@ -305,7 +305,7 @@
             @endif
 
             @if ($showOfficial && $selectedVersion && ($pendingDraftRevision ?? null))
-                <section class="tala-studio-pending-revision" role="status" aria-label="Pending schedule revision">
+                <section class="tala-studio-pending-revision" aria-label="Pending schedule revision">
                     <div class="tala-studio-pending-revision__body">
                         <x-filament::icon icon="heroicon-o-exclamation-triangle" aria-hidden="true" />
                         <div>
@@ -422,7 +422,7 @@
                     $showTopConflictGuide = $hasConflictGuideItems && ! $isEmptyFailedDraft;
                     $hasVisibleStatusStrip = $hasDraftValidationWarning || $showTopFailureCard || $showTopConflictGuide;
                 @endphp
-                <div wire:loading.delay.long wire:target="chooseTimetable,showTimetableView,showTimetableFormat,viewFilter,programFilter,yearFilter,tableSearch,clearViewFilters,moveCandidateMeeting,updateCandidateMeeting,togglePinMeeting,undoLastChangeFromNotification" class="tala-studio-status" role="status"><p class="tala-studio-message"><x-filament::loading-indicator aria-hidden="true" />Updating timetable…</p></div>
+                <div wire:loading.delay.long wire:target="chooseTimetable,showTimetableView,showTimetableFormat,viewFilter,programFilter,yearFilter,tableSearch,clearViewFilters,moveCandidateMeeting,updateCandidateMeeting,togglePinMeeting,undoLastChangeFromNotification" class="tala-studio-status"><p class="tala-studio-message"><x-filament::loading-indicator aria-hidden="true" />Updating timetable…</p></div>
                 @if ($hasVisibleStatusStrip)
                     <section class="tala-studio-status" aria-label="Timetable result">
                         @if ($showTopFailureCard)
@@ -444,7 +444,7 @@
                                 @endif
                             </div>
                         @elseif ($hasDraftValidationWarning && ! $showTopConflictGuide)
-                            <div class="tala-studio-alert-card is-warning" role="status">
+                            <div class="tala-studio-alert-card is-warning">
                                 <div class="tala-studio-alert-card__body">
                                     <span class="tala-studio-alert-card__icon" aria-hidden="true">
                                         <x-filament::icon icon="heroicon-o-exclamation-triangle" />
@@ -460,7 +460,7 @@
                         @if ($showTopConflictGuide)
                             <section class="tala-conflict-guide" aria-label="Conflict resolution guide">
                                 <header class="tala-conflict-guide__head">
-                                    <h3>{{ count($resolvedConflictDiagnosis['items']) === 1 ? 'How to resolve this scheduling issue' : 'How to resolve these scheduling issues' }}</h3>
+                                    <h2>{{ count($resolvedConflictDiagnosis['items']) === 1 ? 'How to resolve this scheduling issue' : 'How to resolve these scheduling issues' }}</h2>
                                     @if (($resolvedConflictDiagnosis['summary'] ?? '') !== '')
                                         <p class="tala-conflict-guide__summary">{{ $resolvedConflictDiagnosis['summary'] }}</p>
                                     @endif
@@ -472,7 +472,7 @@
                                         'is-warning' => ($conflictItem['severity'] ?? '') === 'warning',
                                     ])>
                                         <header class="tala-conflict-card__head">
-                                            <h4>{{ $conflictItem['title'] }}</h4>
+                                            <h3>{{ $conflictItem['title'] }}</h3>
                                             <x-filament::badge :color="($conflictItem['severity'] ?? 'danger') === 'danger' ? 'danger' : 'warning'" size="sm">{{ $conflictItem['category'] }}</x-filament::badge>
                                         </header>
                                         @if (! empty($conflictItem['involved']))
@@ -657,7 +657,7 @@
                                     };
                                     $heroCombinedBody = trim($emptyDescription.' '.(($plainFailure !== null && ($plainFailure['nextStep'] ?? '') !== '' && ! str_contains($emptyDescription, (string) $plainFailure['nextStep'])) ? $plainFailure['nextStep'] : ''));
                                 @endphp
-                                <div @class(['tala-error-stage', 'is-danger' => $emptyHeroTone === 'danger', 'is-warning' => $emptyHeroTone === 'warning']) role="status">
+                                <div @class(['tala-error-stage', 'is-danger' => $emptyHeroTone === 'danger', 'is-warning' => $emptyHeroTone === 'warning'])>
                                     <div class="tala-error-stage__icon" aria-hidden="true">
                                         <x-filament::icon :icon="$isErrorEmptyHero ? 'heroicon-o-exclamation-triangle' : 'heroicon-o-clock'" />
                                     </div>
@@ -683,7 +683,7 @@
                                 @if ($hasConflictGuideItems ?? false)
                                     <section class="tala-conflict-guide" aria-label="Conflict resolution guide">
                                         <header class="tala-conflict-guide__head">
-                                            <h3>{{ count($resolvedConflictDiagnosis['items']) === 1 ? 'Conflict found and how to fix it' : 'Conflicts found and how to fix them' }}</h3>
+                                            <h2>{{ count($resolvedConflictDiagnosis['items']) === 1 ? 'Conflict found and how to fix it' : 'Conflicts found and how to fix them' }}</h2>
                                             @if (($resolvedConflictDiagnosis['summary'] ?? '') !== '')
                                                 <p class="tala-conflict-guide__summary">{{ $resolvedConflictDiagnosis['summary'] }}</p>
                                             @endif
@@ -695,7 +695,7 @@
                                                 'is-warning' => ($conflictItem['severity'] ?? '') === 'warning',
                                             ])>
                                                 <header class="tala-conflict-card__head">
-                                                    <h4>{{ $conflictItem['title'] }}</h4>
+                                                    <h3>{{ $conflictItem['title'] }}</h3>
                                                     <x-filament::badge :color="($conflictItem['severity'] ?? 'danger') === 'danger' ? 'danger' : 'warning'" size="sm">{{ $conflictItem['category'] }}</x-filament::badge>
                                                 </header>
                                                 @if (! empty($conflictItem['involved']))
@@ -758,7 +758,7 @@
                                 @endphp
                                 <div class="tala-timetable-prerequisites" aria-label="Timetable prerequisites checklist">
                                     <div class="tala-timetable-prerequisites__head">
-                                        <h3>{{ count($readinessBlockers) === 1 ? '1 prerequisite remaining' : count($readinessBlockers).' prerequisites remaining' }}</h3>
+                                        <h2>{{ count($readinessBlockers) === 1 ? '1 prerequisite remaining' : count($readinessBlockers).' prerequisites remaining' }}</h2>
                                         <p>Complete each step below before generating a whole-term timetable.</p>
                                     </div>
                                     <ul class="tala-guide-history" aria-label="Timetable prerequisites">
@@ -1019,7 +1019,7 @@
                         </section>
                         @if ($activeRun && ! $showOfficial)
                             @if ($canPublishDraft)<p class="tala-work-footnote">Ready to publish. Publication rechecks independent validation, source freshness and Registrar authority for the whole term.@if ($currentVersion) The current official timetable stays live until published.@endif</p>@endif
-                            @if (! $readOnly && ! $isTermClosed && $this->retainedCandidateNextStep())<p class="tala-work-footnote" role="status">{{ $this->retainedCandidateNextStep() }}</p>@endif
+                            @if (! $readOnly && ! $isTermClosed && $this->retainedCandidateNextStep())<p class="tala-work-footnote">{{ $this->retainedCandidateNextStep() }}</p>@endif
                         @endif
                         @if ($activeRun && ! $showOfficial)
                             <section class="tala-evidence-surface" aria-label="Result measures">
@@ -1331,8 +1331,6 @@
 
                         <div
                             class="flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm tabular-nums"
-                            role="status"
-                            aria-live="polite"
                             :class="matchingCount > 0
                                 ? 'border-zinc-200 bg-zinc-50 text-zinc-700 dark:border-white/10 dark:bg-zinc-900/60 dark:text-zinc-200'
                                 : 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200'"

@@ -85,7 +85,9 @@ final class SchoolResources extends Page implements HasTable
      *     needed_ids: list<int>,
      *     shared_ids: list<int>,
      *     program_course_ids: array<int, list<int>>,
-     *     programs: array<int, string>
+     *     programs: array<int, string>,
+     *     curriculum_course_ids: array<int, list<int>>,
+     *     curricula: array<int, string>
      * }|null
      */
     private ?array $catalogSubjectsCache = null;
@@ -771,6 +773,10 @@ final class SchoolResources extends Page implements HasTable
             $options['program:'.$programId] = $label;
         }
 
+        foreach ($payload['curricula'] as $curriculumId => $label) {
+            $options['curriculum:'.$curriculumId] = $label;
+        }
+
         return $options;
     }
 
@@ -855,6 +861,12 @@ final class SchoolResources extends Page implements HasTable
             $programId = (int) substr($normalized, strlen('program:'));
 
             return $payload['program_course_ids'][$programId] ?? [];
+        }
+
+        if (str_starts_with($normalized, 'curriculum:')) {
+            $curriculumId = (int) substr($normalized, strlen('curriculum:'));
+
+            return $payload['curriculum_course_ids'][$curriculumId] ?? [];
         }
 
         return null;
@@ -988,29 +1000,79 @@ final class SchoolResources extends Page implements HasTable
         }
 
         $courseProgramIds = [];
+        $curriculumCourseIds = [];
+        $curriculaOptions = [];
+        $courseBatchTags = [];
+
         if ($activePrograms->isNotEmpty()) {
+            $relevantCurricula = CurriculumVersion::query()
+                ->whereIn('state', [
+                    CurriculumVersion::StateActive,
+                    CurriculumVersion::StateSuperseded,
+                    CurriculumVersion::StateDraft,
+                ])
+                ->whereIn('program_id', $activePrograms->pluck('id'))
+                ->with(['program', 'academicYears'])
+                ->get();
+
+            $sortedCurricula = $relevantCurricula
+                ->groupBy('program_id')
+                ->sortBy(fn (Collection $group, int $programId): string => (string) ($programById[$programId]?->code ?? ''))
+                ->flatMap(fn (Collection $group): Collection => CurriculumVersion::sortByLatestBatch($group, groupByState: true))
+                ->values();
+
+            $curriculumLabelsById = [];
+            foreach ($sortedCurricula as $curriculum) {
+                $programCode = (string) ($programById[$curriculum->program_id]?->code ?? 'Program');
+                $batchLabel = $curriculum->batchLabel();
+                $suffix = match ($curriculum->state) {
+                    CurriculumVersion::StateSuperseded => ' (Retired)',
+                    CurriculumVersion::StateDraft => ' (Draft)',
+                    default => '',
+                };
+                $curriculumLabelsById[(int) $curriculum->id] = $batchLabel;
+                $curriculaOptions[(int) $curriculum->id] = "{$programCode} · {$batchLabel}{$suffix}";
+                $curriculumCourseIds[(int) $curriculum->id] = [];
+            }
+
             $courseProgramRows = DB::table('curriculum_entries')
                 ->join('curriculum_versions', 'curriculum_versions.id', '=', 'curriculum_entries.curriculum_version_id')
                 ->join('course_specifications', 'course_specifications.id', '=', 'curriculum_entries.course_specification_id')
                 ->whereIn('curriculum_versions.state', [
                     CurriculumVersion::StateActive,
+                    CurriculumVersion::StateSuperseded,
                     CurriculumVersion::StateDraft,
                 ])
                 ->whereIn('curriculum_versions.program_id', $activePrograms->pluck('id'))
-                ->select('course_specifications.course_id', 'curriculum_versions.program_id')
+                ->select(
+                    'course_specifications.course_id',
+                    'curriculum_versions.program_id',
+                    'curriculum_versions.id as curriculum_version_id',
+                )
                 ->distinct()
                 ->get();
 
             foreach ($courseProgramRows as $row) {
                 $courseId = (int) $row->course_id;
                 $programId = (int) $row->program_id;
+                $curriculumId = (int) $row->curriculum_version_id;
                 $courseProgramIds[$courseId][$programId] = $programId;
                 $programCourseIds[$programId][$courseId] = $courseId;
+                if (isset($curriculumCourseIds[$curriculumId])) {
+                    $curriculumCourseIds[$curriculumId][$courseId] = $courseId;
+                }
+                if (isset($curriculumLabelsById[$curriculumId])) {
+                    $courseBatchTags[$courseId][$curriculumId] = $curriculumLabelsById[$curriculumId];
+                }
             }
         }
 
         foreach ($programCourseIds as $programId => $ids) {
             $programCourseIds[$programId] = array_values($ids);
+        }
+
+        foreach ($curriculumCourseIds as $curriculumId => $ids) {
+            $curriculumCourseIds[$curriculumId] = array_values($ids);
         }
 
         $courses = Course::query()
@@ -1055,6 +1117,20 @@ final class SchoolResources extends Page implements HasTable
                 $parts[] = "{$units} ".((float) $spec->credit_units === 1.0 ? 'unit' : 'units');
             }
             $parts[] = $programTag;
+
+            $orderedBatchLabels = [];
+            foreach (array_keys($curriculaOptions) as $cid) {
+                if (isset($courseBatchTags[$courseId][$cid])) {
+                    $orderedBatchLabels[] = $courseBatchTags[$courseId][$cid];
+                }
+            }
+            $uniqueBatchLabels = array_values(array_unique($orderedBatchLabels));
+            if ($uniqueBatchLabels !== []) {
+                $visibleBatches = array_slice($uniqueBatchLabels, 0, 2);
+                $extraBatches = count($uniqueBatchLabels) - count($visibleBatches);
+                $parts[] = implode(', ', $visibleBatches).($extraBatches > 0 ? " +{$extraBatches} more" : '');
+            }
+
             if ($isNeeded) {
                 $parts[] = 'Needed this term';
             }
@@ -1069,6 +1145,8 @@ final class SchoolResources extends Page implements HasTable
             'shared_ids' => $sharedIds,
             'program_course_ids' => $programCourseIds,
             'programs' => $programs,
+            'curriculum_course_ids' => $curriculumCourseIds,
+            'curricula' => $curriculaOptions,
         ];
     }
 

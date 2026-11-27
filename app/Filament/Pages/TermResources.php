@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Actions\Scheduling\FacultyAvailabilityRequestService;
 use App\Actions\Scheduling\FacultyTermWorkloadProjection;
 use App\Actions\Scheduling\GenerateSchedulingDemand;
+use App\Actions\Scheduling\RecordFacultyAvailabilityDeclaration;
 use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
 use App\Filament\Resources\Rooms\RoomResource;
 use App\Filament\Resources\Rooms\Schemas\RoomForm;
@@ -104,7 +105,9 @@ class TermResources extends TermPlanningWorkbench implements HasTable
      *     needed_ids: list<int>,
      *     shared_ids: list<int>,
      *     program_course_ids: array<int, list<int>>,
-     *     programs: array<int, string>
+     *     programs: array<int, string>,
+     *     curriculum_course_ids: array<int, list<int>>,
+     *     curricula: array<int, string>
      * }|null
      */
     private ?array $catalogSubjectsCache = null;
@@ -1464,6 +1467,183 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                             ->send();
                     }),
                 ActionGroup::make([
+                    Action::make('editAvailability')
+                        ->label('Edit availability')
+                        ->icon(Heroicon::OutlinedClock)
+                        ->modalHeading(fn (array $record): string => 'Edit availability · '.$record['name'])
+                        ->modalDescription('Records an append-only availability declaration for this teacher with an audit log entry and notifies them. Active drafts are marked stale; if an official timetable is published, conflicting meetings are flagged for revision.')
+                        ->modalWidth(Width::TwoExtraLarge)
+                        ->stickyModalHeader()
+                        ->stickyModalFooter()
+                        ->modalSubmitActionLabel('Save availability')
+                        ->modalCancelActionLabel('Cancel')
+                        ->visible(fn (): bool => ! ($this->getViewData()['readOnly'] ?? false) && ! $this->isTermClosed())
+                        ->fillForm(function (array $record): array {
+                            $term = $this->selectedTerm();
+                            $facultyId = (int) $record['faculty_user_id'];
+                            $latest = FacultyAvailabilityDeclaration::query()
+                                ->where('term_id', $term->id)
+                                ->where('faculty_user_id', $facultyId)
+                                ->latest('version')
+                                ->first();
+
+                            $mode = FacultyAvailabilityDeclaration::ModeAnyApproved;
+                            $windows = [];
+
+                            if ($latest instanceof FacultyAvailabilityDeclaration) {
+                                $effectiveMode = $latest->effectiveMode();
+                                if ($effectiveMode === FacultyAvailabilityDeclaration::ModeCannotTeach) {
+                                    $mode = FacultyAvailabilityDeclaration::ModeCannotTeach;
+                                } elseif ($effectiveMode === FacultyAvailabilityDeclaration::ModeWindows) {
+                                    $mode = FacultyAvailabilityDeclaration::ModeWindows;
+                                    $windows = collect($latest->normalizedTeachingWindows())
+                                        ->map(fn (array $window): array => [
+                                            'day_of_week' => (int) $window['day_of_week'],
+                                            'start_time' => (string) $window['start_time'],
+                                            'end_time' => (string) $window['end_time'],
+                                        ])
+                                        ->values()
+                                        ->all();
+                                } elseif ($effectiveMode === FacultyAvailabilityDeclaration::ModeLegacyUnavailability) {
+                                    $mode = FacultyAvailabilityDeclaration::ModeWindows;
+                                    $windows = $this->defaultWindowsFromLegacyDeclaration($term, $latest);
+                                }
+                            }
+
+                            if ($mode === FacultyAvailabilityDeclaration::ModeWindows && $windows === []) {
+                                $windows = $this->defaultEditableTeachingWindows($term);
+                            }
+
+                            return [
+                                'availability_mode' => $mode,
+                                'teaching_windows' => $windows,
+                                'correction_reason' => '',
+                            ];
+                        })
+                        ->schema(function (): array {
+                            $term = $this->selectedTerm();
+                            $dayOptions = $this->approvedCalendarDayOptions($term);
+                            $defaultDay = array_key_first($dayOptions) ?? 1;
+
+                            return [
+                                Select::make('availability_mode')
+                                    ->label('Availability status for this term')
+                                    ->options([
+                                        FacultyAvailabilityDeclaration::ModeWindows => 'Available on specific days & times',
+                                        FacultyAvailabilityDeclaration::ModeAnyApproved => 'Available any approved school hours',
+                                        FacultyAvailabilityDeclaration::ModeCannotTeach => 'Cannot teach this term',
+                                    ])
+                                    ->required()
+                                    ->selectablePlaceholder(false)
+                                    ->live(),
+                                Repeater::make('teaching_windows')
+                                    ->label('Weekly teaching windows')
+                                    ->helperText('Choose approved teaching days and 30-minute aligned start/end times within school teaching hours.')
+                                    ->visible(fn (Get $get): bool => $get('availability_mode') === FacultyAvailabilityDeclaration::ModeWindows)
+                                    ->required(fn (Get $get): bool => $get('availability_mode') === FacultyAvailabilityDeclaration::ModeWindows)
+                                    ->minItems(1)
+                                    ->defaultItems(1)
+                                    ->addActionLabel('Add teaching window')
+                                    ->schema([
+                                        Grid::make(['default' => 1, 'md' => 3])->schema([
+                                            Select::make('day_of_week')
+                                                ->label('Day')
+                                                ->options($dayOptions)
+                                                ->default($defaultDay)
+                                                ->required()
+                                                ->selectablePlaceholder(false),
+                                            TimePicker::make('start_time')
+                                                ->label('Start')
+                                                ->timezone((string) config('app.timezone'))
+                                                ->format('H:i')
+                                                ->seconds(false)
+                                                ->minutesStep(30)
+                                                ->required(),
+                                            TimePicker::make('end_time')
+                                                ->label('End')
+                                                ->timezone((string) config('app.timezone'))
+                                                ->format('H:i')
+                                                ->seconds(false)
+                                                ->minutesStep(30)
+                                                ->after('start_time')
+                                                ->required(),
+                                        ]),
+                                    ]),
+                                Textarea::make('correction_reason')
+                                    ->label('Reason for recording / updating availability')
+                                    ->placeholder('e.g., Faculty requested extended afternoon window after deadline')
+                                    ->helperText('Recorded in the audit log and shared with the teacher.')
+                                    ->rows(3)
+                                    ->maxLength(1000)
+                                    ->required(),
+                            ];
+                        })
+                        ->action(function (array $record, array $data, Schema $schema): void {
+                            $actor = auth()->user();
+                            abort_unless($actor instanceof User && $actor->hasRole(User::StaffRoleRegistrar), 403);
+                            abort_if($this->isTermClosed(), 403);
+
+                            $term = $this->selectedTerm();
+                            $faculty = User::query()->findOrFail((int) $record['faculty_user_id']);
+                            $mode = (string) ($data['availability_mode'] ?? FacultyAvailabilityDeclaration::ModeAnyApproved);
+                            $rawWindows = is_array($data['teaching_windows'] ?? null) ? array_values($data['teaching_windows']) : [];
+                            $windows = $mode === FacultyAvailabilityDeclaration::ModeWindows
+                                ? collect($rawWindows)
+                                    ->filter(fn (mixed $window): bool => is_array($window))
+                                    ->map(fn (array $window): array => [
+                                        'day_of_week' => (int) ($window['day_of_week'] ?? 0),
+                                        'start_time' => substr((string) ($window['start_time'] ?? ''), 0, 5),
+                                        'end_time' => substr((string) ($window['end_time'] ?? ''), 0, 5),
+                                    ])
+                                    ->values()
+                                    ->all()
+                                : [];
+
+                            try {
+                                $saved = app(RecordFacultyAvailabilityDeclaration::class)->execute(
+                                    term: $term,
+                                    faculty: $faculty,
+                                    actor: $actor,
+                                    correctionReason: trim((string) ($data['correction_reason'] ?? '')),
+                                    availabilityMode: $mode,
+                                    teachingWindows: $windows,
+                                );
+                            } catch (ValidationException $exception) {
+                                throw ValidationException::withMessages(
+                                    collect($exception->errors())->mapWithKeys(fn (array $messages, string $field): array => [$schema->getStatePath().'.'.$field => $messages])->all(),
+                                );
+                            }
+
+                            $this->refreshSchedulingAfterAvailabilityChange($actor, $term);
+                            $this->resetResourceCaches();
+
+                            $publishedConflicts = SectionMeeting::query()
+                                ->activeOfficial()
+                                ->where('faculty_user_id', $faculty->id)
+                                ->whereHas('scheduleRun', fn (Builder $query): Builder => $query->where('term_id', $term->id))
+                                ->get()
+                                ->filter(fn (SectionMeeting $meeting): bool => $saved->conflictsWithMeeting(
+                                    (int) $meeting->day_of_week,
+                                    (string) $meeting->starts_at,
+                                    (string) $meeting->ends_at,
+                                ))
+                                ->count();
+
+                            if ($publishedConflicts > 0) {
+                                Notification::make()
+                                    ->title("Availability updated for {$faculty->name} (v{$saved->version})")
+                                    ->body("{$publishedConflicts} official ".str('meeting')->plural($publishedConflicts).' now conflict with these hours and were flagged for revision on Timetable. The teacher has been notified.')
+                                    ->warning()
+                                    ->persistent()
+                                    ->send();
+                            } else {
+                                Notification::make()
+                                    ->title("Availability updated for {$faculty->name} (v{$saved->version})")
+                                    ->body("{$saved->modeLabel()} recorded. The teacher has been notified.")
+                                    ->success()
+                                    ->send();
+                            }
+                        }),
                     Action::make('editLoadOverride')
                         ->label('Load override')
                         ->icon(Heroicon::OutlinedAdjustmentsHorizontal)
@@ -2180,6 +2360,10 @@ class TermResources extends TermPlanningWorkbench implements HasTable
             $options['program:'.$programId] = $label;
         }
 
+        foreach ($payload['curricula'] as $curriculumId => $label) {
+            $options['curriculum:'.$curriculumId] = $label;
+        }
+
         return $options;
     }
 
@@ -2241,7 +2425,9 @@ class TermResources extends TermPlanningWorkbench implements HasTable
      *     needed_ids: list<int>,
      *     shared_ids: list<int>,
      *     program_course_ids: array<int, list<int>>,
-     *     programs: array<int, string>
+     *     programs: array<int, string>,
+     *     curriculum_course_ids: array<int, list<int>>,
+     *     curricula: array<int, string>
      * }  $payload
      * @param  list<mixed>  $selectedIds
      * @return list<int>|null
@@ -2275,6 +2461,12 @@ class TermResources extends TermPlanningWorkbench implements HasTable
             $programId = (int) substr($normalized, strlen('program:'));
 
             return $payload['program_course_ids'][$programId] ?? [];
+        }
+
+        if (str_starts_with($normalized, 'curriculum:')) {
+            $curriculumId = (int) substr($normalized, strlen('curriculum:'));
+
+            return $payload['curriculum_course_ids'][$curriculumId] ?? [];
         }
 
         return null;
@@ -2371,6 +2563,10 @@ class TermResources extends TermPlanningWorkbench implements HasTable
             return 'No subjects selected yet. Switch the filter above to add subjects from the catalog. Qualifications apply school-wide across all terms.';
         }
 
+        if ($filter === 'needed') {
+            return 'Showing only subjects offered this term. Switch the filter above to "All catalog subjects" or a specific program/batch curriculum to assign other subjects. Qualifications apply school-wide across all terms.';
+        }
+
         return 'School-wide qualification shared across all terms. Check every subject this teacher can be scheduled to teach.';
     }
 
@@ -2381,7 +2577,9 @@ class TermResources extends TermPlanningWorkbench implements HasTable
      *     needed_ids: list<int>,
      *     shared_ids: list<int>,
      *     program_course_ids: array<int, list<int>>,
-     *     programs: array<int, string>
+     *     programs: array<int, string>,
+     *     curriculum_course_ids: array<int, list<int>>,
+     *     curricula: array<int, string>
      * }
      */
     private function catalogSubjectsPayload(): array
@@ -2411,6 +2609,9 @@ class TermResources extends TermPlanningWorkbench implements HasTable
         $programById = $activePrograms->keyBy('id');
         $programs = [];
         $programCourseIds = [];
+        $curricula = [];
+        $curriculumCourseIds = [];
+        $courseBatchTags = [];
 
         foreach ($activePrograms as $program) {
             $programs[(int) $program->id] = "{$program->code} · {$program->name}";
@@ -2419,23 +2620,53 @@ class TermResources extends TermPlanningWorkbench implements HasTable
 
         $courseProgramIds = [];
         if ($activePrograms->isNotEmpty()) {
-            $courseProgramRows = DB::table('curriculum_entries')
-                ->join('curriculum_versions', 'curriculum_versions.id', '=', 'curriculum_entries.curriculum_version_id')
-                ->join('course_specifications', 'course_specifications.id', '=', 'curriculum_entries.course_specification_id')
-                ->whereIn('curriculum_versions.state', [
+            $curriculumVersions = CurriculumVersion::query()
+                ->whereIn('state', [
+                    CurriculumVersion::StateActive,
+                    CurriculumVersion::StateDraft,
+                    CurriculumVersion::StateSuperseded,
+                ])
+                ->whereIn('program_id', $activePrograms->pluck('id'))
+                ->with([
+                    'program:id,code,name',
+                    'academicYears:id,label,starts_on,ends_on',
+                    'entries.courseSpecification:id,course_id',
+                ])
+                ->orderBy('program_id')
+                ->orderByRaw('CASE WHEN state = ? THEN 0 WHEN state = ? THEN 1 ELSE 2 END', [
                     CurriculumVersion::StateActive,
                     CurriculumVersion::StateDraft,
                 ])
-                ->whereIn('curriculum_versions.program_id', $activePrograms->pluck('id'))
-                ->select('course_specifications.course_id', 'curriculum_versions.program_id')
-                ->distinct()
+                ->orderByDesc('id')
                 ->get();
 
-            foreach ($courseProgramRows as $row) {
-                $courseId = (int) $row->course_id;
-                $programId = (int) $row->program_id;
-                $courseProgramIds[$courseId][$programId] = $programId;
-                $programCourseIds[$programId][$courseId] = $courseId;
+            foreach ($curriculumVersions as $version) {
+                $programId = (int) $version->program_id;
+                $programCode = (string) ($version->program?->code ?? ($programById[$programId]?->code ?? ''));
+                $batchLabel = $version->batchLabel();
+                $retiredSuffix = $version->isRetired() ? ' (Retired)' : ($version->state === CurriculumVersion::StateDraft ? ' (Draft)' : '');
+                $curriculumLabel = trim(($programCode !== '' ? "{$programCode} · " : '').$batchLabel.$retiredSuffix);
+                $tagLabel = trim(($programCode !== '' ? "{$programCode} · " : '').$batchLabel);
+
+                $versionCourseIds = [];
+                foreach ($version->entries as $entry) {
+                    $courseId = $entry->courseSpecification?->course_id !== null
+                        ? (int) $entry->courseSpecification->course_id
+                        : 0;
+                    if ($courseId <= 0) {
+                        continue;
+                    }
+
+                    $courseProgramIds[$courseId][$programId] = $programId;
+                    $programCourseIds[$programId][$courseId] = $courseId;
+                    $versionCourseIds[$courseId] = $courseId;
+                    $courseBatchTags[$courseId][$tagLabel] = $tagLabel;
+                }
+
+                if ($versionCourseIds !== []) {
+                    $curricula[(int) $version->id] = $curriculumLabel;
+                    $curriculumCourseIds[(int) $version->id] = array_values($versionCourseIds);
+                }
             }
         }
 
@@ -2485,6 +2716,14 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                 $parts[] = "{$units} ".((float) $spec->credit_units === 1.0 ? 'unit' : 'units');
             }
             $parts[] = $programTag;
+
+            $batchTags = array_values($courseBatchTags[$courseId] ?? []);
+            if ($batchTags !== []) {
+                $shownBatches = array_slice($batchTags, 0, 2);
+                $extraBatchCount = count($batchTags) - count($shownBatches);
+                $parts[] = implode(', ', $shownBatches).($extraBatchCount > 0 ? " (+{$extraBatchCount})" : '');
+            }
+
             if ($isNeeded) {
                 $parts[] = 'Needed this term';
             }
@@ -2499,7 +2738,126 @@ class TermResources extends TermPlanningWorkbench implements HasTable
             'shared_ids' => $sharedIds,
             'program_course_ids' => $programCourseIds,
             'programs' => $programs,
+            'curriculum_course_ids' => $curriculumCourseIds,
+            'curricula' => $curricula,
         ];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function approvedCalendarDayOptions(Term $term): array
+    {
+        $dayNames = [
+            1 => 'Monday',
+            2 => 'Tuesday',
+            3 => 'Wednesday',
+            4 => 'Thursday',
+            5 => 'Friday',
+            6 => 'Saturday',
+            7 => 'Sunday',
+        ];
+
+        $package = TermCalendarPackage::query()
+            ->where('term_id', $term->id)
+            ->where('state', TermCalendarPackage::StateActive)
+            ->with('teachingGridRows')
+            ->first();
+
+        if (! $package instanceof TermCalendarPackage || $package->teachingGridRows->isEmpty()) {
+            return array_slice($dayNames, 0, 6, true);
+        }
+
+        $options = [];
+        foreach ($package->teachingGridRows->sortBy('day_of_week') as $row) {
+            $day = (int) $row->day_of_week;
+            if (isset($dayNames[$day])) {
+                $options[$day] = $dayNames[$day];
+            }
+        }
+
+        return $options !== [] ? $options : array_slice($dayNames, 0, 6, true);
+    }
+
+    /**
+     * @return list<array{day_of_week: int, start_time: string, end_time: string}>
+     */
+    private function defaultEditableTeachingWindows(Term $term): array
+    {
+        $package = TermCalendarPackage::query()
+            ->where('term_id', $term->id)
+            ->where('state', TermCalendarPackage::StateActive)
+            ->with('teachingGridRows')
+            ->first();
+
+        $firstRow = $package?->teachingGridRows->sortBy('day_of_week')->first();
+        if ($firstRow !== null) {
+            return [[
+                'day_of_week' => (int) $firstRow->day_of_week,
+                'start_time' => substr((string) $firstRow->starts_at, 0, 5),
+                'end_time' => substr((string) $firstRow->ends_at, 0, 5),
+            ]];
+        }
+
+        return [[
+            'day_of_week' => 1,
+            'start_time' => '08:00',
+            'end_time' => '17:00',
+        ]];
+    }
+
+    /**
+     * @return list<array{day_of_week: int, start_time: string, end_time: string}>
+     */
+    private function defaultWindowsFromLegacyDeclaration(Term $term, FacultyAvailabilityDeclaration $declaration): array
+    {
+        $package = TermCalendarPackage::query()
+            ->where('term_id', $term->id)
+            ->where('state', TermCalendarPackage::StateActive)
+            ->with('teachingGridRows')
+            ->first();
+
+        if (! $package instanceof TermCalendarPackage || $package->teachingGridRows->isEmpty()) {
+            return $this->defaultEditableTeachingWindows($term);
+        }
+
+        $unavailByDay = [];
+        foreach (is_array($declaration->hard_unavailability) ? $declaration->hard_unavailability : [] as $interval) {
+            if (! is_array($interval)) {
+                continue;
+            }
+            $day = (int) ($interval['day_of_week'] ?? 0);
+            $start = FacultyAvailabilityDeclaration::clockToMinutes((string) ($interval['starts_at'] ?? $interval['start_time'] ?? ''));
+            $end = FacultyAvailabilityDeclaration::clockToMinutes((string) ($interval['ends_at'] ?? $interval['end_time'] ?? ''));
+            if ($start !== null && $end !== null && $start < $end) {
+                $unavailByDay[$day][] = ['start' => $start, 'end' => $end];
+            }
+        }
+
+        $windows = [];
+        foreach ($package->teachingGridRows->sortBy('day_of_week') as $row) {
+            $day = (int) $row->day_of_week;
+            $gStart = FacultyAvailabilityDeclaration::clockToMinutes((string) $row->starts_at);
+            $gEnd = FacultyAvailabilityDeclaration::clockToMinutes((string) $row->ends_at);
+            if ($gStart === null || $gEnd === null || $gStart >= $gEnd) {
+                continue;
+            }
+
+            $open = FacultyAvailabilityDeclaration::subtractIntervals(
+                [['start' => $gStart, 'end' => $gEnd]],
+                $unavailByDay[$day] ?? [],
+            );
+
+            foreach ($open as $segment) {
+                $windows[] = [
+                    'day_of_week' => $day,
+                    'start_time' => FacultyAvailabilityDeclaration::minutesToHourMinute($segment['start']),
+                    'end_time' => FacultyAvailabilityDeclaration::minutesToHourMinute($segment['end']),
+                ];
+            }
+        }
+
+        return $windows !== [] ? $windows : $this->defaultEditableTeachingWindows($term);
     }
 
     /**

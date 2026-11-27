@@ -68,6 +68,8 @@ class IrregularStudentReasons
      *     kept_regular: bool,
      *     decision_reason: ?string,
      *     status_label: string,
+     *     unresolved_deficiency_count: int,
+     *     has_high_deficiency_count: bool,
      *     primary: ?array{code: string, label: string, details: string, subjects: list<string>},
      *     reasons: list<array{code: string, label: string, details: string, subjects: list<string>}>
      * }
@@ -77,10 +79,16 @@ class IrregularStudentReasons
         $effect = $this->effects->forStudent($student, $term);
         $decision = $this->activeDecision($student, $term);
         $activeShift = $this->activeUnenrolledShift($student);
+        $buckets = $this->openDeficiencyBuckets($student);
+        $unresolvedDeficiencyCount = $buckets['failed']->count()
+            + $buckets['incomplete']->count()
+            + $buckets['dropped']->count()
+            + $buckets['withdrawn']->count();
+
         $reasons = collect()
             ->merge($this->returneeReasons($student))
             ->merge($this->shifteeReasons($student, $activeShift))
-            ->merge($this->resultReasons($student));
+            ->merge($this->resultReasonsFromBuckets($student, $buckets));
 
         if ($decision?->effect === AcademicDecision::EffectAdvisingRequired && $reasons->isEmpty()) {
             $reasons->push($this->reason(self::ReasonRegistrarDecision, 'Registrar decision', (string) $decision->reason, []));
@@ -111,6 +119,8 @@ class IrregularStudentReasons
             'kept_regular' => $keptRegular,
             'decision_reason' => $decision?->reason,
             'status_label' => $isIrregular ? 'Irregular'.($primary ? ' – '.$primary['label'] : '') : 'Regular',
+            'unresolved_deficiency_count' => $unresolvedDeficiencyCount,
+            'has_high_deficiency_count' => $unresolvedDeficiencyCount >= 3,
             'primary' => $primary,
             'reasons' => $isIrregular ? $reasons->all() : [],
         ];
@@ -201,8 +211,17 @@ class IrregularStudentReasons
             ->values();
     }
 
-    /** @return Collection<int, array{code: string, label: string, details: string, subjects: list<string>}> */
-    private function resultReasons(StudentProfile $student): Collection
+    /**
+     * @return array{
+     *     creditedOrPassed: Collection<int, int>,
+     *     failed: Collection<int, array<string, mixed>>,
+     *     incomplete: Collection<int, array<string, mixed>>,
+     *     dropped: Collection<int, array<string, mixed>>,
+     *     withdrawn: Collection<int, array<string, mixed>>,
+     *     pending: Collection<int, array<string, mixed>>
+     * }
+     */
+    private function openDeficiencyBuckets(StudentProfile $student): array
     {
         $attempts = $this->results->forStudent($student)
             ->filter(fn (array $result): bool => $result['course_specification']?->course_id !== null);
@@ -215,13 +234,37 @@ class IrregularStudentReasons
         $open = $byCourse->reject(fn (Collection $courseAttempts, int $courseId): bool => $creditedOrPassed->contains($courseId))
             ->map(fn (Collection $courseAttempts): array => $courseAttempts->last());
 
-        $failed = $open->filter(fn (array $result): bool => is_numeric($result['result']) && (float) $result['result'] > 4.00);
-        $incomplete = $open->filter(fn (array $result): bool => $result['result'] === 'INC');
-        $dropped = $open->filter(fn (array $result): bool => $result['result'] === 'DRP');
-        $withdrawn = $open->filter(fn (array $result): bool => $result['result'] === 'W');
-        $pending = $open->filter(fn (array $result): bool => ! $result['outcome_complete']
-            && $result['result'] !== 'INC'
-            && $result['term']?->ends_on !== null && $result['term']->ends_on->isPast());
+        return [
+            'creditedOrPassed' => $creditedOrPassed,
+            'failed' => $open->filter(fn (array $result): bool => is_numeric($result['result']) && (float) $result['result'] > 4.00),
+            'incomplete' => $open->filter(fn (array $result): bool => $result['result'] === 'INC'),
+            'dropped' => $open->filter(fn (array $result): bool => $result['result'] === 'DRP'),
+            'withdrawn' => $open->filter(fn (array $result): bool => $result['result'] === 'W'),
+            'pending' => $open->filter(fn (array $result): bool => ! $result['outcome_complete']
+                && $result['result'] !== 'INC'
+                && $result['term']?->ends_on !== null && $result['term']->ends_on->isPast()),
+        ];
+    }
+
+    /**
+     * @param  array{
+     *     creditedOrPassed: Collection<int, int>,
+     *     failed: Collection<int, array<string, mixed>>,
+     *     incomplete: Collection<int, array<string, mixed>>,
+     *     dropped: Collection<int, array<string, mixed>>,
+     *     withdrawn: Collection<int, array<string, mixed>>,
+     *     pending: Collection<int, array<string, mixed>>
+     * }  $buckets
+     * @return Collection<int, array{code: string, label: string, details: string, subjects: list<string>}>
+     */
+    private function resultReasonsFromBuckets(StudentProfile $student, array $buckets): Collection
+    {
+        $creditedOrPassed = $buckets['creditedOrPassed'];
+        $failed = $buckets['failed'];
+        $incomplete = $buckets['incomplete'];
+        $dropped = $buckets['dropped'];
+        $withdrawn = $buckets['withdrawn'];
+        $pending = $buckets['pending'];
 
         $reasons = collect();
         if ($failed->isNotEmpty()) {

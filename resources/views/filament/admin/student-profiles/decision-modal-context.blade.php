@@ -1,5 +1,6 @@
 @props([
     'student',
+    'review' => null,
     'effect' => null,
     'termScope' => null,
     'startsOn' => null,
@@ -63,6 +64,13 @@
         :photo-url="$photoUrl"
         heading-level="h3"
     />
+
+    @if ($review['has_high_deficiency_count'] ?? false)
+        <div class="rounded-lg border border-amber-300/70 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 px-3 py-2 text-xs text-amber-950 dark:text-amber-200">
+            <p class="font-semibold">Advisory: {{ $review['unresolved_deficiency_count'] }} unresolved deficiencies</p>
+            <p class="mt-0.5 leading-relaxed">Includes unresolved Failed, DRP, W, or INC records. Enrollment is never auto-blocked—apply any retention or standing decision explicitly if approved.</p>
+        </div>
+    @endif
 
     {{-- About this decision --}}
     <div>

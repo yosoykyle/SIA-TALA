@@ -3,6 +3,7 @@
 namespace App\Actions\Grades;
 
 use App\Actions\Academics\AcademicRecordNotificationService;
+use App\Actions\Academics\IrregularStudentReasons;
 use App\Actions\Completion\CompletionReadinessProjection;
 use App\Models\GradeOutcomeEvent;
 use App\Models\GradeRoster;
@@ -10,6 +11,7 @@ use App\Models\GradeRosterVersion;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -29,7 +31,7 @@ class PostAndReleaseGradeRoster
             throw new AuthorizationException('Only Registrar staff can post and release grade rosters.');
         }
 
-        return DB::transaction(function () use ($roster, $actor, $authority, $expectedVersion): GradeRoster {
+        $released = DB::transaction(function () use ($roster, $actor, $authority, $expectedVersion): GradeRoster {
             $locked = GradeRoster::query()->with([
                 'rows' => fn ($query) => $query->where('is_current_membership', true)->with('courseEnrollment.enrollment'),
                 'teachingAssignment',
@@ -125,6 +127,10 @@ class PostAndReleaseGradeRoster
 
             return $locked->fresh(['rows.outcomeEvents']);
         }, attempts: 3);
+
+        Cache::forget(IrregularStudentReasons::ReviewCountCacheKey);
+
+        return $released;
     }
 
     private function inclusiveYearDeadline(Carbon $termEndsOn): Carbon

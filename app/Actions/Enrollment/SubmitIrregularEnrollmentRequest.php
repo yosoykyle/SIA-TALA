@@ -88,6 +88,17 @@ class SubmitIrregularEnrollmentRequest
             throw ValidationException::withMessages(['section_ids' => 'You must retake '.$codes.'. Choose a class for it.']);
         }
 
+        $evaluation = $this->classChoices->evaluateSelection($case, $selected->all(), $choices);
+        if ($evaluation['clashes'] !== []) {
+            $details = collect($evaluation['clashes'])->pluck('detail')->implode('; ');
+            throw ValidationException::withMessages(['section_ids' => 'Schedule clash detected: '.$details.'.']);
+        }
+        if ($evaluation['over_unit_limit']) {
+            $selectedLabel = rtrim(rtrim(number_format((float) $evaluation['selected_units'], 2), '0'), '.');
+            $maxLabel = rtrim(rtrim(number_format((float) $evaluation['max_units'], 2), '0'), '.');
+            throw ValidationException::withMessages(['section_ids' => 'Selected subjects ('.$selectedLabel.' units) exceed your maximum allowed load of '.$maxLabel.' units for this term.']);
+        }
+
         $units = $sections->sum(fn (Section $section): float => (float) $section->termOffering?->courseSpecification()?->credit_units);
         $review = $this->reasons->forStudent($student, $case->term);
 

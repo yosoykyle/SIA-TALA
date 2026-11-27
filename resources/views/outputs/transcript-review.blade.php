@@ -17,6 +17,11 @@
         .tor-review-frame { display:block; width:100%; height:calc(100dvh - 118px); min-height:440px; border:0; }
         .tor-review-note { margin:0; padding:8px 24px; color:var(--tala-muted); font-size:12px; }
         @media(max-width:600px) { .tor-review-bar { padding:12px; } .tor-review-controls { width:100%; } .tor-review-controls > * { flex:1 1 auto; } .tor-review-frame { height:75dvh; } }
+        @media print {
+            body { background:#ffffff; margin:0; }
+            .tor-review-bar, .tor-review-note { display:none !important; }
+            .tor-review-frame { width:100%; height:auto; min-height:0; }
+        }
     </style>
     <script>if(localStorage.getItem('theme')==='dark'||(!localStorage.getItem('theme')&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark');</script>
 </head><body>

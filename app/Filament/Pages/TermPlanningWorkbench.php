@@ -266,6 +266,31 @@ class TermPlanningWorkbench extends Page
             return [(int) $activeCalendarTermIds->sole(), 'the only term with an active calendar'];
         }
 
+        $today = CarbonImmutable::today(config('app.display_timezone', 'Asia/Manila'))->toDateString();
+
+        $currentActiveTermId = Term::query()
+            ->where('state', Term::StateActive)
+            ->whereDate('starts_on', '<=', $today)
+            ->whereDate('ends_on', '>=', $today)
+            ->orderBy('starts_on')
+            ->orderByDesc('id')
+            ->value('id');
+
+        if ($currentActiveTermId !== null) {
+            return [(int) $currentActiveTermId, null];
+        }
+
+        $upcomingActiveTermId = Term::query()
+            ->where('state', Term::StateActive)
+            ->whereDate('starts_on', '>', $today)
+            ->orderBy('starts_on')
+            ->orderBy('id')
+            ->value('id');
+
+        if ($upcomingActiveTermId !== null) {
+            return [(int) $upcomingActiveTermId, null];
+        }
+
         $activeId = Term::query()
             ->where('state', Term::StateActive)
             ->latest('starts_on')
@@ -338,7 +363,14 @@ class TermPlanningWorkbench extends Page
             }
         }
 
+        $currentOperational = AcademicYear::resolveCurrentOperational();
+        if ($currentOperational instanceof AcademicYear
+            && ! in_array($currentOperational->state, [AcademicYear::StateClosed, AcademicYear::StateArchived], true)) {
+            return (int) $currentOperational->id;
+        }
+
         $fallback = AcademicYear::query()
+            ->operational()
             ->whereNotIn('state', [AcademicYear::StateClosed, AcademicYear::StateArchived])
             ->latest('starts_on')
             ->value('id');
@@ -361,6 +393,7 @@ class TermPlanningWorkbench extends Page
                 Select::make('academic_year_id')
                     ->label('Academic year')
                     ->options(fn (): array => AcademicYear::query()
+                        ->operational()
                         ->whereNotIn('state', [AcademicYear::StateClosed, AcademicYear::StateArchived])
                         ->orderByDesc('starts_on')
                         ->get()
@@ -372,7 +405,21 @@ class TermPlanningWorkbench extends Page
                     ->default(fn (): ?int => $this->defaultCreateTermAcademicYearId())
                     ->createOptionAction(fn (Action $action): Action => $action->label('Add academic year')->modalHeading('Add academic year')->modalSubmitActionLabel('Create academic year'))
                     ->createOptionForm([
-                        TextInput::make('label')->label('Academic year')->required()->maxLength(255)->unique('academic_years', 'label', ignoreRecord: false),
+                        TextInput::make('label')
+                            ->label('Academic year')
+                            ->required()
+                            ->maxLength(255)
+                            ->unique('academic_years', 'label', ignoreRecord: false)
+                            ->rules([
+                                fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
+                                    if (blank($value)) {
+                                        return;
+                                    }
+                                    if (($error = AcademicYear::duplicateLabelError((string) $value)) !== null) {
+                                        $fail($error);
+                                    }
+                                },
+                            ]),
                         Grid::make(['default' => 1, 'sm' => 2])
                             ->schema([
                                 DatePicker::make('starts_on')
@@ -382,15 +429,38 @@ class TermPlanningWorkbench extends Page
                                     ->label('Academic year end')
                                     ->required()
                                     ->after('starts_on')
-                                    ->rules([$this->academicYearNoOverlapRule()]),
+                                    ->rules([
+                                        $this->academicYearNoOverlapRule(),
+                                        fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
+                                            if (blank($value)) {
+                                                return;
+                                            }
+                                            if (($error = AcademicYear::pastOperationalEndDateError((string) $value, true)) !== null) {
+                                                $fail($error);
+                                            }
+                                        },
+                                    ]),
                             ]),
                     ])
                     ->createOptionUsing(function (array $data): int {
                         Gate::authorize('create', AcademicYear::class);
 
+                        $label = trim((string) $data['label']);
+                        if (($duplicateError = AcademicYear::duplicateLabelError($label)) !== null) {
+                            throw ValidationException::withMessages(['label' => $duplicateError]);
+                        }
+                        if (($pastError = AcademicYear::pastOperationalEndDateError((string) $data['ends_on'], true)) !== null) {
+                            throw ValidationException::withMessages(['ends_on' => $pastError]);
+                        }
+
                         $this->assertNoOverlappingAcademicYear((string) $data['starts_on'], (string) $data['ends_on']);
 
-                        return (int) AcademicYear::query()->create([...$data, 'state' => AcademicYear::StateDraft])->id;
+                        return (int) AcademicYear::query()->create([
+                            ...$data,
+                            'label' => $label,
+                            'state' => AcademicYear::StateDraft,
+                            'is_operational' => true,
+                        ])->id;
                     })
                     ->required(),
                 Select::make('type')
@@ -426,6 +496,7 @@ class TermPlanningWorkbench extends Page
                                 $this->academicYearBoundRule('end'),
                                 $this->termMinimumDurationRule(),
                                 $this->termSiblingOverlapRule(),
+                                $this->termNotEndedInPastRule(),
                             ]),
                     ]),
             ])
@@ -1422,33 +1493,38 @@ class TermPlanningWorkbench extends Page
         }
     }
 
+    protected function termNotEndedInPastRule(): Closure
+    {
+        return function (): Closure {
+            return function (string $attribute, mixed $value, Closure $fail): void {
+                if (blank($value)) {
+                    return;
+                }
+
+                $error = $this->termPastEndDateError((string) $value);
+                if ($error !== null) {
+                    $fail($error);
+                }
+            };
+        };
+    }
+
+    protected function termPastEndDateError(string $endsOn): ?string
+    {
+        $today = CarbonImmutable::today(config('app.display_timezone', 'Asia/Manila'))->startOfDay();
+        if (CarbonImmutable::parse($endsOn)->startOfDay()->lt($today)) {
+            return sprintf(
+                'New operational terms cannot end in the past (before %s). In-progress terms whose start date is earlier are still allowed.',
+                $today->format('M j, Y'),
+            );
+        }
+
+        return null;
+    }
+
     protected function overlappingAcademicYearError(string $startsOn, string $endsOn, ?int $ignoreAcademicYearId = null): ?string
     {
-        $start = CarbonImmutable::parse($startsOn)->startOfDay();
-        $end = CarbonImmutable::parse($endsOn)->startOfDay();
-
-        if ($end->lte($start)) {
-            return null;
-        }
-
-        $overlapping = AcademicYear::query()
-            ->where('state', '!=', AcademicYear::StateArchived)
-            ->when($ignoreAcademicYearId !== null, fn ($query) => $query->whereKeyNot($ignoreAcademicYearId))
-            ->whereDate('starts_on', '<=', $end->toDateString())
-            ->whereDate('ends_on', '>=', $start->toDateString())
-            ->orderBy('starts_on')
-            ->first();
-
-        if (! $overlapping instanceof AcademicYear) {
-            return null;
-        }
-
-        return sprintf(
-            'These dates overlap with %s (%s to %s). Adjust the start or end date so academic years do not overlap.',
-            $overlapping->label,
-            $overlapping->starts_on->format('M j, Y'),
-            $overlapping->ends_on->format('M j, Y'),
-        );
+        return AcademicYear::overlappingDateError($startsOn, $endsOn, $ignoreAcademicYearId);
     }
 
     private function assertTermDateGuards(
@@ -1458,6 +1534,13 @@ class TermPlanningWorkbench extends Page
         string $endsOn,
         ?int $ignoreTermId = null,
     ): void {
+        if ($ignoreTermId === null) {
+            $pastError = $this->termPastEndDateError($endsOn);
+            if ($pastError !== null) {
+                throw ValidationException::withMessages(['ends_on' => $pastError]);
+            }
+        }
+
         $durationError = $this->termMinimumDurationError($type, $startsOn, $endsOn);
         if ($durationError !== null) {
             throw ValidationException::withMessages(['ends_on' => $durationError]);

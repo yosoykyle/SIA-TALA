@@ -462,6 +462,7 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
         return $table
             ->query(
                 AcademicYear::query()
+                    ->operational()
                     ->select('academic_years.*')
                     ->withCount('terms')
                     ->addSelect([
@@ -709,7 +710,17 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
                 ->placeholder('e.g., AY 2026–2027')
                 ->required()
                 ->maxLength(255)
-                ->rule(Rule::unique((new AcademicYear)->getTable(), 'label')->ignore($record->id)),
+                ->rule(Rule::unique((new AcademicYear)->getTable(), 'label')->ignore($record->id))
+                ->rules([
+                    fn (): Closure => function (string $attribute, mixed $value, Closure $fail) use ($record): void {
+                        if (blank($value)) {
+                            return;
+                        }
+                        if (($error = AcademicYear::duplicateLabelError((string) $value, $record->id)) !== null) {
+                            $fail($error);
+                        }
+                    },
+                ]),
             Grid::make(['default' => 1, 'sm' => 2])->schema([
                 DatePicker::make('starts_on')
                     ->label('Start date')
@@ -787,6 +798,11 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
                     ]);
                 }
 
+                $newLabel = trim((string) $data['label']);
+                if (($duplicateError = AcademicYear::duplicateLabelError($newLabel, $locked->id)) !== null) {
+                    throw ValidationException::withMessages(['label' => $duplicateError]);
+                }
+
                 $newState = (string) $data['state'];
                 if ($newState !== AcademicYear::StateArchived) {
                     $this->assertNoOverlappingAcademicYear($newStart->toDateString(), $newEnd->toDateString(), $locked->id);
@@ -803,7 +819,7 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
                 }
 
                 $locked->update([
-                    'label' => trim((string) $data['label']),
+                    'label' => $newLabel,
                     'starts_on' => $newStart->toDateString(),
                     'ends_on' => $newEnd->toDateString(),
                     'state' => $newState,
@@ -845,7 +861,17 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
                     ->placeholder('e.g., AY 2026–2027')
                     ->required()
                     ->maxLength(255)
-                    ->unique((new AcademicYear)->getTable(), 'label', ignoreRecord: false),
+                    ->unique((new AcademicYear)->getTable(), 'label', ignoreRecord: false)
+                    ->rules([
+                        fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
+                            if (blank($value)) {
+                                return;
+                            }
+                            if (($error = AcademicYear::duplicateLabelError((string) $value)) !== null) {
+                                $fail($error);
+                            }
+                        },
+                    ]),
                 Grid::make(['default' => 1, 'sm' => 2])->schema([
                     DatePicker::make('starts_on')
                         ->label('Start date')
@@ -854,7 +880,17 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
                         ->label('End date')
                         ->required()
                         ->after('starts_on')
-                        ->rules([$this->academicYearNoOverlapRule()]),
+                        ->rules([
+                            $this->academicYearNoOverlapRule(),
+                            fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
+                                if (blank($value)) {
+                                    return;
+                                }
+                                if (($error = AcademicYear::pastOperationalEndDateError((string) $value, true)) !== null) {
+                                    $fail($error);
+                                }
+                            },
+                        ]),
                 ]),
                 Select::make('state')
                     ->label('Status')
@@ -876,13 +912,23 @@ class TermOverview extends TermPlanningWorkbench implements HasTable
                     ]);
                 }
 
+                $label = trim((string) $data['label']);
+                if (($duplicateError = AcademicYear::duplicateLabelError($label)) !== null) {
+                    throw ValidationException::withMessages(['label' => $duplicateError]);
+                }
+
+                if (($pastError = AcademicYear::pastOperationalEndDateError((string) $data['ends_on'], true)) !== null) {
+                    throw ValidationException::withMessages(['ends_on' => $pastError]);
+                }
+
                 $this->assertNoOverlappingAcademicYear((string) $data['starts_on'], (string) $data['ends_on']);
 
                 $year = AcademicYear::query()->create([
-                    'label' => trim((string) $data['label']),
+                    'label' => $label,
                     'starts_on' => $data['starts_on'],
                     'ends_on' => $data['ends_on'],
                     'state' => $state,
+                    'is_operational' => true,
                 ]);
 
                 Notification::make()

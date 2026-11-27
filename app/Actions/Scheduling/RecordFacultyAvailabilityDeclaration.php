@@ -3,6 +3,7 @@
 namespace App\Actions\Scheduling;
 
 use App\Models\FacultyAvailabilityDeclaration;
+use App\Models\FacultyTermLoadOverride;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SectionMeeting;
 use App\Models\Term;
@@ -21,6 +22,7 @@ final class RecordFacultyAvailabilityDeclaration
     /**
      * @param  list<array{day_of_week: int, starts_at: string, ends_at: string}>  $hardUnavailability
      * @param  list<array{day_of_week: int, start_time?: string, end_time?: string, starts_at?: string, ends_at?: string}>  $teachingWindows
+     * @param  array<string, mixed>|null  $auditContext
      */
     public function execute(
         Term $term,
@@ -31,12 +33,18 @@ final class RecordFacultyAvailabilityDeclaration
         ?string $correctionReason = null,
         ?string $availabilityMode = null,
         array $teachingWindows = [],
+        ?int $preserveRunId = null,
+        bool $notifyFacultyOnRegistrarEdit = true,
+        ?array $auditContext = null,
     ): FacultyAvailabilityDeclaration {
-        if (! $actor->is($faculty)
-            || ! $actor->hasRole(User::StaffRoleFaculty)
-            || ! $faculty->hasRole(User::StaffRoleFaculty)) {
+        $isSelfFaculty = $actor->is($faculty) && $actor->hasRole(User::StaffRoleFaculty);
+        $isRegistrar = $actor->hasRole(User::StaffRoleRegistrar);
+
+        if (! $faculty->hasRole(User::StaffRoleFaculty) || (! $isSelfFaculty && ! $isRegistrar)) {
             abort(403);
         }
+
+        $isRegistrarEdit = $isRegistrar && ! $actor->is($faculty);
 
         if ($term->state === Term::StateClosed) {
             throw ValidationException::withMessages([
@@ -52,9 +60,21 @@ final class RecordFacultyAvailabilityDeclaration
             $teachingWindows,
         );
 
+        $trimmedReason = filled($correctionReason) ? trim((string) $correctionReason) : null;
         $conflictCount = 0;
 
-        $record = DB::transaction(function () use ($term, $faculty, $actor, $resolved, $correctionReason, &$conflictCount): FacultyAvailabilityDeclaration {
+        $record = DB::transaction(function () use (
+            $term,
+            $faculty,
+            $actor,
+            $resolved,
+            $trimmedReason,
+            $isRegistrarEdit,
+            $preserveRunId,
+            $notifyFacultyOnRegistrarEdit,
+            $auditContext,
+            &$conflictCount,
+        ): FacultyAvailabilityDeclaration {
             Term::query()->whereKey($term)->lockForUpdate()->firstOrFail();
             $prior = FacultyAvailabilityDeclaration::query()
                 ->where('term_id', $term->id)
@@ -63,8 +83,16 @@ final class RecordFacultyAvailabilityDeclaration
                 ->lockForUpdate()
                 ->first();
 
-            if ($prior instanceof FacultyAvailabilityDeclaration && blank($correctionReason)) {
-                throw ValidationException::withMessages(['correction_reason' => 'A reason is required for a later Faculty availability declaration.']);
+            if (($isRegistrarEdit || $auditContext !== null) && blank($trimmedReason)) {
+                throw ValidationException::withMessages([
+                    'correction_reason' => 'A reason is required when the Registrar records or updates a teacher\'s availability.',
+                ]);
+            }
+
+            if ($prior instanceof FacultyAvailabilityDeclaration && blank($trimmedReason)) {
+                throw ValidationException::withMessages([
+                    'correction_reason' => 'A reason is required for a later Faculty availability declaration.',
+                ]);
             }
 
             $nextVersion = $prior instanceof FacultyAvailabilityDeclaration
@@ -79,29 +107,258 @@ final class RecordFacultyAvailabilityDeclaration
                 'availability_mode' => $resolved['availability_mode'],
                 'hard_unavailability' => $resolved['hard_unavailability'],
                 'teaching_windows' => $resolved['teaching_windows'],
-                'correction_reason' => $correctionReason,
+                'correction_reason' => $trimmedReason,
                 'declared_at' => now(),
             ]);
 
-            ScheduleGenerationRun::query()
+            $staleRunsQuery = ScheduleGenerationRun::query()
                 ->where('term_id', $term->id)
                 ->whereIn('status', [
                     ScheduleGenerationRun::StatusQueued,
                     ScheduleGenerationRun::StatusDispatching,
                     ScheduleGenerationRun::StatusUnderReview,
-                ])
-                ->update(['candidate_state' => 'Stale', 'updated_at' => now()]);
+                ]);
+
+            if ($preserveRunId !== null) {
+                $staleRunsQuery->whereKeyNot($preserveRunId);
+            }
+
+            $staleRunsQuery->update(['candidate_state' => 'Stale', 'updated_at' => now()]);
 
             $conflictCount = $this->recordPublishedImpact($term, $faculty, $actor, $record);
+
+            if ($auditContext !== null || $isRegistrarEdit) {
+                $this->recordRegistrarAuditLog($term, $faculty, $actor, $record, $prior, $auditContext);
+            }
+
+            if ($conflictCount > 0) {
+                $capturedConflicts = $conflictCount;
+                DB::afterCommit(fn () => $this->notifyRegistrarsOfPublishedConflict($term, $faculty, $capturedConflicts));
+            }
+
+            if (($isRegistrarEdit || $auditContext !== null) && $notifyFacultyOnRegistrarEdit && ! $actor->is($faculty)) {
+                DB::afterCommit(fn () => $this->notifyFacultyOfRegistrarUpdate($term, $faculty, $actor, $record, $auditContext));
+            }
 
             return $record;
         }, attempts: 5);
 
-        if ($conflictCount > 0) {
-            $this->notifyRegistrarsOfPublishedConflict($term, $faculty, $conflictCount);
+        return $record;
+    }
+
+    /**
+     * Determine whether a teacher's availability declaration can be monotonically expanded
+     * for a scheduled meeting slot (blocks CannotTeach, 0-unit Not Teaching, and No response).
+     *
+     * @return array{eligible: bool, reason: ?string, mode: string}
+     */
+    public static function expansionEligibility(Term $term, int $facultyUserId): array
+    {
+        $override = FacultyTermLoadOverride::query()
+            ->where('term_id', $term->id)
+            ->where('faculty_user_id', $facultyUserId)
+            ->where('is_active', true)
+            ->latest('id')
+            ->first();
+
+        if ($override instanceof FacultyTermLoadOverride && $override->allowedLoadUnits() <= 0.0) {
+            return [
+                'eligible' => false,
+                'reason' => 'This teacher is marked Not teaching (0 units) for this term. Restore their teaching load in Faculty & rooms before scheduling them.',
+                'mode' => 'not_teaching',
+            ];
         }
 
-        return $record;
+        $latest = FacultyAvailabilityDeclaration::query()
+            ->where('term_id', $term->id)
+            ->where('faculty_user_id', $facultyUserId)
+            ->latest('version')
+            ->first();
+
+        if (! $latest instanceof FacultyAvailabilityDeclaration) {
+            return [
+                'eligible' => false,
+                'reason' => 'This teacher has not submitted availability for this term (No response). Record their availability in Faculty & rooms first.',
+                'mode' => 'no_response',
+            ];
+        }
+
+        $mode = $latest->effectiveMode();
+
+        if ($mode === FacultyAvailabilityDeclaration::ModeCannotTeach) {
+            return [
+                'eligible' => false,
+                'reason' => 'This teacher declared Cannot teach this term. Update their declaration in Faculty & rooms before assigning classes.',
+                'mode' => $mode,
+            ];
+        }
+
+        return [
+            'eligible' => true,
+            'reason' => null,
+            'mode' => $mode,
+        ];
+    }
+
+    /**
+     * Monotonically expand a teacher's availability declaration to cover one scheduled meeting slot.
+     *
+     * Returns null when the teacher's latest declaration already covers the slot (no-op).
+     * Throws ValidationException when the teacher cannot be expanded (CannotTeach, 0-unit, No response).
+     *
+     * @param  array<string, mixed>  $context
+     */
+    public function expandForScheduledSlot(
+        Term $term,
+        User $faculty,
+        User $actor,
+        int $dayOfWeek,
+        string $startsAt,
+        string $endsAt,
+        string $reason,
+        ?int $preserveRunId = null,
+        array $context = [],
+    ): ?FacultyAvailabilityDeclaration {
+        if (! $actor->hasRole(User::StaffRoleRegistrar) || ! $faculty->hasRole(User::StaffRoleFaculty)) {
+            abort(403);
+        }
+
+        if ($term->state === Term::StateClosed) {
+            throw ValidationException::withMessages([
+                'term' => 'Availability cannot be updated because this Term is closed.',
+            ]);
+        }
+
+        $trimmedReason = trim($reason);
+        if ($trimmedReason === '') {
+            throw ValidationException::withMessages([
+                'availability_expansion_reason' => 'A reason is required when expanding a teacher\'s availability for a scheduled class.',
+            ]);
+        }
+
+        $eligibility = self::expansionEligibility($term, (int) $faculty->id);
+        if (! $eligibility['eligible']) {
+            throw ValidationException::withMessages([
+                'faculty_availability' => $eligibility['reason'] ?? 'This teacher\'s availability cannot be expanded automatically.',
+            ]);
+        }
+
+        $startMinutes = FacultyAvailabilityDeclaration::clockToMinutes($startsAt);
+        $endMinutes = FacultyAvailabilityDeclaration::clockToMinutes($endsAt);
+
+        if ($dayOfWeek < 1 || $dayOfWeek > 7 || $startMinutes === null || $endMinutes === null || $startMinutes >= $endMinutes) {
+            throw ValidationException::withMessages([
+                'faculty_availability' => 'The target meeting slot needs a valid weekday and increasing time bounds.',
+            ]);
+        }
+
+        $latest = FacultyAvailabilityDeclaration::query()
+            ->where('term_id', $term->id)
+            ->where('faculty_user_id', $faculty->id)
+            ->latest('version')
+            ->firstOrFail();
+
+        $mode = $latest->effectiveMode();
+        if ($mode === FacultyAvailabilityDeclaration::ModeAnyApproved
+            || ! $latest->conflictsWithMeeting($dayOfWeek, $startsAt, $endsAt)) {
+            return null;
+        }
+
+        $slotStartHm = FacultyAvailabilityDeclaration::minutesToHourMinute($startMinutes);
+        $slotEndHm = FacultyAvailabilityDeclaration::minutesToHourMinute($endMinutes);
+
+        $auditContext = [
+            ...$context,
+            'event' => 'faculty_availability_expanded_for_schedule',
+            'description' => 'Registrar expanded Faculty availability monotonically to cover a scheduled meeting slot.',
+            'expanded_slot' => [
+                'day_of_week' => $dayOfWeek,
+                'starts_at' => $slotStartHm,
+                'ends_at' => $slotEndHm,
+            ],
+        ];
+
+        if ($mode === FacultyAvailabilityDeclaration::ModeWindows) {
+            $windowsByDay = [];
+            foreach ($latest->normalizedTeachingWindows() as $window) {
+                $wDay = (int) $window['day_of_week'];
+                $wStart = FacultyAvailabilityDeclaration::clockToMinutes((string) $window['start_time']);
+                $wEnd = FacultyAvailabilityDeclaration::clockToMinutes((string) $window['end_time']);
+                if ($wStart !== null && $wEnd !== null && $wStart < $wEnd) {
+                    $windowsByDay[$wDay][] = ['start' => $wStart, 'end' => $wEnd];
+                }
+            }
+
+            $windowsByDay[$dayOfWeek][] = ['start' => $startMinutes, 'end' => $endMinutes];
+            ksort($windowsByDay);
+
+            $mergedWindows = [];
+            foreach ($windowsByDay as $day => $intervals) {
+                foreach (FacultyAvailabilityDeclaration::mergeIntervals($intervals) as $interval) {
+                    $mergedWindows[] = [
+                        'day_of_week' => (int) $day,
+                        'start_time' => FacultyAvailabilityDeclaration::minutesToHourMinute($interval['start']),
+                        'end_time' => FacultyAvailabilityDeclaration::minutesToHourMinute($interval['end']),
+                    ];
+                }
+            }
+
+            return $this->execute(
+                term: $term,
+                faculty: $faculty,
+                actor: $actor,
+                correctionReason: $trimmedReason,
+                availabilityMode: FacultyAvailabilityDeclaration::ModeWindows,
+                teachingWindows: $mergedWindows,
+                preserveRunId: $preserveRunId,
+                notifyFacultyOnRegistrarEdit: true,
+                auditContext: $auditContext,
+            );
+        }
+
+        $unavailabilityByDay = [];
+        foreach (is_array($latest->hard_unavailability) ? $latest->hard_unavailability : [] as $interval) {
+            if (! is_array($interval)) {
+                continue;
+            }
+            $uDay = (int) ($interval['day_of_week'] ?? 0);
+            $uStart = FacultyAvailabilityDeclaration::clockToMinutes((string) ($interval['starts_at'] ?? $interval['start_time'] ?? ''));
+            $uEnd = FacultyAvailabilityDeclaration::clockToMinutes((string) ($interval['ends_at'] ?? $interval['end_time'] ?? ''));
+            if ($uStart !== null && $uEnd !== null && $uStart < $uEnd) {
+                $unavailabilityByDay[$uDay][] = ['start' => $uStart, 'end' => $uEnd];
+            }
+        }
+
+        if (isset($unavailabilityByDay[$dayOfWeek])) {
+            $unavailabilityByDay[$dayOfWeek] = FacultyAvailabilityDeclaration::subtractIntervals(
+                $unavailabilityByDay[$dayOfWeek],
+                [['start' => $startMinutes, 'end' => $endMinutes]],
+            );
+        }
+
+        ksort($unavailabilityByDay);
+        $remainingUnavailability = [];
+        foreach ($unavailabilityByDay as $day => $intervals) {
+            foreach ($intervals as $interval) {
+                $remainingUnavailability[] = [
+                    'day_of_week' => (int) $day,
+                    'starts_at' => FacultyAvailabilityDeclaration::minutesToHourMinute($interval['start']).':00',
+                    'ends_at' => FacultyAvailabilityDeclaration::minutesToHourMinute($interval['end']).':00',
+                ];
+            }
+        }
+
+        return $this->execute(
+            term: $term,
+            faculty: $faculty,
+            actor: $actor,
+            declaration: FacultyAvailabilityDeclaration::DeclarationAvailable,
+            hardUnavailability: $remainingUnavailability,
+            correctionReason: $trimmedReason,
+            preserveRunId: $preserveRunId,
+            notifyFacultyOnRegistrarEdit: true,
+            auditContext: $auditContext,
+        );
     }
 
     /**
@@ -458,5 +715,114 @@ final class RecordFacultyAvailabilityDeclaration
         }
 
         $notification->sendToDatabase($registrars);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $auditContext
+     */
+    private function recordRegistrarAuditLog(
+        Term $term,
+        User $faculty,
+        User $actor,
+        FacultyAvailabilityDeclaration $record,
+        ?FacultyAvailabilityDeclaration $prior,
+        ?array $auditContext,
+    ): void {
+        $timestamp = CarbonImmutable::now(config('app.timezone'));
+        $event = is_array($auditContext) && filled($auditContext['event'] ?? null)
+            ? (string) $auditContext['event']
+            : 'registrar_recorded_faculty_availability';
+        $description = is_array($auditContext) && filled($auditContext['description'] ?? null)
+            ? (string) $auditContext['description']
+            : 'Registrar recorded or updated Faculty availability declaration.';
+
+        $properties = [
+            'term_id' => (int) $term->id,
+            'faculty_user_id' => (int) $faculty->id,
+            'faculty_name' => (string) $faculty->name,
+            'declaration_version' => (int) $record->version,
+            'previous_version' => $prior instanceof FacultyAvailabilityDeclaration ? (int) $prior->version : null,
+            'effective_mode' => $record->effectiveMode(),
+            'mode_label' => $record->modeLabel(),
+            'actor_id' => (int) $actor->id,
+            'actor_name' => (string) $actor->name,
+            'reason' => $record->correction_reason,
+        ];
+
+        if (is_array($auditContext)) {
+            foreach ($auditContext as $key => $value) {
+                if (in_array($key, ['event', 'description'], true)) {
+                    continue;
+                }
+                $properties[$key] = $value;
+            }
+        }
+
+        DB::table('activity_log')->insert([
+            'log_name' => 'scheduling',
+            'description' => $description,
+            'subject_type' => FacultyAvailabilityDeclaration::class,
+            'subject_id' => $record->id,
+            'event' => $event,
+            'causer_type' => User::class,
+            'causer_id' => $actor->id,
+            'properties' => json_encode($properties, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
+            'created_at' => $timestamp,
+            'updated_at' => $timestamp,
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $auditContext
+     */
+    private function notifyFacultyOfRegistrarUpdate(
+        Term $term,
+        User $faculty,
+        User $actor,
+        FacultyAvailabilityDeclaration $record,
+        ?array $auditContext,
+    ): void {
+        $termLabel = trim((string) $term->label) !== '' ? (string) $term->label : 'this term';
+        $isExpansion = is_array($auditContext)
+            && ($auditContext['event'] ?? null) === 'faculty_availability_expanded_for_schedule';
+
+        $title = $isExpansion
+            ? "Your {$termLabel} availability was expanded for scheduling"
+            : "Your {$termLabel} availability was updated by the Registrar";
+
+        $slotText = '';
+        if ($isExpansion && is_array($auditContext['expanded_slot'] ?? null)) {
+            $dayNames = [1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 7 => 'Sun'];
+            $slot = $auditContext['expanded_slot'];
+            $dayLabel = $dayNames[(int) ($slot['day_of_week'] ?? 0)] ?? 'Day';
+            $slotText = sprintf(' (%s %s–%s)', $dayLabel, (string) ($slot['starts_at'] ?? ''), (string) ($slot['ends_at'] ?? ''));
+        }
+
+        $reasonSuffix = filled($record->correction_reason)
+            ? ' Reason: '.trim((string) $record->correction_reason)
+            : '';
+
+        $body = $isExpansion
+            ? "{$actor->name} expanded your availability{$slotText} (v{$record->version}) to fit a scheduled class.{$reasonSuffix}"
+            : "{$actor->name} recorded availability v{$record->version} ({$record->modeLabel()}) for {$termLabel}.{$reasonSuffix}";
+
+        $availabilityUrl = Route::has('filament.admin.pages.my-availability')
+            ? route('filament.admin.pages.my-availability', ['termId' => (int) $term->id])
+            : null;
+
+        $notification = Notification::make()
+            ->title($title)
+            ->body($body)
+            ->info();
+
+        if ($availabilityUrl !== null) {
+            $notification->actions([
+                Action::make('viewMyAvailability')
+                    ->label('View My Availability')
+                    ->url($availabilityUrl),
+            ]);
+        }
+
+        $notification->sendToDatabase($faculty);
     }
 }

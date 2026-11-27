@@ -405,6 +405,9 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                     $this->recordCohortAction()->size('sm')->visible(fn (): bool => ! ($this->getViewData()['readOnly'] ?? false)
                         && ! $this->hasPublishedTimetable()
                         && ! $this->isTermClosed()),
+                    $this->suggestSectionsForTermAction()->size('sm')->visible(fn (): bool => ! ($this->getViewData()['readOnly'] ?? false)
+                        && ! $this->hasPublishedTimetable()
+                        && ! $this->isTermClosed()),
                 ])
                 ->emptyState(view('filament.partials.collection-empty-state'))
                 ->emptyStateHeading(fn (): string => filled($this->getTableSearch()) || $this->getTable()->getActiveFiltersCount() || $this->sectionTriage !== 'all' ? 'No matching student sections' : 'No student sections added for this term')
@@ -2052,6 +2055,9 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                     ->whereIn('state', [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded])
                     ->with(['program', 'academicYears'])
                     ->get()
+                    ->groupBy('program_id')
+                    ->sortBy(fn (Collection $group): string => (string) ($group->first()?->program?->code ?? ''))
+                    ->flatMap(fn (Collection $group): Collection => CurriculumVersion::sortByLatestBatch($group, groupByState: true))
                     ->keyBy('id');
 
                 return [
@@ -3190,9 +3196,32 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
             ->unique()
             ->values();
 
+        // Check all running batches per active program using dynamic `program.duration_years - 1` lookback.
+        $runningBatchCurriculumIds = collect();
+        $term->loadMissing('academicYear');
+        if ($term->academicYear !== null) {
+            $activePrograms = Program::query()
+                ->where('is_active', true)
+                ->get();
+
+            foreach ($activePrograms as $program) {
+                foreach ($program->expectedIntakeYearsForAcademicYear($term->academicYear) as $intakeStartYear) {
+                    $matched = $program->curriculumForIntakeStartYear($intakeStartYear);
+                    if ($matched instanceof CurriculumVersion) {
+                        $runningBatchCurriculumIds->push((int) $matched->id);
+                    }
+                }
+            }
+        }
+
+        $targetCurriculumIds = $cohortCurriculumIds
+            ->merge($runningBatchCurriculumIds)
+            ->unique()
+            ->values();
+
         $curriculaQuery = CurriculumVersion::query()
             ->with(['program', 'academicYears'])
-            ->where(function (Builder $query) use ($term, $cohortCurriculumIds): void {
+            ->where(function (Builder $query) use ($term, $targetCurriculumIds): void {
                 $hasCondition = false;
                 if ($term->academic_year_id !== null) {
                     $query->where(function (Builder $activeBatch) use ($term): void {
@@ -3202,20 +3231,27 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                     $hasCondition = true;
                 }
 
-                if ($cohortCurriculumIds->isNotEmpty()) {
+                if ($targetCurriculumIds->isNotEmpty()) {
                     $method = $hasCondition ? 'orWhereIn' : 'whereIn';
-                    $query->{$method}('id', $cohortCurriculumIds->all());
+                    $query->{$method}('id', $targetCurriculumIds->all());
                 } elseif (! $hasCondition) {
                     $query->whereRaw('1 = 0');
                 }
             });
 
-        $curricula = $curriculaQuery->get()->sortBy(fn (CurriculumVersion $cv): string => (string) ($cv->program?->code ?? ''))->values();
+        $curricula = $curriculaQuery->get()
+            ->groupBy('program_id')
+            ->sortBy(fn (Collection $group): string => (string) ($group->first()?->program?->code ?? ''))
+            ->flatMap(fn (Collection $group): Collection => CurriculumVersion::sortByLatestBatch($group, groupByState: true))
+            ->values();
         if ($curricula->isEmpty()) {
             return $this->curriculumReadinessGapsCache = [];
         }
 
-        $curriculumIds = $curricula->modelKeys();
+        $curriculumIds = $curricula
+            ->pluck('id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->all();
         $lockedEntryIds = $this->lockedCurriculumEntryIdsForTerm();
         $entries = CurriculumEntry::query()
             ->whereIn('curriculum_version_id', $curriculumIds)

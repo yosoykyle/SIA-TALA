@@ -116,6 +116,72 @@ class Program extends Model
     }
 
     /**
+     * Dynamic historical intake-batch lookback span in years (e.g., 3-yr diploma => 2 yrs back, 4-yr BSIT => 3 yrs back).
+     */
+    public function intakeBatchLookbackYears(): int
+    {
+        $duration = (int) ($this->duration_years ?: 3);
+
+        return max(0, min(7, $duration - 1));
+    }
+
+    /**
+     * Map running year levels (1..duration_years) to expected intake start years for a given operational Academic Year.
+     *
+     * @return array<int, int>
+     */
+    public function expectedIntakeYearsForAcademicYear(AcademicYear $operationalYear): array
+    {
+        $termStartYear = CurriculumVersion::extractAcademicYearStart($operationalYear);
+        if ($termStartYear === null) {
+            return [];
+        }
+
+        $maxYear = max(1, min(8, (int) ($this->duration_years ?: 3)));
+        $map = [];
+
+        for ($yearLevel = 1; $yearLevel <= $maxYear; $yearLevel++) {
+            $map[$yearLevel] = $termStartYear - ($yearLevel - 1);
+        }
+
+        return $map;
+    }
+
+    /**
+     * Resolve the published (Active or Retired) curriculum assigned to this program for a specific intake start year.
+     */
+    public function curriculumForIntakeStartYear(int $intakeStartYear): ?CurriculumVersion
+    {
+        $batches = CurriculumVersionBatch::query()
+            ->where('program_id', $this->id)
+            ->whereHas('curriculumVersion', fn (Builder $query): Builder => $query
+                ->whereIn('state', [
+                    CurriculumVersion::StateActive,
+                    CurriculumVersion::StateSuperseded,
+                ]))
+            ->with(['academicYear', 'curriculumVersion.academicYears'])
+            ->get();
+
+        $matched = $batches->first(
+            fn (CurriculumVersionBatch $batch): bool => $batch->academicYear instanceof AcademicYear
+                && CurriculumVersion::extractAcademicYearStart($batch->academicYear) === $intakeStartYear,
+        );
+
+        if ($matched?->curriculumVersion instanceof CurriculumVersion) {
+            return $matched->curriculumVersion;
+        }
+
+        if ($batches->isEmpty() && $this->curriculumVersionBatches()->doesntExist()) {
+            return $this->curriculumVersions()
+                ->where('state', CurriculumVersion::StateActive)
+                ->latest('id')
+                ->first();
+        }
+
+        return null;
+    }
+
+    /**
      * Resolve the published curriculum assigned to this program for a specific Academic Year batch.
      *
      * Falls back to the latest Active curriculum ONLY when the program has no batch assignments yet.
@@ -337,21 +403,6 @@ class Program extends Model
             return $openCycle->term->academicYear;
         }
 
-        $activeYear = AcademicYear::query()
-            ->where('state', AcademicYear::StateActive)
-            ->orderByDesc('starts_on')
-            ->orderByDesc('id')
-            ->first();
-
-        if ($activeYear instanceof AcademicYear) {
-            return $activeYear;
-        }
-
-        return AcademicYear::query()
-            ->where('state', AcademicYear::StateDraft)
-            ->orderBy('starts_on')
-            ->orderBy('id')
-            ->first()
-            ?? AcademicYear::query()->orderByDesc('starts_on')->orderByDesc('id')->first();
+        return AcademicYear::resolveCurrentOperational();
     }
 }

@@ -1,11 +1,28 @@
 @php
-    $backUrl = auth()->user()->hasRole(\App\Models\User::StaffRoleAccounting)
-        ? \App\Filament\Resources\Enrollments\EnrollmentResource::getUrl('view', ['record' => $acknowledgement['payment']->termAccount->enrollment_id], panel: 'admin')
+    $isAccounting = auth()->user()?->hasRole(\App\Models\User::StaffRoleAccounting) ?? false;
+    $payment = $acknowledgement['payment'];
+    $payment->loadMissing([
+        'termAccount.enrollment.studentProfile.program',
+        'termAccount.enrollment.admissionApplication.program',
+    ]);
+    $verifierName = $payment->verified_by
+        ? (\App\Models\User::query()->find($payment->verified_by)?->getFilamentName() ?? 'Accounting Office')
+        : 'Accounting Office';
+    $enrollment = $payment->termAccount?->enrollment;
+    $studentProfile = $enrollment?->studentProfile;
+    $admissionApplication = $enrollment?->admissionApplication;
+    $personNumber = $studentProfile?->student_number ?? $admissionApplication?->application_reference;
+    $programLabel = $studentProfile?->program?->name
+        ?? $studentProfile?->program?->code
+        ?? $admissionApplication?->program?->name
+        ?? $admissionApplication?->program?->code;
+    $backUrl = $isAccounting
+        ? \App\Filament\Resources\Enrollments\EnrollmentResource::getUrl('view', ['record' => $payment->termAccount->enrollment_id], panel: 'admin')
         : (auth()->user()->hasRole('student') ? \App\Filament\Student\Pages\Finance::getUrl(panel: 'student') : \App\Filament\Applicant\Pages\Enrollment::getUrl(panel: 'applicant'));
 @endphp
 <x-official-output-layout title="Payment Acknowledgment" :subtitle="$acknowledgement['term']" document-class="finance-output" :back-url="$backUrl" back-label="Back to account">
     <x-slot:documentStyles><link rel="stylesheet" href="{{ asset('css/tala-finance-output.css').'?v='.filemtime(public_path('css/tala-finance-output.css')) }}"></x-slot:documentStyles>
-    <p class="finance-owner"><strong>{{ $acknowledgement['owner'] }}</strong></p>
+    <p class="finance-owner"><strong>{{ $acknowledgement['owner'] }}</strong>@if (filled($personNumber)) · {{ $personNumber }}@endif @if (filled($programLabel)) · {{ $programLabel }}@endif</p>
     <dl class="finance-position finance-payment-position">
         @if ($acknowledgement['net_amount'] !== null)<div><dt>Amount still applied</dt><dd>PHP {{ number_format((float) $acknowledgement['net_amount'], 2) }}</dd></div>
         @else<div><dt>Actual verified amount</dt><dd>PHP {{ number_format((float) $acknowledgement['payment']->amount, 2) }}</dd></div>@endif
@@ -24,11 +41,17 @@
         </tbody></table></div>
     </section>
     <div class="official-output-notice">{{ $acknowledgement['disclaimer'] }}</div>
-    <section class="finance-source"><h2>Source details</h2><dl class="finance-source-facts">
-        <div><dt>Account</dt><dd>TERM-ACCOUNT-{{ $acknowledgement['payment']->term_account_id }}</dd></div>
-        <div><dt>Verification basis</dt><dd>{{ $acknowledgement['payment']->verification_basis ? str($acknowledgement['payment']->verification_basis)->headline() : 'Not recorded' }}</dd></div>
-        <div><dt>Posting reference</dt><dd>{{ $acknowledgement['payment']->provider_reference ?: 'Not recorded' }}</dd></div>
-        @if ($acknowledgement['external_reference'])<div><dt>External reference</dt><dd>{{ $acknowledgement['external_reference'] }}</dd></div>@endif
+    <section class="finance-source"><h2>{{ $isAccounting ? 'Source details' : 'Acknowledgment details' }}</h2><dl class="finance-source-facts">
+        @if ($isAccounting)
+            <div><dt>Account</dt><dd>TERM-ACCOUNT-{{ $payment->term_account_id }}</dd></div>
+            <div><dt>Verification basis</dt><dd>{{ $payment->verification_basis ? str($payment->verification_basis)->headline() : 'Not recorded' }}</dd></div>
+            <div><dt>Posting reference</dt><dd>{{ $payment->provider_reference ?: 'Not recorded' }}</dd></div>
+            <div><dt>Verified by</dt><dd>{{ $verifierName }}</dd></div>
+        @else
+            <div><dt>Payment reference</dt><dd>{{ $acknowledgement['external_reference'] ?: 'Verified TALA posting' }}</dd></div>
+            <div><dt>Issued by</dt><dd>Accounting Office</dd></div>
+        @endif
+        @if ($isAccounting && $acknowledgement['external_reference'])<div><dt>External reference</dt><dd>{{ $acknowledgement['external_reference'] }}</dd></div>@endif
         <div><dt>Copy generated</dt><dd>{{ \App\Support\DisplayDateTime::format($acknowledgement['generated_at']) }} · {{ config('app.display_timezone') }}</dd></div>
     </dl></section>
 </x-official-output-layout>

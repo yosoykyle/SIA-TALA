@@ -146,6 +146,7 @@ class CurriculumSpreadsheetExportService
 
         $curriculumVersion->loadMissing([
             'program',
+            'academicYears',
             'entries.courseSpecification.course',
             'entries.courseSpecification.components',
             'entries.courseSpecification.requirements.relatedCourse',
@@ -187,7 +188,11 @@ class CurriculumSpreadsheetExportService
             ? substr(preg_replace('/[^A-Za-z0-9 _-]/', '', (string) $curriculumVersion->program->code) ?: 'Curriculum', 0, 31)
             : 'Curriculum';
 
-        $this->writeSpreadsheet($path, $ext, $rows, $sheetTitle);
+        $summarySheetRows = $ext === 'xlsx'
+            ? $this->buildCurriculumSummaryRows($curriculumVersion)
+            : null;
+
+        $this->writeSpreadsheet($path, $ext, $rows, $sheetTitle, $summarySheetRows, 'Summary');
 
         return $path;
     }
@@ -456,10 +461,42 @@ class CurriculumSpreadsheetExportService
     }
 
     /**
-     * @param  list<list<float|int|string>>  $rows
+     * @return list<list<float|int|string>>
      */
-    private function writeSpreadsheet(string $path, string $format, array $rows, string $sheetName = 'Sheet1'): void
+    private function buildCurriculumSummaryRows(CurriculumVersion $curriculumVersion): array
     {
+        $program = $curriculumVersion->program;
+        $programDisplay = $program
+            ? trim(collect([$program->name, $program->code ? '('.$program->code.')' : null])->filter()->implode(' '))
+            : 'Not assigned';
+        $batches = $curriculumVersion->academicYears
+            ->sortBy('starts_on')
+            ->pluck('label')
+            ->filter()
+            ->implode(', ');
+
+        return [
+            ['Field', 'Value'],
+            ['Program', self::neutralizeFormulaInjection($programDisplay)],
+            ['Curriculum Name', self::neutralizeFormulaInjection((string) ($curriculumVersion->name ?: $curriculumVersion->version_code))],
+            ['Assigned Batches', self::neutralizeFormulaInjection($batches !== '' ? $batches : 'Unassigned')],
+            ['Status', self::neutralizeFormulaInjection(str((string) $curriculumVersion->state)->lower()->headline()->toString())],
+            ['Export Date', now()->timezone(config('app.display_timezone'))->format('Y-m-d H:i:s T')],
+        ];
+    }
+
+    /**
+     * @param  list<list<float|int|string>>  $rows
+     * @param  list<list<float|int|string>>|null  $secondaryRows
+     */
+    private function writeSpreadsheet(
+        string $path,
+        string $format,
+        array $rows,
+        string $sheetName = 'Sheet1',
+        ?array $secondaryRows = null,
+        string $secondarySheetName = 'Summary',
+    ): void {
         /** @var WriterInterface $writer */
         $writer = $format === 'csv' ? new CsvWriter : new XlsxWriter;
         $writer->openToFile($path);
@@ -471,6 +508,15 @@ class CurriculumSpreadsheetExportService
 
             foreach ($rows as $rowValues) {
                 $writer->addRow(Row::fromValues($rowValues));
+            }
+
+            if ($writer instanceof XlsxWriter && is_array($secondaryRows) && $secondaryRows !== []) {
+                $summarySheet = $writer->addNewSheetAndMakeItCurrent();
+                $summarySheet->setName(substr($secondarySheetName, 0, 31));
+
+                foreach ($secondaryRows as $rowValues) {
+                    $writer->addRow(Row::fromValues($rowValues));
+                }
             }
         } finally {
             $writer->close();

@@ -3,8 +3,10 @@
 namespace App\Actions\Scheduling;
 
 use App\Models\CandidateScheduleRow;
+use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\ScheduleGenerationRun;
 use App\Models\SchedulingDemand;
+use App\Models\User;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -1246,6 +1248,7 @@ final class ScheduleAssignmentValidationService
         }
 
         $findings = [];
+        $emittedFacultyAvailability = false;
 
         foreach ($this->listValue($snapshot['calendar_blocks'] ?? null) as $block) {
             if (! is_array($block) || (int) ($block['day_of_week'] ?? 0) !== $day) {
@@ -1270,6 +1273,27 @@ final class ScheduleAssignmentValidationService
                 continue;
             }
 
+            if (($block['event_type'] ?? null) === 'FacultyAvailabilityDeclaration') {
+                if ($emittedFacultyAvailability) {
+                    continue;
+                }
+                $emittedFacultyAvailability = true;
+
+                $findings[] = $this->finding(
+                    run: $run,
+                    code: 'outside_faculty_availability',
+                    constraint: 'respect_faculty_availability',
+                    message: $this->outsideFacultyAvailabilityMessage($snapshot, $facultyId, $day, $startsAt, $endsAt),
+                    demandId: $demandId,
+                    meetingSequence: $sequence,
+                    sourceType: 'faculty_availability_declaration',
+                    sourceId: $this->integerValue($block['faculty_availability_declaration_id'] ?? null),
+                    sourceField: 'starts_at',
+                );
+
+                continue;
+            }
+
             $findings[] = $this->finding(
                 run: $run,
                 code: 'calendar_block_overlap',
@@ -1284,6 +1308,69 @@ final class ScheduleAssignmentValidationService
         }
 
         return $findings;
+    }
+
+    /**
+     * @param  array<string, mixed>  $snapshot
+     */
+    private function outsideFacultyAvailabilityMessage(
+        array $snapshot,
+        ?int $facultyId,
+        int $day,
+        ?string $startsAt,
+        ?string $endsAt,
+    ): string {
+        $teacherName = $facultyId !== null
+            ? (User::query()->whereKey($facultyId)->value('name') ?? "Faculty #{$facultyId}")
+            : 'The assigned teacher';
+
+        $dayNames = [1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 7 => 'Sun'];
+        $dayLabel = $dayNames[$day] ?? "Day {$day}";
+        $slotLabel = trim(sprintf('%s %s–%s', $dayLabel, substr((string) $startsAt, 0, 5), substr((string) $endsAt, 0, 5)));
+
+        $availabilityRow = collect($this->listValue($snapshot['faculty_availability'] ?? null))
+            ->first(fn (mixed $row): bool => is_array($row) && $this->integerValue($row['faculty_user_id'] ?? null) === $facultyId);
+
+        if (! is_array($availabilityRow)) {
+            return "{$teacherName} is not declared available for {$slotLabel}.";
+        }
+
+        $mode = (string) ($availabilityRow['availability_mode'] ?? '');
+        $declaration = (string) ($availabilityRow['declaration'] ?? '');
+
+        if ($mode === FacultyAvailabilityDeclaration::ModeCannotTeach
+            || $declaration === FacultyAvailabilityDeclaration::DeclarationUnavailable) {
+            return "{$teacherName} declared Cannot teach this term and cannot be scheduled for {$slotLabel}.";
+        }
+
+        $windows = is_array($availabilityRow['teaching_windows'] ?? null)
+            ? $availabilityRow['teaching_windows']
+            : [];
+
+        if ($windows !== []) {
+            $windowParts = [];
+            foreach ($windows as $window) {
+                if (! is_array($window)) {
+                    continue;
+                }
+                $wDay = (int) ($window['day_of_week'] ?? 0);
+                $wStart = substr((string) ($window['start_time'] ?? $window['starts_at'] ?? ''), 0, 5);
+                $wEnd = substr((string) ($window['end_time'] ?? $window['ends_at'] ?? ''), 0, 5);
+                if ($wDay >= 1 && $wDay <= 7 && $wStart !== '' && $wEnd !== '') {
+                    $windowParts[] = ($dayNames[$wDay] ?? "Day {$wDay}")." {$wStart}–{$wEnd}";
+                }
+            }
+
+            if ($windowParts !== []) {
+                $summary = count($windowParts) > 4
+                    ? implode(', ', array_slice($windowParts, 0, 4)).' (+'.(count($windowParts) - 4).' more)'
+                    : implode(', ', $windowParts);
+
+                return "{$teacherName} is not declared available for {$slotLabel} (declared hours: {$summary}).";
+            }
+        }
+
+        return "{$teacherName} marked {$slotLabel} as unavailable in their declared availability.";
     }
 
     /**

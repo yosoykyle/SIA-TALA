@@ -96,6 +96,7 @@
         teachingGrid: {{ \Illuminate\Support\Js::from($scheduleContext['teachingGrid'] ?? []) }},
         blockedPeriods: {{ \Illuminate\Support\Js::from($presentation['blockedPeriods'] ?? []) }},
         teacherAvailability: {{ \Illuminate\Support\Js::from($scheduleContext['teacherAvailability'] ?? []) }},
+        calendarEventBlocks: {{ \Illuminate\Support\Js::from($scheduleContext['calendarEventBlocks'] ?? []) }},
         teacherLoadLimits: {{ \Illuminate\Support\Js::from($scheduleContext['teacherLoadLimits'] ?? []) }},
         defaultMaxUnits: {{ \Illuminate\Support\Js::from($scheduleContext['defaultMaxUnits'] ?? null) }},
         rooms: {{ \Illuminate\Support\Js::from($scheduleContext['rooms'] ?? []) }},
@@ -115,7 +116,8 @@
         isKeyboardMoveMode: false,
         hoverSlotKey: null,
         slotEvaluations: {},
-        moveAnnouncement: '',
+        liveAnnouncement: '',
+        expandAvailabilityReason: '',
         editForm: {
             day: 1,
             startsAt: '08:00',
@@ -131,9 +133,11 @@
                 this.restoreSelectedMeeting();
             }
             this.$watch('selected', (val) => {
+                this.expandAvailabilityReason = '';
                 const m = this.meetings.find(item => item.id === val);
                 if (m) {
                     this.syncEditForm(m);
+                    this.liveAnnouncement = 'Selected ' + [m.courseCode, m.componentBadge || m.component, m.dayLabel, m.time, m.faculty].filter(Boolean).join(', ') + '. Class inspector updated.';
                 }
                 this.persistSelectedMeeting(m ?? null);
                 if (val && window.innerWidth < 1152) {
@@ -156,6 +160,12 @@
                     });
                 });
             }
+        },
+        focusInspector() {
+            this.$nextTick(() => {
+                this.$refs.railInspector?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                this.$refs.inspectorHeading?.focus();
+            });
         },
         syncPrintPageOrientation() {
             if (!this.interactive || typeof document === 'undefined') {
@@ -369,6 +379,7 @@
         },
         setFormat(newFormat) {
             this.mode = newFormat === 'list' ? 'list' : 'weekly';
+            this.syncPrintPageOrientation();
         },
         toggleTriageFilter(key) {
             this.triageFilter = this.triageFilter === key ? 'all' : key;
@@ -647,7 +658,7 @@
             const target = this.activeMoveMeeting;
             this.computeSlotEvaluations(target);
             if (target) {
-                this.moveAnnouncement = 'Move mode started for ' + (target.courseCode || 'meeting') + (target.class ? ' ' + target.class : '') + '. Choose a highlighted available slot or press Escape to cancel.';
+                this.liveAnnouncement = 'Move mode started for ' + (target.courseCode || 'meeting') + (target.class ? ' ' + target.class : '') + '. Choose a highlighted available slot or press Escape to cancel.';
             }
             if (event && event.dataTransfer) {
                 event.dataTransfer.effectAllowed = 'move';
@@ -667,7 +678,7 @@
             this.isKeyboardMoveMode = true;
             this.activeMoveId = target.id;
             this.computeSlotEvaluations(target);
-            this.moveAnnouncement = 'Move mode started for ' + (target.courseCode || 'meeting') + (target.class ? ' ' + target.class : '') + '. Use Tab to move between highlighted available slots or press Escape to cancel.';
+            this.liveAnnouncement = 'Move mode started for ' + (target.courseCode || 'meeting') + (target.class ? ' ' + target.class : '') + '. Use Tab to move between highlighted available slots or press Escape to cancel.';
             if (!this.interactive) {
                 this.$dispatch('close-modal', { id: '{{ $meetingId }}' });
             }
@@ -688,7 +699,7 @@
             this.hoverSlotKey = null;
             this.slotEvaluations = {};
             if (announce && wasActive) {
-                this.moveAnnouncement = 'Move cancelled.';
+                this.liveAnnouncement = 'Move cancelled.';
             }
         },
         formatMinutesClock(mins) {
@@ -728,8 +739,25 @@
             }
             return '';
         },
+        availabilityForFaculty(facultyId) {
+            const fid = Number(facultyId || 0);
+            if (fid <= 0) return null;
+            return this.teacherAvailability[fid] || this.teacherAvailability[String(fid)] || null;
+        },
+        teacherOptionLabel(teacher) {
+            if (!teacher) return '';
+            if (teacher.availabilityStatus === 'NoResponse' || teacher.hasDeclaration === false) {
+                return teacher.name + ' · No response';
+            }
+            if (teacher.availabilityStatus === 'ModeCannotTeach') {
+                return teacher.name + ' · Unavailable';
+            }
+            return teacher.name;
+        },
         evaluateSlotForMeeting(meeting, dayNumber, slotStart, overrideRoomId = null, overrideFacultyId = null) {
-            if (!meeting) return { valid: false, reason: '' };
+            if (!meeting) {
+                return { valid: false, reason: '', blockerCode: null, isSoleOutsideAvailability: false };
+            }
             const duration = Number(meeting.durationMinutes || ((meeting.end || 0) - (meeting.start || 0)) || 60);
             const slotEnd = Number(slotStart) + duration;
             const day = Number(dayNumber);
@@ -743,7 +771,12 @@
                 const roomObj = (this.rooms || []).find(r => Number(r.id) === targetRoomId);
                 const reqCap = Number(meeting.requiredCapacity || 0);
                 if (roomObj && reqCap > 0 && Number(roomObj.capacity || 0) < reqCap) {
-                    return { valid: false, reason: 'Room ' + (roomObj.code || '') + ' is too small (' + roomObj.capacity + ' seats, needs ' + reqCap + ')' };
+                    return {
+                        valid: false,
+                        reason: 'Room ' + (roomObj.code || '') + ' is too small (' + roomObj.capacity + ' seats, needs ' + reqCap + ')',
+                        blockerCode: 'room_capacity',
+                        isSoleOutsideAvailability: false,
+                    };
                 }
             }
 
@@ -751,7 +784,12 @@
             if (dayGrid.length > 0) {
                 const withinGrid = dayGrid.some(g => Number(slotStart) >= Number(g.start) && slotEnd <= Number(g.end));
                 if (!withinGrid) {
-                    return { valid: false, reason: 'Outside school teaching hours' };
+                    return {
+                        valid: false,
+                        reason: 'Outside school teaching hours',
+                        blockerCode: 'outside_teaching_grid',
+                        isSoleOutsideAvailability: false,
+                    };
                 }
             }
 
@@ -760,25 +798,78 @@
                 const breakDesc = breakHit.label && breakHit.label !== 'Approved break'
                     ? (breakHit.label + ' (' + this.formatMinutesRange(breakHit.start, breakHit.end) + ')')
                     : this.formatMinutesRange(breakHit.start, breakHit.end);
-                return { valid: false, reason: 'Daily break: ' + breakDesc };
+                return {
+                    valid: false,
+                    reason: 'Daily break: ' + breakDesc,
+                    blockerCode: 'daily_break',
+                    isSoleOutsideAvailability: false,
+                };
             }
 
-            if (targetFacultyId > 0) {
-                const avail = this.teacherAvailability[targetFacultyId] || this.teacherAvailability[String(targetFacultyId)];
-                if (avail) {
-                    if (avail.mode === 'cannot_teach') {
-                        return { valid: false, reason: (teacherName || 'Teacher') + ' is marked unavailable this term' };
-                    }
-                    if (avail.mode === 'windows') {
-                        const fitsWindow = (avail.windows || []).some(w => Number(w.day) === day && Number(w.start) <= Number(slotStart) && Number(w.end) >= slotEnd);
-                        if (!fitsWindow) {
-                            return { valid: false, reason: (teacherName || 'Teacher') + ' is marked unavailable at this time' };
-                        }
-                    }
-                    const blockedByDecl = (avail.unavailability || []).some(u => Number(u.day) === day && Number(slotStart) < Number(u.end) && slotEnd > Number(u.start));
-                    if (blockedByDecl) {
-                        return { valid: false, reason: (teacherName || 'Teacher') + ' is marked unavailable at this time' };
-                    }
+            for (const ev of (this.calendarEventBlocks || [])) {
+                if (Number(ev.day) !== day || !(Number(slotStart) < Number(ev.end) && slotEnd > Number(ev.start))) {
+                    continue;
+                }
+                if (ev.scopeType === 'INSTITUTION') {
+                    return {
+                        valid: false,
+                        reason: ev.label || 'Blocked by school calendar event',
+                        blockerCode: 'calendar_institution',
+                        isSoleOutsideAvailability: false,
+                    };
+                }
+                if (ev.scopeType === 'ROOM' && targetRoomId > 0 && Number(ev.roomId) === targetRoomId) {
+                    return {
+                        valid: false,
+                        reason: ev.label || 'Blocked by room calendar event',
+                        blockerCode: 'calendar_room',
+                        isSoleOutsideAvailability: false,
+                    };
+                }
+                if (ev.scopeType === 'FACULTY' && targetFacultyId > 0 && Number(ev.facultyId) === targetFacultyId) {
+                    return {
+                        valid: false,
+                        reason: ev.label || 'Blocked by teacher calendar event',
+                        blockerCode: 'calendar_faculty',
+                        isSoleOutsideAvailability: false,
+                    };
+                }
+            }
+
+            const avail = this.availabilityForFaculty(targetFacultyId);
+            if (targetFacultyId > 0 && avail) {
+                if (avail.mode === 'cannot_teach') {
+                    return {
+                        valid: false,
+                        reason: (teacherName || 'Teacher') + ' is marked unavailable this term',
+                        blockerCode: 'cannot_teach',
+                        isSoleOutsideAvailability: false,
+                    };
+                }
+                if (avail.mode === 'no_response' || avail.hasDeclaration === false) {
+                    return {
+                        valid: false,
+                        reason: (teacherName || 'Teacher') + ' has no availability declaration yet (No response)',
+                        blockerCode: 'no_response',
+                        isSoleOutsideAvailability: false,
+                    };
+                }
+            }
+
+            if (meeting.sameFacultyRequired && targetFacultyId > 0 && meeting.sectionDeliveryGroupId) {
+                const sibling = (this.meetings || []).find(other =>
+                    String(other.id) !== String(meeting.id)
+                    && Number(other.sectionDeliveryGroupId || 0) === Number(meeting.sectionDeliveryGroupId)
+                    && Number(other.facultyId || 0) > 0
+                    && Number(other.facultyId) !== targetFacultyId
+                );
+                if (sibling) {
+                    return {
+                        valid: false,
+                        reason: 'Same teacher required for all sessions (' + (sibling.faculty || 'assigned teacher') + ')',
+                        blockerCode: 'same_faculty_required',
+                        isSoleOutsideAvailability: false,
+                    };
                 }
             }
 
@@ -788,36 +879,79 @@
                     continue;
                 }
                 const overlaps = Number(slotStart) < Number(other.end) && slotEnd > Number(other.start);
-                if (!overlaps) continue;
-
                 const otherClass = this.selectedClassLabel(other) || other.class || '';
                 const otherClassPart = otherClass ? (' (' + otherClass + ')') : '';
                 const otherTime = other.timeLabel || other.time || this.formatMinutesRange(other.start, other.end);
-
-                if (targetFacultyId > 0 && Number(other.facultyId) === targetFacultyId) {
-                    return {
-                        valid: false,
-                        reason: (teacherName || other.faculty || 'Teacher') + ' already teaches ' + other.courseCode + otherClassPart + (otherTime ? ' · ' + otherTime : ''),
-                    };
-                }
-                if (targetRoomId > 0 && Number(other.roomId) === targetRoomId) {
-                    return {
-                        valid: false,
-                        reason: 'Room ' + (roomLabel || other.room || '') + ' is occupied by ' + other.courseCode + otherClassPart,
-                    };
-                }
+                const sharesTeacher = targetFacultyId > 0 && Number(other.facultyId) === targetFacultyId;
                 const sharedSection = (other.sections || []).find(s => meetingSectionIds.includes(String(s.id)));
                 const sharesSection = (other.class && meeting.class && other.class === meeting.class) || Boolean(sharedSection);
-                if (sharesSection) {
-                    const secName = (sharedSection && sharedSection.label) || otherClass || this.selectedClassLabel(meeting) || meeting.class || '';
+
+                if (overlaps) {
+                    if (sharesTeacher) {
+                        return {
+                            valid: false,
+                            reason: (teacherName || other.faculty || 'Teacher') + ' already teaches ' + other.courseCode + otherClassPart + (otherTime ? ' · ' + otherTime : ''),
+                            blockerCode: 'teacher_conflict',
+                            isSoleOutsideAvailability: false,
+                        };
+                    }
+                    if (targetRoomId > 0 && Number(other.roomId) === targetRoomId) {
+                        return {
+                            valid: false,
+                            reason: 'Room ' + (roomLabel || other.room || '') + ' is occupied by ' + other.courseCode + otherClassPart,
+                            blockerCode: 'room_conflict',
+                            isSoleOutsideAvailability: false,
+                        };
+                    }
+                    if (sharesSection) {
+                        const secName = (sharedSection && sharedSection.label) || otherClass || this.selectedClassLabel(meeting) || meeting.class || '';
+                        return {
+                            valid: false,
+                            reason: 'Section ' + secName + ' already has ' + other.courseCode + ' at this time',
+                            blockerCode: 'section_conflict',
+                            isSoleOutsideAvailability: false,
+                        };
+                    }
+                } else if (sharesTeacher || sharesSection) {
+                    const otherIsOnline = other.modality === 'Online' || (other.roomId === null && other.room === 'Online');
+                    if (isOnlineMeeting !== otherIsOnline) {
+                        const violatesTransition = Number(slotStart) < (Number(other.end) + 30) && (slotEnd + 30) > Number(other.start);
+                        if (violatesTransition) {
+                            return {
+                                valid: false,
+                                reason: 'Needs 30-min Online/On-campus buffer around ' + other.courseCode + (otherTime ? ' · ' + otherTime : ''),
+                                blockerCode: 'modality_transition',
+                                isSoleOutsideAvailability: false,
+                            };
+                        }
+                    }
+                }
+            }
+
+            if (targetFacultyId > 0 && avail) {
+                if (avail.mode === 'windows') {
+                    const fitsWindow = (avail.windows || []).some(w => Number(w.day) === day && Number(w.start) <= Number(slotStart) && Number(w.end) >= slotEnd);
+                    if (!fitsWindow) {
+                        return {
+                            valid: false,
+                            reason: (teacherName || 'Teacher') + ' is outside declared availability at this time',
+                            blockerCode: 'outside_faculty_availability',
+                            isSoleOutsideAvailability: Boolean(avail.canExpand),
+                        };
+                    }
+                }
+                const blockedByDecl = (avail.unavailability || []).some(u => Number(u.day) === day && Number(slotStart) < Number(u.end) && slotEnd > Number(u.start));
+                if (blockedByDecl) {
                     return {
                         valid: false,
-                        reason: 'Section ' + secName + ' already has ' + other.courseCode + ' at this time',
+                        reason: (teacherName || 'Teacher') + ' is outside declared availability at this time',
+                        blockerCode: 'outside_faculty_availability',
+                        isSoleOutsideAvailability: Boolean(avail.canExpand),
                     };
                 }
             }
 
-            return { valid: true, reason: 'Available · Conflict-free' };
+            return { valid: true, reason: 'Available · Conflict-free', blockerCode: null, isSoleOutsideAvailability: false };
         },
         suggestedFreeSlots(limit = 3) {
             const meeting = this.selectedMeeting;
@@ -929,14 +1063,14 @@
             if (!this.editable || !this.activeMoveMeeting) return;
             const check = this.slotEvaluation(dayNumber, startsAt);
             if (check && check.isCurrent) {
-                this.moveAnnouncement = 'Meeting is already scheduled in this slot.';
+                this.liveAnnouncement = 'Meeting is already scheduled in this slot.';
                 if (!this.isKeyboardMoveMode) {
                     this.cancelMoveMode(false);
                 }
                 return;
             }
             if (check && !check.valid) {
-                this.moveAnnouncement = 'Cannot move here: ' + check.reason + '.';
+                this.liveAnnouncement = 'Cannot move here: ' + check.reason + '.';
                 if (!this.isKeyboardMoveMode) {
                     this.cancelMoveMode(false);
                 }
@@ -946,7 +1080,7 @@
             const rowId = Number(meeting.rowId || meeting.id);
             const targetName = (meeting.courseCode || 'Meeting') + (meeting.class ? ' ' + meeting.class : '');
             this.persistSelectedMeeting(meeting);
-            this.moveAnnouncement = 'Moving ' + targetName + (dayLabel && timeLabel ? (' to ' + dayLabel + ' at ' + timeLabel) : '') + '.';
+            this.liveAnnouncement = 'Moving ' + targetName + (dayLabel && timeLabel ? (' to ' + dayLabel + ' at ' + timeLabel) : '') + '.';
             this.cancelMoveMode(false);
             if (rowId > 0 && this.$wire && typeof this.$wire.moveCandidateMeeting === 'function') {
                 this.$wire.moveCandidateMeeting(rowId, Number(dayNumber), String(startsAt));
@@ -1065,7 +1199,9 @@
             };
         },
         evaluateProposedEdit() {
-            if (!this.selectedMeeting) return { valid: true, reason: '' };
+            if (!this.selectedMeeting) {
+                return { valid: true, reason: '', blockerCode: null, isSoleOutsideAvailability: false };
+            }
             const slotObj = (this.timeSlotOptions || []).find(s => s.value === this.editForm.startsAt);
             const startMin = slotObj ? slotObj.minutes : 480;
             const slotCheck = this.evaluateSlotForMeeting(
@@ -1075,17 +1211,50 @@
                 this.editForm.roomId,
                 this.editForm.facultyId
             );
-            if (!slotCheck.valid) {
-                return slotCheck;
-            }
             const load = this.selectedTeacherLoadSummary();
             if (load && load.isOverloaded && load.added > 0) {
                 return {
                     valid: false,
                     reason: 'Exceeds teacher load (' + this.formatUnits(load.projected) + '/' + this.formatUnits(load.limit) + ' units)',
+                    blockerCode: 'teacher_load',
+                    isSoleOutsideAvailability: false,
                 };
             }
             return slotCheck;
+        },
+        canOfferAvailabilityExpansion() {
+            if (!this.editable || !this.selectedMeeting) return false;
+            const check = this.evaluateProposedEdit();
+            const avail = this.availabilityForFaculty(this.editForm.facultyId);
+            return Boolean(
+                !check.valid
+                && check.blockerCode === 'outside_faculty_availability'
+                && check.isSoleOutsideAvailability
+                && avail
+                && avail.canExpand === true
+            );
+        },
+        async submitExpandAvailability() {
+            if (!this.canOfferAvailabilityExpansion()) return;
+            const reason = String(this.expandAvailabilityReason || '').trim();
+            if (reason === '') return;
+            const rowId = Number(this.selectedMeeting.rowId || this.selectedMeeting.id);
+            const day = Number(this.editForm.day || this.selectedMeeting.day || 1);
+            const startsAt = String(this.editForm.startsAt || this.selectedMeeting.startsAt || '08:00');
+            const isOnlineMeeting = this.selectedMeeting.modality === 'Online' || (this.selectedMeeting.roomId === null && this.selectedMeeting.room === 'Online');
+            const roomId = isOnlineMeeting ? null : (this.editForm.roomId ? Number(this.editForm.roomId) : null);
+            const facultyId = this.editForm.facultyId ? Number(this.editForm.facultyId) : null;
+            this.persistSelectedMeeting(this.selectedMeeting);
+            if (rowId > 0 && this.$wire && typeof this.$wire.moveAndExpandTeacherAvailability === 'function') {
+                try {
+                    await this.$wire.moveAndExpandTeacherAvailability(rowId, day, startsAt, roomId, facultyId, reason);
+                    this.expandAvailabilityReason = '';
+                    this.liveAnnouncement = 'Schedule saved and teacher availability expanded.';
+                    if (!this.interactive) {
+                        this.$dispatch('close-modal', { id: '{{ $meetingId }}' });
+                    }
+                } catch (e) {}
+            }
         },
         async submitInlineEdit() {
             if (!this.editable || !this.selectedMeeting) return;
@@ -1136,20 +1305,35 @@
         @if ($interactive)
             <div class="tala-timetable-studio-split">
                 <div class="tala-timetable-studio-main">
-                    <header class="tala-timetable-print-header" aria-hidden="true">
+                    <header class="tala-timetable-print-header">
                         <div class="tala-timetable-print-header__main">
                             <p class="tala-timetable-print-header__inst">{{ config('institution.name') }}</p>
-                            <h2>{{ $presentation['title'] }} · {{ $presentation['source'] }}</h2>
+                            <div class="tala-timetable-print-header__title-row">
+                                <h2>{{ $presentation['title'] }} · {{ $presentation['source'] }}</h2>
+                                @if (! $isOfficial)
+                                    <span class="tala-timetable-print-badge is-draft">DRAFT — NOT OFFICIAL</span>
+                                @else
+                                    <span class="tala-timetable-print-badge">Official</span>
+                                @endif
+                            </div>
                         </div>
                         <div class="tala-timetable-print-header__meta">
                             <span x-text="printFilterSummary"></span>
                             <span>Layout: <strong x-text="mode === 'list' ? 'List view' : 'Weekly grid'"></strong></span>
                             <span><strong x-text="visibleCount"></strong> <span x-text="visibleCount === 1 ? 'meeting' : 'meetings'"></span></span>
+                            <span>Generated: <strong>{{ now()->timezone('Asia/Manila')->format('M j, Y g:i A') }}</strong></span>
                         </div>
                     </header>
-                    @if ($editable)
-                        <div class="sr-only" role="status" aria-live="polite" aria-atomic="true" x-text="moveAnnouncement"></div>
-                    @endif
+                    <div class="sr-only" role="status" aria-live="polite" aria-atomic="true" x-text="liveAnnouncement"></div>
+                    <button
+                        type="button"
+                        class="tala-inspector-skip-btn"
+                        x-cloak
+                        x-show="selectedMeeting"
+                        x-on:click="focusInspector()"
+                    >
+                        Jump to class inspector
+                    </button>
         @elseif (! $controlled)
         <div class="tala-timetable-filters" x-data="{ open: false }">
             <button type="button" class="fi-btn fi-color-gray fi-outlined fi-size-sm" x-on:click="open = ! open" x-bind:aria-expanded="open.toString()">
@@ -1175,7 +1359,7 @@
         </div>
         @endif
         @if (! $embedded)<p class="tala-timetable-guide">
-            <span aria-live="polite"><span x-text="visibleCount">{{ count($renderMeetings) }}</span> of {{ count($renderMeetings) }} meetings shown.</span>
+            <span><span x-text="visibleCount">{{ count($renderMeetings) }}</span> of {{ count($renderMeetings) }} meetings shown.</span>
             Select a meeting to see its details.
             @if (! $presentation['snapshotAvailable'])
                 Recorded calendar geometry is unavailable; the overview uses recorded meeting days and times.
@@ -1230,8 +1414,8 @@
                         <div><dt>Record status</dt><dd x-text="selectedMeeting?.status"></dd></div>
                     </dl>
 
-                    <p x-cloak x-show="selectedMeeting && !selectedMeeting.plottable" class="tala-timetable-guide">Meeting time is unavailable or invalid. Contact the Registrar.</p>
-                    <p x-cloak x-show="selectedMeeting?.offGrid" class="tala-timetable-guide">This meeting is outside the recorded teaching window. Contact the Registrar.</p>
+                    <p x-cloak x-show="selectedMeeting && !selectedMeeting.plottable" class="tala-timetable-guide">{{ $editable ? 'Meeting time is unavailable or invalid. Adjust the teaching calendar or select another day/time.' : 'Meeting time is unavailable or invalid. Contact the Registrar.' }}</p>
+                    <p x-cloak x-show="selectedMeeting?.offGrid" class="tala-timetable-guide">{{ $editable ? 'This meeting is outside the recorded teaching window. Adjust the teaching calendar or select another day/time.' : 'This meeting is outside the recorded teaching window. Contact the Registrar.' }}</p>
 
                     @if ($editable)
                         <div class="tala-inspector-quick-actions">
@@ -1262,62 +1446,102 @@
                             <header class="tala-inspector-edit-card__header">
                                 <h3>Edit schedule</h3>
                                 <span
+                                    id="{{ $overviewId }}-modal-slot-check"
                                     class="tala-inspector-slot-check"
-                                    role="status"
-                                    aria-live="polite"
                                     :class="evaluateProposedEdit().valid ? 'is-valid' : 'is-conflict'"
                                     x-text="evaluateProposedEdit().reason"
                                 ></span>
                             </header>
 
                             <div class="tala-inspector-edit-grid">
-                                <label class="tala-inspector-field">
-                                    <span>Day</span>
+                                <div class="tala-inspector-field">
+                                    <label for="{{ $overviewId }}-modal-day">Day</label>
                                     <x-filament::input.wrapper>
-                                        <x-filament::input.select x-model.number="editForm.day">
+                                        <x-filament::input.select
+                                            id="{{ $overviewId }}-modal-day"
+                                            x-model.number="editForm.day"
+                                            required
+                                            x-bind:aria-invalid="!evaluateProposedEdit().valid ? 'true' : 'false'"
+                                            aria-describedby="{{ $overviewId }}-modal-slot-check"
+                                        >
                                             <template x-for="d in dayOptions" :key="d.value">
                                                 <option :value="d.value" x-text="d.label"></option>
                                             </template>
                                         </x-filament::input.select>
                                     </x-filament::input.wrapper>
-                                </label>
+                                </div>
 
-                                <label class="tala-inspector-field">
-                                    <span>Start time</span>
+                                <div class="tala-inspector-field">
+                                    <label for="{{ $overviewId }}-modal-starts-at">Start time</label>
                                     <x-filament::input.wrapper>
-                                        <x-filament::input.select x-model="editForm.startsAt">
+                                        <x-filament::input.select
+                                            id="{{ $overviewId }}-modal-starts-at"
+                                            x-model="editForm.startsAt"
+                                            required
+                                            x-bind:aria-invalid="!evaluateProposedEdit().valid ? 'true' : 'false'"
+                                            aria-describedby="{{ $overviewId }}-modal-slot-check"
+                                        >
                                             <template x-for="slot in timeSlotOptions" :key="slot.value">
                                                 <option :value="slot.value" x-text="timeSlotOptionLabel(slot)"></option>
                                             </template>
                                         </x-filament::input.select>
                                     </x-filament::input.wrapper>
-                                </label>
+                                </div>
 
-                                <label class="tala-inspector-field" x-show="selectedMeeting && selectedMeeting.modality !== 'Online' && !(selectedMeeting.roomId === null && selectedMeeting.room === 'Online')">
-                                    <span>Room (<span x-text="(selectedMeeting?.componentBadge || 'LEC') === 'LAB' ? 'Laboratory compatible' : 'Lecture compatible'"></span>)</span>
+                                <div class="tala-inspector-field" x-show="selectedMeeting && selectedMeeting.modality !== 'Online' && !(selectedMeeting.roomId === null && selectedMeeting.room === 'Online')">
+                                    <label for="{{ $overviewId }}-modal-room">Room (<span x-text="(selectedMeeting?.componentBadge || 'LEC') === 'LAB' ? 'Laboratory compatible' : 'Lecture compatible'"></span>)</label>
                                     <x-filament::input.wrapper>
-                                        <x-filament::input.select x-model="editForm.roomId">
+                                        <x-filament::input.select
+                                            id="{{ $overviewId }}-modal-room"
+                                            x-model="editForm.roomId"
+                                            x-bind:required="selectedMeeting && selectedMeeting.modality !== 'Online' && !(selectedMeeting.roomId === null && selectedMeeting.room === 'Online')"
+                                            x-bind:aria-invalid="!evaluateProposedEdit().valid ? 'true' : 'false'"
+                                            aria-describedby="{{ $overviewId }}-modal-slot-check"
+                                        >
                                             <template x-for="rm in compatibleRoomsFor(selectedMeeting)" :key="rm.id">
                                                 <option :value="String(rm.id)" x-text="rm.code + (rm.name ? ' · ' + rm.name : '') + ' (' + rm.capacity + ' seats)'"></option>
                                             </template>
                                         </x-filament::input.select>
                                     </x-filament::input.wrapper>
-                                </label>
+                                </div>
 
-                                <label class="tala-inspector-field">
-                                    <span>Qualified teacher</span>
+                                <div class="tala-inspector-field">
+                                    <label for="{{ $overviewId }}-modal-faculty">Qualified teacher</label>
                                     <x-filament::input.wrapper>
-                                        <x-filament::input.select x-model="editForm.facultyId">
+                                        <x-filament::input.select
+                                            id="{{ $overviewId }}-modal-faculty"
+                                            x-model="editForm.facultyId"
+                                            required
+                                            x-bind:aria-invalid="!evaluateProposedEdit().valid ? 'true' : 'false'"
+                                            aria-describedby="{{ $overviewId }}-modal-slot-check"
+                                        >
                                             <template x-for="teacher in qualifiedTeachersFor(selectedMeeting)" :key="teacher.id">
-                                                <option :value="String(teacher.id)" x-text="teacher.name"></option>
+                                                <option :value="String(teacher.id)" x-text="teacherOptionLabel(teacher)"></option>
                                             </template>
                                         </x-filament::input.select>
                                     </x-filament::input.wrapper>
-                                </label>
+                                    <template x-if="availabilityForFaculty(editForm.facultyId)">
+                                        <div class="tala-availability-summary">
+                                            <div class="tala-availability-summary__head">
+                                                <span class="tala-availability-summary__title">Declared availability</span>
+                                                <span
+                                                    class="tala-availability-badge"
+                                                    :class="availabilityForFaculty(editForm.facultyId).status === 'NoResponse' || !availabilityForFaculty(editForm.facultyId).hasDeclaration ? 'is-no-response' : (availabilityForFaculty(editForm.facultyId).mode === 'cannot_teach' ? 'is-blocked' : 'is-ready')"
+                                                    x-text="availabilityForFaculty(editForm.facultyId).status === 'NoResponse' || !availabilityForFaculty(editForm.facultyId).hasDeclaration ? 'No response' : (availabilityForFaculty(editForm.facultyId).mode === 'cannot_teach' ? 'Unavailable' : 'Recorded')"
+                                                ></span>
+                                            </div>
+                                            <p class="tala-availability-summary__line" x-text="availabilityForFaculty(editForm.facultyId).declaredSummary"></p>
+                                            <p class="tala-availability-summary__line" x-show="availabilityForFaculty(editForm.facultyId).freeSummary">
+                                                <strong>Free windows:</strong>
+                                                <span x-text="availabilityForFaculty(editForm.facultyId).freeSummary"></span>
+                                            </p>
+                                        </div>
+                                    </template>
+                                </div>
                             </div>
 
                             <template x-if="selectedTeacherLoadSummary()">
-                                <div class="tala-load-guard tala-load-guard--compact" :class="selectedTeacherLoadSummary().tone" role="status" aria-live="polite">
+                                <div class="tala-load-guard tala-load-guard--compact" :class="selectedTeacherLoadSummary().tone">
                                     <div class="tala-load-guard__head">
                                         <span class="tala-load-guard__title">Teaching load</span>
                                         <span class="tala-load-guard__badge">
@@ -1369,6 +1593,31 @@
                                     </button>
                                 </template>
                                 <span x-show="suggestedFreeSlots(3).length === 0">No open slots with this teacher and room. Try choosing another qualified teacher or room above.</span>
+                            </div>
+
+                            <div class="tala-availability-expand-panel" x-cloak x-show="canOfferAvailabilityExpansion()" role="region" aria-label="Move and expand teacher availability">
+                                <p class="tala-availability-expand-panel__title">Move &amp; expand teacher's availability (outside original request)</p>
+                                <p class="tala-availability-expand-panel__copy">No room, section, calendar, or teaching-load conflicts exist for this slot. Enter a reason to record the expansion and notify the teacher.</p>
+                                <label for="{{ $overviewId }}-modal-expand-reason" class="tala-availability-expand-panel__label">Reason for expanding availability</label>
+                                <textarea
+                                    id="{{ $overviewId }}-modal-expand-reason"
+                                    class="tala-availability-expand-panel__textarea"
+                                    rows="2"
+                                    maxlength="500"
+                                    required
+                                    x-model="expandAvailabilityReason"
+                                    placeholder="Explain why this slot is needed outside the teacher's declared request..."
+                                ></textarea>
+                                <x-filament::button
+                                    type="button"
+                                    color="warning"
+                                    size="sm"
+                                    class="w-full justify-center"
+                                    x-bind:disabled="expandAvailabilityReason.trim().length === 0"
+                                    x-on:click="submitExpandAvailability()"
+                                >
+                                    Move &amp; expand teacher's availability (outside original request)
+                                </x-filament::button>
                             </div>
 
                             <div class="tala-inspector-edit-card__footer">
@@ -1564,7 +1813,7 @@
                                             <strong class="tala-timetable-course-title">{{ $meeting['courseTitle'] ?: $meeting['courseCode'] }}</strong>
                                             @if ($tileSectionLabel !== '')
                                                 <span
-                                                    class="tala-timetable-tile-class inline-flex w-fit max-w-full items-center truncate rounded border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 text-[0.65rem] font-semibold leading-none tracking-wide text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                                                    class="tala-timetable-tile-class inline-flex w-fit max-w-full items-center truncate rounded border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 text-xs font-semibold leading-tight tracking-wide text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
                                                     x-show="viewMode !== 'section'"
                                                     title="{{ $tileSectionLabel }}"
                                                 >{{ $tileSectionLabel }}</span>
@@ -1609,7 +1858,6 @@
                     x-show="mode === 'weekly' && maxVisibleLanes > 4"
                     class="tala-print-week-columns"
                     style="--timetable-days: {{ max(1, count($presentation['days'])) }};"
-                    aria-hidden="true"
                 >
                     @foreach ($presentation['days'] as $day)
                         <section class="tala-print-week-col">
@@ -1771,7 +2019,7 @@
                             @endif
                         >
                             @if ($editable)
-                                <div class="tala-studio-draft-dock__move" x-cloak x-show="activeMoveMeeting !== null" aria-live="polite">
+                                <div class="tala-studio-draft-dock__move" x-cloak x-show="activeMoveMeeting !== null">
                                     <span class="tala-move-slot-banner__pulse" aria-hidden="true"></span>
                                     <span class="tala-studio-draft-dock__move-text">
                                         Moving <strong x-text="(activeMoveMeeting?.courseCode || '') + (activeMoveMeeting?.class ? ' · ' + activeMoveMeeting.class : '')"></strong>
@@ -1856,39 +2104,8 @@
                             $hasRailPrograms = count($railProgramOptions) >= 1;
                             $hasRailYears = count($railYearOptions) >= 1;
                         @endphp
-                        @if ($hasRailPrograms || $hasRailYears)
-                            <div @class(['tala-rail-filter-pair' => $hasRailPrograms && $hasRailYears, 'grid gap-2' => ! ($hasRailPrograms && $hasRailYears)])>
-                                @if ($hasRailPrograms)
-                                    <div class="tala-rail-field grid gap-1">
-                                        <label for="{{ $overviewId }}-program-select" class="text-[0.7rem] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Program</label>
-                                        <x-filament::input.wrapper>
-                                            <x-filament::input.select id="{{ $overviewId }}-program-select" x-model="programFilter">
-                                                <option value="">All programs</option>
-                                                @foreach ($railProgramOptions as $prog)
-                                                    <option value="{{ $prog }}">{{ $prog }}</option>
-                                                @endforeach
-                                            </x-filament::input.select>
-                                        </x-filament::input.wrapper>
-                                    </div>
-                                @endif
-                                @if ($hasRailYears)
-                                    <div class="tala-rail-field grid gap-1">
-                                        <label for="{{ $overviewId }}-year-select" class="text-[0.7rem] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Year level</label>
-                                        <x-filament::input.wrapper>
-                                            <x-filament::input.select id="{{ $overviewId }}-year-select" x-model="yearFilter">
-                                                <option value="">All years</option>
-                                                @foreach ($railYearOptions as $yr)
-                                                    <option value="{{ $yr }}">{{ $yr }}</option>
-                                                @endforeach
-                                            </x-filament::input.select>
-                                        </x-filament::input.wrapper>
-                                    </div>
-                                @endif
-                            </div>
-                        @endif
-
                         <div class="tala-rail-field" x-cloak x-show="viewMode === 'section' && canSelectSection">
-                            <label for="{{ $overviewId }}-section-select" class="text-[0.7rem] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Student section</label>
+                            <label for="{{ $overviewId }}-section-select" class="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Student section</label>
                             <x-filament::input.wrapper>
                                 <x-filament::input.select id="{{ $overviewId }}-section-select" x-model="entityFilter">
                                     <option value="" x-text="filteredSectionOptions.length === 0 ? 'No sections match selection' : 'All matching sections'"></option>
@@ -1900,7 +2117,7 @@
                         </div>
 
                         <p class="tala-rail-hint" x-cloak x-show="viewMode === 'section' && !canSelectSection">
-                            Choose a program and year level to filter by section.
+                            Choose a program and year level below to filter by section.
                         </p>
 
                         <div class="tala-rail-field" x-cloak x-show="viewMode === 'faculty'">
@@ -1953,66 +2170,105 @@
                             </x-filament::button>
                         </div>
 
-                        <div class="tala-rail-triage" x-cloak x-show="hasTriageChips" role="toolbar" aria-label="Quick timetable filters">
-                            <span class="tala-rail-triage__label">Quick filters</span>
-                            <div class="tala-triage-chips">
-                                <button
-                                    type="button"
-                                    class="tala-triage-chip tala-triage-chip--danger"
-                                    x-show="lateImpactCount > 0"
-                                    :class="{ 'is-active': triageFilter === 'late_impact' }"
-                                    :aria-pressed="triageFilter === 'late_impact' ? 'true' : 'false'"
-                                    x-on:click="toggleTriageFilter('late_impact')"
-                                >
-                                    <span>Late impact</span>
-                                    <span class="tala-triage-chip__count" x-text="lateImpactCount"></span>
-                                </button>
-                                <button
-                                    type="button"
-                                    class="tala-triage-chip tala-triage-chip--warning"
-                                    x-show="!isOfficial && conflictCount > 0"
-                                    :class="{ 'is-active': triageFilter === 'conflicts' }"
-                                    :aria-pressed="triageFilter === 'conflicts' ? 'true' : 'false'"
-                                    x-on:click="toggleTriageFilter('conflicts')"
-                                >
-                                    <span>Conflicts</span>
-                                    <span class="tala-triage-chip__count" x-text="conflictCount"></span>
-                                </button>
-                                <button
-                                    type="button"
-                                    class="tala-triage-chip"
-                                    x-show="pinnedCount > 0"
-                                    :class="{ 'is-active': triageFilter === 'locked' }"
-                                    :aria-pressed="triageFilter === 'locked' ? 'true' : 'false'"
-                                    x-on:click="toggleTriageFilter('locked')"
-                                >
-                                    <span>Locked</span>
-                                    <span class="tala-triage-chip__count" x-text="pinnedCount"></span>
-                                </button>
-                                <button
-                                    type="button"
-                                    class="tala-triage-chip"
-                                    x-show="faceToFaceCount > 0"
-                                    :class="{ 'is-active': triageFilter === 'face_to_face' }"
-                                    :aria-pressed="triageFilter === 'face_to_face' ? 'true' : 'false'"
-                                    x-on:click="toggleTriageFilter('face_to_face')"
-                                >
-                                    <span>Face-to-Face</span>
-                                    <span class="tala-triage-chip__count" x-text="faceToFaceCount"></span>
-                                </button>
-                                <button
-                                    type="button"
-                                    class="tala-triage-chip"
-                                    x-show="onlineCount > 0"
-                                    :class="{ 'is-active': triageFilter === 'online' }"
-                                    :aria-pressed="triageFilter === 'online' ? 'true' : 'false'"
-                                    x-on:click="toggleTriageFilter('online')"
-                                >
-                                    <span>Online</span>
-                                    <span class="tala-triage-chip__count" x-text="onlineCount"></span>
-                                </button>
+                        <details class="tala-rail-filters-disclosure" open>
+                            <summary class="tala-rail-filters-disclosure__summary">
+                                <span>Program, year &amp; quick filters</span>
+                                <span class="tala-rail-filters-disclosure__meta" x-text="(programFilter || yearFilter || triageFilter !== 'all') ? 'Active' : 'Optional'"></span>
+                            </summary>
+                            <div class="tala-rail-filters-disclosure__body">
+                                @if ($hasRailPrograms || $hasRailYears)
+                                    <div @class(['tala-rail-filter-pair' => $hasRailPrograms && $hasRailYears, 'grid gap-2' => ! ($hasRailPrograms && $hasRailYears)])>
+                                        @if ($hasRailPrograms)
+                                            <div class="tala-rail-field grid gap-1">
+                                                <label for="{{ $overviewId }}-program-select" class="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Program</label>
+                                                <x-filament::input.wrapper>
+                                                    <x-filament::input.select id="{{ $overviewId }}-program-select" x-model="programFilter">
+                                                        <option value="">All programs</option>
+                                                        @foreach ($railProgramOptions as $prog)
+                                                            <option value="{{ $prog }}">{{ $prog }}</option>
+                                                        @endforeach
+                                                    </x-filament::input.select>
+                                                </x-filament::input.wrapper>
+                                            </div>
+                                        @endif
+                                        @if ($hasRailYears)
+                                            <div class="tala-rail-field grid gap-1">
+                                                <label for="{{ $overviewId }}-year-select" class="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Year level</label>
+                                                <x-filament::input.wrapper>
+                                                    <x-filament::input.select id="{{ $overviewId }}-year-select" x-model="yearFilter">
+                                                        <option value="">All years</option>
+                                                        @foreach ($railYearOptions as $yr)
+                                                            <option value="{{ $yr }}">{{ $yr }}</option>
+                                                        @endforeach
+                                                    </x-filament::input.select>
+                                                </x-filament::input.wrapper>
+                                            </div>
+                                        @endif
+                                    </div>
+                                @endif
+
+                                <div class="tala-rail-triage" x-cloak x-show="hasTriageChips" role="toolbar" aria-label="Quick timetable filters">
+                                    <span class="tala-rail-triage__label">Quick filters</span>
+                                    <div class="tala-triage-chips">
+                                        <button
+                                            type="button"
+                                            class="tala-triage-chip tala-triage-chip--danger"
+                                            x-show="lateImpactCount > 0"
+                                            :class="{ 'is-active': triageFilter === 'late_impact' }"
+                                            :aria-pressed="triageFilter === 'late_impact' ? 'true' : 'false'"
+                                            x-on:click="toggleTriageFilter('late_impact')"
+                                        >
+                                            <span>Late impact</span>
+                                            <span class="tala-triage-chip__count" x-text="lateImpactCount"></span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="tala-triage-chip tala-triage-chip--warning"
+                                            x-show="!isOfficial && conflictCount > 0"
+                                            :class="{ 'is-active': triageFilter === 'conflicts' }"
+                                            :aria-pressed="triageFilter === 'conflicts' ? 'true' : 'false'"
+                                            x-on:click="toggleTriageFilter('conflicts')"
+                                        >
+                                            <span>Conflicts</span>
+                                            <span class="tala-triage-chip__count" x-text="conflictCount"></span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="tala-triage-chip"
+                                            x-show="pinnedCount > 0"
+                                            :class="{ 'is-active': triageFilter === 'locked' }"
+                                            :aria-pressed="triageFilter === 'locked' ? 'true' : 'false'"
+                                            x-on:click="toggleTriageFilter('locked')"
+                                        >
+                                            <span>Locked</span>
+                                            <span class="tala-triage-chip__count" x-text="pinnedCount"></span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="tala-triage-chip"
+                                            x-show="faceToFaceCount > 0"
+                                            :class="{ 'is-active': triageFilter === 'face_to_face' }"
+                                            :aria-pressed="triageFilter === 'face_to_face' ? 'true' : 'false'"
+                                            x-on:click="toggleTriageFilter('face_to_face')"
+                                        >
+                                            <span>Face-to-Face</span>
+                                            <span class="tala-triage-chip__count" x-text="faceToFaceCount"></span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="tala-triage-chip"
+                                            x-show="onlineCount > 0"
+                                            :class="{ 'is-active': triageFilter === 'online' }"
+                                            :aria-pressed="triageFilter === 'online' ? 'true' : 'false'"
+                                            x-on:click="toggleTriageFilter('online')"
+                                        >
+                                            <span>Online</span>
+                                            <span class="tala-triage-chip__count" x-text="onlineCount"></span>
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
+                        </details>
 
                         <p class="tala-rail-scope-line">
                             <strong x-text="currentScopeLabel">Whole term</strong>
@@ -2028,7 +2284,10 @@
                         $inspectorHasEnrollmentLock = (bool) ($scheduleContext['hasOfficialEnrollmentsBlockingRegen'] ?? false);
                         $inspectorActiveDraftId = $scheduleContext['activeDraftId'] ?? null;
                     @endphp
-                    <section x-ref="railInspector" class="tala-rail-section tala-rail-inspector" aria-label="Selected class inspector">
+                    <section x-ref="railInspector" class="tala-rail-section tala-rail-inspector" aria-labelledby="{{ $overviewId }}-inspector-heading">
+                        <div class="tala-rail-section-head">
+                            <h2 id="{{ $overviewId }}-inspector-heading" x-ref="inspectorHeading" tabindex="-1" class="tala-rail-title">Class inspector</h2>
+                        </div>
                         <div class="tala-rail-empty" x-show="!selectedMeeting">
                             <div class="tala-rail-empty__icon" aria-hidden="true">
                                 <x-filament::icon icon="heroicon-o-cursor-arrow-rays" />
@@ -2094,7 +2353,34 @@
                             <dl class="tala-rail-facts">
                                 <div><dt>When</dt><dd><span x-text="selectedMeeting?.dayLabel"></span> · <span x-text="selectedMeeting?.time"></span><template x-if="(selectedMeeting?.meetingCount || 1) > 1"><span> · Session <span x-text="selectedMeeting?.meetingSequence || 1"></span> of <span x-text="selectedMeeting?.meetingCount"></span></span></template></dd></div>
                                 <div><dt>Room</dt><dd x-text="selectedMeeting?.room"></dd></div>
-                                <div><dt>Teacher</dt><dd x-text="selectedMeeting?.faculty"></dd></div>
+                                <div>
+                                    <dt>Teacher</dt>
+                                    <dd>
+                                        <span x-text="selectedMeeting?.faculty"></span>
+                                        <template x-if="selectedMeeting?.facultyId && availabilityForFaculty(selectedMeeting.facultyId) && (availabilityForFaculty(selectedMeeting.facultyId).status === 'NoResponse' || !availabilityForFaculty(selectedMeeting.facultyId).hasDeclaration)">
+                                            <span class="tala-availability-badge is-no-response">No response</span>
+                                        </template>
+                                    </dd>
+                                </div>
+                                @if (! $editable)
+                                    <template x-if="selectedMeeting?.facultyId && availabilityForFaculty(selectedMeeting.facultyId)">
+                                        <div class="tala-availability-summary" style="grid-column: 1 / -1;">
+                                            <div class="tala-availability-summary__head">
+                                                <span class="tala-availability-summary__title">Declared availability</span>
+                                                <span
+                                                    class="tala-availability-badge"
+                                                    :class="availabilityForFaculty(selectedMeeting.facultyId).status === 'NoResponse' || !availabilityForFaculty(selectedMeeting.facultyId).hasDeclaration ? 'is-no-response' : (availabilityForFaculty(selectedMeeting.facultyId).mode === 'cannot_teach' ? 'is-blocked' : 'is-ready')"
+                                                    x-text="availabilityForFaculty(selectedMeeting.facultyId).status === 'NoResponse' || !availabilityForFaculty(selectedMeeting.facultyId).hasDeclaration ? 'No response' : (availabilityForFaculty(selectedMeeting.facultyId).mode === 'cannot_teach' ? 'Unavailable' : 'Recorded')"
+                                                ></span>
+                                            </div>
+                                            <p class="tala-availability-summary__line" x-text="availabilityForFaculty(selectedMeeting.facultyId).declaredSummary"></p>
+                                            <p class="tala-availability-summary__line" x-show="availabilityForFaculty(selectedMeeting.facultyId).freeSummary">
+                                                <strong>Free windows:</strong>
+                                                <span x-text="availabilityForFaculty(selectedMeeting.facultyId).freeSummary"></span>
+                                            </p>
+                                        </div>
+                                    </template>
+                                @endif
                                 <div><dt>Delivery</dt><dd><span x-text="selectedMeeting?.modality"></span> · <span x-text="selectedMeeting?.component"></span></dd></div>
                                 <div><dt>Status</dt><dd x-text="selectedMeeting?.status"></dd></div>
                             </dl>
@@ -2130,61 +2416,101 @@
                                     <header class="tala-inspector-edit-card__header">
                                         <h4>Edit schedule</h4>
                                         <span
+                                            id="{{ $overviewId }}-rail-slot-check"
                                             class="tala-inspector-slot-check"
-                                            role="status"
-                                            aria-live="polite"
                                             :class="evaluateProposedEdit().valid ? 'is-valid' : 'is-conflict'"
                                             x-text="evaluateProposedEdit().reason"
                                         ></span>
                                     </header>
 
                                     <div class="tala-rail-edit-fields">
-                                        <label class="tala-inspector-field">
-                                            <span>Day</span>
+                                        <div class="tala-inspector-field">
+                                            <label for="{{ $overviewId }}-rail-day">Day</label>
                                             <x-filament::input.wrapper>
-                                                <x-filament::input.select x-model.number="editForm.day">
+                                                <x-filament::input.select
+                                                    id="{{ $overviewId }}-rail-day"
+                                                    x-model.number="editForm.day"
+                                                    required
+                                                    x-bind:aria-invalid="!evaluateProposedEdit().valid ? 'true' : 'false'"
+                                                    aria-describedby="{{ $overviewId }}-rail-slot-check"
+                                                >
                                                     <template x-for="d in dayOptions" :key="d.value">
                                                         <option :value="d.value" x-text="d.label"></option>
                                                     </template>
                                                 </x-filament::input.select>
                                             </x-filament::input.wrapper>
-                                        </label>
+                                        </div>
 
-                                        <label class="tala-inspector-field">
-                                            <span>Start time</span>
+                                        <div class="tala-inspector-field">
+                                            <label for="{{ $overviewId }}-rail-starts-at">Start time</label>
                                             <x-filament::input.wrapper>
-                                                <x-filament::input.select x-model="editForm.startsAt">
+                                                <x-filament::input.select
+                                                    id="{{ $overviewId }}-rail-starts-at"
+                                                    x-model="editForm.startsAt"
+                                                    required
+                                                    x-bind:aria-invalid="!evaluateProposedEdit().valid ? 'true' : 'false'"
+                                                    aria-describedby="{{ $overviewId }}-rail-slot-check"
+                                                >
                                                     <template x-for="slot in timeSlotOptions" :key="slot.value">
                                                         <option :value="slot.value" x-text="timeSlotOptionLabel(slot)"></option>
                                                     </template>
                                                 </x-filament::input.select>
                                             </x-filament::input.wrapper>
-                                        </label>
+                                        </div>
 
-                                        <label class="tala-inspector-field" x-show="selectedMeeting && selectedMeeting.modality !== 'Online' && !(selectedMeeting.roomId === null && selectedMeeting.room === 'Online')">
-                                            <span>Room (<span x-text="(selectedMeeting?.componentBadge || 'LEC') === 'LAB' ? 'Lab' : 'Lecture'"></span>)</span>
+                                        <div class="tala-inspector-field" x-show="selectedMeeting && selectedMeeting.modality !== 'Online' && !(selectedMeeting.roomId === null && selectedMeeting.room === 'Online')">
+                                            <label for="{{ $overviewId }}-rail-room">Room (<span x-text="(selectedMeeting?.componentBadge || 'LEC') === 'LAB' ? 'Lab' : 'Lecture'"></span>)</label>
                                             <x-filament::input.wrapper>
-                                                <x-filament::input.select x-model="editForm.roomId">
+                                                <x-filament::input.select
+                                                    id="{{ $overviewId }}-rail-room"
+                                                    x-model="editForm.roomId"
+                                                    x-bind:required="selectedMeeting && selectedMeeting.modality !== 'Online' && !(selectedMeeting.roomId === null && selectedMeeting.room === 'Online')"
+                                                    x-bind:aria-invalid="!evaluateProposedEdit().valid ? 'true' : 'false'"
+                                                    aria-describedby="{{ $overviewId }}-rail-slot-check"
+                                                >
                                                     <template x-for="rm in compatibleRoomsFor(selectedMeeting)" :key="rm.id">
                                                         <option :value="String(rm.id)" x-text="rm.code + (rm.name ? ' · ' + rm.name : '') + ' (' + rm.capacity + ' seats)'"></option>
                                                     </template>
                                                 </x-filament::input.select>
                                             </x-filament::input.wrapper>
-                                        </label>
+                                        </div>
 
-                                        <label class="tala-inspector-field">
-                                            <span>Qualified teacher</span>
+                                        <div class="tala-inspector-field">
+                                            <label for="{{ $overviewId }}-rail-faculty">Qualified teacher</label>
                                             <x-filament::input.wrapper>
-                                                <x-filament::input.select x-model="editForm.facultyId">
+                                                <x-filament::input.select
+                                                    id="{{ $overviewId }}-rail-faculty"
+                                                    x-model="editForm.facultyId"
+                                                    required
+                                                    x-bind:aria-invalid="!evaluateProposedEdit().valid ? 'true' : 'false'"
+                                                    aria-describedby="{{ $overviewId }}-rail-slot-check"
+                                                >
                                                     <template x-for="teacher in qualifiedTeachersFor(selectedMeeting)" :key="teacher.id">
-                                                        <option :value="String(teacher.id)" x-text="teacher.name"></option>
+                                                        <option :value="String(teacher.id)" x-text="teacherOptionLabel(teacher)"></option>
                                                     </template>
                                                 </x-filament::input.select>
                                             </x-filament::input.wrapper>
-                                        </label>
+                                            <template x-if="availabilityForFaculty(editForm.facultyId)">
+                                                <div class="tala-availability-summary">
+                                                    <div class="tala-availability-summary__head">
+                                                        <span class="tala-availability-summary__title">Declared availability</span>
+                                                        <span
+                                                            class="tala-availability-badge"
+                                                            :class="availabilityForFaculty(editForm.facultyId).status === 'NoResponse' || !availabilityForFaculty(editForm.facultyId).hasDeclaration ? 'is-no-response' : (availabilityForFaculty(editForm.facultyId).mode === 'cannot_teach' ? 'is-blocked' : 'is-ready')"
+                                                            x-text="availabilityForFaculty(editForm.facultyId).status === 'NoResponse' || !availabilityForFaculty(editForm.facultyId).hasDeclaration ? 'No response' : (availabilityForFaculty(editForm.facultyId).mode === 'cannot_teach' ? 'Unavailable' : 'Recorded')"
+                                                        ></span>
+                                                    </div>
+                                                    <p class="tala-availability-summary__line" x-text="availabilityForFaculty(editForm.facultyId).declaredSummary"></p>
+                                                    <p class="tala-availability-summary__line" x-show="availabilityForFaculty(editForm.facultyId).freeSummary">
+                                                        <strong>Free windows:</strong>
+                                                        <span x-text="availabilityForFaculty(editForm.facultyId).freeSummary"></span>
+                                                    </p>
+                                                </div>
+                                            </template>
+                                        </div>
 
                                         <template x-if="selectedTeacherLoadSummary()">
-                                            <div class="tala-load-guard tala-load-guard--compact" :class="selectedTeacherLoadSummary().tone" role="status" aria-live="polite">
+                                            <div class="tala-load-guard tala-load-guard--compact" :class="selectedTeacherLoadSummary().tone">
                                                 <div class="tala-load-guard__head">
                                                     <span class="tala-load-guard__title">Teaching load</span>
                                                     <span class="tala-load-guard__badge">
@@ -2236,6 +2562,31 @@
                                                 </button>
                                             </template>
                                             <span x-show="suggestedFreeSlots(3).length === 0">No open slots with this teacher and room. Try choosing another qualified teacher or room above.</span>
+                                        </div>
+
+                                        <div class="tala-availability-expand-panel" x-cloak x-show="canOfferAvailabilityExpansion()" role="region" aria-label="Move and expand teacher availability">
+                                            <p class="tala-availability-expand-panel__title">Move &amp; expand teacher's availability (outside original request)</p>
+                                            <p class="tala-availability-expand-panel__copy">No room, section, calendar, or teaching-load conflicts exist for this slot. Enter a reason to record the expansion and notify the teacher.</p>
+                                            <label for="{{ $overviewId }}-rail-expand-reason" class="tala-availability-expand-panel__label">Reason for expanding availability</label>
+                                            <textarea
+                                                id="{{ $overviewId }}-rail-expand-reason"
+                                                class="tala-availability-expand-panel__textarea"
+                                                rows="2"
+                                                maxlength="500"
+                                                required
+                                                x-model="expandAvailabilityReason"
+                                                placeholder="Explain why this slot is needed outside the teacher's declared request..."
+                                            ></textarea>
+                                            <x-filament::button
+                                                type="button"
+                                                color="warning"
+                                                size="sm"
+                                                class="w-full justify-center"
+                                                x-bind:disabled="expandAvailabilityReason.trim().length === 0"
+                                                x-on:click="submitExpandAvailability()"
+                                            >
+                                                Move &amp; expand teacher's availability (outside original request)
+                                            </x-filament::button>
                                         </div>
                                     </div>
 

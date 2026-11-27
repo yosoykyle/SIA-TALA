@@ -5,6 +5,7 @@
     $courses = collect($cor['subjects'])->groupBy(fn ($subject) => $subject['course_enrollment_id'] ?? $subject['subject_code'].'|'.$subject['section']);
     $recorded = fn ($value): bool => filled($value) && ! in_array($value, ['Not recorded', 'Not applicable'], true);
     $modeLabel = fn ($mode) => match ($mode) { 'FACE_TO_FACE' => 'Face to face', 'ONLINE' => 'Online', 'HYBRID' => 'Hybrid', default => str($mode)->replace('_', ' ')->headline() };
+    $isStaffCopy = in_array($cor['copy_context'] ?? null, [\App\Actions\Cor\BuildCorOutput::CopyRegistrar, \App\Actions\Cor\BuildCorOutput::CopyAccounting], true);
 @endphp
 <x-official-output-layout
     title="Certificate of Registration"
@@ -83,20 +84,26 @@
         </section>
     </div>
 
-    <section class="cor-sources" aria-label="Recorded authority and sources">
+    <section class="cor-sources" aria-label="{{ $isStaffCopy ? 'Recorded authority and sources' : 'Document details' }}">
         <dl>
             <div><dt>Document reference</dt><dd>COR-{{ $summary['enrollment_id'] }}-{{ $summary['cor_version'] }}</dd></div>
-            <div><dt>Recorded by</dt><dd>{{ $summary['issued_by'] }}</dd></div>
-            <div><dt>Recorded at</dt><dd>{{ $summary['issued_at'] ? \App\Support\DisplayDateTime::format(\Carbon\CarbonImmutable::parse($summary['issued_at']), 'M j, Y g:i A') : 'Not recorded' }}</dd></div>
+            @if ($isStaffCopy)
+                <div><dt>Recorded by</dt><dd>{{ $summary['issued_by'] }}</dd></div>
+            @endif
+            <div><dt>{{ $isStaffCopy ? 'Recorded at' : 'Issued at' }}</dt><dd>{{ $summary['issued_at'] ? \App\Support\DisplayDateTime::format(\Carbon\CarbonImmutable::parse($summary['issued_at']), 'M j, Y g:i A') : 'Not recorded' }}</dd></div>
             <div><dt>Curriculum record</dt><dd>{{ $summary['curriculum_version'] }}</dd></div>
-            <div><dt>Subject selection</dt><dd>{{ str($summary['selection_basis'])->headline() }}</dd></div>
+            @if ($isStaffCopy)
+                <div><dt>Subject selection</dt><dd>{{ str($summary['selection_basis'])->headline() }}</dd></div>
+            @endif
             <div><dt>Timetable source</dt><dd>{{ $summary['course_delivery_mix'] }}</dd></div>
-            <div><dt>Term Account</dt><dd>{{ $summary['term_account_reference'] }}</dd></div>
-            <div><dt>Clearance at issue</dt><dd>{{ $summary['payment_status'] }}</dd></div>
-            <div><dt>Assessment source</dt><dd>{{ $summary['assessment_reference'] }}</dd></div>
-            <div><dt>Basis</dt><dd>{{ str($summary['assessment_basis'])->headline() }}</dd></div>
-            <div><dt>Authority</dt><dd>{{ $summary['assessment_authority_reference'] }}</dd></div>
-            @if ($summary['assessment_authority_date'])<div><dt>Authority date</dt><dd>{{ \Carbon\CarbonImmutable::parse($summary['assessment_authority_date'])->format('M j, Y') }}</dd></div>@endif
+            @if ($isStaffCopy)
+                <div><dt>Term Account</dt><dd>{{ $summary['term_account_reference'] }}</dd></div>
+                <div><dt>Clearance at issue</dt><dd>{{ $summary['payment_status'] }}</dd></div>
+                <div><dt>Assessment source</dt><dd>{{ $summary['assessment_reference'] }}</dd></div>
+                <div><dt>Basis</dt><dd>{{ str($summary['assessment_basis'])->headline() }}</dd></div>
+                <div><dt>Authority</dt><dd>{{ $summary['assessment_authority_reference'] }}</dd></div>
+                @if ($summary['assessment_authority_date'])<div><dt>Authority date</dt><dd>{{ \Carbon\CarbonImmutable::parse($summary['assessment_authority_date'])->format('M j, Y') }}</dd></div>@endif
+            @endif
         </dl>
     </section>
     <x-slot:documentFooter>

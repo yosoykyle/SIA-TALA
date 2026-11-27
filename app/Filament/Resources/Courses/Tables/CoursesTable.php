@@ -461,7 +461,7 @@ class CoursesTable
             ->authorize(fn (): bool => self::canManageCurricula())
             ->visible(fn (): bool => self::canManageCurricula())
             ->modalHeading('Assign selected subjects to draft curricula')
-            ->modalDescription('Place the selected subjects into one or more open draft curricula. Subjects already present in a curriculum are safely skipped.')
+            ->modalDescription('Place the selected subjects into one or more open draft curricula. Published (Active and Retired) curricula are immutable and cannot be edited in place — duplicate an active curriculum into a new draft first. Subjects already present in a curriculum are safely skipped.')
             ->modalSubmitActionLabel('Assign to draft curricula')
             ->modalWidth(Width::TwoExtraLarge)
             ->stickyModalHeader()
@@ -475,8 +475,8 @@ class CoursesTable
                     ->live()
                     ->required()
                     ->helperText(fn (): string => self::editableDraftCurriculumOptions() === []
-                        ? 'No editable draft curricula exist yet. Create or duplicate a draft curriculum first.'
-                        : 'Only open, editable draft curricula can be updated.'),
+                        ? 'No editable draft curricula exist yet. Published (Active) curricula are immutable — copy an active curriculum into a new draft to add or edit subjects.'
+                        : 'Only open, editable draft curricula are listed. Published (Active and Retired) curricula are immutable — copy a curriculum into a new draft to modify its subjects.'),
                 Grid::make(['default' => 1, 'sm' => 3])
                     ->schema([
                         Select::make('year_level')

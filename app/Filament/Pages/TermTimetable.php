@@ -18,6 +18,7 @@ use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\ScheduleGenerationRuns\Schemas\PublishedScheduleRevisionForm;
 use App\Models\AdmissionCycle;
+use App\Models\CalendarEvent;
 use App\Models\Enrollment;
 use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\FacultyQualification;
@@ -754,11 +755,27 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                     (int) ($demand['scheduling_demand_id'] ?? 0) => isset($demand['section_id']) ? (int) $demand['section_id'] : null,
                 ]);
 
+            $capturedSameFaculty = collect($snapshot['scheduling_demands'] ?? [])
+                ->mapWithKeys(fn (array $demand): array => [
+                    (int) ($demand['scheduling_demand_id'] ?? 0) => array_key_exists('same_faculty_required', $demand)
+                        ? (bool) $demand['same_faculty_required']
+                        : null,
+                ]);
+
+            $capturedDeliveryGroupIds = collect($snapshot['scheduling_demands'] ?? [])
+                ->mapWithKeys(fn (array $demand): array => [
+                    (int) ($demand['scheduling_demand_id'] ?? 0) => isset($demand['section_delivery_group_id'])
+                        ? (int) $demand['section_delivery_group_id']
+                        : null,
+                ]);
+
             $missingDemandIds = collect($allMeetings)
                 ->map(fn (array $meeting): int => (int) ($meeting['schedulingDemandId'] ?? 0))
                 ->filter(fn (int $id): bool => $id > 0 && (
                     (int) $capturedCapacities->get($id, 0) <= 0
                     || (float) $capturedUnits->get($id, 0.0) <= 0.0
+                    || $capturedSameFaculty->get($id) === null
+                    || $capturedDeliveryGroupIds->get($id) === null
                 ))
                 ->unique()
                 ->values()
@@ -800,6 +817,18 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                             ? (int) $fallbackDemand->sectionDeliveryGroup->section_id
                             : null);
                 }
+
+                $capturedSame = $capturedSameFaculty->get($demandId);
+                $meeting['sameFacultyRequired'] = $capturedSame !== null
+                    ? (bool) $capturedSame
+                    : (bool) ($fallbackDemand?->same_faculty_required ?? false);
+
+                $capturedGroupId = $capturedDeliveryGroupIds->get($demandId);
+                $meeting['sectionDeliveryGroupId'] = $capturedGroupId !== null
+                    ? (int) $capturedGroupId
+                    : ($fallbackDemand?->section_delivery_group_id !== null
+                        ? (int) $fallbackDemand->section_delivery_group_id
+                        : null);
 
                 $units = (float) $capturedUnits->get($demandId, 0.0);
                 if ($units <= 0.0 && $fallbackDemand instanceof SchedulingDemand) {
@@ -1553,6 +1582,8 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         string $startsAt,
         ?int $roomId = null,
         ?int $facultyUserId = null,
+        bool $expandTeacherAvailability = false,
+        ?string $availabilityExpansionReason = null,
     ): void {
         $this->executeCandidateUpdate(
             rowId: $rowId,
@@ -1561,9 +1592,38 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
             roomId: $roomId,
             facultyUserId: $facultyUserId,
             preserveRoomAndFaculty: false,
-            successTitle: 'Meeting schedule updated',
-            successBody: 'The draft meeting assignment was updated and validated.',
+            successTitle: $expandTeacherAvailability
+                ? 'Meeting moved & teacher availability expanded'
+                : 'Meeting schedule updated',
+            successBody: $expandTeacherAvailability
+                ? 'The draft meeting was moved, the teacher\'s availability was expanded monotonically, and the teacher was notified.'
+                : 'The draft meeting assignment was updated and validated.',
             failureTitle: 'Cannot update meeting schedule',
+            expandTeacherAvailability: $expandTeacherAvailability,
+            availabilityExpansionReason: $availabilityExpansionReason,
+        );
+    }
+
+    public function moveAndExpandTeacherAvailability(
+        int $rowId,
+        int $dayOfWeek,
+        string $startsAt,
+        ?int $roomId = null,
+        ?int $facultyUserId = null,
+        string $reason = '',
+    ): void {
+        $this->executeCandidateUpdate(
+            rowId: $rowId,
+            dayOfWeek: $dayOfWeek,
+            startsAt: $startsAt,
+            roomId: $roomId,
+            facultyUserId: $facultyUserId,
+            preserveRoomAndFaculty: false,
+            successTitle: 'Meeting moved & teacher availability expanded',
+            successBody: 'The draft meeting was moved, the teacher\'s availability was expanded monotonically, and the teacher was notified.',
+            failureTitle: 'Cannot move meeting and expand availability',
+            expandTeacherAvailability: true,
+            availabilityExpansionReason: $reason,
         );
     }
 
@@ -1695,6 +1755,8 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         string $successTitle,
         string $successBody,
         string $failureTitle,
+        bool $expandTeacherAvailability = false,
+        ?string $availabilityExpansionReason = null,
     ): void {
         $actor = auth()->user();
         abort_unless($actor instanceof User && $actor->hasRole(User::StaffRoleRegistrar), 403);
@@ -1780,6 +1842,8 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                 $sectionId,
                 $oldDay,
                 $oldStart,
+                $expandTeacherAvailability,
+                $availabilityExpansionReason,
             ): ScheduleGenerationRun {
                 if ($pinCommitments !== []) {
                     SchedulingCommitment::query()
@@ -1801,8 +1865,12 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                         'starts_at' => $startsAtFormatted,
                         'ends_at' => $endsAtFormatted,
                     ],
-                    reason: 'Registrar interactive draft adjustment',
+                    reason: $expandTeacherAvailability && filled($availabilityExpansionReason)
+                        ? trim((string) $availabilityExpansionReason)
+                        : 'Registrar interactive draft adjustment',
                     authority: 'Registrar draft adjustment',
+                    expandTeacherAvailability: $expandTeacherAvailability,
+                    availabilityExpansionReason: $availabilityExpansionReason,
                 );
 
                 foreach ($pinCommitments as $commitmentPayload) {
@@ -1969,6 +2037,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         $qualifiedTeachersByCourse = [];
         $teacherAvailability = [];
         $teacherLoadLimits = [];
+        $calendarEventBlocks = [];
         $defaultMaxUnits = ($term instanceof Term && $term->default_max_units !== null)
             ? round((float) $term->default_max_units, 2)
             : null;
@@ -1996,6 +2065,8 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                 ->get()
                 ->unique('faculty_user_id');
 
+            $declarationsByFaculty = $declarations->keyBy('faculty_user_id');
+
             $cannotTeachFacultyIds = $declarations
                 ->filter(fn (FacultyAvailabilityDeclaration $declaration): bool => $declaration->effectiveMode() === FacultyAvailabilityDeclaration::ModeCannotTeach)
                 ->pluck('faculty_user_id')
@@ -2016,7 +2087,21 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                 ->map(fn (mixed $id): int => (int) $id)
                 ->all();
 
+            $zeroUnitLookup = array_fill_keys($zeroUnitOverrideFacultyIds, true);
             $excludedTeacherIds = array_fill_keys([...$cannotTeachFacultyIds, ...$zeroUnitOverrideFacultyIds], true);
+
+            $statusFromDeclaration = static function (?FacultyAvailabilityDeclaration $declaration): string {
+                if (! $declaration instanceof FacultyAvailabilityDeclaration) {
+                    return 'NoResponse';
+                }
+
+                return match ($declaration->effectiveMode()) {
+                    FacultyAvailabilityDeclaration::ModeWindows => 'ModeWindows',
+                    FacultyAvailabilityDeclaration::ModeAnyApproved => 'ModeAnyApproved',
+                    FacultyAvailabilityDeclaration::ModeCannotTeach => 'ModeCannotTeach',
+                    default => 'ModeLegacyUnavailability',
+                };
+            };
 
             $courseIds = collect($allMeetings)->pluck('courseId')->filter()->unique()->values()->all();
             $qualifications = FacultyQualification::query()
@@ -2031,9 +2116,12 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                 $code = (string) ($qualification->course?->code ?? '');
                 $faculty = $qualification->faculty;
                 if ($code !== '' && $faculty instanceof User && ! isset($excludedTeacherIds[(int) $faculty->id])) {
+                    $decl = $declarationsByFaculty->get((int) $faculty->id);
                     $qualifiedTeachersByCourse[$code][$faculty->id] = [
                         'id' => (int) $faculty->id,
                         'name' => (string) $faculty->name,
+                        'hasDeclaration' => $decl instanceof FacultyAvailabilityDeclaration,
+                        'availabilityStatus' => $statusFromDeclaration($decl),
                     ];
                     $allRelevantFacultyIds[(int) $faculty->id] = true;
                 }
@@ -2047,11 +2135,18 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                     $allRelevantFacultyIds[(int) $fId] = true;
                 }
                 if ($code !== '' && $fId !== null && $fName !== '' && $fName !== 'Faculty unassigned' && ! isset($excludedTeacherIds[(int) $fId])) {
+                    $decl = $declarationsByFaculty->get((int) $fId);
                     $qualifiedTeachersByCourse[$code][(int) $fId] ??= [
                         'id' => (int) $fId,
                         'name' => $fName,
+                        'hasDeclaration' => $decl instanceof FacultyAvailabilityDeclaration,
+                        'availabilityStatus' => $statusFromDeclaration($decl),
                     ];
                 }
+            }
+
+            foreach ($declarations as $declaration) {
+                $allRelevantFacultyIds[(int) $declaration->faculty_user_id] = true;
             }
 
             foreach ($activeLoadOverrides as $facultyId => $override) {
@@ -2073,16 +2168,94 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                 ->map(fn (array $teachers): array => collect($teachers)->sortBy('name')->values()->all())
                 ->all();
 
-            foreach ($declarations as $declaration) {
+            $activePackageForAvailability = TermCalendarPackage::query()
+                ->where('term_id', $term->id)
+                ->where('state', TermCalendarPackage::StateActive)
+                ->with('teachingGridRows')
+                ->first();
+
+            $breaksByDay = [];
+            if ($activePackageForAvailability instanceof TermCalendarPackage) {
+                foreach ($activePackageForAvailability->teachingGridRows as $gridRow) {
+                    $gDay = (int) $gridRow->day_of_week;
+                    foreach (is_array($gridRow->breaks) ? $gridRow->breaks : [] as $break) {
+                        if (! is_array($break)) {
+                            continue;
+                        }
+                        $bStart = FacultyAvailabilityDeclaration::clockToMinutes((string) ($break['starts_at'] ?? ''));
+                        $bEnd = FacultyAvailabilityDeclaration::clockToMinutes((string) ($break['ends_at'] ?? ''));
+                        if ($bStart !== null && $bEnd !== null && $bStart < $bEnd) {
+                            $breaksByDay[$gDay][] = ['start' => $bStart, 'end' => $bEnd];
+                        }
+                    }
+                }
+            }
+
+            $busyMeetingsByFacultyDay = [];
+            foreach ($allMeetings as $meeting) {
+                $fId = isset($meeting['facultyId']) && is_numeric($meeting['facultyId']) ? (int) $meeting['facultyId'] : 0;
+                $mDay = (int) ($meeting['day'] ?? 0);
+                $mStart = isset($meeting['startMinutes']) ? (int) $meeting['startMinutes'] : FacultyAvailabilityDeclaration::clockToMinutes((string) ($meeting['startsAt'] ?? ''));
+                $mEnd = isset($meeting['endMinutes']) ? (int) $meeting['endMinutes'] : FacultyAvailabilityDeclaration::clockToMinutes((string) ($meeting['endsAt'] ?? ''));
+                if ($fId > 0 && $mDay >= 1 && $mDay <= 7 && $mStart !== null && $mEnd !== null && $mStart < $mEnd) {
+                    $busyMeetingsByFacultyDay[$fId][$mDay][] = ['start' => $mStart, 'end' => $mEnd];
+                }
+            }
+
+            $dayShort = [1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 7 => 'Sun'];
+            $formatMinutesLabel = static function (int $startMin, int $endMin): string {
+                $fmt = static function (int $minutes): string {
+                    $hour = intdiv($minutes, 60);
+                    $minute = $minutes % 60;
+                    $meridiem = $hour >= 12 ? 'PM' : 'AM';
+                    $hour12 = $hour % 12;
+                    if ($hour12 === 0) {
+                        $hour12 = 12;
+                    }
+
+                    return sprintf('%d:%02d %s', $hour12, $minute, $meridiem);
+                };
+
+                return $fmt($startMin).'–'.$fmt($endMin);
+            };
+
+            foreach (array_keys($allRelevantFacultyIds) as $facultyId) {
+                /** @var FacultyAvailabilityDeclaration|null $declaration */
+                $declaration = $declarationsByFaculty->get($facultyId);
+
+                if (! $declaration instanceof FacultyAvailabilityDeclaration) {
+                    $teacherAvailability[$facultyId] = [
+                        'mode' => 'no_response',
+                        'status' => 'NoResponse',
+                        'hasDeclaration' => false,
+                        'canExpand' => false,
+                        'declaredSummary' => 'No response yet for this term',
+                        'windows' => [],
+                        'unavailability' => [],
+                        'freeWindowsByDay' => [],
+                        'freeSummary' => 'Record availability in Faculty & rooms first',
+                    ];
+
+                    continue;
+                }
+
                 $mode = $declaration->effectiveMode();
+                $status = $statusFromDeclaration($declaration);
                 $windows = collect($declaration->normalizedTeachingWindows())
-                    ->map(fn (array $w): array => [
-                        'day' => (int) $w['day_of_week'],
-                        'start' => (int) (FacultyAvailabilityDeclaration::clockToMinutes($w['start_time']) ?? 0),
-                        'end' => (int) (FacultyAvailabilityDeclaration::clockToMinutes($w['end_time']) ?? 0),
-                    ])
+                    ->map(function (array $w) use ($formatMinutesLabel): array {
+                        $startMin = (int) (FacultyAvailabilityDeclaration::clockToMinutes($w['start_time']) ?? 0);
+                        $endMin = (int) (FacultyAvailabilityDeclaration::clockToMinutes($w['end_time']) ?? 0);
+
+                        return [
+                            'day' => (int) $w['day_of_week'],
+                            'start' => $startMin,
+                            'end' => $endMin,
+                            'label' => $formatMinutesLabel($startMin, $endMin),
+                        ];
+                    })
                     ->values()
                     ->all();
+
                 $unavailability = collect(is_array($declaration->hard_unavailability) ? $declaration->hard_unavailability : [])
                     ->filter(fn (mixed $u): bool => is_array($u))
                     ->map(fn (array $u): array => [
@@ -2094,12 +2267,146 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                     ->values()
                     ->all();
 
-                $teacherAvailability[(int) $declaration->faculty_user_id] = [
+                $declaredSummary = match ($mode) {
+                    FacultyAvailabilityDeclaration::ModeCannotTeach => 'Cannot teach this term',
+                    FacultyAvailabilityDeclaration::ModeAnyApproved => 'Available any approved school hours',
+                    FacultyAvailabilityDeclaration::ModeWindows => collect($windows)
+                        ->map(fn (array $w): string => ($dayShort[$w['day']] ?? "Day {$w['day']}").' '.$w['label'])
+                        ->implode(', ') ?: 'No teaching windows declared',
+                    default => 'Available except '.collect($unavailability)
+                        ->map(fn (array $u): string => ($dayShort[$u['day']] ?? "Day {$u['day']}").' '.$formatMinutesLabel($u['start'], $u['end']))
+                        ->implode(', '),
+                };
+
+                $openByDay = [];
+                if ($mode === FacultyAvailabilityDeclaration::ModeWindows) {
+                    foreach ($windows as $w) {
+                        $openByDay[$w['day']][] = ['start' => $w['start'], 'end' => $w['end']];
+                    }
+                } elseif ($mode !== FacultyAvailabilityDeclaration::ModeCannotTeach) {
+                    foreach ($teachingGrid as $gDay => $gridIntervals) {
+                        foreach ($gridIntervals as $interval) {
+                            $openByDay[(int) $gDay][] = ['start' => (int) $interval['start'], 'end' => (int) $interval['end']];
+                        }
+                    }
+                }
+
+                $unavailByDay = [];
+                if ($mode === FacultyAvailabilityDeclaration::ModeLegacyUnavailability) {
+                    foreach ($unavailability as $u) {
+                        $unavailByDay[$u['day']][] = ['start' => $u['start'], 'end' => $u['end']];
+                    }
+                }
+
+                $freeWindowsByDay = [];
+                $freeSummaryParts = [];
+                ksort($openByDay);
+                foreach ($openByDay as $day => $intervals) {
+                    $blocked = array_merge(
+                        $breaksByDay[$day] ?? [],
+                        $unavailByDay[$day] ?? [],
+                        $busyMeetingsByFacultyDay[$facultyId][$day] ?? [],
+                    );
+                    $free = FacultyAvailabilityDeclaration::subtractIntervals(
+                        FacultyAvailabilityDeclaration::mergeIntervals($intervals),
+                        $blocked,
+                    );
+                    $dayFreeList = [];
+                    foreach ($free as $seg) {
+                        if (($seg['end'] - $seg['start']) < 30) {
+                            continue;
+                        }
+                        $lbl = $formatMinutesLabel($seg['start'], $seg['end']);
+                        $dayFreeList[] = [
+                            'start' => $seg['start'],
+                            'end' => $seg['end'],
+                            'label' => $lbl,
+                        ];
+                        $freeSummaryParts[] = ($dayShort[$day] ?? "Day {$day}").' '.$lbl;
+                    }
+                    if ($dayFreeList !== []) {
+                        $freeWindowsByDay[$day] = $dayFreeList;
+                    }
+                }
+
+                $freeSummary = $mode === FacultyAvailabilityDeclaration::ModeCannotTeach
+                    ? 'None'
+                    : ($freeSummaryParts === []
+                        ? 'No remaining free blocks inside declared hours'
+                        : (count($freeSummaryParts) > 6
+                            ? implode(', ', array_slice($freeSummaryParts, 0, 6)).' (+'.(count($freeSummaryParts) - 6).' more)'
+                            : implode(', ', $freeSummaryParts)));
+
+                $teacherAvailability[$facultyId] = [
                     'mode' => $mode,
+                    'status' => $status,
+                    'hasDeclaration' => true,
+                    'canExpand' => in_array($mode, [
+                        FacultyAvailabilityDeclaration::ModeWindows,
+                        FacultyAvailabilityDeclaration::ModeLegacyUnavailability,
+                    ], true) && ! isset($zeroUnitLookup[$facultyId]),
+                    'declaredSummary' => $declaredSummary,
                     'windows' => $windows,
                     'unavailability' => $unavailability,
+                    'freeWindowsByDay' => $freeWindowsByDay,
+                    'freeSummary' => $freeSummary,
                 ];
             }
+
+            $calendarEventBlocks = CalendarEvent::query()
+                ->where('term_id', $term->id)
+                ->where('state', CalendarEvent::StateActive)
+                ->where('blocks_scheduling', true)
+                ->whereIn('scope_type', [
+                    CalendarEvent::ScopeInstitution,
+                    CalendarEvent::ScopeRoom,
+                    CalendarEvent::ScopeFaculty,
+                ])
+                ->whereNotNull('day_of_week')
+                ->whereNotNull('starts_at')
+                ->whereNotNull('ends_at')
+                ->orderBy('day_of_week')
+                ->orderBy('starts_at')
+                ->get(['id', 'event_type', 'scope_type', 'room_id', 'faculty_user_id', 'day_of_week', 'starts_at', 'ends_at', 'authority'])
+                ->map(function (CalendarEvent $event) use ($formatMinutesLabel): ?array {
+                    $startStr = $event->starts_at instanceof \DateTimeInterface
+                        ? $event->starts_at->format('H:i')
+                        : substr((string) $event->starts_at, 0, 5);
+                    $endStr = $event->ends_at instanceof \DateTimeInterface
+                        ? $event->ends_at->format('H:i')
+                        : substr((string) $event->ends_at, 0, 5);
+                    $startMin = FacultyAvailabilityDeclaration::clockToMinutes($startStr);
+                    $endMin = FacultyAvailabilityDeclaration::clockToMinutes($endStr);
+                    if ($startMin === null || $endMin === null || $endMin <= $startMin) {
+                        return null;
+                    }
+
+                    $typeLabel = CalendarEvent::recurringBlockTypeOptions()[$event->event_type] ?? Str::headline((string) $event->event_type);
+                    $scopeLabel = match ($event->scope_type) {
+                        CalendarEvent::ScopeInstitution => 'School block',
+                        CalendarEvent::ScopeRoom => 'Room block',
+                        CalendarEvent::ScopeFaculty => 'Teacher calendar block',
+                        default => 'Calendar block',
+                    };
+                    $authority = trim((string) ($event->authority ?? ''));
+                    $label = $authority !== ''
+                        ? "{$scopeLabel}: {$typeLabel} ({$authority}) · {$formatMinutesLabel($startMin, $endMin)}"
+                        : "{$scopeLabel}: {$typeLabel} · {$formatMinutesLabel($startMin, $endMin)}";
+
+                    return [
+                        'id' => (int) $event->id,
+                        'scopeType' => (string) $event->scope_type,
+                        'roomId' => $event->room_id !== null ? (int) $event->room_id : null,
+                        'facultyId' => $event->faculty_user_id !== null ? (int) $event->faculty_user_id : null,
+                        'day' => (int) $event->day_of_week,
+                        'start' => $startMin,
+                        'end' => $endMin,
+                        'label' => $label,
+                    ];
+                })
+                ->filter()
+                ->values()
+                ->all();
         }
 
         $isTermClosed = $this->isTermClosed($term instanceof Term ? $term : null);
@@ -2132,6 +2439,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
             'qualifiedTeachersByCourse' => $qualifiedTeachersByCourse,
             'teacherAvailability' => $teacherAvailability,
             'teacherLoadLimits' => $teacherLoadLimits,
+            'calendarEventBlocks' => $calendarEventBlocks,
             'defaultMaxUnits' => $defaultMaxUnits,
             'sectionOptions' => $allSectionGroups,
             'facultyOptions' => collect($allMeetings)->pluck('faculty')->filter(fn (string $v): bool => $v !== '' && $v !== 'Faculty unassigned')->unique()->sort()->values()->all(),
@@ -2522,6 +2830,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                             PublishedScheduleRevisionForm::changes($run, $data),
                             $reason,
                             (string) ($data['authority_reference'] ?? ''),
+                            expandTeacherAvailability: (bool) ($data['expand_availability'] ?? false),
                         );
 
                     $latestVersion = PublishedTimetableVersion::query()

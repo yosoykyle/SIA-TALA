@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\StudentProfiles;
 
+use App\Actions\Academics\IrregularStudentReasons;
 use App\Actions\Academics\RecordAcademicDecision;
 use App\Actions\Academics\RecordExternalCompetencyResult;
 use App\Actions\Enrollment\EnrollmentAcademicContextResolver;
@@ -156,9 +157,31 @@ class StudentAcademicActions
         }
 
         $resolver = app(EnrollmentAcademicContextResolver::class);
-        $currentEnrollment = $resolver->currentEnrollmentForProfile($student)
-            ?? $student->enrollments()->latest('id')->first();
-        $defaultTermScope = $currentEnrollment?->term_id ? (string) $currentEnrollment->term_id : null;
+        $activeEnrollmentTermId = $resolver->currentEnrollmentForProfile($student)?->term_id;
+        $latestEnrollment = $student->enrollments()->with('term')->latest('id')->first();
+        $latestStartsOn = $latestEnrollment?->term?->starts_on?->toDateString();
+
+        $activeTerm = $termsQuery
+            ->where('state', Term::StateActive)
+            ->filter(fn (Term $term): bool => $latestStartsOn === null
+                || ($term->starts_on !== null && $term->starts_on->toDateString() >= $latestStartsOn))
+            ->sortByDesc('starts_on')
+            ->first();
+
+        $upcomingTerm = $termsQuery
+            ->where('state', Term::StateDraft)
+            ->filter(fn (Term $term): bool => $latestStartsOn === null
+                || ($term->starts_on !== null && $term->starts_on->toDateString() > $latestStartsOn))
+            ->sortBy('starts_on')
+            ->first();
+
+        $resolvedDefaultTermId = $activeEnrollmentTermId
+            ?? $activeTerm?->id
+            ?? $upcomingTerm?->id
+            ?? $termsQuery->firstWhere('state', Term::StateActive)?->id
+            ?? $termsQuery->where('state', Term::StateDraft)->sortBy('starts_on')->first()?->id
+            ?? $latestEnrollment?->term_id;
+        $defaultTermScope = $resolvedDefaultTermId !== null ? (string) $resolvedDefaultTermId : null;
 
         return Action::make('recordAcademicDecision')
             ->label('Record enrollment decision')
@@ -192,6 +215,7 @@ class StudentAcademicActions
                             SchemaView::make('filament.admin.student-profiles.decision-modal-context')
                                 ->viewData(fn (Get $get): array => [
                                     'student' => $student,
+                                    'review' => once(fn (): array => app(IrregularStudentReasons::class)->forStudent($student)),
                                     'effect' => $get('effect'),
                                     'termScope' => $get('term_id'),
                                     'startsOn' => $get('effective_from'),
@@ -216,6 +240,7 @@ class StudentAcademicActions
                                         ->options($termOptions)
                                         ->placeholder('Select term or student-wide')
                                         ->default($defaultTermScope)
+                                        ->helperText('Defaults to the active or upcoming term so term-scoped decisions clear cleanly next term. Choose All terms only when student-wide.')
                                         ->required()
                                         ->live(),
 

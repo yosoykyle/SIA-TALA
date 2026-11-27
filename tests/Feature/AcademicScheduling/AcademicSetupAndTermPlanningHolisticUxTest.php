@@ -1009,7 +1009,7 @@ final class AcademicSetupAndTermPlanningHolisticUxTest extends TestCase
             ->assertSee('0 Second Semester subjects in curriculum')
             ->assertSee('No Second Semester curriculum subjects are configured for these sections yet.')
             ->assertSee('Open Curricula')
-            ->assertSee('Classes tab')
+            ->assertSee('Open classes')
             ->assertDontSee('Review and load curriculum classes next.')
             ->assertTableActionHidden('loadCohortCurriculum', $emptyCohort)
             ->assertTableActionVisible('openCohortCurriculum', $emptyCohort)

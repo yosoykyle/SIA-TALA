@@ -546,10 +546,10 @@ final class ReadyTermPlanningProjection
             $advisories[] = $this->blocker(
                 'faculty_availability_grid_review_needed',
                 'Faculty & rooms',
-                'Faculty',
+                'Registrar',
                 'Saved teaching times for '.implode(', ', $reviewNames).' fall outside the updated school teaching hours or overlap a break. Outside hours are excluded.',
-                'Ask the affected faculty to review and update their times on My Availability if needed.',
-                'Update teaching times on My Availability if more hours are needed.',
+                'Use Edit availability in Faculty & rooms if more hours are needed, or ask the teacher to review My Availability if open.',
+                'Update teaching times via Edit availability in Faculty & rooms if more hours are needed.',
             );
         }
 
@@ -633,8 +633,8 @@ final class ReadyTermPlanningProjection
                 'Faculty & rooms',
                 'Registrar',
                 "Class {$section->code} ({$course->code}) is assigned to {$teacherName}, who declared Unavailable this term.",
-                "Reassign {$section->code} or ask {$teacherName} to update availability on My Availability.",
-                "Remove the fixed teacher assignment on {$section->code} or ask {$teacherName} to update their availability.",
+                "Reassign {$section->code} or update {$teacherName}'s availability using Edit availability in Faculty & rooms.",
+                "Remove the fixed teacher assignment on {$section->code} or update {$teacherName}'s availability via Edit availability in Faculty & rooms.",
             );
         }
 
@@ -643,10 +643,10 @@ final class ReadyTermPlanningProjection
             return $this->blocker(
                 'fixed_faculty_no_usable_time',
                 'Faculty & rooms',
-                'Faculty',
+                'Registrar',
                 "Class {$section->code} ({$course->code}) requires {$teacherName}, whose availability leaves no usable {$durationMinutes}-minute window inside school teaching hours.",
-                "Ask {$teacherName} to expand available times on My Availability or adjust the fixed teacher assignment.",
-                "Update {$teacherName}'s availability on My Availability or change the fixed teacher assignment for {$section->code}.",
+                "Use Edit availability in Faculty & rooms to expand {$teacherName}'s hours, or adjust the fixed teacher assignment.",
+                "Update {$teacherName}'s availability via Edit availability in Faculty & rooms or change the fixed teacher assignment for {$section->code}.",
             );
         }
 
@@ -841,10 +841,10 @@ final class ReadyTermPlanningProjection
                     $blockers[] = $this->blocker(
                         'fixed_faculty_no_usable_time',
                         'Faculty & rooms',
-                        'Faculty',
+                        'Registrar',
                         "Class {$section->code} ({$course->code}) requires {$teacherName} across all linked components, whose availability cannot fit all required meetings in school teaching hours.",
-                        "Ask {$teacherName} to expand available times on My Availability or adjust the fixed teacher assignment.",
-                        "Update {$teacherName}'s availability on My Availability or remove the fixed teacher assignment for {$section->code}.",
+                        "Use Edit availability in Faculty & rooms to expand {$teacherName}'s hours, or adjust the fixed teacher assignment.",
+                        "Update {$teacherName}'s availability via Edit availability in Faculty & rooms or remove the fixed teacher assignment for {$section->code}.",
                     );
                 }
             }

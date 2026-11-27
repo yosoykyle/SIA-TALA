@@ -98,7 +98,7 @@
         @else
             <div class="tala-overview-note" role="note" aria-label="Academic years overview">
                 <x-filament::icon icon="heroicon-o-information-circle" class="tala-overview-note__icon" aria-hidden="true" />
-                <p>Select an academic year to manage its terms, calendars, sections &amp; classes, faculty &amp; rooms, and timetable. A draft academic year activates automatically when its first term activates.</p>
+                <p>Select an academic year to manage its terms, calendars, sections &amp; classes, faculty &amp; rooms, and timetable. Activating a draft year's first term activates that academic year.</p>
             </div>
         @endif
 

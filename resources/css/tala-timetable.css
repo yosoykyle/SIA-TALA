@@ -240,10 +240,10 @@
     justify-content:center;
     padding:.06rem .35rem;
     border-radius:.25rem;
-    font-size:.65rem;
+    font-size:.75rem;
     font-weight:700;
     letter-spacing:.03em;
-    line-height:1.3;
+    line-height:1.25;
     text-transform:uppercase;
     white-space:nowrap;
 }
@@ -385,7 +385,7 @@
     white-space:nowrap;
     padding:.125rem .5rem;
     border-radius:999px;
-    font-size:.725rem;
+    font-size:.75rem;
     font-weight:600;
     line-height:1.25;
     pointer-events:none;
@@ -1225,7 +1225,7 @@
 }
 .fi-body .tala-timetable-studio .tala-studio-canvas {
     overflow: visible;
-    overscroll-behavior: auto;
+    overscroll-behavior: contain;
 }
 .fi-body .tala-timetable-studio .tala-timetable {
     --timetable-slot-height: 2.75rem;
@@ -1281,7 +1281,7 @@
 }
 .fi-body .tala-timetable-studio .tala-timetable-axis-body > span {
     inset-inline-end: .35rem;
-    font-size: .6875rem;
+    font-size: .75rem;
     white-space: nowrap;
 }
 .fi-body .tala-timetable-studio .tala-timetable-meeting {
@@ -1346,7 +1346,7 @@
     display: grid;
     gap: .15rem;
 }
-.tala-timetable-prerequisites__head h3 {
+.tala-timetable-prerequisites__head :is(h2, h3) {
     margin: 0;
     font-size: .9375rem;
     font-weight: 600;
@@ -2133,13 +2133,13 @@
 }
 .tala-load-guard--compact .tala-load-guard__badge {
     padding: .1rem .45rem;
-    font-size: .7rem;
+    font-size: .75rem;
 }
 .tala-load-guard--compact .tala-load-guard__track {
     block-size: .35rem;
 }
 .tala-load-guard--compact .tala-load-guard__alert {
-    font-size: .725rem;
+    font-size: .75rem;
 }
 @media (forced-colors: active) {
     .tala-load-guard__track {
@@ -2358,7 +2358,7 @@
     background: color-mix(in srgb, var(--tala-surface) 82%, transparent);
     color: var(--tala-muted);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 0.725rem;
+    font-size: 0.75rem;
     overflow-wrap: anywhere;
 }
 @media (forced-colors: active) {
@@ -2428,7 +2428,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-block-size: 1.875rem;
+    min-block-size: 2.5rem;
     padding: 0.25rem 0.65rem;
     border: 1px solid transparent;
     border-radius: calc(var(--tala-card-radius, 0.625rem) - 0.175rem);
@@ -2439,6 +2439,11 @@
     line-height: 1.25;
     cursor: pointer;
     transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+}
+@media (pointer: coarse) {
+    .tala-timetable-day-pill {
+        min-block-size: 2.75rem;
+    }
 }
 @media (hover: hover) {
     .tala-timetable-day-pill:hover {
@@ -2924,10 +2929,179 @@ button.tala-timetable-master-meeting:focus-visible {
     }
 }
 
-/* === Draft / In-Page Timetable Print Styles (Weekly grid & List view) === */
-.tala-timetable-print-header,
-.tala-print-week-columns {
+/* Accessible skip-to-inspector link & secondary filter disclosure */
+.tala-inspector-skip-btn {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+}
+.tala-inspector-skip-btn:focus,
+.tala-inspector-skip-btn:focus-visible {
+    position: relative;
+    inline-size: auto;
+    block-size: auto;
+    min-block-size: 2.5rem;
+    margin: 0 0 0.5rem;
+    padding: 0.375rem 0.75rem;
+    overflow: visible;
+    clip-path: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    border: 1px solid var(--tala-selected-edge);
+    border-radius: var(--tala-card-radius, 0.5rem);
+    background: var(--tala-brand-tint);
+    color: var(--tala-on-brand-tint);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.tala-rail-filters-disclosure {
+    border-top: 1px solid var(--tala-edge);
+    padding-top: 0.5rem;
+}
+.tala-rail-filters-disclosure__summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    min-block-size: 2.5rem;
+    padding: 0.25rem 0.125rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--tala-text);
+    cursor: pointer;
+    list-style: none;
+}
+.tala-rail-filters-disclosure__summary::-webkit-details-marker {
     display: none;
+}
+.tala-rail-filters-disclosure__meta {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--tala-muted);
+    font-variant-numeric: tabular-nums;
+}
+.tala-rail-filters-disclosure__body {
+    display: grid;
+    gap: 0.625rem;
+    padding-top: 0.375rem;
+}
+.tala-availability-summary {
+    display: grid;
+    gap: 0.25rem;
+    margin-top: 0.375rem;
+    padding: 0.5rem 0.625rem;
+    border: 1px solid var(--tala-edge);
+    border-radius: var(--tala-card-radius, 0.5rem);
+    background: var(--tala-surface-sunken);
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: var(--tala-muted);
+}
+.tala-availability-summary__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.375rem;
+}
+.tala-availability-summary__title {
+    font-weight: 600;
+    color: var(--tala-text);
+}
+.tala-availability-summary__line {
+    margin: 0;
+    color: var(--tala-muted);
+    overflow-wrap: anywhere;
+}
+.tala-availability-summary__line strong {
+    color: var(--tala-text);
+    font-weight: 600;
+}
+.tala-availability-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.0625rem 0.4375rem;
+    border-radius: 999px;
+    border: 1px solid var(--tala-edge);
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.25;
+    white-space: nowrap;
+}
+.tala-availability-badge.is-ready {
+    background: var(--tala-brand-tint);
+    border-color: var(--tala-selected-edge);
+    color: var(--tala-on-brand-tint);
+}
+.tala-availability-badge.is-no-response,
+.tala-availability-badge.is-blocked {
+    background: var(--tala-status-warning-bg);
+    border-color: var(--tala-status-warning-border);
+    color: var(--tala-status-warning-fg);
+}
+.tala-availability-expand-panel {
+    display: grid;
+    gap: 0.5rem;
+    margin-top: 0.375rem;
+    padding: 0.6875rem 0.75rem;
+    border: 1px solid var(--tala-status-warning-border);
+    border-radius: var(--tala-card-radius, 0.5rem);
+    background: var(--tala-status-warning-bg);
+    color: var(--tala-text);
+}
+.tala-availability-expand-panel__title {
+    margin: 0;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: var(--tala-status-warning-fg);
+}
+.tala-availability-expand-panel__copy {
+    margin: 0;
+    font-size: 0.75rem;
+    line-height: 1.45;
+    color: var(--tala-text);
+}
+.tala-availability-expand-panel__label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--tala-text);
+}
+.tala-availability-expand-panel__textarea {
+    inline-size: 100%;
+    min-block-size: 3.5rem;
+    padding: 0.4375rem 0.5625rem;
+    border: 1px solid var(--tala-edge-strong, var(--tala-edge));
+    border-radius: 0.375rem;
+    background: var(--tala-surface);
+    color: var(--tala-text);
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    resize: vertical;
+}
+.tala-availability-expand-panel__textarea:focus-visible {
+    outline: 2px solid var(--tala-focus-ring);
+    outline-offset: 2px;
+}
+@media (pointer: coarse) {
+    .tala-rail-filters-disclosure__summary,
+    .tala-inspector-skip-btn:focus-visible {
+        min-block-size: 2.75rem;
+    }
+}
+
+/* === Draft / In-Page Timetable Print Styles (Weekly grid & List view) === */
+@media screen {
+    .tala-timetable-print-header,
+    .tala-print-week-columns {
+        display: none;
+    }
 }
 
 @media print {
@@ -3002,13 +3176,39 @@ button.tala-timetable-master-meeting:focus-visible {
         padding-block-end: 8px;
         border-block-end: 2px solid #1f5f2c;
     }
+    .tala-timetable-print-header__title-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px 10px;
+    }
+    .tala-timetable-print-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 7px;
+        border-radius: 4px;
+        border: 1.5px solid #18181b;
+        background: #f4f4f5;
+        color: #18181b;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.05em;
+        line-height: 1.2;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+    .tala-timetable-print-badge.is-draft {
+        border-color: #991b1b;
+        background: #fef2f2;
+        color: #991b1b;
+    }
     .tala-timetable-print-header__inst {
         margin: 0;
-        font-size: 9.5px;
+        font-size: 10px;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        color: #52525b;
+        color: #3f3f46;
     }
     .tala-timetable-print-header h2 {
         margin: 2px 0 0;
@@ -3021,7 +3221,7 @@ button.tala-timetable-master-meeting:focus-visible {
         flex-wrap: wrap;
         gap: 6px 14px;
         font-size: 10px;
-        color: #3f3f46;
+        color: #27272a;
         font-variant-numeric: tabular-nums;
     }
     .fi-body .tala-timetable-studio .tala-studio-canvas.is-week .tala-timetable-day-heading,

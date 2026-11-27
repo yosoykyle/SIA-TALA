@@ -18,6 +18,7 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rules\Unique;
+use Illuminate\Validation\ValidationException;
 
 class TermForm
 {
@@ -36,7 +37,7 @@ class TermForm
                         ->disabled(fn (?Term $record): bool => $record?->hasActivatedCalendar() ?? false)
                         ->validatedWhenNotDehydrated(false)
                         ->options(fn (?Term $record): array => AcademicYear::query()
-                            ->when($record === null, fn ($query) => $query->where('state', '!=', AcademicYear::StateClosed))
+                            ->when($record === null, fn ($query) => $query->operational()->whereNotIn('state', [AcademicYear::StateClosed, AcademicYear::StateArchived]))
                             ->orderByDesc('starts_on')
                             ->get()
                             ->mapWithKeys(fn (AcademicYear $academicYear): array => [$academicYear->id => $academicYear->displayLabel()])
@@ -47,7 +48,21 @@ class TermForm
                         ->default(fn (): ?int => Term::query()->find(request()->integer('termId'))?->academic_year_id)
                         ->createOptionAction(fn (Action $action): Action => $action->label('Add academic year')->modalHeading('Add academic year')->modalSubmitActionLabel('Create academic year'))
                         ->createOptionForm([
-                            TextInput::make('label')->label('Academic year')->required()->maxLength(255)->unique('academic_years', 'label', ignoreRecord: false),
+                            TextInput::make('label')
+                                ->label('Academic year')
+                                ->required()
+                                ->maxLength(255)
+                                ->unique('academic_years', 'label', ignoreRecord: false)
+                                ->rules([
+                                    fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
+                                        if (blank($value)) {
+                                            return;
+                                        }
+                                        if (($error = AcademicYear::duplicateLabelError((string) $value)) !== null) {
+                                            $fail($error);
+                                        }
+                                    },
+                                ]),
                             Grid::make(['default' => 1, 'sm' => 2])
                                 ->schema([
                                     DatePicker::make('starts_on')
@@ -62,13 +77,46 @@ class TermForm
                                         ->displayFormat('M j, Y')
                                         ->suffixIcon(Heroicon::OutlinedCalendar)
                                         ->required()
-                                        ->after('starts_on'),
+                                        ->after('starts_on')
+                                        ->rules([
+                                            fn (Get $get): Closure => function (string $attribute, mixed $value, Closure $fail) use ($get): void {
+                                                $startsOn = $get('starts_on');
+                                                if (blank($startsOn) || blank($value)) {
+                                                    return;
+                                                }
+                                                if (($error = AcademicYear::overlappingDateError((string) $startsOn, (string) $value)) !== null) {
+                                                    $fail($error);
+                                                }
+                                                if (($pastError = AcademicYear::pastOperationalEndDateError((string) $value, true)) !== null) {
+                                                    $fail($pastError);
+                                                }
+                                            },
+                                        ]),
                                 ]),
                         ])
                         ->createOptionUsing(function (array $data): int {
                             Gate::authorize('create', AcademicYear::class);
 
-                            return (int) AcademicYear::query()->create([...$data, 'state' => AcademicYear::StateDraft])->id;
+                            $label = trim((string) $data['label']);
+                            $startsOn = (string) $data['starts_on'];
+                            $endsOn = (string) $data['ends_on'];
+
+                            if (($duplicateError = AcademicYear::duplicateLabelError($label)) !== null) {
+                                throw ValidationException::withMessages(['label' => $duplicateError]);
+                            }
+                            if (($overlapError = AcademicYear::overlappingDateError($startsOn, $endsOn)) !== null) {
+                                throw ValidationException::withMessages(['ends_on' => $overlapError]);
+                            }
+                            if (($pastError = AcademicYear::pastOperationalEndDateError($endsOn, true)) !== null) {
+                                throw ValidationException::withMessages(['ends_on' => $pastError]);
+                            }
+
+                            return (int) AcademicYear::query()->create([
+                                ...$data,
+                                'label' => $label,
+                                'state' => AcademicYear::StateDraft,
+                                'is_operational' => true,
+                            ])->id;
                         })
                         ->required(),
                     Select::make('type')
@@ -113,7 +161,18 @@ class TermForm
                                 ->validatedWhenNotDehydrated(false)
                                 ->required()
                                 ->after('starts_on')
-                                ->rules([self::academicYearBoundRule('end')]),
+                                ->rules([
+                                    self::academicYearBoundRule('end'),
+                                    fn (?Term $record): Closure => function (string $attribute, mixed $value, Closure $fail) use ($record): void {
+                                        if ($record !== null || blank($value)) {
+                                            return;
+                                        }
+                                        $today = CarbonImmutable::today(config('app.display_timezone', 'Asia/Manila'))->startOfDay();
+                                        if (CarbonImmutable::parse((string) $value)->startOfDay()->lt($today)) {
+                                            $fail('New operational terms cannot end in the past (before '.$today->format('M j, Y').'). In-progress terms whose start date is earlier are still allowed.');
+                                        }
+                                    },
+                                ]),
                         ]),
                 ])
                 ->columns(2)
