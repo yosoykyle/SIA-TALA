@@ -17,6 +17,7 @@ use App\Models\CourseRequirement;
 use App\Models\ExternalCompetencyRequirement;
 use App\Models\ExternalCompetencyResult;
 use App\Models\OperationalEvent;
+use App\Models\PriorAcademicCredit;
 use App\Models\StudentLifecycleChange;
 use App\Models\StudentProfile;
 use App\Models\User;
@@ -56,6 +57,14 @@ class Academics extends Page
     public function mount(): void
     {
         $student = $this->actor()->studentProfile;
+        if ($student instanceof StudentProfile
+            && ! request()->query->has('view')
+            && $this->academicView === 'current'
+            && app(CurrentOfficialEnrollmentResolver::class)->forProfile($student) === null
+            && $student->priorAcademicCredits()->active()->exists()) {
+            $this->academicView = $student->curriculum_version_id !== null ? 'plan' : 'record';
+        }
+
         if ($this->academicView !== 'record' || $this->change === null || ! $student instanceof StudentProfile) {
             return;
         }
@@ -251,6 +260,7 @@ class Academics extends Page
         return [
             'student' => $student,
             'studyContext' => app(StudentStudyContext::class)->forStudent($this->actor()),
+            'hasPriorCredits' => $results->contains(fn (array $result): bool => ($result['prior_credit'] ?? null) instanceof PriorAcademicCredit),
             'results' => $results,
             'recordTerms' => $terms,
             'recordPeriods' => $recordPeriods,

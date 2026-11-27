@@ -77,7 +77,17 @@
         <section class="registrar-start-panel tala-task-surface" aria-labelledby="registrar-start-heading">
             <h2 id="registrar-start-heading">Start enrollment</h2>
             <p>Choose who is enrolling.</p>
-            <div class="registrar-start-actions">{{ $continuingAction }} {{ $shiftProgramAction }} {{ $lateContinuingAction }}</div>
+            <div class="registrar-start-actions">
+                {{ $continuingAction }} {{ $shiftProgramAction }} {{ $lateContinuingAction }}
+                <x-filament::button
+                    tag="a"
+                    :href="\App\Filament\Resources\StudentProfiles\StudentProfileResource::getUrl('import')"
+                    color="gray"
+                    icon="heroicon-o-arrow-up-tray"
+                >
+                    Import continuing students
+                </x-filament::button>
+            </div>
         </section>
         <section class="registrar-progress-panel tala-task-surface" aria-labelledby="registrar-progress-heading">
             <header class="registrar-progress-panel__header">

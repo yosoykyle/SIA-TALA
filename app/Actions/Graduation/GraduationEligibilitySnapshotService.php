@@ -4,6 +4,7 @@ namespace App\Actions\Graduation;
 
 use App\Actions\StudentLifecycle\HoldEvaluationService;
 use App\Models\CourseEnrollment;
+use App\Models\CourseRequirement;
 use App\Models\CurriculumEntry;
 use App\Models\EnrollmentException;
 use App\Models\GradeRosterRow;
@@ -105,6 +106,7 @@ class GraduationEligibilitySnapshotService
         $currentEnrollments = $this->currentEnrollments($profile);
         $credits = $this->acceptedShiftCredits($profile);
         $exceptions = $this->activeGraduationExceptions($profile);
+        $equivalentCourseIdsByCourseId = $this->equivalentCourseIdsByCourseId($entries);
         $blockingHolds = $this->holds->activeBlockingHolds($profile, [
             Hold::BlockingGraduationEligibility,
             Hold::BlockingClearance,
@@ -126,8 +128,10 @@ class GraduationEligibilitySnapshotService
         foreach ($entries as $entry) {
             $sourceReferences[] = $this->reference('curriculum_entry', (int) $entry->id, $entry->courseSpecification?->course?->code);
             $courseId = (int) $entry->courseSpecification->course_id;
-            $row = $academicRows->get($courseId);
-            $priorCredit = $priorCredits->get($courseId);
+            $matchingCourseIds = $equivalentCourseIdsByCourseId[$courseId] ?? [$courseId];
+            $row = $this->resolveMatchingAcademicRow($matchingCourseIds, $academicRows);
+            $priorCredit = $this->resolveMatchingPriorCredit($matchingCourseIds, $priorCredits);
+            $currentEnrollment = $this->resolveMatchingCurrentEnrollment($matchingCourseIds, $currentEnrollments);
             $credit = $credits->get((int) $entry->id);
             $exception = $exceptions->first(fn (EnrollmentException $item): bool => $item->original_rule === 'GRADUATION:'.$entry->id
                 || $item->scope_key === 'graduation:'.$entry->id
@@ -185,10 +189,11 @@ class GraduationEligibilitySnapshotService
             if ($priorCredit instanceof PriorAcademicCredit && $priorCredit->isPassing()) {
                 $priorSource = ['type' => 'prior_academic_credit', 'id' => (int) $priorCredit->id];
                 $priorCode = $priorCredit->effectiveResultCode();
-                $priorNumeric = is_numeric($priorCode) ? $priorCode : null;
+                $isExternal = $priorCredit->isExternalTransfer();
+                $priorNumeric = ! $isExternal && is_numeric($priorCode) ? $priorCode : null;
                 $acceptedCredits[] = [
                     ...$fact,
-                    'type' => 'prior_academic_credit',
+                    'type' => $isExternal ? 'external_transfer_credit' : 'prior_academic_credit',
                     'gwa_treatment' => $priorNumeric === null ? 'excluded' : 'included',
                     'numeric_grade' => $priorNumeric,
                     'source' => $priorSource,
@@ -215,8 +220,8 @@ class GraduationEligibilitySnapshotService
                     GradeRosterRow::CategoryWithdrawn => $withdrawn[] = [...$fact, 'source' => ['type' => 'grade_roster_row', 'id' => (int) $row->id]],
                     default => $missing[] = $fact,
                 };
-            } elseif ($currentEnrollments->has($courseId)) {
-                $courseEnrollment = $currentEnrollments->get($courseId);
+            } elseif ($currentEnrollment instanceof CourseEnrollment) {
+                $courseEnrollment = $currentEnrollment;
                 $current[] = [
                     ...$fact,
                     'finalized' => $this->isFinalizedEnrollment($courseEnrollment),
@@ -397,6 +402,116 @@ class GraduationEligibilitySnapshotService
             ->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', now()))
             ->get()
             ->toBase();
+    }
+
+    /**
+     * @param  Collection<int, CurriculumEntry>  $entries
+     * @return array<int, list<int>>
+     */
+    private function equivalentCourseIdsByCourseId(Collection $entries): array
+    {
+        $courseIds = $entries
+            ->pluck('courseSpecification.course_id')
+            ->filter()
+            ->map(fn (mixed $id): int => (int) $id)
+            ->filter(fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values();
+
+        if ($courseIds->isEmpty()) {
+            return [];
+        }
+
+        $map = [];
+        foreach ($courseIds as $courseId) {
+            $map[$courseId] = [$courseId];
+        }
+
+        $equivalencies = CourseRequirement::query()
+            ->join('course_specifications', 'course_specifications.id', '=', 'course_requirements.course_specification_id')
+            ->where('course_requirements.state', CourseRequirement::StateActive)
+            ->where('course_requirements.rule_type', CourseRequirement::TypeEquivalency)
+            ->where(function ($query) use ($courseIds): void {
+                $query->whereIn('course_specifications.course_id', $courseIds)
+                    ->orWhereIn('course_requirements.related_course_id', $courseIds);
+            })
+            ->get([
+                'course_specifications.course_id as source_course_id',
+                'course_requirements.related_course_id as related_course_id',
+            ]);
+
+        foreach ($equivalencies as $row) {
+            $sourceId = (int) ($row->source_course_id ?? 0);
+            $relatedId = (int) ($row->related_course_id ?? 0);
+            if ($sourceId <= 0 || $relatedId <= 0) {
+                continue;
+            }
+
+            if (isset($map[$sourceId]) && ! in_array($relatedId, $map[$sourceId], true)) {
+                $map[$sourceId][] = $relatedId;
+            }
+
+            if (isset($map[$relatedId]) && ! in_array($sourceId, $map[$relatedId], true)) {
+                $map[$relatedId][] = $sourceId;
+            }
+        }
+
+        return $map;
+    }
+
+    /**
+     * @param  list<int>  $matchingCourseIds
+     * @param  Collection<int, GradeRosterRow>  $academicRows
+     */
+    private function resolveMatchingAcademicRow(array $matchingCourseIds, Collection $academicRows): ?GradeRosterRow
+    {
+        $candidates = collect($matchingCourseIds)
+            ->map(fn (int $id): ?GradeRosterRow => $academicRows->get($id))
+            ->filter(fn (?GradeRosterRow $row): bool => $row instanceof GradeRosterRow)
+            ->values();
+
+        if ($candidates->isEmpty()) {
+            return null;
+        }
+
+        return $candidates->first(fn (GradeRosterRow $row): bool => $row->current_outcome_code === 'TC'
+            || ($row->released_at !== null && $row->current_outcome_category === GradeRosterRow::CategoryPassing && is_numeric($row->current_outcome_code)))
+            ?? $candidates->first();
+    }
+
+    /**
+     * @param  list<int>  $matchingCourseIds
+     * @param  Collection<int, PriorAcademicCredit>  $priorCredits
+     */
+    private function resolveMatchingPriorCredit(array $matchingCourseIds, Collection $priorCredits): ?PriorAcademicCredit
+    {
+        $candidates = collect($matchingCourseIds)
+            ->map(fn (int $id): ?PriorAcademicCredit => $priorCredits->get($id))
+            ->filter(fn (?PriorAcademicCredit $credit): bool => $credit instanceof PriorAcademicCredit)
+            ->values();
+
+        if ($candidates->isEmpty()) {
+            return null;
+        }
+
+        return $candidates->first(fn (PriorAcademicCredit $credit): bool => $credit->isPassing())
+            ?? $candidates->first();
+    }
+
+    /**
+     * @param  list<int>  $matchingCourseIds
+     * @param  Collection<int, CourseEnrollment>  $currentEnrollments
+     */
+    private function resolveMatchingCurrentEnrollment(array $matchingCourseIds, Collection $currentEnrollments): ?CourseEnrollment
+    {
+        foreach ($matchingCourseIds as $courseId) {
+            $enrollment = $currentEnrollments->get($courseId);
+            if ($enrollment instanceof CourseEnrollment) {
+                return $enrollment;
+            }
+        }
+
+        return null;
     }
 
     /** @return array<string, mixed> */

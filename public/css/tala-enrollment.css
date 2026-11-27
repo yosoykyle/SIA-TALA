@@ -433,6 +433,40 @@
 .registrar-evaluation-task .registrar-case-task-actions{margin-block-start:1.25rem;}
 .registrar-preparation-next{border-block-start:1px solid var(--tala-edge);margin-block-start:1.5rem;padding-block-start:1.25rem;}
 .registrar-preparation-next h3{font-size:1rem;font-weight:600;}
+.registrar-auto-preparation-reason{margin-block-start:1.25rem;padding:var(--tala-card-gap);border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius,.75rem);background:var(--tala-surface-sunken);}
+.registrar-auto-preparation-reason.tala-warning-banner{border-color:var(--tala-status-warning-border);background:var(--tala-status-warning-bg);}
+.registrar-auto-preparation-reason h3{font-size:.875rem;font-weight:600;line-height:1.4;}
+.registrar-requirements .registrar-auto-preparation-reason p{margin-block-start:.25rem;color:var(--tala-text);}
+.registrar-auto-preparation>.registrar-case-meta{margin-block-start:1rem;}
+@media(min-width:40.0625rem){.registrar-auto-preparation .registrar-case-task-actions .fi-btn{inline-size:auto;margin-block-start:0;}}
+.registrar-suggested-summary{display:flex;flex-wrap:wrap;gap:var(--tala-card-gap) calc(var(--tala-card-gap)*2);margin-block-start:1.25rem;padding:var(--tala-card-gap);border-radius:calc(var(--tala-card-radius,.75rem)/2);background:var(--tala-surface-sunken);}
+.registrar-suggested-summary dt{font-size:var(--tala-type-caption,.75rem);color:var(--tala-muted);}
+.registrar-suggested-summary dd{font-size:1rem;font-weight:600;font-variant-numeric:tabular-nums;}
+.registrar-suggested-summary dd span{font-weight:400;color:var(--tala-muted);}
+.registrar-suggested-list{list-style:none;margin:1rem 0 0;padding:0;}
+.registrar-suggested-list>li{padding-block:.875rem;border-block-start:1px solid var(--tala-edge);}
+.registrar-suggested-list>li:first-child{border-block-start:0;padding-block-start:0;}
+.registrar-requirements .registrar-suggested-subject{margin:0;font-size:1rem;line-height:1.5;color:var(--tala-text);}
+.registrar-suggested-subject strong{font-weight:600;margin-inline-end:.375rem;}
+.registrar-requirements .registrar-suggested-class{margin-block-start:.25rem;font-size:.875rem;line-height:1.6;}
+.registrar-suggested-left-out{margin-block-start:1rem;border:1px solid var(--tala-edge);border-radius:calc(var(--tala-card-radius,.75rem)/2);}
+.registrar-suggested-left-out>summary{display:flex;align-items:center;gap:.5rem;padding:.75rem var(--tala-card-gap);cursor:pointer;font-size:.875rem;font-weight:600;list-style:none;}
+.registrar-suggested-left-out>summary::-webkit-details-marker{display:none;}
+.registrar-suggested-left-out>summary::before{content:"";inline-size:.5rem;block-size:.5rem;border-inline-end:2px solid currentColor;border-block-end:2px solid currentColor;transform:rotate(-45deg);transition:transform .2s cubic-bezier(.16,1,.3,1);}
+.registrar-suggested-left-out[open]>summary::before{transform:rotate(45deg);}
+.registrar-suggested-left-out>summary span{font-weight:400;color:var(--tala-muted);font-variant-numeric:tabular-nums;}
+.registrar-suggested-left-out>summary:focus-visible{outline:2px solid var(--tala-focus,currentColor);outline-offset:2px;border-radius:inherit;}
+.registrar-suggested-reason-group{padding:.75rem var(--tala-card-gap);border-block-start:1px solid var(--tala-edge);}
+.registrar-suggested-reason-group h3{display:flex;align-items:baseline;gap:.5rem;font-size:.875rem;font-weight:600;line-height:1.4;}
+.registrar-suggested-reason-group h3 span{font-weight:400;color:var(--tala-muted);font-variant-numeric:tabular-nums;}
+.registrar-suggested-reason-group ul{list-style:none;margin:.375rem 0 0;padding:0;display:grid;gap:.25rem;}
+.registrar-suggested-reason-group li{font-size:.875rem;line-height:1.5;color:var(--tala-muted);}
+.registrar-suggested-reason-group li strong{font-weight:600;color:var(--tala-text);margin-inline-end:.375rem;}
+.registrar-suggested-subjects .registrar-suggested-class,.registrar-suggested-subjects .registrar-suggested-subject{max-inline-size:none;}
+.registrar-suggested-subjects .registrar-case-task-actions{margin-block-start:1.25rem;}
+.registrar-suggested-subjects>.registrar-case-meta{margin-block-start:1rem;}
+@media(min-width:40.0625rem){.registrar-suggested-subjects .registrar-case-task-actions .fi-btn{inline-size:auto;margin-block-start:0;}}
+@media(prefers-reduced-motion:reduce){.registrar-suggested-left-out>summary::before{transition:none;}}
 .registrar-requirement-subjects-heading{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;margin-block-end:1rem;}
 .registrar-requirement-subjects-heading p{color:var(--tala-muted);font-size:.875rem;font-variant-numeric:tabular-nums;}
 .registrar-history-records>details{border-block-end:1px solid var(--tala-edge);padding-block:.5rem;}
@@ -1574,12 +1608,14 @@
 .student-record-overview details.tala-supporting-details>summary{padding-block:.375rem 0;min-block-size:2rem;}
 .student-plan-status-warning,.student-plan-status-warning>.fi-icon{color:var(--warning-700,#b45309);}
 .dark .student-plan-status-warning,.dark .student-plan-status-warning>.fi-icon{color:var(--warning-300,#fcd34d);}
-/* #99 Scope 11: subject checklist colors (green passed/credited, red failed, yellow dropped/INC, gray not taken/locked). */
+/* #99 Scope 11 + Phase 3B: Zero-Blue subject checklist colors (emerald passed, sage pre-TALA, warm gold transfer/credited, crimson failed, amber dropped/INC, slate not taken). */
 .student-plan-check-passed,.student-plan-check-passed>.fi-icon{color:var(--success-700,#15803d);}
-.student-plan-check-credited,.student-plan-check-credited>.fi-icon{color:var(--info-700,#1d4ed8);}
+.student-plan-check-pre_tala,.student-plan-check-pre_tala>.fi-icon{color:var(--tala-brand-strong,#256331);}
+.student-plan-check-credited,.student-plan-check-credited>.fi-icon{color:var(--warning-700,#b45309);}
 .student-plan-check-failed,.student-plan-check-failed>.fi-icon{color:var(--danger-700,#b91c1c);}
 .dark .student-plan-check-passed,.dark .student-plan-check-passed>.fi-icon{color:var(--success-300,#86efac);}
-.dark .student-plan-check-credited,.dark .student-plan-check-credited>.fi-icon{color:var(--info-300,#93c5fd);}
+.dark .student-plan-check-pre_tala,.dark .student-plan-check-pre_tala>.fi-icon{color:var(--tala-brand-foreground,#8de698);}
+.dark .student-plan-check-credited,.dark .student-plan-check-credited>.fi-icon{color:var(--warning-300,#fcd34d);}
 .dark .student-plan-check-failed,.dark .student-plan-check-failed>.fi-icon{color:var(--danger-300,#fca5a5);}
 .student-plan-checklist-totals{display:grid;grid-template-columns:repeat(auto-fit,minmax(8rem,1fr));gap:.5rem;margin:0 0 var(--tala-card-gap,12px);}
 .student-plan-checklist-totals>div{padding:.5rem .75rem;border:1px solid var(--tala-edge);border-radius:var(--tala-card-radius,.75rem);background:var(--tala-surface-sunken);}
@@ -2345,12 +2381,25 @@ button.tala-cashier-calendar__day:focus-visible{outline:3px solid var(--tala-foc
 .tala-irregular-progress>li{padding:.25rem .625rem;border:1px solid var(--tala-edge);border-radius:999px;font-size:.8125rem;color:var(--tala-muted);}
 .tala-irregular-progress>li.is-done{color:var(--success-700,#15803d);border-color:currentColor;}
 .tala-irregular-progress>li[aria-current="step"]{color:var(--primary-700,#166534);border-color:currentColor;font-weight:600;}
-/* #99: credited subjects stand apart from subjects passed at SIA. */
-.student-plan-subject-credited{border-inline-start:3px solid var(--info-500,#3b82f6);padding-inline-start:.625rem;}
-.student-plan-credit-source{font-size:.75rem;color:var(--info-700,#1d4ed8);}
-.dark .student-plan-credit-source{color:var(--info-300,#93c5fd);}
-.student-plan-checklist-totals>.student-plan-check-credited dd{color:var(--info-700,#1d4ed8);}
-.dark .student-plan-checklist-totals>.student-plan-check-credited dd{color:var(--info-300,#93c5fd);}
+/* #99 + Phase 3B: Zero-Blue credited & pre-TALA subjects stand apart cleanly from subjects passed at SIA (TALA). */
+.student-plan-credit-source{font-size:.75rem;color:var(--warning-700,#b45309);}
+.dark .student-plan-credit-source{color:var(--warning-300,#fcd34d);}
+.student-plan-pre-tala-source{font-size:.75rem;color:var(--tala-muted);}
+.student-plan-checklist-totals>.student-plan-check-pre_tala dd{color:var(--tala-brand-strong,#256331);}
+.dark .student-plan-checklist-totals>.student-plan-check-pre_tala dd{color:var(--tala-brand-foreground,#8de698);}
+.student-plan-checklist-totals>.student-plan-check-credited dd{color:var(--warning-700,#b45309);}
+.dark .student-plan-checklist-totals>.student-plan-check-credited dd{color:var(--warning-300,#fcd34d);}
+.student-welcome-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,10.5rem),1fr));gap:.75rem 1.5rem;margin:.5rem 0 0;padding-block-start:.75rem;border-block-start:1px solid var(--tala-selected-edge);}
+.student-welcome-facts dt{font-size:.75rem;line-height:1.4;opacity:.85;}
+.student-welcome-facts dd{margin:.125rem 0 0;font-size:.9375rem;font-weight:700;line-height:1.4;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
+.student-finance-hold-banner{display:grid;gap:.5rem;padding:1rem 1.25rem;margin-block-end:var(--tala-card-gap,12px);}
+.student-finance-hold-banner__head{display:flex;align-items:center;gap:.5rem;}
+.student-finance-hold-banner__head>.fi-icon{inline-size:1.25rem;block-size:1.25rem;flex:none;color:var(--warning-700,#b45309);}
+.dark .student-finance-hold-banner__head>.fi-icon{color:var(--warning-300,#fcd34d);}
+.student-finance-hold-banner h2{margin:0;font-size:1.0625rem;font-weight:700;line-height:1.35;}
+.student-finance-hold-banner p{margin:0;max-inline-size:72ch;line-height:1.55;}
+.student-finance-hold-note{font-size:.875rem;}
+.student-record-source-label{font-weight:500;}
 .student-plan-legend{display:flex;flex-wrap:wrap;gap:.375rem 1rem;margin:0 0 var(--tala-card-gap,12px);padding:0;list-style:none;font-size:.8125rem;}
 .student-plan-legend>li{display:inline-flex;align-items:center;gap:.25rem;}
 .student-plan-legend .fi-icon{inline-size:1rem;block-size:1rem;}

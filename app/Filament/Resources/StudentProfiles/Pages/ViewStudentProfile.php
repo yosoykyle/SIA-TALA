@@ -26,9 +26,11 @@ use App\Filament\Resources\StudentProfiles\IrregularReviewActions;
 use App\Filament\Resources\StudentProfiles\RelationManagers\ChecklistItemsRelationManager;
 use App\Filament\Resources\StudentProfiles\RelationManagers\HoldsRelationManager;
 use App\Filament\Resources\StudentProfiles\StudentAcademicActions;
+use App\Filament\Resources\StudentProfiles\StudentOnboardingActions;
 use App\Filament\Resources\StudentProfiles\StudentProfileResource;
 use App\Models\Assessment;
 use App\Models\CourseEnrollment;
+use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\Enrollment;
 use App\Models\ExternalCompetencyRequirement;
@@ -48,14 +50,17 @@ use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Livewire;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\View;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\GridDirection;
 use Filament\Support\Enums\Width;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -365,29 +370,39 @@ class ViewStudentProfile extends ViewRecord
     public function recordPriorSubjectsAction(): Action
     {
         return Action::make('recordPriorSubjects')
-            ->label('Record prior subjects')
+            ->label('Manage prior subjects')
             ->icon('heroicon-o-clipboard-document-list')
-            ->color('gray')
+            ->color(fn (): string => $this->needsInitialPriorRecord() ? 'primary' : 'gray')
             ->size('sm')
             ->visible(fn (): bool => $this->isRegistrarActor() && $this->studentProfile()->curriculum_version_id !== null)
             ->authorize(fn (): bool => $this->isRegistrarActor())
-            ->modalHeading('Record prior completed subjects')
-            ->modalDescription('Check subjects the student completed or received institutional credit for before TALA. Subjects already passed in official SIA grade rosters are locked.')
+            ->modalHeading('Manage prior curriculum subjects')
+            ->modalDescription('Select subjects the student passed or received credit for before TALA, grouped by Year Level and Term. Historical failed, INC, or dropped records are preserved and never checked or revoked here.')
             ->modalWidth(Width::FourExtraLarge)
             ->stickyModalHeader()
             ->stickyModalFooter()
             ->modalSubmitActionLabel('Save prior subjects')
             ->fillForm(function (): array {
                 $student = $this->studentProfile();
-                $activeEntryIds = PriorAcademicCredit::query()
+                $groups = $this->groupedCurriculumEntries($student);
+
+                $activePassingEntryIds = PriorAcademicCredit::query()
                     ->active()
                     ->where('student_profile_id', $student->id)
                     ->whereNotNull('curriculum_entry_id')
+                    ->get()
+                    ->filter(fn (PriorAcademicCredit $credit): bool => $credit->isPassing())
                     ->pluck('curriculum_entry_id')
                     ->map(fn (mixed $id): int => (int) $id)
                     ->unique()
                     ->values()
                     ->all();
+
+                $termEntries = [];
+                foreach ($groups as $groupKey => $group) {
+                    $groupEntryIds = $group['entries']->pluck('id')->map(fn (mixed $id): int => (int) $id)->all();
+                    $termEntries[$groupKey] = array_values(array_intersect($groupEntryIds, $activePassingEntryIds));
+                }
 
                 $latestPrior = PriorAcademicCredit::query()
                     ->active()
@@ -396,74 +411,143 @@ class ViewStudentProfile extends ViewRecord
                     ->first();
 
                 return [
+                    'quick_credit_through' => null,
                     'academic_year_label' => $latestPrior?->academic_year_label ?: 'Prior Institutional Record',
+                    'is_external_transfer' => false,
                     'source_school' => $latestPrior?->source_school,
-                    'selected_entry_ids' => $activeEntryIds,
+                    'term_entries' => $termEntries,
                 ];
             })
             ->schema(function (): array {
                 $student = $this->studentProfile();
-                $entries = CurriculumEntry::query()
-                    ->where('curriculum_version_id', $student->curriculum_version_id)
-                    ->with('courseSpecification.course')
-                    ->orderBy('year_level')
-                    ->orderBy('sequence')
-                    ->orderBy('id')
-                    ->get();
+                $groups = $this->groupedCurriculumEntries($student);
+                $lockedEntryIds = $this->nativePassedCurriculumEntryIds($student);
 
-                $nativePassedCourseIds = app(OfficialCourseResultProjection::class)
-                    ->forStudent($student)
-                    ->filter(fn (array $result): bool => $result['course_enrollment'] instanceof CourseEnrollment
-                        && RegistrationAcademicEligibilityQuery::isPassingResult($result['result'] ?? null))
-                    ->pluck('course_specification.course_id')
-                    ->filter()
-                    ->map(fn (mixed $id): int => (int) $id)
-                    ->unique()
-                    ->all();
+                $activePriorByEntry = PriorAcademicCredit::query()
+                    ->active()
+                    ->where('student_profile_id', $student->id)
+                    ->whereNotNull('curriculum_entry_id')
+                    ->get()
+                    ->groupBy('curriculum_entry_id');
 
-                $options = [];
-                $descriptions = [];
-                $lockedEntryIds = [];
+                $termSections = [];
+                foreach ($groups as $groupKey => $group) {
+                    $options = [];
+                    $descriptions = [];
 
-                foreach ($entries as $entry) {
-                    $spec = $entry->courseSpecification;
-                    $courseId = (int) ($spec?->course_id ?? 0);
-                    $isLocked = $courseId > 0 && in_array($courseId, $nativePassedCourseIds, true);
-                    if ($isLocked) {
-                        $lockedEntryIds[] = (int) $entry->id;
+                    /** @var CurriculumEntry $entry */
+                    foreach ($group['entries'] as $entry) {
+                        $spec = $entry->courseSpecification;
+                        $entryId = (int) $entry->id;
+                        $isLocked = in_array($entryId, $lockedEntryIds, true);
+                        $units = $spec?->credit_units !== null
+                            ? rtrim(rtrim(number_format((float) $spec->credit_units, 2, '.', ''), '0'), '.')
+                            : '0';
+
+                        $options[$entryId] = collect([$spec?->course?->code, $spec?->title])->filter()->implode(' · ');
+
+                        $unitSummary = "{$units} ".((float) $units === 1.0 ? 'unit' : 'units');
+                        $notes = [$unitSummary];
+                        if ($isLocked) {
+                            $notes[] = 'Passed in official SIA grade roster (locked)';
+                        }
+
+                        /** @var Collection<int, PriorAcademicCredit> $priorForEntry */
+                        $priorForEntry = $activePriorByEntry->get($entryId, collect());
+                        $nonPassingPrior = $priorForEntry->first(fn (PriorAcademicCredit $credit): bool => ! $credit->isPassing());
+                        $passingPrior = $priorForEntry->first(fn (PriorAcademicCredit $credit): bool => $credit->isPassing());
+
+                        if ($nonPassingPrior instanceof PriorAcademicCredit) {
+                            $code = $nonPassingPrior->effectiveResultCode();
+                            $notes[] = "Active prior {$code} (preserved — edit via Record or edit prior grade)";
+                        } elseif ($passingPrior instanceof PriorAcademicCredit && ! $isLocked) {
+                            $code = $passingPrior->effectiveResultCode();
+                            $sourceTag = $passingPrior->isExternalTransfer() ? 'External transfer' : 'Pre-TALA';
+                            $notes[] = "{$sourceTag} · {$code}";
+                        }
+
+                        $descriptions[$entryId] = implode(' · ', $notes);
                     }
 
-                    $yearLabel = $this->yearLevelDisplay($entry->year_level) ?? 'Year not recorded';
-                    $termLabel = filled($entry->term_label) ? (string) $entry->term_label : 'Prior Term';
-                    $units = $spec?->credit_units !== null
-                        ? rtrim(rtrim(number_format((float) $spec->credit_units, 2, '.', ''), '0'), '.')
-                        : '0';
+                    $entryCount = $group['entries']->count();
+                    $groupUnits = rtrim(rtrim(number_format((float) $group['units'], 2, '.', ''), '0'), '.');
 
-                    $options[(int) $entry->id] = collect([$spec?->course?->code, $spec?->title])->filter()->implode(' · ')
-                        ." ({$units} ".((float) $units === 1.0 ? 'unit' : 'units').')';
-                    $descriptions[(int) $entry->id] = $yearLabel.' · '.$termLabel
-                        .($isLocked ? ' · Passed in official SIA grade roster' : '');
+                    $termSections[] = Section::make($group['label'])
+                        ->description("{$entryCount} ".Str::plural('subject', $entryCount)." · {$groupUnits} units")
+                        ->compact()
+                        ->collapsible()
+                        ->schema([
+                            CheckboxList::make("term_entries.{$groupKey}")
+                                ->hiddenLabel()
+                                ->options($options)
+                                ->descriptions($descriptions)
+                                ->searchable()
+                                ->searchPrompt('Search by subject code or title...')
+                                ->disableOptionWhen(fn (string $value): bool => in_array((int) $value, $lockedEntryIds, true))
+                                ->bulkToggleable()
+                                ->selectAllAction(fn (Action $action): Action => $action->label('Mark entire term passed'))
+                                ->deselectAllAction(fn (Action $action): Action => $action->label('Clear term'))
+                                ->columns(['default' => 1, 'md' => 2])
+                                ->gridDirection(GridDirection::Row)
+                                ->extraAttributes(['class' => 'tala-card-picker']),
+                        ]);
                 }
 
                 return [
                     Grid::make(['default' => 1, 'md' => 2])->schema([
+                        Select::make('quick_credit_through')
+                            ->label('Quick-credit all terms through (optional)')
+                            ->placeholder('None — choose by term below')
+                            ->options(fn (): array => StudentOnboardingActions::completedThroughOptions($student->curriculum_version_id))
+                            ->live()
+                            ->afterStateUpdated(function (Set $set, mixed $state) use ($groups, $lockedEntryIds): void {
+                                if (blank($state)) {
+                                    return;
+                                }
+
+                                [$targetYear, $targetTermType] = StudentOnboardingActions::parseCompletedThroughValue((string) $state);
+                                if ($targetYear === null || $targetTermType === null) {
+                                    return;
+                                }
+
+                                $targetRank = $this->termTypeRank($targetTermType);
+                                foreach ($groups as $groupKey => $group) {
+                                    $groupYear = (int) $group['year_rank'];
+                                    $groupTermRank = (int) $group['term_rank'];
+                                    $withinRange = $groupYear < $targetYear
+                                        || ($groupYear === $targetYear && $groupTermRank <= $targetRank);
+
+                                    if (! $withinRange) {
+                                        continue;
+                                    }
+
+                                    $selectableIds = $group['entries']
+                                        ->pluck('id')
+                                        ->map(fn (mixed $id): int => (int) $id)
+                                        ->reject(fn (int $id): bool => in_array($id, $lockedEntryIds, true))
+                                        ->values()
+                                        ->all();
+
+                                    $set("term_entries.{$groupKey}", $selectableIds);
+                                }
+                            })
+                            ->helperText('Automatically checks every non-locked subject through the selected term. You can still uncheck individual exceptions below.'),
                         TextInput::make('academic_year_label')
                             ->label('Academic Year label')
                             ->default('Prior Institutional Record')
                             ->maxLength(120),
+                        Toggle::make('is_external_transfer')
+                            ->label('Record newly checked subjects as external transfer credits (TC)')
+                            ->default(false)
+                            ->live()
+                            ->helperText('External transfer credits display as TC on the TOR and are excluded from SIA Cumulative GWA.'),
                         TextInput::make('source_school')
-                            ->label('Source school (optional)')
+                            ->label('Source school')
                             ->placeholder('e.g. Prior campus or transfer institution')
+                            ->required(fn (Get $get): bool => (bool) $get('is_external_transfer'))
                             ->maxLength(255),
                     ]),
-                    CheckboxList::make('selected_entry_ids')
-                        ->label('Curriculum subjects (grouped by Year Level & Term)')
-                        ->options($options)
-                        ->descriptions($descriptions)
-                        ->disableOptionWhen(fn (string $value): bool => in_array((int) $value, $lockedEntryIds, true))
-                        ->searchable()
-                        ->bulkToggleable()
-                        ->columns(['default' => 1, 'md' => 2]),
+                    ...$termSections,
                 ];
             })
             ->action(function (array $data): void {
@@ -471,34 +555,53 @@ class ViewStudentProfile extends ViewRecord
                 abort_unless($actor instanceof User, 403);
                 $student = $this->studentProfile();
 
-                $nativePassedCourseIds = app(OfficialCourseResultProjection::class)
-                    ->forStudent($student)
-                    ->filter(fn (array $result): bool => $result['course_enrollment'] instanceof CourseEnrollment
-                        && RegistrationAcademicEligibilityQuery::isPassingResult($result['result'] ?? null))
-                    ->pluck('course_specification.course_id')
-                    ->filter()
+                $lockedEntryIds = $this->nativePassedCurriculumEntryIds($student);
+                $ayLabel = filled($data['academic_year_label'] ?? null) ? (string) $data['academic_year_label'] : null;
+                $sourceSchool = filled($data['source_school'] ?? null) ? (string) $data['source_school'] : null;
+                $isExternalTransfer = (bool) ($data['is_external_transfer'] ?? false);
+
+                $selectedIds = collect((array) ($data['term_entries'] ?? []))
+                    ->flatten()
+                    ->concat((array) ($data['selected_entry_ids'] ?? []))
                     ->map(fn (mixed $id): int => (int) $id)
+                    ->filter(fn (int $id): bool => $id > 0)
                     ->unique()
+                    ->reject(fn (int $id): bool => in_array($id, $lockedEntryIds, true))
+                    ->values()
                     ->all();
 
-                $lockedEntryIds = CurriculumEntry::query()
-                    ->where('curriculum_version_id', $student->curriculum_version_id)
-                    ->whereHas('courseSpecification', fn ($query) => $query->whereIn('course_id', $nativePassedCourseIds))
-                    ->pluck('id')
-                    ->map(fn (mixed $id): int => (int) $id)
-                    ->all();
+                if ($selectedIds === [] && filled($data['quick_credit_through'] ?? null)) {
+                    [$yearLevel, $termType] = StudentOnboardingActions::parseCompletedThroughValue((string) $data['quick_credit_through']);
+                    if ($yearLevel !== null && $termType !== null) {
+                        $summary = app(RecordPriorAcademicCredits::class)->applyCompletedThroughTerm(
+                            profile: $student,
+                            yearLevel: $yearLevel,
+                            termType: $termType,
+                            actor: $actor,
+                            academicYearLabel: $ayLabel,
+                            sourceSchool: $sourceSchool,
+                        );
 
-                $selectedIds = array_values(array_diff(
-                    array_map('intval', (array) ($data['selected_entry_ids'] ?? [])),
-                    $lockedEntryIds,
-                ));
+                        $student->refresh();
+                        unset($this->academicProfile, $this->studentTerms);
+
+                        Notification::make()
+                            ->title('Prior cohort credits applied')
+                            ->body("Recorded {$summary['created']} prior subject credit(s) through Year {$yearLevel}.")
+                            ->success()
+                            ->send();
+
+                        return;
+                    }
+                }
 
                 $summary = app(RecordPriorAcademicCredits::class)->syncChecklistCredits(
                     profile: $student,
                     selectedEntryIds: $selectedIds,
                     actor: $actor,
-                    academicYearLabel: filled($data['academic_year_label'] ?? null) ? (string) $data['academic_year_label'] : null,
-                    sourceSchool: filled($data['source_school'] ?? null) ? (string) $data['source_school'] : null,
+                    academicYearLabel: $ayLabel,
+                    sourceSchool: $sourceSchool,
+                    isExternalTransfer: $isExternalTransfer,
                 );
 
                 $student->refresh();
@@ -507,6 +610,354 @@ class ViewStudentProfile extends ViewRecord
                 Notification::make()
                     ->title('Prior academic record updated')
                     ->body("Added {$summary['added']} and removed {$summary['revoked']} prior subject credit(s).")
+                    ->success()
+                    ->send();
+            });
+    }
+
+    public function upsertPriorCreditAction(): Action
+    {
+        return Action::make('upsertPriorCredit')
+            ->label('Record or edit prior grade')
+            ->icon('heroicon-o-plus-circle')
+            ->color('gray')
+            ->size('sm')
+            ->visible(fn (): bool => $this->isRegistrarActor())
+            ->authorize(fn (): bool => $this->isRegistrarActor())
+            ->modalHeading(fn (array $arguments): string => filled($arguments['prior_credit_id'] ?? null)
+                ? 'Edit prior academic record'
+                : 'Record prior academic grade')
+            ->modalDescription('Record or update an individual Servitech pre-TALA grade or external transfer credit. Servitech numeric grades count in SIA Cumulative GWA; external transfer credits display as TC and are excluded from SIA GWA.')
+            ->modalWidth(Width::TwoExtraLarge)
+            ->stickyModalHeader()
+            ->stickyModalFooter()
+            ->modalSubmitActionLabel('Save prior record')
+            ->fillForm(function (array $arguments): array {
+                $student = $this->studentProfile();
+                $creditId = filled($arguments['prior_credit_id'] ?? null) ? (int) $arguments['prior_credit_id'] : null;
+
+                if ($creditId !== null) {
+                    $credit = PriorAcademicCredit::query()
+                        ->where('student_profile_id', $student->id)
+                        ->where('state', PriorAcademicCredit::StateActive)
+                        ->find($creditId);
+
+                    if ($credit instanceof PriorAcademicCredit) {
+                        return [
+                            'id' => $credit->id,
+                            'course_specification_id' => $credit->course_specification_id,
+                            'result_status' => $credit->result_status,
+                            'final_grade' => $credit->final_grade ?? $credit->effectiveResultCode(),
+                            'is_external_transfer' => $credit->isExternalTransfer(),
+                            'source_school' => $credit->source_school,
+                            'academic_year_label' => $credit->academic_year_label ?? 'Prior Institutional Record',
+                            'term_label' => $credit->term_label,
+                            'year_level' => $credit->year_level,
+                        ];
+                    }
+                }
+
+                return [
+                    'id' => null,
+                    'course_specification_id' => null,
+                    'result_status' => PriorAcademicCredit::ResultPassed,
+                    'final_grade' => null,
+                    'is_external_transfer' => false,
+                    'source_school' => null,
+                    'academic_year_label' => 'Prior Institutional Record',
+                    'term_label' => null,
+                    'year_level' => null,
+                ];
+            })
+            ->schema(function (): array {
+                $student = $this->studentProfile();
+
+                return [
+                    Hidden::make('id'),
+                    Select::make('course_specification_id')
+                        ->label('Subject')
+                        ->required()
+                        ->searchable()
+                        ->preload()
+                        ->options(fn (): array => $this->priorCreditSpecificationOptions($student))
+                        ->getSearchResultsUsing(fn (string $search): array => $this->priorCreditSpecificationOptions($student, $search))
+                        ->getOptionLabelUsing(function (mixed $value): ?string {
+                            $spec = CourseSpecification::query()->with('course')->find($value);
+                            if (! $spec instanceof CourseSpecification) {
+                                return null;
+                            }
+
+                            return $this->formatCourseSpecificationOption($spec);
+                        })
+                        ->helperText('Choose a subject from the student’s curriculum or any Active / Retired catalog course specification (Draft specifications are excluded).'),
+                    Grid::make(['default' => 1, 'md' => 2])->schema([
+                        Select::make('result_status')
+                            ->label('Result status')
+                            ->required()
+                            ->live()
+                            ->options(PriorAcademicCredit::resultStatusOptions())
+                            ->afterStateUpdated(function (Set $set, Get $get, mixed $state): void {
+                                $currentGrade = strtoupper(trim((string) ($get('final_grade') ?? '')));
+                                if ($state === PriorAcademicCredit::ResultInc) {
+                                    $set('final_grade', 'INC');
+                                } elseif ($state === PriorAcademicCredit::ResultDropped) {
+                                    $set('final_grade', 'DRP');
+                                } elseif ($state === PriorAcademicCredit::ResultFailed && ($currentGrade === '' || ! is_numeric($currentGrade) || (float) $currentGrade <= 4.00)) {
+                                    $set('final_grade', '5.00');
+                                } elseif ($state === PriorAcademicCredit::ResultCredited && in_array($currentGrade, ['', 'INC', 'DRP', '5.00'], true)) {
+                                    $set('final_grade', (bool) $get('is_external_transfer') ? 'TC' : 'CREDIT');
+                                } elseif ($state === PriorAcademicCredit::ResultPassed && in_array($currentGrade, ['INC', 'DRP', '5.00', 'CREDIT', 'TC'], true)) {
+                                    $set('final_grade', '');
+                                }
+                            }),
+                        TextInput::make('final_grade')
+                            ->label('Final grade / result code')
+                            ->placeholder('e.g. 1.75, 5.00, CREDIT, TC, INC, DRP')
+                            ->maxLength(20)
+                            ->extraInputAttributes([
+                                'autocorrect' => 'off',
+                                'autocapitalize' => 'characters',
+                                'spellcheck' => 'false',
+                            ])
+                            ->helperText('Numeric 1.00–4.00 (passed), 5.00 (failed), CREDIT / TC, INC, or DRP.'),
+                    ]),
+                    Toggle::make('is_external_transfer')
+                        ->label('External transfer credit (TC — excluded from SIA Cumulative GWA)')
+                        ->default(false)
+                        ->live()
+                        ->afterStateUpdated(function (Set $set, Get $get, mixed $state): void {
+                            if ((bool) $state && $get('result_status') === PriorAcademicCredit::ResultCredited) {
+                                $grade = strtoupper(trim((string) ($get('final_grade') ?? '')));
+                                if ($grade === '' || $grade === 'CREDIT') {
+                                    $set('final_grade', 'TC');
+                                }
+                            }
+                        })
+                        ->helperText('Leave off for Servitech pre-TALA records (numeric grades count in SIA GWA). Turn on for credits transferred from another school.'),
+                    TextInput::make('source_school')
+                        ->label('Source school')
+                        ->placeholder('e.g. Previous college or university (required for external transfer)')
+                        ->required(fn (Get $get): bool => (bool) $get('is_external_transfer'))
+                        ->maxLength(255),
+                    Grid::make(['default' => 1, 'md' => 3])->schema([
+                        TextInput::make('academic_year_label')
+                            ->label('Academic Year')
+                            ->placeholder('e.g. AY 2023-2024')
+                            ->maxLength(120),
+                        TextInput::make('term_label')
+                            ->label('Term label')
+                            ->placeholder('e.g. First Semester')
+                            ->maxLength(120),
+                        Select::make('year_level')
+                            ->label('Year level')
+                            ->placeholder('Auto from curriculum')
+                            ->options([
+                                1 => 'Year 1',
+                                2 => 'Year 2',
+                                3 => 'Year 3',
+                                4 => 'Year 4',
+                                5 => 'Year 5',
+                            ]),
+                    ]),
+                ];
+            })
+            ->action(function (array $data, Action $action): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User, 403);
+                $student = $this->studentProfile();
+
+                try {
+                    $credit = app(RecordPriorAcademicCredits::class)->upsertPriorCredit($student, $data, $actor);
+                } catch (ValidationException $exception) {
+                    Notification::make()
+                        ->danger()
+                        ->title('Prior academic record was not saved')
+                        ->body(collect($exception->errors())->flatten()->first())
+                        ->send();
+                    $action->halt();
+                }
+
+                $student->refresh();
+                $this->academicPeriod = $credit->periodKey();
+                $this->academicTerm = $credit->term_id;
+                $this->academicResult = 'pc:'.$credit->id;
+                unset($this->academicProfile, $this->studentTerms);
+
+                Notification::make()
+                    ->title(filled($data['id'] ?? null) ? 'Prior academic record updated' : 'Prior academic grade recorded')
+                    ->body('Recorded '.$credit->effectiveResultCode().' for '.($credit->courseSpecification?->course?->code ?? 'subject').'.')
+                    ->success()
+                    ->send();
+            });
+    }
+
+    public function settlePriorIncAction(): Action
+    {
+        return Action::make('settlePriorInc')
+            ->label('Settle prior INC')
+            ->icon('heroicon-o-check-circle')
+            ->color('primary')
+            ->size('sm')
+            ->visible(fn (): bool => $this->isRegistrarActor())
+            ->authorize(fn (): bool => $this->isRegistrarActor())
+            ->modalHeading('Settle pre-TALA INC record')
+            ->modalDescription('Record the final completed grade (1.00–4.00) or lapsed failing grade (5.00). Cumulative GWA, study plan, and graduation readiness update immediately.')
+            ->modalWidth(Width::Medium)
+            ->modalSubmitActionLabel('Settle INC')
+            ->fillForm(fn (array $arguments): array => [
+                'prior_credit_id' => filled($arguments['prior_credit_id'] ?? null) ? (int) $arguments['prior_credit_id'] : null,
+                'result_status' => PriorAcademicCredit::ResultPassed,
+                'final_grade' => null,
+                'reason' => null,
+            ])
+            ->schema(function (): array {
+                $student = $this->studentProfile();
+                $incOptions = PriorAcademicCredit::query()
+                    ->active()
+                    ->where('student_profile_id', $student->id)
+                    ->with('courseSpecification.course')
+                    ->get()
+                    ->filter(fn (PriorAcademicCredit $credit): bool => $credit->result_status === PriorAcademicCredit::ResultInc
+                        || $credit->effectiveResultCode() === 'INC')
+                    ->mapWithKeys(fn (PriorAcademicCredit $credit): array => [
+                        $credit->id => collect([
+                            $credit->courseSpecification?->course?->code,
+                            $credit->courseSpecification?->title,
+                            $credit->displayAcademicYearLabel(),
+                        ])->filter()->implode(' · '),
+                    ])
+                    ->all();
+
+                return [
+                    Select::make('prior_credit_id')
+                        ->label('Prior INC subject')
+                        ->required()
+                        ->options($incOptions),
+                    Select::make('result_status')
+                        ->label('Resolved outcome')
+                        ->required()
+                        ->live()
+                        ->options([
+                            PriorAcademicCredit::ResultPassed => 'Passed (1.00–4.00)',
+                            PriorAcademicCredit::ResultFailed => 'Failed / Lapsed (5.00)',
+                            PriorAcademicCredit::ResultCredited => 'Credited (CREDIT / TC)',
+                            PriorAcademicCredit::ResultDropped => 'Dropped (DRP)',
+                        ])
+                        ->afterStateUpdated(function (Set $set, mixed $state): void {
+                            if ($state === PriorAcademicCredit::ResultFailed) {
+                                $set('final_grade', '5.00');
+                            } elseif ($state === PriorAcademicCredit::ResultDropped) {
+                                $set('final_grade', 'DRP');
+                            } elseif ($state === PriorAcademicCredit::ResultCredited) {
+                                $set('final_grade', 'CREDIT');
+                            }
+                        }),
+                    TextInput::make('final_grade')
+                        ->label('Final grade')
+                        ->required()
+                        ->placeholder('e.g. 1.75 or 5.00')
+                        ->maxLength(20)
+                        ->extraInputAttributes([
+                            'autocorrect' => 'off',
+                            'autocapitalize' => 'characters',
+                            'spellcheck' => 'false',
+                        ]),
+                    Textarea::make('reason')
+                        ->label('Completion note (optional)')
+                        ->placeholder('e.g. Completion form submitted to Registrar Office')
+                        ->rows(2)
+                        ->maxLength(500),
+                ];
+            })
+            ->action(function (array $data, Action $action): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User, 403);
+                $student = $this->studentProfile();
+
+                $credit = PriorAcademicCredit::query()
+                    ->where('student_profile_id', $student->id)
+                    ->where('state', PriorAcademicCredit::StateActive)
+                    ->findOrFail((int) $data['prior_credit_id']);
+
+                try {
+                    $settled = app(RecordPriorAcademicCredits::class)->settlePriorInc(
+                        credit: $credit,
+                        finalGrade: (string) $data['final_grade'],
+                        actor: $actor,
+                        resultStatus: filled($data['result_status'] ?? null) ? (string) $data['result_status'] : null,
+                        reason: filled($data['reason'] ?? null) ? (string) $data['reason'] : null,
+                    );
+                } catch (ValidationException $exception) {
+                    Notification::make()
+                        ->danger()
+                        ->title('Prior INC was not settled')
+                        ->body(collect($exception->errors())->flatten()->first())
+                        ->send();
+                    $action->halt();
+                }
+
+                $student->refresh();
+                $this->academicPeriod = $settled->periodKey();
+                $this->academicResult = 'pc:'.$settled->id;
+                unset($this->academicProfile, $this->studentTerms);
+
+                Notification::make()
+                    ->title('Prior INC settled')
+                    ->body('Updated prior record to '.$settled->effectiveResultCode().'. GWA and graduation readiness have been refreshed.')
+                    ->success()
+                    ->send();
+            });
+    }
+
+    public function revokePriorCreditAction(): Action
+    {
+        return Action::make('revokePriorCredit')
+            ->label('Revoke prior record')
+            ->icon('heroicon-o-archive-box-x-mark')
+            ->color('danger')
+            ->size('sm')
+            ->visible(fn (): bool => $this->isRegistrarActor())
+            ->authorize(fn (): bool => $this->isRegistrarActor())
+            ->modalHeading('Revoke prior academic credit')
+            ->modalDescription('Revoking removes this credit from active study plan, GWA, and TOR projections while preserving its immutable audit record.')
+            ->modalWidth(Width::Medium)
+            ->modalSubmitActionLabel('Revoke record')
+            ->fillForm(fn (array $arguments): array => [
+                'prior_credit_id' => filled($arguments['prior_credit_id'] ?? null) ? (int) $arguments['prior_credit_id'] : null,
+                'reason' => null,
+            ])
+            ->schema([
+                Hidden::make('prior_credit_id')->required(),
+                Textarea::make('reason')
+                    ->label('Reason for revoking')
+                    ->placeholder('Explain why this prior academic credit is being revoked.')
+                    ->required()
+                    ->rows(2)
+                    ->maxLength(500),
+            ])
+            ->action(function (array $data): void {
+                $actor = auth()->user();
+                abort_unless($actor instanceof User, 403);
+                $student = $this->studentProfile();
+
+                $credit = PriorAcademicCredit::query()
+                    ->where('student_profile_id', $student->id)
+                    ->where('state', PriorAcademicCredit::StateActive)
+                    ->findOrFail((int) $data['prior_credit_id']);
+
+                app(RecordPriorAcademicCredits::class)->revokePriorCredit(
+                    credit: $credit,
+                    actor: $actor,
+                    reason: (string) ($data['reason'] ?? ''),
+                );
+
+                $student->refresh();
+                $this->academicResult = null;
+                unset($this->academicProfile, $this->studentTerms);
+
+                Notification::make()
+                    ->title('Prior academic credit revoked')
+                    ->body('The prior credit was revoked and academic projections have been updated.')
                     ->success()
                     ->send();
             });
@@ -528,7 +979,7 @@ class ViewStudentProfile extends ViewRecord
             ->authorize(fn (): bool => $this->isRegistrarActor())
             ->requiresConfirmation()
             ->modalHeading('Send activation email')
-            ->modalDescription(fn (): string => 'Send a passwordless account setup link to '.($this->studentProfile()->user?->email ?? $this->studentProfile()->email ?? 'this student').'.')
+            ->modalDescription(fn (): string => 'Send a 7-day Servitech Student Hub activation link to '.($this->studentProfile()->user?->email ?? $this->studentProfile()->email ?? 'this student').'.')
             ->modalSubmitActionLabel('Send activation email')
             ->action(function (): void {
                 $actor = auth()->user();
@@ -542,7 +993,7 @@ class ViewStudentProfile extends ViewRecord
                 if ($sent) {
                     Notification::make()
                         ->title('Activation email sent')
-                        ->body('A fresh password setup link was sent to '.($student->user?->email ?? $student->email).'.')
+                        ->body('A 7-day activation link was sent to '.($student->user?->email ?? $student->email).'.')
                         ->success()
                         ->send();
                 } else {
@@ -715,6 +1166,11 @@ class ViewStudentProfile extends ViewRecord
                 ->withCurrentResultFor($student)->orderBy('requirement_code')->get()
             : collect();
 
+        $activePriorIncCount = $this->activeRecordTab() === 'academic'
+            ? $results->filter(fn (array $result): bool => ($result['prior_credit'] ?? null) instanceof PriorAcademicCredit
+                && ($result['result'] ?? null) === 'INC')->count()
+            : 0;
+
         return [
             'student' => $student, 'enrollment' => $enrollment, 'context' => $context, 'handoff' => $handoff,
             'termOptions' => $terms->mapWithKeys(fn (Term $term): array => [$term->id => $this->termLabel($term)])->all(),
@@ -725,6 +1181,7 @@ class ViewStudentProfile extends ViewRecord
             'selectedTerm' => $selectedTerm,
             'results' => $pagedResults,
             'selectedResult' => $selectedResult,
+            'activePriorIncCount' => $activePriorIncCount,
             'termAverage' => $selectedPeriodKey !== null && $this->activeRecordTab() === 'academic'
                 ? ($selectedTerm instanceof Term
                     ? app(TermWeightedAverageProjection::class)->forResults($results, $selectedTerm)
@@ -779,6 +1236,212 @@ class ViewStudentProfile extends ViewRecord
             '3', '3rd Year', 'Third Year' => 'Third Year',
             '4', '4th Year', 'Fourth Year' => 'Fourth Year',
             default => ctype_digit($raw) ? 'Year '.$raw : $raw,
+        };
+    }
+
+    private function needsInitialPriorRecord(): bool
+    {
+        $student = $this->studentProfile();
+
+        return $student->applicant_intake_id === null
+            && ! $student->enrollments()->exists()
+            && ! $student->priorAcademicCredits()->active()->exists();
+    }
+
+    /**
+     * Group the student's curriculum entries chronologically by Year Level and Term.
+     *
+     * @return array<string, array{label: string, year_rank: int, term_rank: int, units: float, entries: Collection<int, CurriculumEntry>}>
+     */
+    private function groupedCurriculumEntries(StudentProfile $student): array
+    {
+        if ($student->curriculum_version_id === null) {
+            return [];
+        }
+
+        $entries = CurriculumEntry::query()
+            ->where('curriculum_version_id', $student->curriculum_version_id)
+            ->with('courseSpecification.course')
+            ->get()
+            ->sortBy(fn (CurriculumEntry $entry): array => [
+                $this->yearLevelRank($entry->year_level),
+                $this->termTypeRank($entry->term_type, $entry->term_label),
+                (int) $entry->sequence,
+                (int) $entry->id,
+            ])
+            ->values();
+
+        $groups = [];
+        foreach ($entries as $entry) {
+            $yearRank = $this->yearLevelRank($entry->year_level);
+            $termRank = $this->termTypeRank($entry->term_type, $entry->term_label);
+            $key = 'y'.$yearRank.'_t'.$termRank;
+
+            if (! isset($groups[$key])) {
+                $yearLabel = $yearRank < 99 ? 'Year '.$yearRank : ($this->yearLevelDisplay($entry->year_level) ?? 'Year not recorded');
+                $termLabel = filled($entry->term_label) ? (string) $entry->term_label : 'Prior Term';
+                $groups[$key] = [
+                    'label' => $yearLabel.' · '.$termLabel,
+                    'year_rank' => $yearRank,
+                    'term_rank' => $termRank,
+                    'units' => 0.0,
+                    'entries' => collect(),
+                ];
+            }
+
+            $groups[$key]['entries']->push($entry);
+            $groups[$key]['units'] += (float) ($entry->courseSpecification?->credit_units ?? 0);
+        }
+
+        return $groups;
+    }
+
+    /**
+     * Curriculum entry IDs already passed in official SIA grade rosters (locked in prior checklist).
+     *
+     * @return list<int>
+     */
+    private function nativePassedCurriculumEntryIds(StudentProfile $student): array
+    {
+        if ($student->curriculum_version_id === null) {
+            return [];
+        }
+
+        $nativePassedCourseIds = app(OfficialCourseResultProjection::class)
+            ->forStudent($student)
+            ->filter(fn (array $result): bool => $result['course_enrollment'] instanceof CourseEnrollment
+                && RegistrationAcademicEligibilityQuery::isPassingResult($result['result'] ?? null))
+            ->pluck('course_specification.course_id')
+            ->filter()
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->all();
+
+        if ($nativePassedCourseIds === []) {
+            return [];
+        }
+
+        return CurriculumEntry::query()
+            ->where('curriculum_version_id', $student->curriculum_version_id)
+            ->whereHas('courseSpecification', fn ($query) => $query->whereIn('course_id', $nativePassedCourseIds))
+            ->pluck('id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->all();
+    }
+
+    /**
+     * Build selectable non-DRAFT course specifications prioritizing the student's curriculum.
+     *
+     * @return array<int, string>
+     */
+    private function priorCreditSpecificationOptions(StudentProfile $student, string $search = ''): array
+    {
+        $options = [];
+
+        if ($student->curriculum_version_id !== null) {
+            $entries = CurriculumEntry::query()
+                ->where('curriculum_version_id', $student->curriculum_version_id)
+                ->with('courseSpecification.course')
+                ->whereHas('courseSpecification', fn ($query) => $query->where('state', '!=', CourseSpecification::StateDraft))
+                ->orderBy('year_level')
+                ->orderBy('sequence')
+                ->orderBy('id')
+                ->get();
+
+            foreach ($entries as $entry) {
+                $spec = $entry->courseSpecification;
+                if (! $spec instanceof CourseSpecification) {
+                    continue;
+                }
+
+                $label = $this->formatCourseSpecificationOption($spec, $entry);
+                if ($search !== '' && ! Str::contains(Str::lower($label), Str::lower($search))) {
+                    continue;
+                }
+
+                $options[(int) $spec->id] = $label;
+            }
+        }
+
+        $catalogQuery = CourseSpecification::query()
+            ->with('course')
+            ->where('state', '!=', CourseSpecification::StateDraft)
+            ->when($options !== [], fn ($query) => $query->whereNotIn('id', array_keys($options)))
+            ->when($search !== '', fn ($query) => $query->where(function ($nested) use ($search): void {
+                $nested->where('title', 'like', '%'.$search.'%')
+                    ->orWhereHas('course', fn ($courses) => $courses->where('code', 'like', '%'.$search.'%'));
+            }))
+            ->orderByRaw("CASE WHEN state = 'ACTIVE' THEN 0 ELSE 1 END")
+            ->orderBy('title')
+            ->limit($search !== '' ? 50 : 30)
+            ->get();
+
+        foreach ($catalogQuery as $spec) {
+            $options[(int) $spec->id] = $this->formatCourseSpecificationOption($spec);
+        }
+
+        return $options;
+    }
+
+    private function formatCourseSpecificationOption(CourseSpecification $spec, ?CurriculumEntry $entry = null): string
+    {
+        $units = rtrim(rtrim(number_format((float) $spec->credit_units, 2, '.', ''), '0'), '.');
+        $period = $entry instanceof CurriculumEntry
+            ? collect([
+                filled($entry->year_level) ? 'Year '.$entry->year_level : null,
+                $entry->term_label,
+            ])->filter()->implode(' · ')
+            : null;
+        $stateTag = $spec->state === CourseSpecification::StateRetired ? 'Retired' : null;
+
+        $meta = collect([
+            $period !== '' ? $period : null,
+            "{$units} ".((float) $units === 1.0 ? 'unit' : 'units'),
+            $stateTag,
+        ])->filter()->implode(' · ');
+
+        return collect([$spec->course?->code, $spec->title])->filter()->implode(' · ')
+            .($meta !== '' ? " ({$meta})" : '');
+    }
+
+    private function yearLevelRank(mixed $yearLevel): int
+    {
+        $label = strtolower(trim((string) ($yearLevel ?? '')));
+        if (preg_match('/\d+/', $label, $match) === 1) {
+            return (int) $match[0];
+        }
+
+        foreach (['first' => 1, 'second' => 2, 'third' => 3, 'fourth' => 4, 'fifth' => 5] as $word => $rank) {
+            if (str_contains($label, $word)) {
+                return $rank;
+            }
+        }
+
+        return 99;
+    }
+
+    private function termTypeRank(?string $termType, ?string $termLabel = null): int
+    {
+        if ($termType !== null) {
+            $mapped = match ($termType) {
+                Term::TypeFirstSemester => 1,
+                Term::TypeSecondSemester => 2,
+                Term::TypeSpecialTerm => 3,
+                default => null,
+            };
+
+            if ($mapped !== null) {
+                return $mapped;
+            }
+        }
+
+        $label = strtolower(trim((string) ($termLabel ?? '')));
+
+        return match (true) {
+            str_contains($label, 'first') || str_contains($label, '1st') => 1,
+            str_contains($label, 'second') || str_contains($label, '2nd') => 2,
+            str_contains($label, 'summer') || str_contains($label, 'special') || str_contains($label, 'mid') => 3,
+            default => 9,
         };
     }
 

@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Enrollments\Pages;
 use App\Actions\Academics\IrregularStudentReasons;
 use App\Actions\Calendar\CalendarPhaseGateService;
 use App\Actions\Calendar\Exceptions\CalendarGateViolation;
+use App\Actions\Enrollment\AdvisedSubjectSuggestion;
 use App\Actions\Enrollment\ApplyRegistrationAdjustment;
 use App\Actions\Enrollment\CancelRegistrationCase;
 use App\Actions\Enrollment\ConfirmRegistrationProposal;
@@ -25,6 +26,7 @@ use App\Actions\Enrollment\RegistrationNotificationLedger;
 use App\Actions\Enrollment\RegistrationPlacementValidator;
 use App\Actions\Enrollment\RegistrationReadinessQuery;
 use App\Actions\Enrollment\ReopenRegistrationCase;
+use App\Actions\Enrollment\RetryStandardRegistrationPreparation;
 use App\Actions\Enrollment\ReturnIrregularEnrollmentRequest;
 use App\Actions\Enrollment\StudentUnitLoadService;
 use App\Actions\Finance\AccountingDisplay;
@@ -128,6 +130,12 @@ class ViewEnrollment extends ViewRecord
     use WithPagination;
 
     protected static string $resource = EnrollmentResource::class;
+
+    /** @var array<string, array{reason: string, resolved: bool}|null> */
+    private array $regularPreparationBlockers = [];
+
+    /** @var array<string, array<string, mixed>|null> */
+    private array $advisedSuggestions = [];
 
     #[Url(as: 'view')]
     public string $enrollmentView = 'overview';
@@ -1248,9 +1256,11 @@ class ViewEnrollment extends ViewRecord
 
     public function prepareProposalAction(): Action
     {
+        $hasSuggestion = $this->getRecord()->currentProposalVersion === null && ($this->advisedSuggestion()['section_ids'] ?? []) !== [];
+
         return Action::make('prepareProposal')
-            ->label($this->getRecord()->currentProposalVersion === null ? 'Choose subjects' : 'Revise subjects')
-            ->color($this->getRecord()->currentProposalVersion === null ? 'primary' : 'gray')
+            ->label($this->getRecord()->currentProposalVersion === null ? ($hasSuggestion ? 'Adjust' : 'Choose subjects') : 'Revise subjects')
+            ->color($this->getRecord()->currentProposalVersion === null && ! $hasSuggestion ? 'primary' : 'gray')
             ->icon('heroicon-o-document-plus')
             ->modalHeading('Choose subjects')
             ->modalDescription(fn (): string => ($this->getRecord()->credentialUser?->getFilamentName() ?? 'Student').' · '.$this->getRecord()->term?->label.'. '.($this->getRecord()->currentProposalVersion === null
@@ -1263,6 +1273,7 @@ class ViewEnrollment extends ViewRecord
             ->extraModalWindowAttributes(['class' => 'registrar-enrollment-entry-modal registrar-subject-selection-modal'])
             ->authorize(fn (): bool => $this->actor()->can('confirmPlacement', $this->getRecord()))
             ->visible(fn (): bool => $this->getRecord()->canonical_outcome === Enrollment::OutcomeInProgress
+                && ! ($this->getRecord()->selection_basis === Enrollment::SelectionStandardCurriculum && $this->getRecord()->currentProposalVersion === null)
                 && ($this->actor()->can('confirmPlacement', $this->getRecord())))
             ->fillForm(function (): array {
                 $availableSectionIds = $this->classChoices()['sections']
@@ -1271,13 +1282,16 @@ class ViewEnrollment extends ViewRecord
                     ->all();
                 $prefilledSectionIds = $this->getRecord()->currentProposalVersion?->items->pluck('section_id')->all()
                     ?? $this->submittedIrregularRequest()?->sectionIds()
+                    ?? $this->advisedSuggestion()['section_ids']
                     ?? [];
+                $usesSuggestion = $this->getRecord()->currentProposalVersion === null && $prefilledSectionIds !== [];
 
                 return [
                     'case_version' => $this->getRecord()->lock_version,
                     'section_ids' => array_values(array_intersect(array_map('intval', $prefilledSectionIds), $availableSectionIds)),
                     'subject_year_filter' => null,
-                    'subject_term_filter' => $this->submittedIrregularRequest() !== null ? null : $this->defaultSubjectTermFilter(),
+                    'subject_term_filter' => $usesSuggestion ? null : $this->defaultSubjectTermFilter(),
+                    'curriculum_position' => $usesSuggestion ? ($this->advisedSuggestion()['curriculum_position'] ?? null) : null,
                 ];
             })
             ->schema([
@@ -1343,6 +1357,135 @@ class ViewEnrollment extends ViewRecord
                     $this->redirect($this->enrollmentUrl());
                 } catch (Throwable $exception) {
                     $this->failure('Subjects were not saved', $exception);
+                }
+            });
+    }
+
+    /**
+     * #103: subjects TALA suggests for this Individually Advised case (nothing reserved yet).
+     *
+     * @return array<string, mixed>|null
+     */
+    public function advisedSuggestion(): ?array
+    {
+        $case = $this->getRecord();
+        $key = $case->id.':'.$case->lock_version.':'.$case->current_proposal_version_id;
+
+        if (! array_key_exists($key, $this->advisedSuggestions)) {
+            $this->advisedSuggestions[$key] = app(AdvisedSubjectSuggestion::class)->forCase($case);
+        }
+
+        return $this->advisedSuggestions[$key];
+    }
+
+    public function approveSuggestedSubjectsAction(): Action
+    {
+        return Action::make('approveSuggestedSubjects')
+            ->label('Approve subjects')
+            ->icon('heroicon-o-check')
+            ->requiresConfirmation()
+            ->modalIcon('heroicon-o-check-circle')
+            ->modalIconColor('primary')
+            ->modalHeading('Approve these subjects?')
+            ->modalDescription('TALA reserves a seat in each class and sends the case to Accounting for the assessment. The subjects go to the student once the assessment is recorded.')
+            ->modalSubmitActionLabel('Approve and reserve seats')
+            ->authorize(fn (): bool => $this->actor()->can('confirmPlacement', $this->getRecord()))
+            ->visible(fn (): bool => ($this->advisedSuggestion()['section_ids'] ?? []) !== []
+                && $this->actor()->can('confirmPlacement', $this->getRecord()))
+            ->action(function (): void {
+                $suggestion = $this->advisedSuggestion();
+                if (($suggestion['section_ids'] ?? []) === []) {
+                    return;
+                }
+
+                try {
+                    $proposal = app(PrepareRegistrationProposal::class)->execute(
+                        $this->getRecord(),
+                        $this->actor(),
+                        $suggestion['section_ids'],
+                        (int) $this->getRecord()->lock_version,
+                        curriculumPosition: $suggestion['curriculum_position'],
+                    );
+                } catch (Throwable $exception) {
+                    $this->failure('Subjects were not approved', $exception);
+
+                    return;
+                }
+
+                try {
+                    app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $this->actor());
+                    Notification::make()
+                        ->title('Subjects approved and seats reserved')
+                        ->body('The case is now with Accounting for the assessment.')
+                        ->success()
+                        ->send();
+                } catch (ValidationException|CalendarGateViolation $reservationException) {
+                    $reason = $reservationException instanceof ValidationException
+                        ? collect($reservationException->errors())->flatten()->first()
+                        : $reservationException->getMessage();
+                    Notification::make()
+                        ->title('Subjects approved; seats not reserved yet')
+                        ->body($reason ?: 'Review the subjects and reserve seats when ready.')
+                        ->warning()
+                        ->send();
+                }
+
+                $this->advisedSuggestions = [];
+                $this->record = $this->getRecord()->refresh();
+                $this->redirect($this->enrollmentUrl());
+            });
+    }
+
+    /**
+     * Why automatic preparation has not prepared this regular case yet.
+     *
+     * @return array{reason: string, resolved: bool}|null
+     */
+    public function regularPreparationBlocker(): ?array
+    {
+        $case = $this->getRecord();
+        $key = $case->id.':'.$case->lock_version.':'.$case->current_proposal_version_id;
+
+        if (! array_key_exists($key, $this->regularPreparationBlockers)) {
+            $this->regularPreparationBlockers[$key] = app(RetryStandardRegistrationPreparation::class)->blocker($case);
+        }
+
+        return $this->regularPreparationBlockers[$key];
+    }
+
+    public function retryAutomaticPreparationAction(): Action
+    {
+        return Action::make('retryAutomaticPreparation')
+            ->label('Retry automatic preparation')
+            ->icon('heroicon-o-arrow-path')
+            ->authorize(fn (): bool => $this->actor()->can('confirmPlacement', $this->getRecord()))
+            ->visible(fn (): bool => $this->regularPreparationBlocker() !== null
+                && $this->actor()->can('confirmPlacement', $this->getRecord()))
+            ->action(function (): void {
+                try {
+                    $service = app(RetryStandardRegistrationPreparation::class);
+                    $prepared = $service->retry($this->getRecord(), $this->actor());
+                    $this->record = $prepared;
+                    $this->regularPreparationBlockers = [];
+
+                    if ($service->wasSentToStudent($prepared)) {
+                        Notification::make()
+                            ->title('Subjects prepared and sent to the student')
+                            ->body('Seats are reserved and the assessment is ready. The student can now confirm their subjects.')
+                            ->success()
+                            ->send();
+                        $this->redirect($this->enrollmentUrl());
+
+                        return;
+                    }
+
+                    Notification::make()
+                        ->title('Still not prepared')
+                        ->body($service->blocker($prepared)['reason'] ?? 'Automatic preparation did not finish. Choose the subjects manually.')
+                        ->warning()
+                        ->send();
+                } catch (Throwable $exception) {
+                    $this->failure('Automatic preparation did not run', $exception);
                 }
             });
     }
@@ -1493,9 +1636,12 @@ class ViewEnrollment extends ViewRecord
                     if ($proposal === null || (int) $this->getRecord()->fresh()->current_proposal_version_id !== $this->reviewedProposalVersionId) {
                         throw ValidationException::withMessages(['proposal' => 'The reviewed subjects changed. Open the current proposal before sending it.']);
                     }
-                    app(IssueRegistrationProposal::class)->execute($proposal, $this->actor());
+                    $sent = app(IssueRegistrationProposal::class)->execute($proposal, $this->actor());
                     $this->record = $this->getRecord()->refresh();
-                    Notification::make()->title('Subjects sent for confirmation')->success()->send();
+                    Notification::make()
+                        ->title($sent->state === RegistrationProposalVersion::StateConfirmed ? 'Subjects sent and confirmed' : 'Subjects sent for confirmation')
+                        ->success()
+                        ->send();
                     $this->redirect($this->enrollmentUrl());
                 } catch (Throwable $exception) {
                     $this->failure('Subjects were not sent', $exception);
@@ -1509,7 +1655,7 @@ class ViewEnrollment extends ViewRecord
             ->label('Record confirmation')
             ->icon('heroicon-o-check')
             ->modalHeading('Record student confirmation')
-            ->modalDescription('Record only confirmation the student has already given for these reviewed subjects. This records their consent; enrollment becomes official only after Registrar finalization.')
+            ->modalDescription('Record only confirmation the student has already given for these reviewed subjects. Once payment is cleared, TALA enrolls the student automatically.')
             ->modalSubmitActionLabel('Record confirmation')
             ->modalWidth(Width::TwoExtraLarge)
             ->stickyModalHeader()

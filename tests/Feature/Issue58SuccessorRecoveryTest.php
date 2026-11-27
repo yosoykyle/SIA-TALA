@@ -12,6 +12,7 @@ use App\Filament\Pages\MyAvailability;
 use App\Filament\Pages\TermCalendar;
 use App\Filament\Pages\TermResources;
 use App\Mail\FacultyAvailabilityRequestedMail;
+use App\Models\AcademicYear;
 use App\Models\CourseSpecification;
 use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
@@ -517,7 +518,16 @@ class Issue58SuccessorRecoveryTest extends TestCase
 
     private function activePackage(User $registrar): TermCalendarPackage
     {
-        $package = TermCalendarPackage::factory()->create();
+        $package = TermCalendarPackage::factory()
+            ->for(
+                Term::factory()->for(
+                    AcademicYear::factory()->state([
+                        'starts_on' => '2026-06-01',
+                        'ends_on' => '2027-05-31',
+                    ])
+                )
+            )
+            ->create();
         $package->teachingGridRows()->create(['day_of_week' => 1, 'starts_at' => '08:00:00', 'ends_at' => '17:00:00', 'breaks' => [['starts_at' => '12:00:00', 'ends_at' => '13:00:00']]]);
 
         return app(ActivateTermCalendarPackage::class)->execute($package, $registrar);

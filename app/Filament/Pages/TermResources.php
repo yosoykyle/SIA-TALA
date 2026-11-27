@@ -49,6 +49,7 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\GridDirection;
+use Filament\Support\Enums\IconPosition;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
@@ -1756,7 +1757,8 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                         }),
                 ])
                     ->label('Actions')
-                    ->icon(Heroicon::OutlinedEllipsisVertical)
+                    ->icon(Heroicon::OutlinedChevronDown)
+                    ->iconPosition(IconPosition::After)
                     ->size('sm')
                     ->color('gray')
                     ->visible(fn (): bool => ! ($this->getViewData()['readOnly'] ?? false) && ! $this->isTermClosed()),

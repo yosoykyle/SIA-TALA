@@ -228,6 +228,11 @@ class Requirements extends Page implements HasTable
             ->where('result', OfficialCredentialResult::ResultAuthorizedException)
             ->get()
             ->keyBy('admission_requirement_id');
+        $passed = $application->credentialResults()
+            ->whereDoesntHave('successor')
+            ->where('result', OfficialCredentialResult::ResultVerified)
+            ->pluck('admission_requirement_id')
+            ->map(fn (mixed $id): int => (int) $id);
 
         return $requirements->map(fn (AdmissionRequirement $requirement): array => [
             'requirement_id' => (int) $requirement->id,
@@ -237,9 +242,10 @@ class Requirements extends Page implements HasTable
                 ? 'Still owed · bring it by '.$held->get($requirement->id)->exception_expires_at?->timezone(config('app.display_timezone'))->format('M j, Y')
                 : $requirement->dueStageLabel(),
             'instructions' => $requirement->applicant_instructions,
+            // #103 Scope 7: after clearance, a paper the Registrar has not ticked is still To be followed.
             ...match (true) {
-                $held->has($requirement->id) => ['state' => 'On hold', 'color' => 'warning'],
-                $isCleared && $requirement->due_stage !== AdmissionRequirement::DuePostEnrollmentFollowUp => ['state' => 'Passed on-site', 'color' => 'success'],
+                $passed->contains((int) $requirement->id) => ['state' => 'Passed on-site', 'color' => 'success'],
+                $held->has($requirement->id) || $isCleared => ['state' => 'To be followed', 'color' => 'warning'],
                 default => ['state' => 'To be passed on-site', 'color' => 'info'],
             },
         ])->values()->all();

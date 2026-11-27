@@ -9,6 +9,7 @@ use App\Actions\Finance\SubmitPaymentEvidence;
 use App\Actions\Finance\TermAccountProjection;
 use App\Actions\StudentLifecycle\LifecycleAccountingReview;
 use App\Models\Enrollment;
+use App\Models\Hold;
 use App\Models\PaymentEvidenceVersion;
 use App\Models\StudentProfile;
 use App\Models\TermAccount;
@@ -97,6 +98,12 @@ class Finance extends Page
 
         return [
             'pastAccounts' => $pastAccounts,
+            'activeFinancialHolds' => $actor->studentProfile?->holds()
+                ->where('hold_type', Hold::TypeFinancial)
+                ->where('status', Hold::StatusActive)
+                ->where(fn ($query) => $query->whereNull('effective_at')->orWhere('effective_at', '<=', now()))
+                ->where(fn ($query) => $query->whereNull('expires_at')->orWhere('expires_at', '>', now()))
+                ->get() ?? collect(),
             'unavailableAccountReviews' => $account === null && ! $this->showHistory
                 ? Enrollment::query()->where('credential_user_id', $actor->id)->whereDoesntHave('termAccount')->with('term')->get()
                     ->map(fn (Enrollment $case): array => [

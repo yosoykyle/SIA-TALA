@@ -100,7 +100,9 @@ class Profile extends Page
                 'heading' => 'Current studies',
                 'description' => $studyContext['is_official']
                     ? 'Year level follows the subjects in your current official enrollment.'
-                    : 'Current enrollment details become available after official enrollment.',
+                    : ($studyContext['study_level_label'] !== 'Unavailable'
+                        ? 'Provisional year standing based on your recorded prior credits. Official term details appear after enrollment.'
+                        : 'Current enrollment details become available after official enrollment.'),
                 'items' => [
                     ['label' => 'Program', 'value' => $this->value($studyContext['program_name'])],
                     ['label' => 'Year level', 'value' => $studyContext['study_level_label']],

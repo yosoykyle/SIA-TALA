@@ -106,7 +106,9 @@ final class PrepareTermClassProposal
             ->whereNotNull('current_proposal_version_id')->get()->flatMap(fn (Enrollment $case): array => app(RegistrationShortageProjection::class)->for($case))->all();
 
         return ['ready_applicants' => $ready, 'continuing_profiles' => StudentProfile::query()->where('lifecycle_status', StudentProfile::LifecycleActive)
-            ->whereNull('archived_at')->whereNull('merged_into_id')->where('entry_term_id', '!=', $term->id)->count(), 'unmet' => $unmet];
+            ->whereNull('archived_at')->whereNull('merged_into_id')
+            ->where(fn ($query) => $query->whereNull('entry_term_id')->orWhere('entry_term_id', '!=', $term->id))
+            ->count(), 'unmet' => $unmet];
     }
 
     /** @param list<array<string,mixed>> $rows

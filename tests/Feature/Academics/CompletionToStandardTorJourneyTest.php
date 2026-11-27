@@ -339,7 +339,7 @@ class CompletionToStandardTorJourneyTest extends TestCase
             'curriculum_version_id' => $fixture['student']->curriculum_version_id,
             'credited_curriculum_entry_ids' => [$creditedEntry->id],
         ]);
-        RegistrationCreditLine::factory()->withBridging()->create([
+        RegistrationCreditLine::factory()->create([
             'registration_credit_evaluation_id' => $evaluation->id, 'curriculum_entry_id' => $creditedEntry->id,
             'source_course_code' => 'MATH 1', 'tor_grade' => '1.25',
         ]);
@@ -356,7 +356,7 @@ class CompletionToStandardTorJourneyTest extends TestCase
         $transferRow = collect(app(TranscriptPreview::class)->forRequest($request)['academic_years'])->flatten(1)
             ->firstWhere('attempt_or_credit', 'Transfer credit');
         $this->assertSame(
-            [$creditedEntry->courseSpecification->course->code, '1.25', 'Transfer credit from MATH 1 · 1 unit(s) bridging', $fixture['term']->label],
+            [$creditedEntry->courseSpecification->course->code, '1.25', 'Transfer credit from MATH 1', $fixture['term']->label],
             [$transferRow['course_code'], $transferRow['result'], $transferRow['remarks'], $transferRow['term']],
         );
         $this->assertSame('2.00', app(CumulativeGwaProjection::class)->forStudent($fixture['student'])['value']);

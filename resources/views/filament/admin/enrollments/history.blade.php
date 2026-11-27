@@ -69,7 +69,7 @@
             <div class="tala-enrollment-selections">
                 @foreach ($case->proposalVersions->sortByDesc('version') as $version)
                     <section wire:key="selection-history-{{ $version->id }}">
-                        <div class="tala-enrollment-selection-heading"><h3>{{ $case->current_proposal_version_id === $version->id ? 'Current selection' : 'Earlier selection' }} · version {{ $version->version }}</h3><x-filament::badge color="gray">{{ match ($version->state) { 'Issued' => 'Sent for confirmation', 'Confirmed' => 'Confirmed by the student', 'Superseded' => 'Replaced by a later selection', default => 'Draft' } }}</x-filament::badge></div>
+                        <div class="tala-enrollment-selection-heading"><h3>{{ $case->current_proposal_version_id === $version->id ? 'Current selection' : 'Earlier selection' }} · version {{ $version->version }}</h3><x-filament::badge color="gray">{{ match ($version->state) { 'Issued' => 'Sent for confirmation', 'Confirmed' => $version->confirmation?->method === \App\Models\RegistrationProposalConfirmation::MethodRegistrarAssisted ? 'Confirmed by the Registrar' : 'Confirmed by the student', 'Superseded' => 'Replaced by a later selection', default => 'Draft' } }}</x-filament::badge></div>
                         <p class="registrar-case-meta">{{ $date($version->issued_at ?? $version->prepared_at) }}</p>
                         @if ($version->items->isNotEmpty())
                             @include('filament.admin.enrollments.subjects', ['proposal' => $version, 'sourceKey' => 'history-'.$version->id])

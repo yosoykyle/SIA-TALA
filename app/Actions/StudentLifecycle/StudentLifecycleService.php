@@ -18,6 +18,7 @@ use App\Models\EnrollmentSeatReservation;
 use App\Models\GradeOutcomeEvent;
 use App\Models\GradeRosterRow;
 use App\Models\Hold;
+use App\Models\PriorAcademicCredit;
 use App\Models\Program;
 use App\Models\ProgramShiftCreditEntry;
 use App\Models\StudentLifecycleChange;
@@ -245,6 +246,7 @@ class StudentLifecycleService
                         'curriculum_entry_id' => $credit->curriculum_entry_id,
                         'source_course_id' => $credit->source_course_id,
                         'source_grade_outcome_event_id' => $credit->source_grade_outcome_event_id,
+                        'source_prior_academic_credit_id' => $credit->source_prior_academic_credit_id,
                         'treatment' => $credit->treatment,
                         'numeric_grade' => $credit->numeric_grade,
                     ];
@@ -267,10 +269,15 @@ class StudentLifecycleService
             $this->lockShiftSourceRows($student, $creditRows);
             $validatedCredits = $this->validateProgramShiftCreditEntries($student, $targetCurriculum, $creditRows);
             foreach ($validatedCredits as $index => $entry) {
-                if ($entry['treatment'] === ProgramShiftCreditEntry::TreatmentAccepted
-                    && ((int) $entry['source_course_id'] !== (int) $creditRows[$index]['source_course_id']
-                        || (float) $entry['numeric_grade'] !== (float) $creditRows[$index]['numeric_grade'])) {
-                    throw new StudentLifecycleRuleViolation('The released passing result no longer matches the recorded credit evaluation. Review the approval before applying it.');
+                if ($entry['treatment'] === ProgramShiftCreditEntry::TreatmentAccepted) {
+                    $recordedGrade = $creditRows[$index]['numeric_grade'];
+                    $currentGrade = $entry['numeric_grade'];
+                    $gradeMismatch = ($recordedGrade === null) !== ($currentGrade === null)
+                        || ($recordedGrade !== null && $currentGrade !== null && (float) $currentGrade !== (float) $recordedGrade);
+
+                    if ((int) $entry['source_course_id'] !== (int) $creditRows[$index]['source_course_id'] || $gradeMismatch) {
+                        throw new StudentLifecycleRuleViolation('The released passing result no longer matches the recorded credit evaluation. Review the approval before applying it.');
+                    }
                 }
             }
             $this->assertCurrentApprovalSource($locked, $student);
@@ -708,6 +715,7 @@ class StudentLifecycleService
                 'curriculum_entry_id' => $entry['curriculum_entry_id'],
                 'source_course_id' => $entry['source_course_id'] ?? null,
                 'source_grade_outcome_event_id' => $entry['source_grade_outcome_event_id'] ?? null,
+                'source_prior_academic_credit_id' => $entry['source_prior_academic_credit_id'] ?? null,
                 'treatment' => $entry['treatment'],
                 'state' => ProgramShiftCreditEntry::StateRecorded,
                 'numeric_grade' => $entry['numeric_grade'] ?? null,
@@ -719,10 +727,19 @@ class StudentLifecycleService
     public function programShiftSources(StudentProfile $student): Collection
     {
         return $this->results->forStudent($student)
-            ->filter(fn (array $result): bool => $result['event'] instanceof GradeOutcomeEvent
-                && is_numeric($result['result'])
-                && (float) $result['result'] >= 1.00
-                && (float) $result['result'] <= 4.00)
+            ->filter(function (array $result): bool {
+                if ($result['event'] instanceof GradeOutcomeEvent) {
+                    return is_numeric($result['result'])
+                        && (float) $result['result'] >= 1.00
+                        && (float) $result['result'] <= 4.00;
+                }
+
+                $priorCredit = $result['prior_credit'] ?? null;
+
+                return $priorCredit instanceof PriorAcademicCredit
+                    && $priorCredit->state === PriorAcademicCredit::StateActive
+                    && $priorCredit->isPassing();
+            })
             ->values();
     }
 
@@ -789,7 +806,8 @@ class StudentLifecycleService
         $sources = $this->programShiftSources($student)
             ->filter(fn (array $result): bool => $result['course_specification'] !== null
                 && $result['course_specification']->course_id !== null
-                && $result['event'] instanceof GradeOutcomeEvent)
+                && ($result['event'] instanceof GradeOutcomeEvent
+                    || ($result['prior_credit'] ?? null) instanceof PriorAcademicCredit))
             ->values();
 
         $sourceSpecIds = $sources
@@ -814,8 +832,12 @@ class StudentLifecycleService
                     ->values())
             : collect();
 
+        $sourceKey = static fn (array $source): string => $source['event'] instanceof GradeOutcomeEvent
+            ? 'event:'.$source['event']->id
+            : 'prior:'.(int) ($source['prior_credit']?->id ?? 0);
+
         $latestByCourseId = $sources->keyBy(fn (array $result): int => (int) $result['course_specification']->course_id);
-        $usedSourceEventIds = [];
+        $usedSourceKeys = [];
         $matchedEntryIds = [];
         $alreadySatisfied = [];
         $equivalentMatches = [];
@@ -824,6 +846,8 @@ class StudentLifecycleService
             $targetSpec = $entry->courseSpecification;
             $sourceSpec = $source['course_specification'];
             $termTaken = $source['term'];
+            $event = $source['event'] instanceof GradeOutcomeEvent ? $source['event'] : null;
+            $priorCredit = ($source['prior_credit'] ?? null) instanceof PriorAcademicCredit ? $source['prior_credit'] : null;
 
             return [
                 'curriculum_entry_id' => (int) $entry->id,
@@ -833,14 +857,15 @@ class StudentLifecycleService
                 'year_level' => $entry->year_level,
                 'term_label' => $entry->term_label,
                 'credit_units' => (float) ($targetSpec?->credit_units ?? 0.0),
-                'source_grade_outcome_event_id' => (int) $source['event']->id,
+                'source_grade_outcome_event_id' => $event !== null ? (int) $event->id : null,
+                'source_prior_academic_credit_id' => $priorCredit !== null ? (int) $priorCredit->id : null,
                 'source_course_id' => (int) ($sourceSpec?->course_id ?? 0),
                 'source_course_code' => (string) ($sourceSpec?->course?->code ?? ''),
                 'source_course_title' => (string) ($sourceSpec?->title ?? ''),
                 'numeric_grade' => (string) $source['result'],
                 'term_label_taken' => $termTaken instanceof Term
                     ? collect([$termTaken->label, $termTaken->academicYear?->label])->filter()->implode(' ')
-                    : null,
+                    : (collect([$source['period_label'] ?? null, $source['academic_year_label'] ?? null])->filter()->implode(' ') ?: null),
             ];
         };
 
@@ -856,12 +881,12 @@ class StudentLifecycleService
                 continue;
             }
 
-            $sourceEventId = (int) $directSource['event']->id;
-            if (in_array($sourceEventId, $usedSourceEventIds, true)) {
+            $key = $sourceKey($directSource);
+            if (in_array($key, $usedSourceKeys, true)) {
                 continue;
             }
 
-            $usedSourceEventIds[] = $sourceEventId;
+            $usedSourceKeys[] = $key;
             $matchedEntryIds[] = (int) $entry->id;
             $alreadySatisfied[] = $buildSuggestion($entry, $directSource);
         }
@@ -887,9 +912,8 @@ class StudentLifecycleService
                 ->unique()
                 ->values();
 
-            $equivalentSource = $latestByCourseId->first(function (array $source) use ($targetCourseId, $targetEquivalentIds, $sourceEquivalenciesBySpec, $usedSourceEventIds): bool {
-                $sourceEventId = (int) $source['event']->id;
-                if (in_array($sourceEventId, $usedSourceEventIds, true)) {
+            $equivalentSource = $latestByCourseId->first(function (array $source) use ($targetCourseId, $targetEquivalentIds, $sourceEquivalenciesBySpec, $usedSourceKeys, $sourceKey): bool {
+                if (in_array($sourceKey($source), $usedSourceKeys, true)) {
                     return false;
                 }
 
@@ -911,7 +935,7 @@ class StudentLifecycleService
                 continue;
             }
 
-            $usedSourceEventIds[] = (int) $equivalentSource['event']->id;
+            $usedSourceKeys[] = $sourceKey($equivalentSource);
             $matchedEntryIds[] = (int) $entry->id;
             $equivalentMatches[] = $buildSuggestion($entry, $equivalentSource);
         }
@@ -919,16 +943,19 @@ class StudentLifecycleService
         $availableSources = $sources->map(function (array $source): array {
             $sourceSpec = $source['course_specification'];
             $termTaken = $source['term'];
+            $event = $source['event'] instanceof GradeOutcomeEvent ? $source['event'] : null;
+            $priorCredit = ($source['prior_credit'] ?? null) instanceof PriorAcademicCredit ? $source['prior_credit'] : null;
 
             return [
-                'source_grade_outcome_event_id' => (int) $source['event']->id,
+                'source_grade_outcome_event_id' => $event !== null ? (int) $event->id : null,
+                'source_prior_academic_credit_id' => $priorCredit !== null ? (int) $priorCredit->id : null,
                 'source_course_id' => (int) ($sourceSpec?->course_id ?? 0),
                 'source_course_code' => (string) ($sourceSpec?->course?->code ?? ''),
                 'source_course_title' => (string) ($sourceSpec?->title ?? ''),
                 'numeric_grade' => (string) $source['result'],
                 'term_label_taken' => $termTaken instanceof Term
                     ? collect([$termTaken->label, $termTaken->academicYear?->label])->filter()->implode(' ')
-                    : null,
+                    : (collect([$source['period_label'] ?? null, $source['academic_year_label'] ?? null])->filter()->implode(' ') ?: null),
             ];
         })->values()->all();
 
@@ -959,12 +986,18 @@ class StudentLifecycleService
      */
     private function validateProgramShiftCreditEntries(StudentProfile $student, CurriculumVersion $targetCurriculum, array $entries): array
     {
-        $sources = collect($entries)->contains('treatment', ProgramShiftCreditEntry::TreatmentAccepted)
-            ? $this->programShiftSources($student)->keyBy('event.id')
+        $allSources = collect($entries)->contains('treatment', ProgramShiftCreditEntry::TreatmentAccepted)
+            ? $this->programShiftSources($student)
             : collect();
+        $eventSources = $allSources
+            ->filter(fn (array $result): bool => $result['event'] instanceof GradeOutcomeEvent)
+            ->keyBy('event.id');
+        $priorCreditSources = $allSources
+            ->filter(fn (array $result): bool => ($result['prior_credit'] ?? null) instanceof PriorAcademicCredit)
+            ->keyBy('prior_credit.id');
 
         $seen = [];
-        $seenSourceEventIds = [];
+        $seenSourceKeys = [];
         $validated = [];
         foreach ($entries as $entry) {
             $curriculumEntryId = (int) ($entry['curriculum_entry_id'] ?? 0);
@@ -995,22 +1028,41 @@ class StudentLifecycleService
 
             $source = null;
             if ($treatment === ProgramShiftCreditEntry::TreatmentAccepted) {
-                $source = $sources->get((int) ($entry['source_grade_outcome_event_id'] ?? 0));
-                if ($source === null || $source['course_specification'] === null) {
-                    throw new StudentLifecycleRuleViolation('Accepted credit requires this student’s current released passing result. Choose an available result or review the credit evaluation.');
+                $eventId = (int) ($entry['source_grade_outcome_event_id'] ?? 0);
+                $priorCreditId = (int) ($entry['source_prior_academic_credit_id'] ?? 0);
+
+                if ($eventId > 0) {
+                    $source = $eventSources->get($eventId);
+                } elseif ($priorCreditId > 0) {
+                    $source = $priorCreditSources->get($priorCreditId);
                 }
-                $sourceEventId = (int) $source['event']->id;
-                if (in_array($sourceEventId, $seenSourceEventIds, true)) {
+
+                if ($source === null || $source['course_specification'] === null) {
+                    throw new StudentLifecycleRuleViolation('Accepted credit requires this student’s current released passing result or prior academic credit. Choose an available result or review the credit evaluation.');
+                }
+
+                $sourceKey = $source['event'] instanceof GradeOutcomeEvent
+                    ? 'event:'.$source['event']->id
+                    : 'prior:'.$source['prior_credit']->id;
+
+                if (in_array($sourceKey, $seenSourceKeys, true)) {
                     throw new StudentLifecycleRuleViolation('The same released passing result cannot be credited to multiple target subjects.');
                 }
-                $seenSourceEventIds[] = $sourceEventId;
+                $seenSourceKeys[] = $sourceKey;
             }
+
+            $numericGrade = null;
+            if ($source !== null && is_numeric($source['result'] ?? null)) {
+                $numericGrade = (string) $source['result'];
+            }
+
             $validated[] = [
                 'curriculum_entry_id' => $curriculumEntryId,
                 'treatment' => $treatment,
                 'source_grade_outcome_event_id' => $source['event']->id ?? null,
+                'source_prior_academic_credit_id' => $source['prior_credit']->id ?? null,
                 'source_course_id' => $source['course_specification']->course_id ?? null,
-                'numeric_grade' => $source['result'] ?? null,
+                'numeric_grade' => $numericGrade,
             ];
         }
 

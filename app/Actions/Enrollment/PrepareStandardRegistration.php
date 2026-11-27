@@ -42,7 +42,8 @@ class PrepareStandardRegistration
         $enrollment->loadMissing(['studentProfile', 'term']);
         if ($enrollment->studentProfile !== null
             && $enrollment->term !== null
-            && $this->hasPartialSatisfiedPosition($enrollment->studentProfile, $enrollment->term)) {
+            && ($this->hasPartialSatisfiedPosition($enrollment->studentProfile, $enrollment->term)
+                || $this->isUncreditedContinuingCohort($enrollment->studentProfile, $enrollment->term))) {
             $enrollment->update([
                 'selection_basis' => Enrollment::SelectionIndividuallyAdvised,
                 'status_reason' => 'Registrar advising is required for the remaining curriculum subjects in this Term.',
@@ -59,7 +60,10 @@ class PrepareStandardRegistration
             if ($proposal->state === RegistrationProposalVersion::StateDraft) {
                 $this->place->execute($proposal, $actor);
                 $this->assess->execute($enrollment->fresh(), $actor);
-                $this->issue->issuePrepared($proposal->fresh());
+                $proposal = $proposal->fresh();
+                if ($proposal->state === RegistrationProposalVersion::StateDraft) {
+                    $this->issue->issuePrepared($proposal);
+                }
             }
         } catch (ValidationException|CalendarGateViolation $exception) {
             $enrollment->refresh()->update(['status_reason' => $exception->getMessage()]);
@@ -94,6 +98,7 @@ class PrepareStandardRegistration
             ->with('courseSpecification')
             ->where('curriculum_version_id', $curriculum->id)
             ->where('term_type', $term->type)
+            ->orderBy('year_level')
             ->orderBy('sequence')
             ->orderBy('id')
             ->get()
@@ -134,7 +139,7 @@ class PrepareStandardRegistration
             $program = $programId !== null ? Program::query()->find($programId) : null;
 
             if ($program instanceof Program && $program->curriculumVersionBatches()->exists()) {
-                $academicYearId = $profile?->entryTerm?->academic_year_id ?? $enrollment->term?->academic_year_id;
+                $academicYearId = $profile?->entry_academic_year_id ?? $profile?->entryTerm?->academic_year_id ?? $enrollment->term?->academic_year_id;
                 $curriculum = $program->curriculumForAcademicYear($academicYearId);
 
                 if (! $curriculum instanceof CurriculumVersion) {
@@ -156,7 +161,7 @@ class PrepareStandardRegistration
         $satisfied = $profile !== null ? $this->eligibility->satisfiedCourseIds($profile) : collect();
         $positions = CurriculumEntry::query()->with('courseSpecification.requirements')
             ->where('curriculum_version_id', $curriculum->id)->where('term_type', $enrollment->term?->type)
-            ->orderBy('sequence')->orderBy('id')->get()
+            ->orderBy('year_level')->orderBy('sequence')->orderBy('id')->get()
             ->groupBy(fn (CurriculumEntry $entry): string => $entry->year_level.':'.$entry->term_label.':'.$entry->term_type);
         $entries = $positions->first(fn (Collection $group): bool => $group->contains(fn (CurriculumEntry $entry): bool => ! $satisfied->contains($entry->courseSpecification?->course_id)));
         if (! $entries instanceof Collection || $entries->isEmpty()
@@ -239,13 +244,58 @@ class PrepareStandardRegistration
                 return $reserved + $official < $section->capacity;
             });
         })->values();
-        if ($valid->count() === 1) {
-            return $valid->sole()->pluck('id')->map(fn ($id): int => (int) $id)->values()->all();
+        if ($valid->isNotEmpty()) {
+            return $this->roomiestBlock($valid, $enrollment)->pluck('id')->map(fn ($id): int => (int) $id)->values()->all();
         }
         if ($valid->isEmpty() && $blocks->count() === 1) {
             return $blocks->sole()->pluck('id')->map(fn ($id): int => (int) $id)->values()->all();
         }
         $this->unavailable('Registrar must choose a complete valid class block or advise the affected subjects; enrollment has not been confirmed.');
+    }
+
+    /**
+     * #103: when several complete blocks are valid, take the one whose fullest class has the most
+     * open seats (then the most open seats overall, then the earliest class) instead of stopping.
+     *
+     * @param  Collection<int, Collection<int, Section>>  $blocks
+     * @return Collection<int, Section>
+     */
+    private function roomiestBlock(Collection $blocks, Enrollment $enrollment): Collection
+    {
+        if ($blocks->count() === 1) {
+            return $blocks->sole();
+        }
+
+        $remaining = function (Section $section) use ($enrollment): int {
+            $reserved = EnrollmentSeatReservation::query()->where('section_id', $section->id)
+                ->where('enrollment_id', '!=', $enrollment->id)->whereIn('status', EnrollmentSeatReservation::capacityHoldingStatuses())->count();
+            $official = CourseEnrollment::query()->where('section_id', $section->id)->where('is_current', true)->where('status', CourseEnrollment::StatusActive)->count();
+
+            return max(0, (int) $section->capacity - $reserved - $official);
+        };
+
+        return $blocks
+            ->map(fn (Collection $block): array => [
+                'block' => $block,
+                'fullest' => $block->map($remaining)->min(),
+                'total' => $block->map($remaining)->sum(),
+                'first' => (int) $block->min('id'),
+            ])
+            ->sort(fn (array $a, array $b): int => [$b['fullest'], $b['total'], $a['first']] <=> [$a['fullest'], $a['total'], $b['first']])
+            ->first()['block'];
+    }
+
+    private function isUncreditedContinuingCohort(StudentProfile $profile, Term $term): bool
+    {
+        if ($profile->applicant_intake_id !== null || $profile->entry_academic_year_id === null) {
+            return false;
+        }
+
+        if ((int) $profile->entry_academic_year_id === (int) $term->academic_year_id) {
+            return false;
+        }
+
+        return $this->eligibility->satisfiedCourseIds($profile)->isEmpty();
     }
 
     private function unavailable(string $reason): never

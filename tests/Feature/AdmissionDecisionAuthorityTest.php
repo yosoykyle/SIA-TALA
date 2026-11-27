@@ -302,7 +302,7 @@ class AdmissionDecisionAuthorityTest extends TestCase
         $this->assertSame($registrar->id, $decision->decided_by);
 
         $clearanceAction = $admittedPage->mountAction('recordEnrollmentClearance')->instance()->getMountedAction();
-        $this->assertSame('Check each original paper received in person. Record clearance when complete, or notify the applicant of missing items.', $clearanceAction->getModalDescription());
+        $this->assertSame('Tick each original paper received in person. Ticked papers are tagged Passed; unticked papers are tagged To be followed, and clearance can still be recorded.', $clearanceAction->getModalDescription());
 
         $deadlinePage = Livewire::actingAs($registrar)->test(ViewAdmissionApplication::class, ['record' => $application->id])
             ->mountAction('extendDeadline');

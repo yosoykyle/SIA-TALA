@@ -25,7 +25,7 @@ class StoreRegistrationCreditEvaluation
 
     /**
      * @param  array{enrollment_id: int, application_submission_version_id: int}  $owner
-     * @param  array<int, array{source_course_code?: ?string, source_course_title?: ?string, source_units?: mixed, tor_grade?: ?string, bridging_units?: mixed, remarks?: ?string}>  $creditLines  keyed by credited curriculum entry ID
+     * @param  array<int, array{source_course_code?: ?string, source_course_title?: ?string, source_units?: mixed, tor_grade?: ?string, remarks?: ?string}>  $creditLines  keyed by credited curriculum entry ID
      */
     public function store(array $owner, CurriculumVersion $curriculum, array $creditLines, ?bool $sameCurriculum,
         string $authorityReference, CarbonImmutable $approvedOn, User $actor): RegistrationCreditEvaluation
@@ -49,7 +49,6 @@ class StoreRegistrationCreditEvaluation
             $sourceTitle = $this->text($line['source_course_title'] ?? null) ?? ($sameCurriculum === true ? $entry->courseSpecification->title : null);
             $sourceUnits = $this->units($line['source_units'] ?? null, $subject, 'source units') ?? ($sameCurriculum === true ? $subjectUnits : null);
             $torGrade = $this->text($line['tor_grade'] ?? null);
-            $bridgingUnits = $this->units($line['bridging_units'] ?? null, $subject, 'bridging units');
             $remarks = $this->text($line['remarks'] ?? null);
 
             if ($sourceCode === null || $sourceTitle === null || mb_strlen($sourceCode) > self::SourceCodeMaxLength || mb_strlen($sourceTitle) > self::SourceTitleMaxLength) {
@@ -57,9 +56,6 @@ class StoreRegistrationCreditEvaluation
             }
             if ($torGrade === null || mb_strlen($torGrade) > self::TorGradeMaxLength) {
                 throw ValidationException::withMessages(['credit_lines' => "Record the TOR grade for {$subject} as printed (up to ".self::TorGradeMaxLength.' characters).']);
-            }
-            if ($bridgingUnits !== null && ($bridgingUnits <= 0 || $bridgingUnits > $subjectUnits)) {
-                throw ValidationException::withMessages(['credit_lines' => "Bridging units for {$subject} must be more than 0 and at most the subject's {$subjectUnits} units."]);
             }
             if ($remarks !== null && mb_strlen($remarks) > self::RemarksMaxLength) {
                 throw ValidationException::withMessages(['credit_lines' => "Keep the remarks for {$subject} within ".self::RemarksMaxLength.' characters.']);
@@ -71,7 +67,6 @@ class StoreRegistrationCreditEvaluation
                 'source_course_title' => $sourceTitle,
                 'source_units' => $sourceUnits,
                 'tor_grade' => $torGrade,
-                'bridging_units' => $bridgingUnits,
                 'remarks' => $remarks,
             ];
         }

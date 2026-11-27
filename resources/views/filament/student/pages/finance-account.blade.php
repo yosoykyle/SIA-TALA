@@ -12,15 +12,45 @@
         : (bool) (data_get($accountData, 'has_enabled_digital_channels')
             ?? data_get($resolvedHowToPayDisplay, 'hasEnabledDigitalChannels', collect(data_get($resolvedHowToPayDisplay, 'electronicChannels', []))->isNotEmpty()));
 @endphp
+@php
+    $financialHolds = $activeFinancialHolds ?? collect();
+    $hasFinancialHolds = $financialHolds->isNotEmpty();
+@endphp
 <div class="student-finance student-finance-workspace">
+    @if ($hasFinancialHolds)
+        <section class="tala-notice--warning student-finance-hold-banner" role="status" aria-labelledby="finance-prior-hold-heading">
+            <div class="student-finance-hold-banner__head">
+                <x-filament::icon icon="heroicon-o-exclamation-triangle" aria-hidden="true" />
+                <h2 id="finance-prior-hold-heading">Prior-balance financial hold on your account</h2>
+            </div>
+            @foreach ($financialHolds as $hold)
+                <p>{{ $hold->studentFacingMessage() }}</p>
+                @if (filled($hold->reason) && $hold->reason !== $hold->studentFacingMessage() && $hold->reason !== $hold->staff_only_reason)
+                    <p class="student-finance-hold-note"><strong>Hold note:</strong> {{ $hold->reason }}</p>
+                @endif
+            @endforeach
+            <p class="student-finance-secondary">This prior-balance hold may block next-term enrollment and official record releases (such as your TOR or graduation clearance). Please coordinate with the Accounting Office; Accounting or the Registrar will lift the hold once settled.</p>
+        </section>
+    @endif
     @if (! isset($accountData['account']))
         @foreach ($unavailableAccountReviews as $review)
             @include('filament.student.pages.finance-student-changes', ['studentChangeReviewStatus' => $review['status'], 'studentChangeReviewTerm' => $review['term'], 'studentChangeReviewId' => $review['id']])
         @endforeach
         <section class="student-record-empty tala-task-surface">
-            <x-servitech-empty-state illustrated heading="Your fees will appear here" description="Your fees and payment schedule will appear after Accounting prepares your term account.">
-                <x-filament::button wire:click="refreshFinance" wire:loading.attr="disabled" color="gray" icon="heroicon-o-arrow-path">Refresh account</x-filament::button>
-            </x-servitech-empty-state>
+            @if ($hasFinancialHolds)
+                <x-servitech-empty-state
+                    illustrated
+                    tone="neutral"
+                    heading="No current-term assessment yet"
+                    description="Once your prior balance is cleared and you enroll for the next term, your current-term fees and payment schedule will appear here."
+                >
+                    <x-filament::button wire:click="refreshFinance" wire:loading.attr="disabled" color="gray" icon="heroicon-o-arrow-path">Refresh account</x-filament::button>
+                </x-servitech-empty-state>
+            @else
+                <x-servitech-empty-state illustrated heading="Your fees will appear here" description="Your fees and payment schedule will appear after Accounting prepares your term account.">
+                    <x-filament::button wire:click="refreshFinance" wire:loading.attr="disabled" color="gray" icon="heroicon-o-arrow-path">Refresh account</x-filament::button>
+                </x-servitech-empty-state>
+            @endif
         </section>
     @else
     <p class="student-information-intro">{{ data_get($accountData, 'state.term') }}</p>

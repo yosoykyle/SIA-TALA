@@ -2,6 +2,7 @@
     $results = $profile['results'];
     $selected = $profile['selectedResult'];
     $curriculum = $profile['curriculum'];
+    $isRegistrar = $this->isRegistrarActor();
     $fromEnrollmentId = request()->integer('fromEnrollment') ?: null;
     $returnEnrollment = $fromEnrollmentId
         ? \App\Models\Enrollment::query()
@@ -30,7 +31,7 @@
         : collect();
 @endphp
 @if ($returnEnrollmentUrl)
-    <div style="margin-block-end: .75rem;">
+    <div class="tala-profile-return-link">
         <x-filament::link :href="$returnEnrollmentUrl" icon="heroicon-o-arrow-left">
             Return to enrollment case{{ $returnEnrollment?->term?->label ? ' ('.$returnEnrollment->term->label.')' : '' }}
         </x-filament::link>
@@ -47,6 +48,16 @@
         @if ($profile['releasedCount'] > 1 || trim($this->academicSearch) !== '')
             <label class="tala-profile-control"><span>Find a subject</span><x-filament::input.wrapper prefix-icon="heroicon-m-magnifying-glass"><x-filament::input type="search" wire:model.live.debounce.350ms="academicSearch" placeholder="Subject or code" /></x-filament::input.wrapper></label>
         @endif
+        @if ($isRegistrar && ($this->upsertPriorCreditAction->isVisible() || ($profile['activePriorIncCount'] ?? 0) > 0))
+            <div class="tala-profile-toolbar-actions">
+                @if (($profile['activePriorIncCount'] ?? 0) > 0 && $this->settlePriorIncAction->isVisible())
+                    {{ $this->settlePriorIncAction }}
+                @endif
+                @if ($this->upsertPriorCreditAction->isVisible())
+                    {{ $this->upsertPriorCreditAction }}
+                @endif
+            </div>
+        @endif
     </header>
     <div class="tala-profile-ledger__metrics">
         <div><span class="tala-profile-muted">Released results</span><strong class="tala-profile-number">{{ $results->total() }}</strong><span class="tala-profile-muted">{{ $profile['selectedPeriodShortLabel'] ?? 'No enrolled term' }}</span></div>
@@ -60,17 +71,68 @@
                 <div class="tala-data-table-scroll tala-profile-table-wrap" role="region" aria-label="Released subject results" tabindex="0">
                     <table class="tala-data-table tala-profile-table tala-profile-results">
                         <caption class="sr-only">Released subject results. Select a subject to see its context and next step.</caption>
-                        <thead><tr><th scope="col">Subject</th><th scope="col">Units</th><th scope="col">Final result</th></tr></thead>
+                        <thead><tr><th scope="col">Subject</th><th scope="col">Source</th><th scope="col">Units</th><th scope="col">Final result</th></tr></thead>
                         <tbody>@foreach ($results as $result)
                             @php
-                                $rowKey = $result['result_key'] ?? ($result['course_enrollment'] ? 'ce:'.$result['course_enrollment']->id : 'pc:'.($result['prior_credit']?->id ?? 0));
+                                $priorCredit = $result['prior_credit'] ?? null;
+                                $isPriorCredit = $priorCredit instanceof \App\Models\PriorAcademicCredit;
+                                $isExternalTransfer = (bool) ($result['is_external_transfer'] ?? false);
+                                $sourceBadgeLabel = $isPriorCredit
+                                    ? ($isExternalTransfer ? 'Transfer (TC)' : 'Pre-TALA')
+                                    : 'SIA';
+                                $sourceBadgeColor = $isPriorCredit
+                                    ? ($isExternalTransfer ? 'warning' : 'gray')
+                                    : 'success';
+                                $courseCode = $result['course_specification']?->course?->code ?? 'subject';
+                                $rowKey = $result['result_key'] ?? ($result['course_enrollment'] ? 'ce:'.$result['course_enrollment']->id : 'pc:'.($priorCredit?->id ?? 0));
                                 $selectedKey = $selected ? ($selected['result_key'] ?? ($selected['course_enrollment'] ? 'ce:'.$selected['course_enrollment']->id : 'pc:'.($selected['prior_credit']?->id ?? 0))) : null;
                                 $isRowSelected = $selectedKey !== null && $selectedKey === $rowKey;
                             @endphp
                             <tr @class(['tala-profile-row-selected' => $isRowSelected]) wire:key="academic-result-{{ $rowKey }}">
-                                <th scope="row"><button type="button" wire:click="selectAcademicResult('{{ $rowKey }}')" aria-pressed="{{ $isRowSelected ? 'true' : 'false' }}" class="tala-profile-row-action"><strong>{{ $result['course_specification']?->title ?? 'Recorded subject' }}</strong><span class="tala-profile-muted">{{ $result['course_specification']?->course?->code }}</span></button></th>
+                                <th scope="row">
+                                    <button type="button" wire:click="selectAcademicResult('{{ $rowKey }}')" aria-pressed="{{ $isRowSelected ? 'true' : 'false' }}" class="tala-profile-row-action">
+                                        <strong>{{ $result['course_specification']?->title ?? 'Recorded subject' }}</strong>
+                                        <span class="tala-profile-muted">{{ $result['course_specification']?->course?->code }}</span>
+                                    </button>
+                                </th>
+                                <td>
+                                    <x-filament::badge :color="$sourceBadgeColor" size="sm">{{ $sourceBadgeLabel }}</x-filament::badge>
+                                </td>
                                 <td class="tala-profile-numeric">{{ $result['units'] === '' ? 'Not recorded' : $result['units'] }}</td>
-                                <td><strong class="tala-profile-result-value">{{ $result['result'] }}</strong>@if ($result['result'] === 'INC')<span class="tala-profile-muted">Incomplete</span>@endif</td>
+                                <td>
+                                    <div class="tala-profile-result-cell">
+                                        <div>
+                                            <strong class="tala-profile-result-value">{{ $result['result'] }}</strong>
+                                            @if ($result['result'] === 'INC')<span class="tala-profile-muted">Incomplete</span>@endif
+                                        </div>
+                                        @if ($isRegistrar && $isPriorCredit)
+                                            <div class="tala-profile-row-cues">
+                                                @if ($result['result'] === 'INC')
+                                                    <x-filament::link
+                                                        tag="button"
+                                                        type="button"
+                                                        size="sm"
+                                                        color="primary"
+                                                        aria-label="Settle INC for {{ $courseCode }}"
+                                                        wire:click="mountAction('settlePriorInc', { prior_credit_id: {{ $priorCredit->id }} })"
+                                                    >
+                                                        Settle INC
+                                                    </x-filament::link>
+                                                @endif
+                                                <x-filament::link
+                                                    tag="button"
+                                                    type="button"
+                                                    size="sm"
+                                                    color="gray"
+                                                    aria-label="Edit prior record for {{ $courseCode }}"
+                                                    wire:click="mountAction('upsertPriorCredit', { prior_credit_id: {{ $priorCredit->id }} })"
+                                                >
+                                                    Edit
+                                                </x-filament::link>
+                                            </div>
+                                        @endif
+                                    </div>
+                                </td>
                             </tr>
                         @endforeach</tbody>
                     </table>
@@ -79,9 +141,20 @@
             </div>
             <aside class="tala-profile-ledger__context" aria-label="Selected subject">
                 @if ($selected)
+                    @php
+                        $selectedPrior = ($selected['prior_credit'] ?? null) instanceof \App\Models\PriorAcademicCredit
+                            ? $selected['prior_credit']
+                            : null;
+                    @endphp
                     <div><span class="tala-profile-eyebrow">Selected subject</span><h3>{{ $selected['course_specification']?->course?->code }} &middot; {{ $selected['course_specification']?->title }}</h3></div>
                     @if ($selected['result'] === 'INC')
-                        <dl class="tala-profile-context-facts"><div><dt>Completion deadline</dt><dd>{{ $selected['inc_deadline']?->format('M j, Y') ?? 'Not recorded' }}</dd></div><div><dt>Remaining work</dt><dd>{{ $selected['event']?->inc_completion_note ?: ($selected['prior_credit'] ? 'Prior institutional incomplete record.' : 'Ask the designated Faculty about the remaining requirement.') }}</dd></div></dl>
+                        <dl class="tala-profile-context-facts">
+                            <div><dt>Completion deadline</dt><dd>{{ $selected['inc_deadline']?->format('M j, Y') ?? ($selectedPrior ? 'Pre-TALA record (no SIA deadline)' : 'Not recorded') }}</dd></div>
+                            <div><dt>Remaining work</dt><dd>{{ $selected['event']?->inc_completion_note ?: ($selectedPrior ? 'Prior institutional incomplete record. Settle this INC to unlock SIA GWA and graduation readiness.' : 'Ask the designated Faculty about the remaining requirement.') }}</dd></div>
+                            @if ($selectedPrior)
+                                <div><dt>Source</dt><dd>{{ $selectedPrior->isExternalTransfer() ? 'External transfer credit (TC)' : 'Servitech pre-TALA record' }}@if (filled($selectedPrior->source_school)) · {{ $selectedPrior->source_school }}@endif</dd></div>
+                            @endif
+                        </dl>
                         @if ($selected['followUp'] ?? null)
                             <x-inc-follow-up :context="$selected['followUp']" :show-deadline="false" compact />
                         @endif
@@ -89,11 +162,47 @@
                     @else
                         <dl class="tala-profile-context-facts">
                             <div><dt>Released result</dt><dd class="tala-profile-figure">{{ $selected['result'] }}</dd></div>
-                            @if ($selected['prior_credit'] ?? null)
-                                <div><dt>Source</dt><dd>{{ filled($selected['prior_credit']->source_school) ? 'Prior institutional record ('.$selected['prior_credit']->source_school.')' : 'Prior institutional record' }}</dd></div>
+                            @if ($selectedPrior)
+                                <div><dt>Source</dt><dd>{{ $selectedPrior->isExternalTransfer() ? 'External transfer credit (TC)' : 'Servitech pre-TALA record' }}@if (filled($selectedPrior->source_school)) ({{ $selectedPrior->source_school }})@endif</dd></div>
+                            @else
+                                <div><dt>Source</dt><dd>Official SIA grade roster</dd></div>
                             @endif
                         </dl>
                         @if ($selected['average_exclusion'])<p class="tala-profile-muted">{{ $selected['average_exclusion'] }}</p>@endif
+                    @endif
+                    @if ($isRegistrar && $selectedPrior)
+                        <div class="tala-profile-context-actions">
+                            @if ($selected['result'] === 'INC')
+                                <x-filament::button
+                                    color="primary"
+                                    size="sm"
+                                    icon="heroicon-o-check-circle"
+                                    class="tala-profile-full-action"
+                                    wire:click="mountAction('settlePriorInc', { prior_credit_id: {{ $selectedPrior->id }} })"
+                                >
+                                    Settle INC
+                                </x-filament::button>
+                            @endif
+                            <x-filament::button
+                                color="gray"
+                                size="sm"
+                                icon="heroicon-o-pencil-square"
+                                class="tala-profile-full-action"
+                                wire:click="mountAction('upsertPriorCredit', { prior_credit_id: {{ $selectedPrior->id }} })"
+                            >
+                                Edit prior record
+                            </x-filament::button>
+                            <x-filament::button
+                                color="danger"
+                                outlined
+                                size="sm"
+                                icon="heroicon-o-archive-box-x-mark"
+                                class="tala-profile-full-action"
+                                wire:click="mountAction('revokePriorCredit', { prior_credit_id: {{ $selectedPrior->id }} })"
+                            >
+                                Revoke record
+                            </x-filament::button>
+                        </div>
                     @endif
                     @if ($selected['sourceUrl'])<x-filament::button tag="a" color="gray" :href="$selected['sourceUrl']" icon="heroicon-o-arrow-top-right-on-square" class="tala-profile-full-action">View class record</x-filament::button>@endif
                 @else
@@ -121,21 +230,21 @@
                 {{ $this->correctCreditingAction }}
             @endif
         </header>
-        <div style="display: grid; gap: 1.25rem;">
+        <div class="tala-profile-curriculum-groups">
             @foreach ($curriculumGroups as $yearLabel => $termGroups)
                 @php
                     $yearRows = collect($termGroups)->flatten(1);
                     $yearDone = $yearRows->whereIn('status', ['Completed', 'Approved credit'])->count();
                 @endphp
-                <section aria-label="{{ $yearLabel }} curriculum progress" style="display: grid; gap: .75rem;">
-                    <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .25rem 1rem;">
-                        <h3 style="margin: 0; font-size: 1rem; font-weight: 600;">{{ $yearLabel }}</h3>
-                        <p class="tala-profile-muted" style="margin: 0;">{{ $yearDone }} of {{ $yearRows->count() }} {{ $yearRows->count() === 1 ? 'subject' : 'subjects' }} completed</p>
+                <section aria-label="{{ $yearLabel }} curriculum progress" class="tala-profile-curriculum-year">
+                    <div class="tala-profile-curriculum-year__header">
+                        <h3>{{ $yearLabel }}</h3>
+                        <p class="tala-profile-muted">{{ $yearDone }} of {{ $yearRows->count() }} {{ $yearRows->count() === 1 ? 'subject' : 'subjects' }} completed</p>
                     </div>
                     @foreach ($termGroups as $termLabel => $rows)
                         <div class="tala-data-table-scroll tala-profile-table-wrap" role="region" aria-label="{{ $yearLabel }} · {{ $termLabel }} required subjects" tabindex="0">
                             <table class="tala-data-table tala-profile-table">
-                                <caption style="text-align: left; font-size: .8125rem; font-weight: 600; color: var(--tala-muted, #52525b); padding: .5rem .75rem;">{{ $termLabel }}</caption>
+                                <caption class="tala-profile-table-caption">{{ $termLabel }}</caption>
                                 <thead>
                                     <tr>
                                         <th scope="col">Required subject</th>
@@ -156,7 +265,7 @@
                                             <th scope="row">
                                                 <div>{{ $row['curriculum_entry']->courseSpecification?->course?->code }} &middot; {{ $row['curriculum_entry']->courseSpecification?->title }}</div>
                                                 @if ($activeReqs->isNotEmpty())
-                                                    <div class="tala-profile-muted" style="font-weight: 400; font-size: .8125rem; margin-block-start: .2rem;">
+                                                    <div class="tala-profile-muted tala-profile-req-list">
                                                         @foreach ($activeReqs as $reqGroup)
                                                             @php
                                                                 $ruleType = $reqGroup->first()?->rule_type;
@@ -164,7 +273,7 @@
                                                                 $codes = $reqGroup->pluck('relatedCourse.code')->filter()->implode(' or ');
                                                                 $groupSatisfied = $reqGroup->contains(fn (\App\Models\CourseRequirement $req): bool => $satisfiedCourseIds->contains((int) $req->related_course_id));
                                                             @endphp
-                                                            <span style="display: block;">
+                                                            <span class="tala-profile-req-item">
                                                                 {{ $typeLabel }}: {{ $codes !== '' ? $codes : 'Subject not recorded' }}@if (! $rowDone) · {{ $groupSatisfied ? 'Satisfied' : 'Unmet' }}@endif
                                                             </span>
                                                         @endforeach
@@ -173,8 +282,8 @@
                                             </th>
                                             <td>
                                                 @if ($row['credit'] ?? null)
-                                                    <x-filament::badge color="info" icon="heroicon-m-document-check" size="sm">{{ $row['credit']['label'] }}</x-filament::badge>
-                                                    @if (filled($row['credit']['detail']))<div class="tala-profile-muted" style="font-size: .75rem; margin-block-start: .25rem;">{{ $row['credit']['detail'] }}</div>@endif
+                                                    <x-filament::badge color="gray" icon="heroicon-m-document-check" size="sm">{{ $row['credit']['label'] }}</x-filament::badge>
+                                                    @if (filled($row['credit']['detail']))<div class="tala-profile-muted tala-profile-credit-detail">{{ $row['credit']['detail'] }}</div>@endif
                                                 @else
                                                     {{ str($row['status'])->headline() }}
                                                 @endif

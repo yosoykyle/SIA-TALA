@@ -20,7 +20,7 @@ class RecordRegistrationCreditEvaluation
 
     /**
      * @param  list<int>  $creditedCurriculumEntryIds
-     * @param  array<int, array<string, mixed>>  $creditLines  one source line per credited entry ID (source course, TOR grade, units, bridging, remarks)
+     * @param  array<int, array<string, mixed>>  $creditLines  one source line per credited entry ID (source course, TOR grade, units, remarks)
      */
     public function execute(Enrollment $enrollment, User $actor, array $creditedCurriculumEntryIds, string $authorityReference,
         CarbonImmutable $approvedOn, int $expectedSubmissionVersionId, int $expectedCurriculumVersionId, int $expectedLockVersion,

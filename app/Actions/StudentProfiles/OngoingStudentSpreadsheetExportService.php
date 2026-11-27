@@ -3,11 +3,10 @@
 namespace App\Actions\StudentProfiles;
 
 use App\Actions\AcademicSetup\CurriculumSpreadsheetExportService;
-use App\Models\Course;
 use App\Models\CurriculumVersion;
+use App\Models\Enrollment;
 use App\Models\Program;
 use App\Models\StudentProfile;
-use App\Models\Term;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
@@ -20,7 +19,8 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 class OngoingStudentSpreadsheetExportService
 {
     /**
-     * Canonical column headers for Sheet 1 (`Students`) and CSV templates.
+     * Lean cohort-scoped roster headers for Sheet 1 (`Students`) and CSV templates.
+     * Core 5 columns first, followed by optional columns.
      *
      * @return list<string>
      */
@@ -32,76 +32,22 @@ class OngoingStudentSpreadsheetExportService
             'Middle Name',
             'Last Name*',
             'Email*',
-            'Program Code*',
-            'Curriculum Version Code',
-            'Entry Term Code',
             'Academic Standing',
             'Lifecycle Status',
+            'Financial Hold Note',
+            'LRN',
             'Birth Date',
             'Phone',
-            'Address',
-            'LRN / Prior ID',
-            'Financial Hold Note',
-            'Prior Completed Subjects',
         ];
     }
 
     /**
-     * Canonical column headers for Sheet 2 (`Prior Subjects`).
-     *
-     * @return list<string>
-     */
-    public static function priorSubjectsHeaders(): array
-    {
-        return [
-            'Student Number*',
-            'Subject Code*',
-            'Year Level',
-            'Academic Year',
-            'Term',
-            'Final Grade',
-            'Result Status',
-            'Source School',
-        ];
-    }
-
-    /**
-     * Generate a 3-sheet `.xlsx` (Students, Prior Subjects, Reference Codes) or 1-sheet `.csv` onboarding template.
+     * Generate a lean 2-sheet `.xlsx` (`Students`, `Reference Codes`) or 1-sheet `.csv` cohort roster template.
      */
     public function exportTemplate(string $format = 'xlsx'): string
     {
         $ext = $this->normalizeFormat($format);
-        $path = $this->prepareExportPath('ongoing-students-import-template.'.$ext);
-
-        $sampleProgram = Program::query()
-            ->orderByDesc('is_active')
-            ->orderBy('id')
-            ->first();
-        $programCode = $sampleProgram instanceof Program && filled($sampleProgram->code)
-            ? (string) $sampleProgram->code
-            : 'DIT';
-
-        $sampleCurriculum = $sampleProgram instanceof Program
-            ? CurriculumVersion::query()
-                ->where('program_id', $sampleProgram->id)
-                ->whereIn('state', [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded])
-                ->orderByRaw("CASE WHEN state = 'ACTIVE' THEN 0 ELSE 1 END")
-                ->orderByDesc('id')
-                ->first()
-            : null;
-        $curriculumCode = $sampleCurriculum instanceof CurriculumVersion && filled($sampleCurriculum->version_code)
-            ? (string) $sampleCurriculum->version_code
-            : 'DIT-2023';
-
-        $sampleTerm = Term::query()
-            ->with('academicYear')
-            ->orderByRaw("CASE WHEN state = 'ACTIVE' THEN 0 ELSE 1 END")
-            ->orderByDesc('starts_on')
-            ->orderByDesc('id')
-            ->first();
-        $entryTermCode = $sampleTerm instanceof Term
-            ? collect([$sampleTerm->academicYear?->label, $sampleTerm->label])->filter()->implode(' - ')
-            : '';
+        $path = $this->prepareExportPath('cohort-roster-import-template.'.$ext);
 
         $studentRows = [
             self::studentsHeaders(),
@@ -111,17 +57,12 @@ class OngoingStudentSpreadsheetExportService
                 self::neutralize('Santos'),
                 self::neutralize('Dela Cruz'),
                 self::neutralize('juan.delacruz@servitech.edu.ph'),
-                self::neutralize($programCode),
-                self::neutralize($curriculumCode),
-                self::neutralize($entryTermCode),
                 self::neutralize('Regular'),
                 self::neutralize('ACTIVE'),
+                self::neutralize(''),
+                self::neutralize('109283746501'),
                 self::neutralize('2005-04-12'),
                 self::neutralize('09171234567'),
-                self::neutralize('San Mateo, Rizal'),
-                self::neutralize('LRN-109283746501'),
-                self::neutralize(''),
-                self::neutralize(''),
             ],
             [
                 self::neutralize('SIA-2024-0102'),
@@ -129,17 +70,12 @@ class OngoingStudentSpreadsheetExportService
                 self::neutralize('Reyes'),
                 self::neutralize('Bautista'),
                 self::neutralize('maria.bautista@servitech.edu.ph'),
-                self::neutralize($programCode),
-                self::neutralize($curriculumCode),
-                self::neutralize($entryTermCode),
                 self::neutralize('Irregular'),
                 self::neutralize('ACTIVE'),
+                self::neutralize('Prior balance from AY 2024-2025'),
+                self::neutralize('109283746502'),
                 self::neutralize('2006-08-21'),
                 self::neutralize('09189876543'),
-                self::neutralize('Marikina City'),
-                self::neutralize('LRN-109283746502'),
-                self::neutralize('Prior balance from AY 2024-2025'),
-                self::neutralize('GE 1:1.75; IT 101:1.50'),
             ],
         ];
 
@@ -158,40 +94,6 @@ class OngoingStudentSpreadsheetExportService
             return $path;
         }
 
-        $priorSubjectRows = [
-            self::priorSubjectsHeaders(),
-            [
-                self::neutralize('SIA-2023-0045'),
-                self::neutralize('GE 1'),
-                1,
-                self::neutralize('AY 2023-2024'),
-                self::neutralize('First Semester'),
-                self::neutralize('1.50'),
-                self::neutralize('passed'),
-                self::neutralize('Servitech Institute'),
-            ],
-            [
-                self::neutralize('SIA-2023-0045'),
-                self::neutralize('IT 101'),
-                1,
-                self::neutralize('AY 2023-2024'),
-                self::neutralize('First Semester'),
-                self::neutralize('1.75'),
-                self::neutralize('passed'),
-                self::neutralize('Servitech Institute'),
-            ],
-            [
-                self::neutralize('SIA-2024-0102'),
-                self::neutralize('GE 2'),
-                1,
-                self::neutralize('AY 2023-2024'),
-                self::neutralize('Second Semester'),
-                self::neutralize('1.50'),
-                self::neutralize('passed'),
-                self::neutralize('Servitech Institute'),
-            ],
-        ];
-
         $referenceRows = $this->buildReferenceCodesRows();
 
         $writer = new XlsxWriter;
@@ -203,16 +105,105 @@ class OngoingStudentSpreadsheetExportService
                 $writer->addRow(Row::fromValues($rowValues));
             }
 
-            $priorSheet = $writer->addNewSheetAndMakeItCurrent();
-            $priorSheet->setName('Prior Subjects');
-            foreach ($priorSubjectRows as $rowValues) {
-                $writer->addRow(Row::fromValues($rowValues));
-            }
-
             $refSheet = $writer->addNewSheetAndMakeItCurrent();
             $refSheet->setName('Reference Codes');
             foreach ($referenceRows as $rowValues) {
                 $writer->addRow(Row::fromValues($rowValues));
+            }
+        } finally {
+            $writer->close();
+        }
+
+        return $path;
+    }
+
+    /**
+     * Stream a formula-safe CSV of filtered or selected student records (Program, Batch, Section, Standing, Activation).
+     *
+     * @param  Collection<int, StudentProfile>  $profiles
+     */
+    public function exportStudentDirectory(
+        Collection $profiles,
+        ?int $enrolledTermId = null,
+        string $filenamePrefix = 'student-records',
+    ): string {
+        $safePrefix = preg_replace('/[^A-Za-z0-9_-]+/', '-', trim($filenamePrefix)) ?: 'student-records';
+        $path = $this->prepareExportPath($safePrefix.'-'.now()->format('Y-m-d').'.csv');
+
+        if ($profiles instanceof EloquentCollection) {
+            $profiles->loadMissing(['user', 'program', 'curriculumVersion', 'entryAcademicYear', 'entryTerm.academicYear']);
+            $profiles->loadCount([
+                'priorAcademicCredits as active_prior_credits_count' => fn ($query) => $query->active(),
+            ]);
+            if ($enrolledTermId !== null) {
+                $profiles->load([
+                    'enrollments' => fn ($query) => $query
+                        ->where('canonical_outcome', Enrollment::OutcomeOfficiallyEnrolled)
+                        ->where('term_id', $enrolledTermId)
+                        ->with('studentSection'),
+                ]);
+            }
+        }
+
+        $writer = new CsvWriter;
+        $writer->openToFile($path);
+
+        try {
+            $writer->addRow(Row::fromValues([
+                'Student Number',
+                'Full Name',
+                'Email',
+                'Program',
+                'Curriculum',
+                'Batch / Entry School Year',
+                'Section',
+                'Lifecycle',
+                'Standing',
+                'Prior Subjects Count',
+                'Account Status',
+                'Last Sign-In',
+            ]));
+
+            foreach ($profiles as $profile) {
+                if (! $profile instanceof StudentProfile) {
+                    continue;
+                }
+
+                $fullName = collect([
+                    $profile->first_name,
+                    $profile->middle_name,
+                    $profile->last_name,
+                ])->filter()->implode(' ');
+
+                if ($fullName === '' && $profile->user !== null) {
+                    $fullName = (string) $profile->user->name;
+                }
+
+                $email = (string) ($profile->user?->email ?? $profile->email ?? '');
+                $curriculumLabel = (string) ($profile->curriculumVersion?->version_code ?: ($profile->curriculumVersion?->name ?? ''));
+                $batchLabel = (string) ($profile->entryAcademicYear?->label ?? $profile->entryTerm?->academicYear?->label ?? '');
+                $sectionLabel = $enrolledTermId !== null
+                    ? (string) ($profile->enrollments->first()?->studentSection?->reference ?? 'Not assigned')
+                    : '';
+                $priorCount = $profile->hasAttribute('active_prior_credits_count')
+                    ? (int) $profile->getAttribute('active_prior_credits_count')
+                    : $profile->priorAcademicCredits()->active()->count();
+                $lastSignIn = $profile->user?->last_successful_sign_in_at?->timezone(config('app.display_timezone', 'Asia/Manila'))?->format('Y-m-d H:i') ?? 'Never';
+
+                $writer->addRow(Row::fromValues([
+                    self::neutralize((string) $profile->student_number),
+                    self::neutralize($fullName),
+                    self::neutralize($email),
+                    self::neutralize((string) ($profile->program?->code ?? '')),
+                    self::neutralize($curriculumLabel),
+                    self::neutralize($batchLabel),
+                    self::neutralize($sectionLabel),
+                    self::neutralize(StudentProfile::lifecycleStatusLabel((string) $profile->lifecycle_status)),
+                    self::neutralize((string) ($profile->academic_standing ?? StudentProfile::StandingRegular)),
+                    $priorCount,
+                    self::neutralize(StudentAccountActivation::statusLabel($profile)),
+                    self::neutralize($lastSignIn),
+                ]));
             }
         } finally {
             $writer->close();
@@ -273,7 +264,7 @@ class OngoingStudentSpreadsheetExportService
                 $priorCount = $profile->hasAttribute('active_prior_credits_count')
                     ? (int) $profile->getAttribute('active_prior_credits_count')
                     : $profile->priorAcademicCredits()->active()->count();
-                $lastSignIn = $profile->user?->last_sign_in_at?->format('Y-m-d H:i') ?? 'Never';
+                $lastSignIn = $profile->user?->last_successful_sign_in_at?->format('Y-m-d H:i') ?? 'Never';
 
                 $writer->addRow(Row::fromValues([
                     self::neutralize((string) $profile->student_number),
@@ -308,7 +299,6 @@ class OngoingStudentSpreadsheetExportService
 
         try {
             $writer->addRow(Row::fromValues([
-                'Sheet',
                 'Row',
                 'Student Number',
                 'Student Name',
@@ -317,16 +307,11 @@ class OngoingStudentSpreadsheetExportService
             ]));
 
             foreach ($skippedRows as $row) {
-                $sheetName = (string) ($row['sheet'] ?? (isset($row['subject_code']) ? 'Prior Subjects' : 'Students'));
                 $studentName = trim((string) ($row['student_name'] ?? collect([
                     $row['first_name'] ?? null,
                     $row['middle_name'] ?? null,
                     $row['last_name'] ?? null,
                 ])->filter()->implode(' ')));
-
-                if ($studentName === '' && filled($row['subject_code'] ?? null)) {
-                    $studentName = 'Subject: '.(string) $row['subject_code'];
-                }
 
                 $reason = trim((string) ($row['skip_reason'] ?? $row['already_onboarded_reason'] ?? implode(' ', (array) ($row['errors'] ?? []))));
                 if ($reason === '') {
@@ -334,7 +319,6 @@ class OngoingStudentSpreadsheetExportService
                 }
 
                 $writer->addRow(Row::fromValues([
-                    self::neutralize($sheetName),
                     (int) ($row['source_row'] ?? 0),
                     self::neutralize((string) ($row['student_number'] ?? '')),
                     self::neutralize($studentName),
@@ -358,7 +342,7 @@ class OngoingStudentSpreadsheetExportService
     }
 
     /**
-     * Build Sheet 3 (`Reference Codes`) rows live from the database.
+     * Build Sheet 2 (`Reference Codes`) rows live from the database.
      *
      * @return list<list<float|int|string>>
      */
@@ -366,13 +350,36 @@ class OngoingStudentSpreadsheetExportService
     {
         $rows = [[
             'Category',
-            'Code / Identifier',
-            'Name / Title',
-            'Program / Academic Year',
+            'Accepted Value / Code',
+            'Description / Title',
+            'Notes / Program',
             'Status',
         ]];
 
+        foreach ([
+            StudentProfile::StandingRegular => 'Standard cohort progression (eligible for Cohort Quick-Credit)',
+            StudentProfile::StandingIrregular => 'Custom subject load (routed to individual advising)',
+            StudentProfile::StandingProbationary => 'Academic probation (routed to individual advising)',
+            StudentProfile::StandingDeficient => 'Academic deficiency (routed to individual advising)',
+            StudentProfile::StandingCompletionCandidate => 'Completion candidate',
+            StudentProfile::StandingGraduationCandidate => 'Graduation candidate',
+        ] as $standing => $desc) {
+            $rows[] = ['Academic Standing', $standing, $desc, 'Blank defaults to Regular', 'Accepted'];
+        }
+
+        foreach ([
+            StudentProfile::LifecycleActive => 'Active student',
+            StudentProfile::LifecycleLeaveOfAbsence => 'Leave of Absence (alias: LOA)',
+            StudentProfile::LifecycleInactive => 'Inactive student',
+            StudentProfile::LifecycleWithdrawn => 'Withdrawn',
+            StudentProfile::LifecycleTransferredOut => 'Transferred out',
+            StudentProfile::LifecycleCompleted => 'Completed program',
+        ] as $lifecycle => $desc) {
+            $rows[] = ['Lifecycle Status', $lifecycle, $desc, 'Blank defaults to ACTIVE', 'Accepted'];
+        }
+
         $programs = Program::query()
+            ->orderByDesc('is_active')
             ->orderBy('code')
             ->get();
 
@@ -381,13 +388,13 @@ class OngoingStudentSpreadsheetExportService
                 'Program',
                 self::neutralize((string) $program->code),
                 self::neutralize((string) $program->name),
-                '',
-                $program->is_active ? 'Active' : 'Inactive',
+                'Selected in Step 1 Scope Bar',
+                $program->is_active ? 'Active' : 'Teach-out / Inactive',
             ];
         }
 
         $curricula = CurriculumVersion::query()
-            ->with('program')
+            ->with(['program', 'academicYears'])
             ->whereIn('state', [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded])
             ->orderBy('program_id')
             ->orderBy('version_code')
@@ -397,46 +404,9 @@ class OngoingStudentSpreadsheetExportService
             $rows[] = [
                 'Curriculum Version',
                 self::neutralize((string) $curriculum->version_code),
-                self::neutralize((string) $curriculum->name),
+                self::neutralize($curriculum->batchLabel()),
                 self::neutralize((string) ($curriculum->program?->code ?? '')),
                 self::neutralize(CurriculumVersion::stateOptions()[$curriculum->state] ?? (string) $curriculum->state),
-            ];
-        }
-
-        $terms = Term::query()
-            ->with('academicYear')
-            ->orderByDesc('starts_on')
-            ->orderByDesc('id')
-            ->get();
-
-        foreach ($terms as $term) {
-            $ayLabel = (string) ($term->academicYear?->label ?? '');
-            $termIdentifier = collect([$ayLabel !== '' ? $ayLabel : null, $term->label])->filter()->implode(' - ');
-
-            $rows[] = [
-                'Term',
-                self::neutralize($termIdentifier),
-                self::neutralize((string) $term->label),
-                self::neutralize($ayLabel),
-                self::neutralize(Term::stateOptions()[$term->state] ?? (string) $term->state),
-            ];
-        }
-
-        $courses = Course::query()
-            ->with(['specifications' => fn ($query) => $query
-                ->where('state', 'ACTIVE')
-                ->orderByDesc('id')])
-            ->orderBy('code')
-            ->get();
-
-        foreach ($courses as $course) {
-            $activeSpec = $course->specifications->first();
-            $rows[] = [
-                'Course',
-                self::neutralize((string) $course->code),
-                self::neutralize((string) ($activeSpec?->title ?? '')),
-                $activeSpec !== null ? (string) round((float) $activeSpec->credit_units, 2).' units' : '',
-                self::neutralize(Course::stateOptions()[$course->state] ?? (string) $course->state),
             ];
         }
 

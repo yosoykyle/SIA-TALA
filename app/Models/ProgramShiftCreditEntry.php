@@ -23,7 +23,7 @@ class ProgramShiftCreditEntry extends Model
     /** @var list<string> */
     protected $fillable = [
         'student_lifecycle_change_id', 'curriculum_entry_id', 'source_course_id',
-        'source_grade_outcome_event_id', 'treatment', 'state', 'numeric_grade',
+        'source_grade_outcome_event_id', 'source_prior_academic_credit_id', 'treatment', 'state', 'numeric_grade',
     ];
 
     protected function casts(): array
@@ -53,5 +53,11 @@ class ProgramShiftCreditEntry extends Model
     public function sourceGradeOutcomeEvent(): BelongsTo
     {
         return $this->belongsTo(GradeOutcomeEvent::class, 'source_grade_outcome_event_id');
+    }
+
+    /** @return BelongsTo<PriorAcademicCredit, $this> */
+    public function sourcePriorAcademicCredit(): BelongsTo
+    {
+        return $this->belongsTo(PriorAcademicCredit::class, 'source_prior_academic_credit_id');
     }
 }

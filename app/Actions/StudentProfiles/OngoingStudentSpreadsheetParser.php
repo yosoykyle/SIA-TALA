@@ -2,7 +2,6 @@
 
 namespace App\Actions\StudentProfiles;
 
-use App\Actions\AcademicSetup\CurriculumSpreadsheetParser;
 use Carbon\CarbonImmutable;
 use DateInterval;
 use DateTimeInterface;
@@ -27,15 +26,13 @@ class OngoingStudentSpreadsheetParser
 
     public const FieldEmail = 'email';
 
-    public const FieldProgramCode = 'program_code';
-
-    public const FieldCurriculumVersionCode = 'curriculum_version_code';
-
-    public const FieldEntryTermCode = 'entry_term_code';
-
     public const FieldAcademicStanding = 'academic_standing';
 
     public const FieldLifecycleStatus = 'lifecycle_status';
+
+    public const FieldFinancialHoldNote = 'financial_hold_note';
+
+    public const FieldPriorIdentifier = 'prior_identifier';
 
     public const FieldBirthDate = 'birth_date';
 
@@ -43,14 +40,14 @@ class OngoingStudentSpreadsheetParser
 
     public const FieldAddress = 'address';
 
-    public const FieldPriorIdentifier = 'prior_identifier';
+    public const FieldProgramCode = 'program_code';
 
-    public const FieldFinancialHoldNote = 'financial_hold_note';
+    public const FieldCurriculumVersionCode = 'curriculum_version_code';
 
-    public const FieldPriorCompletedSubjects = 'prior_completed_subjects';
+    public const FieldEntryTermCode = 'entry_term_code';
 
     /**
-     * Canonical field labels for Sheet 1 (`Students`) column mapping dropdowns.
+     * Canonical field labels for the Roster (`Students`) column mapping dropdowns.
      *
      * @return array<string, string>
      */
@@ -62,22 +59,22 @@ class OngoingStudentSpreadsheetParser
             self::FieldMiddleName => 'Middle Name',
             self::FieldLastName => 'Last Name*',
             self::FieldEmail => 'Email*',
-            self::FieldProgramCode => 'Program Code*',
-            self::FieldCurriculumVersionCode => 'Curriculum Version Code',
-            self::FieldEntryTermCode => 'Entry Term Code',
             self::FieldAcademicStanding => 'Academic Standing',
             self::FieldLifecycleStatus => 'Lifecycle Status',
+            self::FieldFinancialHoldNote => 'Financial Hold Note',
+            self::FieldPriorIdentifier => 'LRN',
             self::FieldBirthDate => 'Birth Date',
             self::FieldPhone => 'Phone',
             self::FieldAddress => 'Address',
-            self::FieldPriorIdentifier => 'LRN / Prior ID',
-            self::FieldFinancialHoldNote => 'Financial Hold Note',
-            self::FieldPriorCompletedSubjects => 'Prior Completed Subjects',
+            self::FieldProgramCode => 'Program Code (optional override)',
+            self::FieldCurriculumVersionCode => 'Curriculum Version Code (optional override)',
+            self::FieldEntryTermCode => 'Entry Term Code (optional override)',
         ];
     }
 
     /**
-     * Canonical required fields for Sheet 1 (`Students`).
+     * Canonical required fields for the Cohort Roster (`Students`) sheet.
+     * Program and curriculum are selected once at the cohort scope bar.
      *
      * @return list<string>
      */
@@ -88,12 +85,28 @@ class OngoingStudentSpreadsheetParser
             self::FieldFirstName,
             self::FieldLastName,
             self::FieldEmail,
-            self::FieldProgramCode,
         ];
     }
 
     /**
-     * Header aliases used to auto-detect Sheet 1 headers and suggest column mappings.
+     * Determine whether all required roster headers are cleanly mapped.
+     *
+     * @param  array<string, int|string|null>  $mapping
+     */
+    public static function hasAllRequiredHeadersMapped(array $mapping): bool
+    {
+        foreach (self::requiredFields() as $field) {
+            $value = $mapping[$field] ?? null;
+            if ($value === null || $value === '' || $value === 'ignore' || $value === 'none') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Header aliases used to auto-detect Students sheet headers and suggest column mappings.
      *
      * @return array<string, list<string>>
      */
@@ -129,24 +142,6 @@ class OngoingStudentSpreadsheetParser
                 'Institutional Email',
                 'E-mail',
             ],
-            self::FieldProgramCode => [
-                'Program Code',
-                'Program',
-                'Course',
-                'Degree Program',
-            ],
-            self::FieldCurriculumVersionCode => [
-                'Curriculum Version Code',
-                'Curriculum Code',
-                'Curriculum Version',
-                'Curriculum',
-            ],
-            self::FieldEntryTermCode => [
-                'Entry Term Code',
-                'Entry Term',
-                'Admission Term',
-                'Starting Term',
-            ],
             self::FieldAcademicStanding => [
                 'Academic Standing',
                 'Standing',
@@ -158,6 +153,18 @@ class OngoingStudentSpreadsheetParser
                 'Enrollment Status',
                 'Student Status',
                 'Status',
+            ],
+            self::FieldFinancialHoldNote => [
+                'Financial Hold Note',
+                'Financial Hold',
+                'Balance Note',
+                'Hold Note',
+            ],
+            self::FieldPriorIdentifier => [
+                'LRN',
+                'LRN / Prior ID',
+                'Prior Identifier',
+                'Prior ID',
             ],
             self::FieldBirthDate => [
                 'Birth Date',
@@ -176,92 +183,34 @@ class OngoingStudentSpreadsheetParser
                 'Home Address',
                 'Permanent Address',
             ],
-            self::FieldPriorIdentifier => [
-                'LRN / Prior ID',
-                'LRN',
-                'Prior Identifier',
-                'Prior ID',
+            self::FieldProgramCode => [
+                'Program Code',
+                'Program',
+                'Course',
+                'Degree Program',
             ],
-            self::FieldFinancialHoldNote => [
-                'Financial Hold Note',
-                'Financial Hold',
-                'Balance Note',
-                'Hold Note',
+            self::FieldCurriculumVersionCode => [
+                'Curriculum Version Code',
+                'Curriculum Code',
+                'Curriculum Version',
+                'Curriculum',
             ],
-            self::FieldPriorCompletedSubjects => [
-                'Prior Completed Subjects',
-                'Completed Subjects',
-                'Prior Subjects',
-                'Credited Subjects',
-            ],
-        ];
-    }
-
-    /**
-     * Header aliases used to auto-map Sheet 2 (`Prior Subjects`).
-     *
-     * @return array<string, list<string>>
-     */
-    public static function priorSubjectsFieldAliases(): array
-    {
-        return [
-            'student_number' => [
-                'Student Number',
-                'Student No',
-                'Student ID',
-                'ID Number',
-            ],
-            'subject_code' => [
-                'Subject Code',
-                'Course Code',
-                'Code',
-                'Subj Code',
-            ],
-            'year_level' => [
-                'Year Level',
-                'Year',
-                'Yr Level',
-            ],
-            'academic_year' => [
-                'Academic Year',
-                'AY',
-                'School Year',
-                'SY',
-            ],
-            'term' => [
-                'Term',
-                'Semester',
-                'Academic Period',
-                'Term Label',
-            ],
-            'final_grade' => [
-                'Final Grade',
-                'Grade',
-                'Rating',
-            ],
-            'result_status' => [
-                'Result Status',
-                'Status',
-                'Remarks',
-                'Result',
-            ],
-            'source_school' => [
-                'Source School',
-                'Previous School',
-                'School',
-                'Institution',
+            self::FieldEntryTermCode => [
+                'Entry Term Code',
+                'Entry Term',
+                'Admission Term',
+                'Starting Term',
             ],
         ];
     }
 
     /**
-     * Inspect an uploaded `.xlsx` or `.csv` workbook and identify its sheets,
-     * default Students sheet (ignoring `Reference Codes`), and optional `Prior Subjects` sheet.
+     * Inspect an uploaded `.xlsx` or `.csv` workbook and identify its sheets and
+     * default Students sheet (ignoring `Reference Codes` sheets).
      *
      * @return array{
      *     sheets: list<array{index: int, name: string, row_count: int}>,
-     *     students_sheet_index: int,
-     *     prior_subjects_sheet_index: int|null
+     *     students_sheet_index: int
      * }
      */
     public function inspectWorkbook(string $path, ?string $extension = null): array
@@ -273,7 +222,6 @@ class OngoingStudentSpreadsheetParser
             $sheets = [];
             $studentsSheetIndex = null;
             $firstNonReferenceNonEmptyIndex = null;
-            $priorSubjectsSheetIndex = null;
 
             foreach ($reader->getSheetIterator() as $sheet) {
                 /** @var SheetInterface $sheet */
@@ -304,12 +252,6 @@ class OngoingStudentSpreadsheetParser
                     continue;
                 }
 
-                if ($priorSubjectsSheetIndex === null && $this->isPriorSubjectsSheetName($normName)) {
-                    $priorSubjectsSheetIndex = $index;
-
-                    continue;
-                }
-
                 if ($studentsSheetIndex === null && $this->isStudentsSheetName($normName)) {
                     $studentsSheetIndex = $index;
                 }
@@ -326,7 +268,6 @@ class OngoingStudentSpreadsheetParser
             return [
                 'sheets' => $sheets,
                 'students_sheet_index' => $studentsSheetIndex,
-                'prior_subjects_sheet_index' => $priorSubjectsSheetIndex,
             ];
         } finally {
             $reader->close();
@@ -343,6 +284,7 @@ class OngoingStudentSpreadsheetParser
      *     headers: array<int, string>,
      *     header_options: array<int|string, string>,
      *     suggested_mapping: array<string, int|null>,
+     *     all_required_mapped: bool,
      *     raw_rows: list<array{source_row: int, cells: array<int, string>}>
      * }
      */
@@ -406,12 +348,13 @@ class OngoingStudentSpreadsheetParser
             'headers' => $headers,
             'header_options' => $headerOptions,
             'suggested_mapping' => $suggestedMapping,
+            'all_required_mapped' => self::hasAllRequiredHeadersMapped($suggestedMapping),
             'raw_rows' => $rawRows,
         ];
     }
 
     /**
-     * Parse Sheet 1 (`Students`) rows using the selected or suggested column map.
+     * Parse Cohort Roster (`Students`) rows using the selected or suggested column map.
      *
      * @param  array<string, int|string|null>  $columnMap
      * @return list<array<string, mixed>>
@@ -448,7 +391,6 @@ class OngoingStudentSpreadsheetParser
             $address = trim($this->stripInvisibleChars($this->cellAt($cells, $normalizedMap[self::FieldAddress] ?? null)));
             $priorIdentifier = $this->cleanSingleLine($this->cellAt($cells, $normalizedMap[self::FieldPriorIdentifier] ?? null));
             $financialHoldNote = trim($this->stripInvisibleChars($this->cellAt($cells, $normalizedMap[self::FieldFinancialHoldNote] ?? null)));
-            $priorSubjectsRaw = trim($this->stripInvisibleChars($this->cellAt($cells, $normalizedMap[self::FieldPriorCompletedSubjects] ?? null)));
 
             $allEmpty = $studentNumber === ''
                 && $firstName === ''
@@ -464,8 +406,7 @@ class OngoingStudentSpreadsheetParser
                 && $phone === ''
                 && $address === ''
                 && $priorIdentifier === ''
-                && $financialHoldNote === ''
-                && $priorSubjectsRaw === '';
+                && $financialHoldNote === '';
 
             if ($allEmpty) {
                 continue;
@@ -479,7 +420,7 @@ class OngoingStudentSpreadsheetParser
                 self::FieldMiddleName => $middleName !== '' ? $middleName : null,
                 self::FieldLastName => $lastName,
                 self::FieldEmail => $email,
-                self::FieldProgramCode => $programCode,
+                self::FieldProgramCode => $programCode !== '' ? $programCode : null,
                 self::FieldCurriculumVersionCode => $curriculumVersionCode !== '' ? $curriculumVersionCode : null,
                 self::FieldEntryTermCode => $entryTermCode !== '' ? $entryTermCode : null,
                 self::FieldAcademicStanding => $academicStanding !== '' ? $academicStanding : null,
@@ -489,135 +430,10 @@ class OngoingStudentSpreadsheetParser
                 self::FieldAddress => $address !== '' ? $address : null,
                 self::FieldPriorIdentifier => $priorIdentifier !== '' ? $priorIdentifier : null,
                 self::FieldFinancialHoldNote => $financialHoldNote !== '' ? $financialHoldNote : null,
-                self::FieldPriorCompletedSubjects => $priorSubjectsRaw !== '' ? $priorSubjectsRaw : null,
-                'inline_prior_credits' => self::parseInlinePriorSubjects($priorSubjectsRaw),
             ];
         }
 
         return $parsed;
-    }
-
-    /**
-     * Auto-map headers and parse Sheet 2 (`Prior Subjects`) rows.
-     *
-     * @return list<array<string, mixed>>
-     */
-    public function parsePriorSubjectsSheet(string $path, int $sheetIndex = 1, ?string $extension = null): array
-    {
-        $sheetData = $this->readSheetRows($path, $sheetIndex, $extension);
-        $rawSheetRows = $sheetData['rows'];
-        $aliases = self::priorSubjectsFieldAliases();
-        $headerMeta = $this->locateHeaderRow($rawSheetRows, $aliases);
-
-        $headers = [];
-        foreach ($headerMeta['cells'] as $colIndex => $rawHeader) {
-            $clean = $this->cleanHeaderText($rawHeader);
-            if ($clean !== '') {
-                $headers[(int) $colIndex] = $clean;
-            }
-        }
-
-        $columnMap = $this->guessColumnMapping($headers, $aliases);
-        $parsed = [];
-
-        foreach ($rawSheetRows as $offset => $entry) {
-            if ($offset <= $headerMeta['offset']) {
-                continue;
-            }
-
-            $cells = $entry['cells'];
-            if ($this->isRowEmpty($cells)) {
-                continue;
-            }
-
-            $sourceRow = (int) $entry['source_row'];
-            $studentNumber = $this->cleanSingleLine($this->cellAt($cells, $columnMap['student_number'] ?? null));
-            $rawSubjectCode = $this->cleanSingleLine($this->cellAt($cells, $columnMap['subject_code'] ?? null));
-            $rawYearLevel = $this->cleanSingleLine($this->cellAt($cells, $columnMap['year_level'] ?? null));
-            $academicYear = $this->cleanSingleLine($this->cellAt($cells, $columnMap['academic_year'] ?? null));
-            $term = $this->cleanSingleLine($this->cellAt($cells, $columnMap['term'] ?? null));
-            $finalGrade = $this->cleanSingleLine($this->cellAt($cells, $columnMap['final_grade'] ?? null));
-            $resultStatus = strtolower($this->cleanSingleLine($this->cellAt($cells, $columnMap['result_status'] ?? null)));
-            $sourceSchool = $this->cleanSingleLine($this->cellAt($cells, $columnMap['source_school'] ?? null));
-
-            if ($studentNumber === ''
-                && $rawSubjectCode === ''
-                && $rawYearLevel === ''
-                && $academicYear === ''
-                && $term === ''
-                && $finalGrade === ''
-                && $resultStatus === ''
-                && $sourceSchool === '') {
-                continue;
-            }
-
-            $subjectCode = $rawSubjectCode !== '' ? CurriculumSpreadsheetParser::normalizeDisplayCode($rawSubjectCode) : '';
-            $normalizedSubjectCode = $rawSubjectCode !== '' ? CurriculumSpreadsheetParser::normalizeMatchCode($rawSubjectCode) : '';
-            $yearLevel = $rawYearLevel !== '' ? CurriculumSpreadsheetParser::parseYearLevel($rawYearLevel) : null;
-
-            $parsed[] = [
-                'row_key' => 'prior_row_'.$sourceRow,
-                'source_row' => $sourceRow,
-                'student_number' => $studentNumber,
-                'subject_code' => $subjectCode,
-                'normalized_subject_code' => $normalizedSubjectCode,
-                'raw_year_level' => $rawYearLevel !== '' ? $rawYearLevel : null,
-                'year_level' => $yearLevel,
-                'academic_year' => $academicYear !== '' ? $academicYear : null,
-                'term' => $term !== '' ? $term : null,
-                'final_grade' => $finalGrade !== '' ? $finalGrade : null,
-                'result_status' => $resultStatus !== '' ? $resultStatus : null,
-                'source_school' => $sourceSchool !== '' ? $sourceSchool : null,
-            ];
-        }
-
-        return $parsed;
-    }
-
-    /**
-     * Parse semicolon-delimited inline prior subjects (`GE 1; IT 101:1.75`).
-     *
-     * @return list<array{subject_code: string, normalized_subject_code: string, final_grade: string|null, raw: string}>
-     */
-    public static function parseInlinePriorSubjects(?string $raw): array
-    {
-        $trimmed = trim((string) ($raw ?? ''));
-        if ($trimmed === '') {
-            return [];
-        }
-
-        $segments = preg_split('/\s*[;\r\n]+\s*/', $trimmed) ?: [$trimmed];
-        $items = [];
-
-        foreach ($segments as $segment) {
-            $token = trim((string) preg_replace('/\s+/', ' ', $segment));
-            if ($token === '') {
-                continue;
-            }
-
-            $codePart = $token;
-            $gradePart = null;
-
-            if (str_contains($token, ':')) {
-                [$left, $right] = explode(':', $token, 2);
-                $codePart = trim($left);
-                $rightClean = trim($right);
-                $gradePart = $rightClean !== '' ? $rightClean : null;
-            }
-
-            if ($codePart === '') {
-                continue;
-            }
-
-            $items[] = [
-                'subject_code' => CurriculumSpreadsheetParser::normalizeDisplayCode($codePart),
-                'normalized_subject_code' => CurriculumSpreadsheetParser::normalizeMatchCode($codePart),
-                'final_grade' => $gradePart,
-                'raw' => $token,
-            ];
-        }
-
-        return $items;
     }
 
     /**
@@ -814,23 +630,12 @@ class OngoingStudentSpreadsheetParser
 
     private function isReferenceSheetName(string $normalizedName): bool
     {
-        return in_array($normalizedName, ['reference codes', 'reference', 'ref codes', 'codes'], true);
-    }
-
-    private function isPriorSubjectsSheetName(string $normalizedName): bool
-    {
-        return in_array($normalizedName, [
-            'prior subjects',
-            'prior academic credits',
-            'prior credits',
-            'prior grades',
-            'completed subjects',
-        ], true);
+        return in_array($normalizedName, ['reference codes', 'reference', 'ref codes', 'codes', 'instructions', 'instructions legend'], true);
     }
 
     private function isStudentsSheetName(string $normalizedName): bool
     {
-        return in_array($normalizedName, ['students', 'student', 'ongoing students'], true);
+        return in_array($normalizedName, ['students', 'student', 'ongoing students', 'cohort roster', 'roster'], true);
     }
 
     private function normalizeAliasKey(string $text): string

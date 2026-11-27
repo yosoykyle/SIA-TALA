@@ -4,6 +4,7 @@ namespace App\Actions\Completion;
 
 use App\Actions\Academics\CurriculumEvaluation;
 use App\Actions\Academics\OfficialCourseResultProjection;
+use App\Actions\StudentLifecycle\HoldEvaluationService;
 use App\Models\CompletionReadinessVersion;
 use App\Models\DegreeConferral;
 use App\Models\Enrollment;
@@ -138,11 +139,11 @@ class CompletionReadinessProjection
             }
         }
 
-        Hold::query()
-            ->where('student_profile_id', $student->id)
-            ->where('status', Hold::StatusActive)
-            ->where('blocking_level', Hold::BlockingGraduationEligibility)
-            ->get()
+        app(HoldEvaluationService::class)
+            ->activeBlockingHolds($student, [
+                Hold::BlockingGraduationEligibility,
+                Hold::BlockingRecordRelease,
+            ])
             ->each(function (Hold $hold) use (&$blockers): void {
                 $blockers[] = [
                     'code' => "hold:{$hold->id}:graduation-eligibility",
@@ -176,6 +177,15 @@ class CompletionReadinessProjection
                 'credited_units' => $row['credited_units'],
             ])->values()->all(),
             'result_event_ids' => $results->pluck('event.id')->filter()->values()->all(),
+            'prior_credits' => $results
+                ->filter(fn (array $result): bool => ($result['prior_credit'] ?? null) !== null)
+                ->map(fn (array $result): array => [
+                    'id' => (int) $result['prior_credit']->id,
+                    'result' => (string) ($result['result'] ?? ''),
+                    'status' => (string) $result['prior_credit']->result_status,
+                ])
+                ->values()
+                ->all(),
             'application_id' => $application?->id,
             'conferral_id' => $conferral?->id,
             'final_term_enrollment_id' => $finalTermEnrollment?->id,

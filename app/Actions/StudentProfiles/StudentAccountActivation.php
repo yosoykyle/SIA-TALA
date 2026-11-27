@@ -2,21 +2,30 @@
 
 namespace App\Actions\StudentProfiles;
 
-use App\Actions\Authentication\DispatchPasswordRecovery;
+use App\Filament\Pages\Auth\ContextualLogin;
 use App\Models\OperationalEvent;
 use App\Models\StudentProfile;
 use App\Models\User;
+use App\Notifications\StudentAccountActivationNotification;
 use Filament\Facades\Filament;
+use Filament\Models\Contracts\FilamentUser;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Auth\Events\PasswordResetLinkSent;
+use Illuminate\Contracts\Auth\CanResetPassword;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use SensitiveParameter;
 use Throwable;
 
 class StudentAccountActivation
 {
+    public const PasswordBroker = 'student_activation';
+
+    public const PurposeActivation = 'activation';
+
     public const StatusPendingPasswordSetup = 'Pending password setup';
 
     public const StatusPasswordSet = 'Password set (awaiting sign-in)';
@@ -24,8 +33,6 @@ class StudentAccountActivation
     public const StatusActivated = 'Activated & signed in';
 
     public const StatusNoAccount = 'No linked account';
-
-    public function __construct(private readonly DispatchPasswordRecovery $passwordRecovery) {}
 
     public static function statusLabel(StudentProfile $profile): string
     {
@@ -39,7 +46,7 @@ class StudentAccountActivation
             return self::StatusPendingPasswordSetup;
         }
 
-        if ($user->last_sign_in_at !== null) {
+        if ($user->last_successful_sign_in_at !== null) {
             return self::StatusActivated;
         }
 
@@ -56,7 +63,7 @@ class StudentAccountActivation
 
         return $user->password === null
             || trim((string) $user->password) === ''
-            || ($user->email_verified_at === null && $user->last_sign_in_at === null);
+            || ($user->email_verified_at === null && $user->last_successful_sign_in_at === null);
     }
 
     public static function canCorrectUnactivatedEmail(StudentProfile $profile): bool
@@ -65,7 +72,7 @@ class StudentAccountActivation
     }
 
     /**
-     * Dispatch a password-setup activation email for an imported/unactivated student account.
+     * Dispatch a dedicated 7-day student account activation email via the student_activation broker.
      */
     public function sendActivationEmail(StudentProfile $profile, User $actor, bool $skipAuthorization = false): bool
     {
@@ -89,18 +96,48 @@ class StudentAccountActivation
         }
 
         $panel = Filament::getPanel('student');
+        $hadAuthenticationFlag = session()->has(ContextualLogin::AuthenticatingSessionKey);
+        $authenticationFlag = session(ContextualLogin::AuthenticatingSessionKey);
+        session()->put(ContextualLogin::AuthenticatingSessionKey, true);
 
         try {
-            $status = $this->passwordRecovery->sendViaBroker(
-                credentials: ['email' => (string) $user->email],
-                panel: $panel,
-                expectedUser: $user,
+            $status = Password::broker(self::PasswordBroker)->sendResetLink(
+                ['email' => (string) $user->email],
+                function (CanResetPassword $notifiable, #[SensitiveParameter] string $token) use ($panel, $user, $profile): void {
+                    if (! $notifiable instanceof User || ! $notifiable->is($user)) {
+                        return;
+                    }
+
+                    if ($notifiable instanceof FilamentUser && ! $notifiable->canAccessPanel($panel)) {
+                        return;
+                    }
+
+                    $url = $panel->getResetPasswordUrl($token, $notifiable, [
+                        'purpose' => self::PurposeActivation,
+                    ]);
+
+                    $notifiable->notify(new StudentAccountActivationNotification(
+                        token: $token,
+                        url: $url,
+                        studentNumber: $profile->student_number,
+                    ));
+
+                    if (class_exists(PasswordResetLinkSent::class)) {
+                        event(new PasswordResetLinkSent($notifiable));
+                    }
+                },
             );
         } catch (Throwable $exception) {
             report($exception);
             $this->recordOperationalEvent($user, $profile, OperationalEvent::StatusFailed, 'Activation email dispatch failed.');
 
             return false;
+        } finally {
+            if ($hadAuthenticationFlag) {
+                session()->put(ContextualLogin::AuthenticatingSessionKey, $authenticationFlag);
+            } else {
+                session()->forget(ContextualLogin::AuthenticatingSessionKey);
+            }
         }
 
         $sent = $status === Password::RESET_LINK_SENT;
@@ -122,6 +159,7 @@ class StudentAccountActivation
                 ->withProperties([
                     'student_number' => $profile->student_number,
                     'email' => $user->email,
+                    'broker' => self::PasswordBroker,
                 ])
                 ->log('Student activation email sent');
         }
