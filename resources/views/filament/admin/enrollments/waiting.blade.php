@@ -18,7 +18,7 @@
                 <p class="registrar-case-deadline">Class places held until <strong>{{ \Carbon\CarbonImmutable::parse($deadline)->timezone(config('app.display_timezone'))->format('M j, Y · g:i A') }}</strong></p>
             @endif
         </div>
-        <x-workflow-handoff current-owner="Student" current-task="Confirm subjects" next-owner="Registrar" next-task="Review enrollment" current-icon="heroicon-o-user" next-icon="heroicon-o-clipboard-document-check" />
+        <x-workflow-handoff current-owner="Student" current-task="Confirm subjects" next-owner="System" next-task="Enroll once paid" current-icon="heroicon-o-user" next-icon="heroicon-o-check-badge" />
         <div class="registrar-case-confirm">
             <div><h3>Confirmation at your office</h3><p>Use this when the student confirms with your office.</p></div>
             {{ $this->getAction('recordAssistedConfirmation', isMounting: false) }}

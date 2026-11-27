@@ -1636,9 +1636,12 @@ class ViewEnrollment extends ViewRecord
                     if ($proposal === null || (int) $this->getRecord()->fresh()->current_proposal_version_id !== $this->reviewedProposalVersionId) {
                         throw ValidationException::withMessages(['proposal' => 'The reviewed subjects changed. Open the current proposal before sending it.']);
                     }
-                    app(IssueRegistrationProposal::class)->execute($proposal, $this->actor());
+                    $sent = app(IssueRegistrationProposal::class)->execute($proposal, $this->actor());
                     $this->record = $this->getRecord()->refresh();
-                    Notification::make()->title('Subjects sent for confirmation')->success()->send();
+                    Notification::make()
+                        ->title($sent->state === RegistrationProposalVersion::StateConfirmed ? 'Subjects sent and confirmed' : 'Subjects sent for confirmation')
+                        ->success()
+                        ->send();
                     $this->redirect($this->enrollmentUrl());
                 } catch (Throwable $exception) {
                     $this->failure('Subjects were not sent', $exception);
@@ -1652,7 +1655,7 @@ class ViewEnrollment extends ViewRecord
             ->label('Record confirmation')
             ->icon('heroicon-o-check')
             ->modalHeading('Record student confirmation')
-            ->modalDescription('Record only confirmation the student has already given for these reviewed subjects. This records their consent; enrollment becomes official only after Registrar finalization.')
+            ->modalDescription('Record only confirmation the student has already given for these reviewed subjects. Once payment is cleared, TALA enrolls the student automatically.')
             ->modalSubmitActionLabel('Record confirmation')
             ->modalWidth(Width::TwoExtraLarge)
             ->stickyModalHeader()

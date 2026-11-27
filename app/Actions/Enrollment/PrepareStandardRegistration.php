@@ -59,7 +59,10 @@ class PrepareStandardRegistration
             if ($proposal->state === RegistrationProposalVersion::StateDraft) {
                 $this->place->execute($proposal, $actor);
                 $this->assess->execute($enrollment->fresh(), $actor);
-                $this->issue->issuePrepared($proposal->fresh());
+                $proposal = $proposal->fresh();
+                if ($proposal->state === RegistrationProposalVersion::StateDraft) {
+                    $this->issue->issuePrepared($proposal);
+                }
             }
         } catch (ValidationException|CalendarGateViolation $exception) {
             $enrollment->refresh()->update(['status_reason' => $exception->getMessage()]);

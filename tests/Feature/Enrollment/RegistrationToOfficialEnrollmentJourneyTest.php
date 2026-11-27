@@ -1267,6 +1267,71 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->assertSame($before, $assessment->fresh()->getAttributes());
     }
 
+    public function test_registrar_started_case_confirms_when_sent_and_enrolls_once_payment_clears(): void
+    {
+        [$application, $term] = $this->readyApplicant();
+        [$section] = $this->publishedOffering($application, $term);
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $accounting = $this->staff(User::StaffRoleAccounting);
+        $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $registrar, Enrollment::StartRegistrarAssisted);
+        $this->recordApprovedTransferEvaluation($case);
+        $proposal = app(PrepareRegistrationProposal::class)->execute($case->fresh(), $registrar, [$section->id], $case->fresh()->lock_version);
+        $this->reserveAndAssessPaidProposal($proposal, $registrar);
+        if ($proposal->fresh()->state === RegistrationProposalVersion::StateDraft) {
+            app(IssueRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
+        }
+
+        $confirmation = $proposal->fresh()->confirmation;
+        $this->assertSame(RegistrationProposalVersion::StateConfirmed, $proposal->fresh()->state);
+        $this->assertSame(RegistrationProposalConfirmation::MethodRegistrarAssisted, $confirmation->method);
+        $this->assertSame($registrar->id, $confirmation->assisted_by);
+        $this->assertSame($application->user_id, $confirmation->learner_user_id);
+        $this->assertSame(0, OperationalEvent::query()->where('event_type', OperationalEvent::TypeRegistrationProposalEmail)->count());
+        $this->assertSame(1, OperationalEvent::query()->where('event_type', OperationalEvent::TypeRegistrationPaymentActionEmail)->count());
+        $this->assertSame(Enrollment::OutcomeInProgress, $case->fresh()->canonical_outcome);
+
+        app(PaymentConfirmationService::class)->confirmManualPayment(
+            enrollmentId: $case->id,
+            amount: '1000.00',
+            channel: 'cash',
+            paymentReference: 'CASH-REGISTRAR-STARTED-'.$case->id,
+            actor: $accounting,
+            orNumber: 'OR-REGISTRAR-STARTED-'.$case->id,
+        );
+
+        $this->assertSame(Enrollment::OutcomeOfficiallyEnrolled, $case->fresh()->canonical_outcome);
+        $this->assertNotNull($case->fresh()->current_cor_version_id);
+    }
+
+    public function test_student_started_case_still_waits_for_the_student_to_confirm_after_payment(): void
+    {
+        [$application, $term] = $this->readyApplicant();
+        [$section] = $this->publishedOffering($application, $term);
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $application->user);
+        $this->recordApprovedTransferEvaluation($case);
+        $proposal = app(PrepareRegistrationProposal::class)->execute($case->fresh(), $registrar, [$section->id], $case->fresh()->lock_version);
+        $this->reserveAndAssessPaidProposal($proposal, $registrar);
+        if ($proposal->fresh()->state === RegistrationProposalVersion::StateDraft) {
+            app(IssueRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
+        }
+
+        $this->assertSame(RegistrationProposalVersion::StateIssued, $proposal->fresh()->state);
+        $this->assertNull($proposal->fresh()->confirmation);
+        $this->assertSame(1, OperationalEvent::query()->where('event_type', OperationalEvent::TypeRegistrationProposalEmail)->count());
+
+        app(PaymentConfirmationService::class)->confirmManualPayment(
+            enrollmentId: $case->id,
+            amount: '1000.00',
+            channel: 'cash',
+            paymentReference: 'CASH-STUDENT-STARTED-'.$case->id,
+            actor: $this->staff(User::StaffRoleAccounting),
+            orNumber: 'OR-STUDENT-STARTED-'.$case->id,
+        );
+
+        $this->assertSame(Enrollment::OutcomeInProgress, $case->fresh()->canonical_outcome);
+    }
+
     public function test_learner_self_cancellation_stops_at_confirmation_and_registrar_releases_capacity(): void
     {
         [$application, $term] = $this->readyApplicant();
@@ -1823,14 +1888,10 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         );
         $this->publishFeePlan($plan, $accounting, 'Synthetic continuing Student fee authority');
         app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
-        app(IssueRegistrationProposal::class)->execute($proposal, $registrar);
-        app(ConfirmRegistrationProposal::class)->execute(
-            $proposal->fresh(),
-            $profile->user,
-            $registrar,
-            'SYN-ASSISTED-CONFIRMATION-001',
-        );
-        $this->assertSame('SYN-ASSISTED-CONFIRMATION-001', $proposal->confirmation()->sole()->assisted_evidence_reference);
+        $confirmation = $proposal->confirmation()->sole();
+        $this->assertSame(RegistrationProposalConfirmation::MethodRegistrarAssisted, $confirmation->method);
+        $this->assertSame($registrar->id, $confirmation->assisted_by);
+        $this->assertSame(Enrollment::OutcomeOfficiallyEnrolled, $case->fresh()->canonical_outcome);
 
         $official = app(FinalizeOfficialEnrollment::class)->execute($case->fresh(), $registrar);
         $again = app(FinalizeOfficialEnrollment::class)->execute($official, $registrar);
@@ -1852,7 +1913,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             ->assertSee('1 subject');
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         Livewire::actingAs($registrar)->test(RegistrarEnrollment::class, ['record' => $official->id])
-            ->set('enrollmentView', 'history')->assertSeeHtml('<dt>Confirmation reference</dt><dd>SYN-ASSISTED-CONFIRMATION-001</dd>');
+            ->set('enrollmentView', 'history')->assertSee('Confirmed by the Registrar');
     }
 
     public function test_continuing_proposal_uses_the_recorded_curriculum_and_released_result_rules(): void
@@ -2040,7 +2101,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             ->mountAction('recordAssistedConfirmation')
             ->assertActionMounted('recordAssistedConfirmation')
             ->assertActionDataSet(['proposal_id' => $first->id])
-            ->assertMountedActionModalSee(['Keep for review', 'enrollment becomes official only after Registrar finalization.'])
+            ->assertMountedActionModalSee(['Keep for review', 'Once payment is cleared, TALA enrolls the student automatically.'])
             ->assertMountedActionModalDontSee('Confirmation reference');
 
         $replacement = Section::factory()->for($section->termOffering, 'termOffering')->create(['state' => Section::StateOpen, 'capacity' => 2]);

@@ -88,6 +88,8 @@ final class TAL87DOfficialEnrollmentTest extends TestCase
     {
         $fixture = $this->clearSourceGateFixture();
         $registrar = $this->staff(User::StaffRoleRegistrar);
+        // #103: only Individually Advised cases offer manual subject choice; regular cases are prepared automatically.
+        $fixture['enrollment']->update(['selection_basis' => Enrollment::SelectionIndividuallyAdvised]);
         $enrollment = $fixture['enrollment']->refresh();
 
         $component = Livewire::actingAs($registrar)
