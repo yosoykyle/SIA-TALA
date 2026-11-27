@@ -223,24 +223,25 @@
 .tala-workspace-launcher { container-type: inline-size; color: var(--tala-text); }
 .tala-workspace-launcher__scope { margin-block-end: 1rem; color: var(--tala-muted); font-size: var(--tala-type-caption); }
 /* Admissions Student type tabs (#99 Scope 6): pressable filter buttons above the main queue cards. */
-/* Admission cycle publication checks: what is wrong (amber) above how to fix it (green strip), one blocker per row. */
-.tala-setup-findings { display: grid; margin: 0; padding: 0; list-style: none; border: 1px solid var(--tala-status-warning-border); border-radius: 0.75rem; background: var(--tala-surface-raised); overflow: hidden; }
-.tala-setup-finding { display: grid; gap: 0.625rem; padding: 0.875rem 1rem 1rem; }
+/* Admission cycle publication checks: clean two-column action list with calm hierarchy and mobile stacking. */
+.tala-setup-findings { display: grid; margin: 0; padding: 0; list-style: none; border: 1px solid var(--tala-edge-strong); border-radius: 0.75rem; background: var(--tala-surface-raised); overflow: hidden; }
+.tala-setup-finding { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem 1.25rem; padding: 0.875rem 1rem; }
 .tala-setup-finding + .tala-setup-finding { border-top: 1px solid var(--tala-edge); }
-.tala-setup-finding__problem { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: 0.625rem; }
-.tala-setup-finding__icon { width: 1.25rem; height: 1.25rem; margin-top: 0.0625rem; color: var(--tala-status-warning-icon); }
-.tala-setup-finding__reason { margin: 0; max-width: 72ch; font-size: 0.9375rem; font-weight: 600; line-height: 1.45; color: var(--tala-status-warning-fg); text-wrap: pretty; overflow-wrap: anywhere; }
-.tala-setup-finding__owner { justify-self: end; padding: 0.125rem 0.5rem; border: 1px solid var(--tala-edge-strong); border-radius: 9999px; font-size: 0.75rem; font-weight: 500; line-height: 1.4; color: var(--tala-muted); white-space: nowrap; }
-.tala-setup-finding__resolution { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; margin-inline-start: 1.875rem; padding: 0.5rem 0.5rem 0.5rem 0.75rem; border-radius: 0.5rem; background: var(--tala-brand-tint); color: var(--tala-on-brand-tint); }
-.tala-setup-finding__action { flex: 1 1 18rem; margin: 0; font-size: 0.875rem; line-height: 1.45; overflow-wrap: anywhere; }
-.tala-setup-finding__label { margin-inline-end: 0.375rem; font-weight: 700; }
+.tala-setup-finding__body { flex: 1 1 22rem; display: flex; align-items: flex-start; gap: 0.625rem; min-width: 0; }
+.tala-setup-finding__icon { flex: none; inline-size: 1.125rem; block-size: 1.125rem; margin-block-start: 0.1875rem; color: var(--tala-status-warning-icon); }
+.tala-setup-finding__copy { display: grid; gap: 0.25rem; min-width: 0; }
+.tala-setup-finding__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.375rem 0.625rem; }
+.tala-setup-finding__reason { margin: 0; max-width: 68ch; font-size: 0.9375rem; font-weight: 600; line-height: 1.4; color: var(--tala-text); text-wrap: pretty; overflow-wrap: anywhere; }
+.tala-setup-finding__action { margin: 0; max-width: 68ch; font-size: 0.875rem; line-height: 1.45; color: var(--tala-muted); overflow-wrap: anywhere; }
+.tala-setup-finding__label { margin-inline-end: 0.25rem; font-weight: 600; color: var(--tala-text); }
 .tala-setup-finding__label::after { content: ':'; }
+.tala-setup-finding__aside { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
+.tala-setup-finding__owner { padding: 0.1875rem 0.5625rem; border: 1px solid var(--tala-edge); border-radius: 9999px; background: var(--tala-surface-sunken); font-size: 0.75rem; font-weight: 500; line-height: 1.4; color: var(--tala-muted); white-space: nowrap; }
 .tala-setup-finding__fix { flex: none; }
 @media (max-width: 40rem) {
-    .tala-setup-finding__problem { grid-template-columns: auto minmax(0, 1fr); }
-    .tala-setup-finding__owner { grid-column: 2; justify-self: start; }
-    .tala-setup-finding__resolution { margin-inline-start: 0; }
-    .tala-setup-finding__fix { width: 100%; justify-content: center; }
+    .tala-setup-finding { align-items: stretch; }
+    .tala-setup-finding__aside { width: 100%; justify-content: space-between; padding-inline-start: 1.75rem; }
+    .tala-setup-finding__fix { width: 100%; justify-content: center; min-block-size: 2.75rem; }
 }
 
 .tala-student-type-bar { display: grid; gap: 0.5rem; margin-block-end: 1.25rem; }

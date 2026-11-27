@@ -11,6 +11,7 @@ use App\Filament\Resources\AdmissionCycles\Pages\ViewAdmissionCycle;
 use App\Filament\Resources\AdmissionCycles\Schemas\AdmissionCycleInfolist;
 use App\Models\AdmissionApplication;
 use App\Models\AdmissionCycle;
+use App\Models\Program;
 use App\Models\Term;
 use App\Models\User;
 use App\Policies\AdmissionCyclePolicy;
@@ -64,22 +65,35 @@ class Issue57AdmissionCycleDraftWorkflowTest extends TestCase
         $this->travelBack();
     }
 
-    public function test_named_cycle_draft_can_be_saved_before_publication_setup_is_complete(): void
+    public function test_named_cycle_draft_defaults_owner_and_institutional_guidance_and_validates_upfront(): void
     {
-        $this->actingAs($this->registrar());
+        $registrar = $this->registrar();
+        $this->actingAs($registrar);
         Filament::setCurrentPanel(Filament::getPanel('admin'));
         $term = Term::factory()->create();
+        $program = Program::factory()->create(['is_active' => true]);
 
         Livewire::test(CreateAdmissionCycle::class)
-            ->fillForm(['code' => 'ROUND3-PARTIAL', 'label' => 'Incomplete intake', 'term_id' => $term->id])
+            ->fillForm([
+                'code' => 'ROUND3-PARTIAL',
+                'label' => 'Incomplete intake',
+                'term_id' => $term->id,
+                'opens_at' => '2027-01-02 08:00:00',
+                'closes_at' => '2027-01-10 17:00:00',
+                'correction_closes_at' => '2027-01-12 17:00:00',
+                'accepted_paths' => [AdmissionCycle::PathFirstYear],
+                'programs' => [$program->id],
+            ])
             ->call('create')
             ->assertHasNoFormErrors();
 
         $cycle = AdmissionCycle::query()->where('code', 'ROUND3-PARTIAL')->firstOrFail();
         $this->assertSame(AdmissionCycle::StateDraft, $cycle->state);
-        $this->assertNull($cycle->opens_at);
-        $this->assertNull($cycle->registrar_owner_id);
-        $this->assertSame(0, $cycle->programs()->count());
+        $this->assertSame($registrar->id, $cycle->registrar_owner_id);
+        $this->assertNotEmpty($cycle->privacy_notice_reference);
+        $this->assertNotEmpty($cycle->support_contact);
+        $this->assertNotEmpty($cycle->applicant_instructions);
+        $this->assertSame(1, $cycle->programs()->count());
         $this->assertSame(0, $cycle->events()->count());
     }
 
@@ -129,10 +143,15 @@ class Issue57AdmissionCycleDraftWorkflowTest extends TestCase
     {
         $this->actingAs($this->registrar());
         Filament::setCurrentPanel(Filament::getPanel('admin'));
+        $program = Program::factory()->create(['is_active' => true]);
         $cycle = AdmissionCycle::factory()->create([
             'opens_at' => '2027-01-02 00:10:37',
             'closes_at' => '2027-01-04 11:20:43',
             'correction_closes_at' => '2027-01-06 13:30:59',
+        ]);
+        $cycle->programs()->attach($program->id, [
+            'accepts_first_year' => true,
+            'accepts_transferee' => true,
         ]);
 
         Livewire::test(EditAdmissionCycle::class, ['record' => $cycle->getRouteKey()])

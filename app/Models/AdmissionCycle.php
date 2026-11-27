@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Actions\Applicants\ApplicantEntryReadinessService;
 use Database\Factories\AdmissionCycleFactory;
 use Filament\Support\Colors\Color;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -107,6 +108,24 @@ class AdmissionCycle extends Model
             'requirements_due_at' => 'datetime',
             'payment_due_at' => 'datetime',
             'period_ends_at' => 'datetime',
+        ];
+    }
+
+    /**
+     * Institutional defaults for applicant guidance fields so Registrars do not re-enter static school details per cycle.
+     *
+     * @return array{applicant_instructions: string, support_contact: string, privacy_notice_reference: string}
+     */
+    public static function defaultGuidance(): array
+    {
+        $references = app(ApplicantEntryReadinessService::class)->officialReferences();
+        $supportContact = trim((string) ($references['support_phone'] ?: $references['support'] ?: 'Registrar Office'));
+        $privacyReference = trim((string) ($references['privacy'] ?: '/privacy'));
+
+        return [
+            'applicant_instructions' => 'Complete your application details and upload the required preliminary documents before the application deadline. Bring your original physical credentials to the Registrar’s Office when instructed.',
+            'support_contact' => $supportContact,
+            'privacy_notice_reference' => $privacyReference,
         ];
     }
 

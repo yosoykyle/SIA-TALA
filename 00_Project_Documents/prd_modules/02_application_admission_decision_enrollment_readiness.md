@@ -174,7 +174,7 @@ An Admission Cycle contains:
 
 Stored lifecycle is `Draft`, `Published`, or `Cancelled`. `Scheduled`, `Open`, and `Closed` are derived from publication and date/time.
 
-A cycle Draft may be saved with its applicant-facing name, unique stable code and target term before owner, dates, program/path scope, guidance or privacy notice are complete. These missing publication prerequisites appear in readiness and block Publish, not preparation. Continue setup resumes the same Draft; Save and exit returns to its overview. Confirmed discard is available only for a never-used Draft with no Application reference, requirement set or retained event. Other domain Drafts retain their own minimum persisted identity and final transition.
+A cycle Draft is prepared through a guided multi-step setup flow with inline step validation (#105, November 26, 2026): the logged-in Registrar is recorded automatically as the accountable owner, institutional applicant guidance (`applicant_instructions`, `support_contact`, `privacy_notice_reference`) is auto-populated from official school configuration, and accepting programs auto-detect active programs with an assigned published curriculum for the target school year's batch. **Save & continue** advances from cycle details/dates and program selection directly to requirement setup before publication. Confirmed discard is available only for a never-used Draft with no Application reference, requirement set or retained event. Other domain Drafts retain their own minimum persisted identity and final transition.
 
 Dates and times are explicit future school schedules in Asia/Manila, persisted as UTC instants. Location does not determine a deadline. Date pickers preserve existing seconds and precise values. The recorded instant is the selected date/time; no device-location, whole-day or end-of-day inference changes it or its boundary comparison. Current/proposed values and the distinct public-closing, new-correction and active-correction consequences remain visible.
 
@@ -247,13 +247,13 @@ Registrar owns bounded, versioned admission requirement sets. System Administrat
 
 Each requirement defines:
 
-- Code and applicant-facing label.
-- Authority and purpose.
-- Applicable path.
-- Whether preliminary digital evidence is required.
-- Due stage for the selected digital copy: `PreliminaryReview`.
+- Applicant-facing label (with an automatically generated unique internal code).
+- Purpose (and an optional source reference when needed; owner decision, November 26, 2026, #105).
+- Applicable path (Freshman, Transferee, or duplicated across both).
+- Submission mode covering preliminary online upload, face-to-face (`InPerson`), both online upload and face-to-face, or school-to-school official submission.
+- Due stage (`PreliminaryReview`, `EnrollmentReadiness`, or `PostEnrollmentFollowUp`).
 - Plain applicant and Registrar instructions and any source-backed digital deadline.
-- Display order.
+- Display order maintained automatically by drag-and-drop ordering.
 
 The bounded baseline names **PSA birth certificate** and **2x2 ID photo** as selected preliminary uploads, supported by the client workflow. Both selected copies are required for the supported first-year/transferee baseline. Their published path version records that requiredness and file treatment. The same version also lists the physical papers passed on-site (`InPerson`) or sent school-to-school (`SchoolToSchool`), with their classification and whether a hold is permitted, so the Applicant sees them as **To be passed on-site** and the Registrar can check each one (Section 9.2, owner decision, November 22, 2026, #96). One path/cycle instruction explains externally submitted school documents and the contact route. Physical custody, courier, appointments, authenticity judgment and post-enrollment follow-up remain in the school's external records.
 
@@ -481,10 +481,10 @@ Only one state-appropriate primary action appears. Secondary actions remain disc
 Contextual Registrar pages provide:
 
 - Admission Cycle list and derived readiness.
-- Draft cycle form.
-- Published requirement-set review (`RequirementSetsRelationManager`), where individual requirements retain their mandatory source reference while set publication inherits its authority from the published Admission Cycle alongside automatic Registrar actor/time attribution without separate routine approval-reference/date fields.
+- Guided multi-step Draft cycle setup wizard with typeable Asia/Manila date/time inputs, auto-assigned Registrar owner and institutional guidance defaults, auto-detected eligible programs (active + open curriculum batch), and upfront step validation (#105).
+- Requirement setup (`RequirementSetsRelationManager`) with auto-managed version/replacement linking, auto-generated requirement codes, drag-and-drop display order, optional source reference, explicit Online/F2F/Both submission modes, and Freshman/Transferee duplication (#105).
 - Publish, extend, close, cancel, and publish-replacement actions for the Admission Cycle with reason, authority, and audit evidence.
-- **Set admission deadlines** on a published cycle for the physical papers, enrollment payment and admission period end dates (Section 7.4), audited and required to fit the period. The Draft cycle form and cycle overview show the same three dates.
+- **Set admission deadlines** on a published cycle for the physical papers, enrollment payment and final admission cutoff (`Admission period ends`) dates (Section 7.4), audited and required to fit the period. The Draft cycle form groups these under **Post-admission deadlines (Optional)** separately from the Application window.
 
 These pages are reached from Admissions. They are not a generic Settings area.
 
