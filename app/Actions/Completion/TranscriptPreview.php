@@ -30,7 +30,14 @@ class TranscriptPreview
     /** @return array{request: TranscriptRequest, student: array<string, mixed>, institution: array<string, mixed>, academic_years: array<string, list<array<string, mixed>>>, conferral: array<string, mixed>, certification: array<string, mixed>, source_fingerprint: string, status: string} */
     public function forRequest(TranscriptRequest $request, string $status = 'Preview'): array
     {
-        $request->loadMissing(['studentProfile.program', 'studentProfile.curriculumVersion', 'studentProfile.entryAcademicYear', 'studentProfile.applicantIntake', 'conferral']);
+        $request->loadMissing([
+            'studentProfile.program',
+            'studentProfile.curriculumVersion.academicYears',
+            'studentProfile.entryAcademicYear',
+            'studentProfile.entryTerm.academicYear',
+            'studentProfile.applicantIntake',
+            'conferral',
+        ]);
         $student = $request->studentProfile;
         $signatory = app(TranscriptSignatory::class)->forRequest($request);
         if (! $student instanceof StudentProfile) {
@@ -260,6 +267,7 @@ class TranscriptPreview
                 'student_number' => $student->student_number,
                 'program' => $student->program->name,
                 'curriculum_version' => StudentProfileResource::curriculumAndBatchLabel($student)
+                    ?? $student->curriculumVersion?->batchLabel()
                     ?? $student->curriculumVersion?->name
                     ?? $student->curriculumVersion?->version_code,
                 'admission_basis' => $student->applicant_intake_id ? 'Servitech admission record' : 'Prior institutional record',

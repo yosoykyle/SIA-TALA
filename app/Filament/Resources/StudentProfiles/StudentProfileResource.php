@@ -411,6 +411,7 @@ class StudentProfileResource extends Resource
                 'program',
                 'curriculumVersion',
                 'entryAcademicYear',
+                'entryTerm.academicYear',
                 'enrollments' => function (Relation $relation): void {
                     $relation->getQuery()
                         ->whereHas('term', fn (Builder $termQuery): Builder => $termQuery->where('state', Term::StateActive))
@@ -420,6 +421,7 @@ class StudentProfileResource extends Resource
                             'studentProfile.program',
                             'studentProfile.curriculumVersion',
                             'studentProfile.entryAcademicYear',
+                            'studentProfile.entryTerm.academicYear',
                             'courseEnrollments.termOffering.curriculumEntry',
                             'courseEnrollments.section.deliveryGroups',
                             'currentProposalVersion.items.section.deliveryGroups',
@@ -625,15 +627,15 @@ class StudentProfileResource extends Resource
 
     public static function curriculumAndBatchLabel(StudentProfile $record): ?string
     {
-        $record->loadMissing(['curriculumVersion', 'entryAcademicYear']);
+        $record->loadMissing(['curriculumVersion.academicYears', 'entryAcademicYear', 'entryTerm.academicYear']);
         $curriculum = $record->curriculumVersion;
-        $entryYear = $record->entryAcademicYear;
+        $entryYear = $record->resolvedEntryAcademicYear();
         $curriculumName = $curriculum?->name;
 
         if ($entryYear instanceof AcademicYear) {
             $batchLabel = 'Batch '.CurriculumVersion::formatBatchShort($entryYear);
             $cleanName = filled($curriculumName)
-                ? trim((string) preg_replace('/\s*·\s*Batch\s+.*$/iu', '', (string) $curriculumName))
+                ? trim((string) preg_replace('/(?:\s*·\s*Batch\s+.*$|^Batch\s+.*$)/iu', '', (string) $curriculumName))
                 : null;
 
             return collect([

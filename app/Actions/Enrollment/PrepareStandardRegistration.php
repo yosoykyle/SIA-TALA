@@ -40,7 +40,7 @@ class PrepareStandardRegistration
             || $enrollment->currentProposalVersion?->state === RegistrationProposalVersion::StateConfirmed) {
             return $enrollment;
         }
-        $enrollment->loadMissing(['studentProfile', 'term']);
+        $enrollment->loadMissing(['studentProfile.entryTerm', 'term']);
         if ($enrollment->studentProfile !== null
             && $enrollment->term !== null
             && ($this->hasPartialSatisfiedPosition($enrollment->studentProfile, $enrollment->term)
@@ -140,7 +140,7 @@ class PrepareStandardRegistration
             $program = $programId !== null ? Program::query()->find($programId) : null;
 
             if ($program instanceof Program && $program->curriculumVersionBatches()->exists()) {
-                $academicYearId = $profile?->entry_academic_year_id ?? $profile?->entryTerm?->academic_year_id ?? $enrollment->term?->academic_year_id;
+                $academicYearId = $profile?->resolvedEntryAcademicYearId() ?? $enrollment->term?->academic_year_id;
                 $curriculum = $program->curriculumForAcademicYear($academicYearId);
 
                 if (! $curriculum instanceof CurriculumVersion) {
@@ -323,11 +323,13 @@ class PrepareStandardRegistration
 
     private function isUncreditedContinuingCohort(StudentProfile $profile, Term $term): bool
     {
-        if ($profile->applicant_intake_id !== null || $profile->entry_academic_year_id === null) {
+        $entryAcademicYearId = $profile->resolvedEntryAcademicYearId();
+
+        if ($profile->applicant_intake_id !== null || $entryAcademicYearId === null) {
             return false;
         }
 
-        if ((int) $profile->entry_academic_year_id === (int) $term->academic_year_id) {
+        if ($entryAcademicYearId === (int) $term->academic_year_id) {
             return false;
         }
 

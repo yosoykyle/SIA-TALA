@@ -1,7 +1,8 @@
 @php
-    $student->loadMissing(['program', 'curriculumVersion.academicYears', 'entryAcademicYear']);
+    $student->loadMissing(['program', 'curriculumVersion.academicYears', 'entryAcademicYear', 'entryTerm.academicYear']);
     $curriculumVersion = $student->curriculumVersion;
-    if ($student->entryAcademicYear instanceof \App\Models\AcademicYear) {
+    $resolvedEntryYear = $student->resolvedEntryAcademicYear();
+    if ($resolvedEntryYear instanceof \App\Models\AcademicYear) {
         $curriculumDisplay = \App\Filament\Resources\StudentProfiles\StudentProfileResource::curriculumAndBatchLabel($student) ?? 'Not recorded';
     } else {
         $batchLabels = $curriculumVersion?->academicYears
@@ -9,8 +10,14 @@
             ->pluck('label')
             ->filter()
             ->implode(', ');
+        $cleanName = filled($curriculumVersion?->name)
+            ? trim((string) preg_replace('/(?:\s*·\s*Batch\s+.*$|^Batch\s+.*$)/iu', '', (string) $curriculumVersion->name))
+            : null;
         $curriculumDisplay = $curriculumVersion
-            ? collect([$curriculumVersion->name ?: 'Assigned curriculum', filled($batchLabels) ? 'Batch '.$batchLabels : null])->filter()->implode(' · ')
+            ? (collect([
+                filled($cleanName) ? $cleanName : (filled($batchLabels) ? null : 'Assigned curriculum'),
+                filled($batchLabels) ? 'Batch '.$batchLabels : null,
+            ])->filter()->implode(' · ') ?: 'Assigned curriculum')
             : 'Not recorded';
     }
 @endphp

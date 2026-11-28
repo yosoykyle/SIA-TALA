@@ -322,6 +322,14 @@ class FinalizeOfficialEnrollment
     ): StudentProfile {
         $existing = StudentProfile::query()->where('user_id', $enrollment->credential_user_id)->lockForUpdate()->first();
         if ($existing instanceof StudentProfile) {
+            if ($existing->entry_academic_year_id === null) {
+                $resolvedAcademicYearId = $existing->entryTerm?->academic_year_id ?? $enrollment->term?->academic_year_id;
+
+                if ($resolvedAcademicYearId !== null) {
+                    $existing->update(['entry_academic_year_id' => $resolvedAcademicYearId]);
+                }
+            }
+
             return $existing;
         }
 
@@ -338,6 +346,7 @@ class FinalizeOfficialEnrollment
             'applicant_intake_id' => $application->id,
             'student_number' => $studentNumber,
             'entry_term_id' => $enrollment->term_id,
+            'entry_academic_year_id' => $enrollment->term?->academic_year_id,
             'first_name' => $identity['first_name'],
             'middle_name' => $identity['middle_name'],
             'last_name' => $identity['last_name'],

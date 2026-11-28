@@ -94,12 +94,13 @@ class Profile extends Page
         abort_unless($user instanceof User, 403);
 
         $profile = $user->studentProfile()
-            ->with(['program', 'curriculumVersion', 'entryAcademicYear', 'entryTerm', 'profileEvents'])
+            ->with(['program', 'curriculumVersion.academicYears', 'entryAcademicYear', 'entryTerm.academicYear', 'profileEvents'])
             ->active()
             ->where('lifecycle_status', '!=', StudentProfile::LifecycleArchived)
             ->firstOrFail();
 
         $studyContext = app(StudentStudyContext::class)->forStudent($user);
+        $resolvedEntryYear = $profile->resolvedEntryAcademicYear();
 
         $this->profileSections = [
             [
@@ -137,7 +138,7 @@ class Profile extends Page
                 'items' => [
                     ['label' => 'Student status', 'value' => $this->status($profile->lifecycle_status)],
                     ['label' => 'Curriculum', 'value' => $this->value(StudentProfileResource::curriculumAndBatchLabel($profile))],
-                    ['label' => 'Entry batch', 'value' => $this->value($profile->entryAcademicYear instanceof AcademicYear ? 'Batch '.CurriculumVersion::formatBatchShort($profile->entryAcademicYear) : null)],
+                    ['label' => 'Entry batch', 'value' => $this->value($resolvedEntryYear instanceof AcademicYear ? 'Batch '.CurriculumVersion::formatBatchShort($resolvedEntryYear) : null)],
                     ['label' => 'Entry term', 'value' => $this->value($profile->entryTerm?->label)],
                     ['label' => 'Academic standing', 'value' => $this->status($profile->academic_standing)],
                 ],

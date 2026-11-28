@@ -10,9 +10,11 @@ use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
 use App\Filament\Resources\Rooms\RoomResource;
 use App\Filament\Resources\Rooms\Schemas\RoomForm;
 use App\Filament\Resources\Rooms\Schemas\RoomInfolist;
+use App\Models\AcademicYear;
 use App\Models\CalendarEvent;
 use App\Models\Course;
 use App\Models\CourseSpecification;
+use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\FacultyQualification;
@@ -109,7 +111,9 @@ class TermResources extends TermPlanningWorkbench implements HasTable
      *     program_course_ids: array<int, list<int>>,
      *     programs: array<int, string>,
      *     curriculum_course_ids: array<int, list<int>>,
-     *     curricula: array<int, string>
+     *     curricula: array<int, string>,
+     *     batch_filters: array<string, string>,
+     *     curriculum_course_placements: array<int, array<int, list<array{year_level: int, semester_number: int}>>>
      * }|null
      */
     private ?array $catalogSubjectsCache = null;
@@ -578,10 +582,25 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                     ->searchable()
                     ->searchPrompt('Search by subject code or title...')
                     ->bulkToggleable()
+                    ->selectAllAction(fn (Action $action): Action => $action
+                        ->button()
+                        ->size('xs')
+                        ->color('gray')
+                        ->outlined()
+                        ->label('Select all'))
+                    ->deselectAllAction(fn (Action $action): Action => $action
+                        ->button()
+                        ->size('xs')
+                        ->color('gray')
+                        ->outlined()
+                        ->label('Deselect all'))
                     ->live()
                     ->columns(['default' => 1, 'md' => 2])
                     ->gridDirection(GridDirection::Row)
-                    ->extraAttributes(['class' => 'tala-card-picker'])
+                    ->extraAttributes(fn (Get $get): array => [
+                        'class' => 'tala-card-picker',
+                        'wire:key' => 'assign-course-picker-'.md5((string) ($get('program_filter') ?? 'all')),
+                    ])
                     ->visible(fn (Get $get): bool => filled($get('faculty_user_id')))
                     ->helperText(fn (Get $get): string => $this->subjectSelectionHelperText(
                         $get('retained_course_ids'),
@@ -721,6 +740,19 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                     })
                     ->searchable()
                     ->searchPrompt('Search faculty by name...')
+                    ->bulkToggleable()
+                    ->selectAllAction(fn (Action $action): Action => $action
+                        ->button()
+                        ->size('xs')
+                        ->color('gray')
+                        ->outlined()
+                        ->label('Select all'))
+                    ->deselectAllAction(fn (Action $action): Action => $action
+                        ->button()
+                        ->size('xs')
+                        ->color('gray')
+                        ->outlined()
+                        ->label('Deselect all'))
                     ->columns(['default' => 1, 'md' => 2])
                     ->gridDirection(GridDirection::Row)
                     ->extraAttributes(['class' => 'tala-card-picker'])
@@ -1527,10 +1559,25 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                             ->searchable()
                             ->searchPrompt('Search by subject code or title...')
                             ->bulkToggleable()
+                            ->selectAllAction(fn (Action $action): Action => $action
+                                ->button()
+                                ->size('xs')
+                                ->color('gray')
+                                ->outlined()
+                                ->label('Select all'))
+                            ->deselectAllAction(fn (Action $action): Action => $action
+                                ->button()
+                                ->size('xs')
+                                ->color('gray')
+                                ->outlined()
+                                ->label('Deselect all'))
                             ->live()
                             ->columns(['default' => 1, 'md' => 2])
                             ->gridDirection(GridDirection::Row)
-                            ->extraAttributes(['class' => 'tala-card-picker'])
+                            ->extraAttributes(fn (Get $get): array => [
+                                'class' => 'tala-card-picker',
+                                'wire:key' => 'edit-course-picker-'.md5((string) ($get('program_filter') ?? 'all')),
+                            ])
                             ->helperText(fn (Get $get): string => $this->subjectSelectionHelperText(
                                 $get('retained_course_ids'),
                                 $get('program_filter'),
@@ -2513,8 +2560,8 @@ class TermResources extends TermPlanningWorkbench implements HasTable
             $options['program:'.$programId] = $label;
         }
 
-        foreach ($payload['curricula'] as $curriculumId => $label) {
-            $options['curriculum:'.$curriculumId] = $label;
+        foreach ($payload['batch_filters'] as $filterKey => $label) {
+            $options[$filterKey] = $label;
         }
 
         return $options;
@@ -2564,11 +2611,94 @@ class TermResources extends TermPlanningWorkbench implements HasTable
         $payload = $this->catalogSubjectsPayload();
         $allowedIds = $this->filteredCourseIdsForFilter($filter, $payload, $selectedIds);
 
-        if ($allowedIds === null) {
-            return $payload['descriptions'];
+        $descriptions = $allowedIds === null
+            ? $payload['descriptions']
+            : array_intersect_key($payload['descriptions'], array_flip($allowedIds));
+
+        $normalized = filled($filter) ? (string) $filter : 'all';
+        $curriculumId = 0;
+        $batchAyId = 0;
+        if (str_starts_with($normalized, 'curriculum_batch:')) {
+            $parts = explode(':', $normalized);
+            $curriculumId = (int) ($parts[1] ?? 0);
+            $batchAyId = (int) ($parts[2] ?? 0);
+        } elseif (str_starts_with($normalized, 'curriculum:')) {
+            $curriculumId = (int) substr($normalized, strlen('curriculum:'));
         }
 
-        return array_intersect_key($payload['descriptions'], array_flip($allowedIds));
+        if ($curriculumId <= 0) {
+            return $descriptions;
+        }
+
+        $placementsByCourse = $payload['curriculum_course_placements'][$curriculumId] ?? [];
+        if ($placementsByCourse === []) {
+            return $descriptions;
+        }
+
+        $runningYearLevel = null;
+        $termSemester = null;
+        $batchShort = null;
+        if ($batchAyId > 0 && $this->termId !== null) {
+            $term = $this->getViewData()['term'] ?? Term::query()->with('academicYear')->find($this->termId);
+            $batchAy = AcademicYear::query()->find($batchAyId);
+            if ($term instanceof Term && $batchAy instanceof AcademicYear) {
+                $term->loadMissing('academicYear');
+                $termStartYear = $term->academicYear instanceof AcademicYear
+                    ? CurriculumVersion::extractAcademicYearStart($term->academicYear)
+                    : null;
+                $batchStartYear = CurriculumVersion::extractAcademicYearStart($batchAy);
+                if ($termStartYear !== null && $batchStartYear !== null && $termStartYear >= $batchStartYear) {
+                    $runningYearLevel = $termStartYear - $batchStartYear + 1;
+                    $termSemester = CurriculumEntry::termTypeSemesterNumber($term->type);
+                    $batchShort = CurriculumVersion::formatBatchShort($batchAy);
+                }
+            }
+        }
+
+        foreach ($descriptions as $courseId => $desc) {
+            $placements = $placementsByCourse[(int) $courseId] ?? [];
+            if ($placements === []) {
+                continue;
+            }
+
+            $placementLabels = [];
+            $isRunningForBatch = false;
+            foreach ($placements as $placement) {
+                $yl = (int) $placement['year_level'];
+                $sem = (int) $placement['semester_number'];
+                if ($yl <= 0) {
+                    continue;
+                }
+                $ylLabel = match ($yl) {
+                    1 => '1st Year',
+                    2 => '2nd Year',
+                    3 => '3rd Year',
+                    default => "{$yl}th Year",
+                };
+                $semLabel = match ($sem) {
+                    1 => '1st Sem',
+                    2 => '2nd Sem',
+                    3 => 'Summer',
+                    default => $sem > 0 ? "Sem {$sem}" : null,
+                };
+                $placementLabels[] = $semLabel !== null ? "{$ylLabel}, {$semLabel}" : $ylLabel;
+                if ($runningYearLevel !== null && $yl === $runningYearLevel && $sem > 0 && $sem === $termSemester) {
+                    $isRunningForBatch = true;
+                }
+            }
+
+            if ($placementLabels === []) {
+                continue;
+            }
+
+            $extra = [implode(' / ', array_unique($placementLabels))];
+            if ($isRunningForBatch && $batchShort !== null) {
+                $extra[] = "Active for Batch {$batchShort} this term";
+            }
+            $descriptions[$courseId] = $desc.' · '.implode(' · ', $extra);
+        }
+
+        return $descriptions;
     }
 
     /**
@@ -2580,7 +2710,9 @@ class TermResources extends TermPlanningWorkbench implements HasTable
      *     program_course_ids: array<int, list<int>>,
      *     programs: array<int, string>,
      *     curriculum_course_ids: array<int, list<int>>,
-     *     curricula: array<int, string>
+     *     curricula: array<int, string>,
+     *     batch_filters: array<string, string>,
+     *     curriculum_course_placements: array<int, array<int, list<array{year_level: int, semester_number: int}>>>
      * }  $payload
      * @param  list<mixed>  $selectedIds
      * @return list<int>|null
@@ -2614,6 +2746,13 @@ class TermResources extends TermPlanningWorkbench implements HasTable
             $programId = (int) substr($normalized, strlen('program:'));
 
             return $payload['program_course_ids'][$programId] ?? [];
+        }
+
+        if (str_starts_with($normalized, 'curriculum_batch:')) {
+            $parts = explode(':', $normalized);
+            $curriculumId = (int) ($parts[1] ?? 0);
+
+            return $payload['curriculum_course_ids'][$curriculumId] ?? [];
         }
 
         if (str_starts_with($normalized, 'curriculum:')) {
@@ -2732,7 +2871,9 @@ class TermResources extends TermPlanningWorkbench implements HasTable
      *     program_course_ids: array<int, list<int>>,
      *     programs: array<int, string>,
      *     curriculum_course_ids: array<int, list<int>>,
-     *     curricula: array<int, string>
+     *     curricula: array<int, string>,
+     *     batch_filters: array<string, string>,
+     *     curriculum_course_placements: array<int, array<int, list<array{year_level: int, semester_number: int}>>>
      * }
      */
     private function catalogSubjectsPayload(): array
@@ -2741,18 +2882,41 @@ class TermResources extends TermPlanningWorkbench implements HasTable
             return $this->catalogSubjectsCache;
         }
 
-        $offeredCourseIds = $this->termId !== null
-            ? TermOffering::query()
+        $offeredCourseIds = [];
+        if ($this->termId !== null) {
+            $offeredOfferings = TermOffering::query()
                 ->where('term_id', $this->termId)
                 ->where('state', '!=', TermOffering::StateCancelled)
-                ->with('curriculumEntry.courseSpecification')
-                ->get()
-                ->map(fn (TermOffering $offering): ?int => $offering->curriculumEntry?->courseSpecification?->course_id)
-                ->filter()
-                ->unique()
-                ->flip()
-                ->all()
-            : [];
+                ->whereHas('sections', fn (Builder $sectionQuery): Builder => $sectionQuery->whereNotIn('state', [
+                    Section::StateCancelled,
+                    Section::StateClosed,
+                ]))
+                ->with([
+                    'curriculumEntry.courseSpecification',
+                    'sections' => fn ($sectionQuery) => $sectionQuery
+                        ->whereNotIn('state', [Section::StateCancelled, Section::StateClosed])
+                        ->with('courseRevision'),
+                ])
+                ->get();
+
+            foreach ($offeredOfferings as $offering) {
+                $entrySpec = $offering->curriculumEntry?->courseSpecification;
+                if ($entrySpec instanceof CourseSpecification
+                    && $entrySpec->scheduling_treatment !== CourseSpecification::SchedulingExternallyArranged
+                    && $entrySpec->course_id !== null) {
+                    $offeredCourseIds[(int) $entrySpec->course_id] = true;
+                }
+
+                foreach ($offering->sections as $section) {
+                    $sectionSpec = $section->courseRevision;
+                    if ($sectionSpec instanceof CourseSpecification
+                        && $sectionSpec->scheduling_treatment !== CourseSpecification::SchedulingExternallyArranged
+                        && $sectionSpec->course_id !== null) {
+                        $offeredCourseIds[(int) $sectionSpec->course_id] = true;
+                    }
+                }
+            }
+        }
 
         $activePrograms = Program::query()
             ->where('is_active', true)
@@ -2764,6 +2928,8 @@ class TermResources extends TermPlanningWorkbench implements HasTable
         $programCourseIds = [];
         $curricula = [];
         $curriculumCourseIds = [];
+        $batchFilters = [];
+        $curriculumCoursePlacements = [];
         $courseBatchTags = [];
 
         foreach ($activePrograms as $program) {
@@ -2773,7 +2939,7 @@ class TermResources extends TermPlanningWorkbench implements HasTable
 
         $courseProgramIds = [];
         if ($activePrograms->isNotEmpty()) {
-            $curriculumVersions = CurriculumVersion::query()
+            $rawCurricula = CurriculumVersion::query()
                 ->whereIn('state', [
                     CurriculumVersion::StateActive,
                     CurriculumVersion::StateDraft,
@@ -2785,13 +2951,13 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                     'academicYears:id,label,starts_on,ends_on',
                     'entries.courseSpecification:id,course_id',
                 ])
-                ->orderBy('program_id')
-                ->orderByRaw('CASE WHEN state = ? THEN 0 WHEN state = ? THEN 1 ELSE 2 END', [
-                    CurriculumVersion::StateActive,
-                    CurriculumVersion::StateDraft,
-                ])
-                ->orderByDesc('id')
                 ->get();
+
+            $curriculumVersions = $rawCurricula
+                ->groupBy('program_id')
+                ->sortBy(fn (Collection $group, int $programId): string => (string) ($programById[$programId]?->code ?? ''))
+                ->flatMap(fn (Collection $group): Collection => CurriculumVersion::sortByLatestBatch($group, groupByState: true))
+                ->values();
 
             foreach ($curriculumVersions as $version) {
                 $programId = (int) $version->program_id;
@@ -2814,11 +2980,27 @@ class TermResources extends TermPlanningWorkbench implements HasTable
                     $programCourseIds[$programId][$courseId] = $courseId;
                     $versionCourseIds[$courseId] = $courseId;
                     $courseBatchTags[$courseId][$tagLabel] = $tagLabel;
+                    $curriculumCoursePlacements[(int) $version->id][$courseId][] = [
+                        'year_level' => CurriculumEntry::parseYearLevelNumber($entry->year_level),
+                        'semester_number' => CurriculumEntry::termTypeSemesterNumber($entry->term_type),
+                    ];
                 }
 
                 if ($versionCourseIds !== []) {
                     $curricula[(int) $version->id] = $curriculumLabel;
                     $curriculumCourseIds[(int) $version->id] = array_values($versionCourseIds);
+
+                    $batches = $version->sortedBatchAcademicYears()
+                        ->sortByDesc(fn (AcademicYear $ay): int => CurriculumVersion::extractAcademicYearStart($ay) ?? -1)
+                        ->values();
+
+                    if ($batches->isNotEmpty()) {
+                        foreach ($batches as $batchAy) {
+                            $batchFilters['curriculum_batch:'.$version->id.':'.$batchAy->id] = $version->formatBatchOptionLabel($batchAy, includeProgram: true).$retiredSuffix;
+                        }
+                    } else {
+                        $batchFilters['curriculum:'.$version->id] = $curriculumLabel;
+                    }
                 }
             }
         }
@@ -2893,6 +3075,8 @@ class TermResources extends TermPlanningWorkbench implements HasTable
             'programs' => $programs,
             'curriculum_course_ids' => $curriculumCourseIds,
             'curricula' => $curricula,
+            'batch_filters' => $batchFilters,
+            'curriculum_course_placements' => $curriculumCoursePlacements,
         ];
     }
 

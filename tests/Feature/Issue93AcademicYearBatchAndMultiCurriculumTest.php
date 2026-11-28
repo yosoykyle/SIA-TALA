@@ -273,7 +273,7 @@ final class Issue93AcademicYearBatchAndMultiCurriculumTest extends TestCase
         Role::findOrCreate(User::StaffRoleFaculty, 'web');
         $faculty->assignRole(User::StaffRoleFaculty);
 
-        // Verify SchoolResources exposes curriculum:<id> filter and includes retired curricula under DIT93A!
+        // Verify SchoolResources exposes curriculum_batch:<cvId>:<ayId> filter and includes retired curricula under DIT93A!
         $component = Livewire::test(SchoolResources::class);
         $page = $component->instance();
         $reflection = new \ReflectionMethod($page, 'catalogSubjectsPayload');
@@ -284,6 +284,7 @@ final class Issue93AcademicYearBatchAndMultiCurriculumTest extends TestCase
         $this->assertArrayHasKey($cvNew->id, $payload['curricula']);
         $this->assertArrayHasKey($cvOld->id, $payload['curricula']);
         $this->assertArrayHasKey($cvRetired->id, $payload['curricula']);
+        $this->assertArrayHasKey("curriculum_batch:{$cvNew->id}:{$ay2046->id}", $payload['batch_filters']);
         $this->assertContains($courseNew->id, $payload['curriculum_course_ids'][$cvNew->id]);
         $this->assertNotContains($courseOld->id, $payload['curriculum_course_ids'][$cvNew->id]);
         $this->assertContains($courseRetired->id, $payload['program_course_ids'][$program->id]);
@@ -294,7 +295,7 @@ final class Issue93AcademicYearBatchAndMultiCurriculumTest extends TestCase
         // Assigning courseNew to faculty creates a canonical Course-scoped FacultyQualification.
         $component->callAction(TestAction::make('assignSubjects')->table(), data: [
             'faculty_user_id' => $faculty->id,
-            'program_filter' => 'curriculum:'.$cvNew->id,
+            'program_filter' => "curriculum_batch:{$cvNew->id}:{$ay2046->id}",
             'course_ids' => [(string) $courseNew->id],
             'retained_course_ids' => [],
         ])->assertHasNoActionErrors();

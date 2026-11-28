@@ -449,6 +449,12 @@ class OnboardExistingStudent
             if ($batchCurriculum instanceof CurriculumVersion) {
                 return (int) $batchCurriculum->id;
             }
+
+            if ($program->curriculumVersionBatches()->exists()) {
+                throw ValidationException::withMessages([
+                    'curriculum_version_id' => "Program {$program->code} has no active or retired curriculum assigned to the selected entry batch. Specify which curriculum version to assign.",
+                ]);
+            }
         }
 
         $active = CurriculumVersion::query()

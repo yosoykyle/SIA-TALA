@@ -14,6 +14,7 @@ use App\Filament\Clusters\TermPlanning\TermPlanningCluster;
 use App\Filament\Resources\CurriculumVersions\CurriculumVersionResource;
 use App\Filament\Resources\Sections\Schemas\SectionInfolist;
 use App\Filament\Resources\Sections\SectionResource;
+use App\Models\AcademicYear;
 use App\Models\CandidateScheduleRow;
 use App\Models\CourseComponent;
 use App\Models\CourseEnrollment;
@@ -187,7 +188,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
     {
         if ($this->classViewData === null) {
             $this->classViewData = parent::getViewData();
-            $this->classViewData['cohorts']->loadMissing(['program', 'curriculumVersion.academicYears', 'classOfferings.courseRevision', 'classOfferings.termOffering.curriculumEntry.courseSpecification']);
+            $this->classViewData['cohorts']->loadMissing(['program', 'entryAcademicYear', 'curriculumVersion.academicYears', 'classOfferings.courseRevision', 'classOfferings.termOffering.curriculumEntry.courseSpecification']);
             $term = $this->classViewData['term'] ?? null;
             $this->classViewData['capacityHeadroom'] = $term instanceof Term
                 ? app(TermCapacityHeadroomProjection::class)->forTerm($term)
@@ -242,6 +243,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                 ->where('term_id', $this->termId)
                 ->with([
                     'program',
+                    'entryAcademicYear',
                     'curriculumVersion.academicYears',
                     'classOfferings' => fn (BelongsToMany $query): BelongsToMany => $query
                         ->where('sections.state', '!=', Section::StateCancelled)
@@ -844,17 +846,17 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
             ->schema(function (): array {
                 $preview = $this->currentCurriculumPreview();
                 $cohorts = $preview['cohorts']->whereNotNull('confirmed_at');
-                $cohorts->loadMissing(['program', 'curriculumVersion.academicYears']);
+                $cohorts->loadMissing(['program', 'entryAcademicYear', 'curriculumVersion.academicYears']);
                 $termType = $this->selectedTerm()->type;
                 $maxRoomSeats = (int) (Room::query()->where('is_active', true)->max('capacity') ?? 0);
 
                 $cohortOptions = $cohorts->mapWithKeys(function (TermCohort $cohort): array {
                     $program = $cohort->program?->code ?: ($cohort->program?->name ?? 'Program');
-                    $curriculum = $cohort->curriculumVersion?->batchLabel() ?? 'Curriculum';
+                    $batchDisplay = $this->resolvedBatchDisplayForCohort($cohort) ?? $cohort->curriculumVersion?->batchLabel() ?? 'Curriculum';
                     $reference = $this->formatSectionReference($cohort->reference);
 
                     return [
-                        $cohort->id => "{$reference} · {$program} · {$curriculum} ({$cohort->confirmed_count} students)",
+                        $cohort->id => "{$reference} · {$program} · {$batchDisplay} ({$cohort->confirmed_count} students)",
                     ];
                 })->all();
 
@@ -895,7 +897,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
 
                             $termTypeLabel = e($this->selectedTerm()->typeLabel());
                             $programCode = e($cohort->program?->code ?: ($cohort->program?->name ?? 'Program'));
-                            $batchLabel = e($cohort->curriculumVersion?->batchLabel() ?? 'Selected curriculum');
+                            $batchLabel = e($this->resolvedBatchDisplayForCohort($cohort) ?? $cohort->curriculumVersion?->batchLabel() ?? 'Selected curriculum');
                             $curriculumId = (int) ($cohort->curriculum_version_id ?? 0);
                             $curriculumUrl = $curriculumId > 0
                                 ? e(CurriculumVersionResource::getUrl('review', ['record' => $curriculumId]))
@@ -983,7 +985,20 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                         ->placeholder('Use each subject’s first approved mode'),
                     CheckboxList::make('entry_ids')
                         ->label('Curriculum subjects to create & confirm')
+                        ->key(fn (Get $get): string => 'load-curriculum-entries-'.((int) ($get('term_cohort_id') ?? 0)).'-'.((string) ($get('year_level') ?? 'none')))
                         ->bulkToggleable()
+                        ->selectAllAction(fn (Action $action): Action => $action
+                            ->label('Select all')
+                            ->button()
+                            ->color('gray')
+                            ->size('sm')
+                            ->icon(Heroicon::OutlinedCheckCircle))
+                        ->deselectAllAction(fn (Action $action): Action => $action
+                            ->label('Deselect all')
+                            ->button()
+                            ->color('gray')
+                            ->size('sm')
+                            ->icon(Heroicon::OutlinedXCircle))
                         ->searchable()
                         ->searchPrompt('Search by subject code or title...')
                         ->columns(['default' => 1, 'md' => 2])
@@ -1207,8 +1222,18 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                     ->all();
 
                 $confirmedCohorts = $preview['cohorts']->whereNotNull('confirmed_at');
+                $confirmedCohorts->loadMissing(['entryAcademicYear', 'curriculumVersion.academicYears']);
                 $cohortOptions = $confirmedCohorts
-                    ->mapWithKeys(fn (TermCohort $cohort): array => [$cohort->id => $this->formatSectionReference($cohort->reference).' · '.$cohort->confirmed_count.' students'])
+                    ->mapWithKeys(function (TermCohort $cohort): array {
+                        $batchDisplay = $this->resolvedBatchDisplayForCohort($cohort);
+                        $parts = array_filter([
+                            $this->formatSectionReference($cohort->reference),
+                            $batchDisplay,
+                            $cohort->confirmed_count.' students',
+                        ]);
+
+                        return [$cohort->id => implode(' · ', $parts)];
+                    })
                     ->all();
                 $cohortCountsById = $confirmedCohorts->pluck('confirmed_count', 'id')->all();
 
@@ -2158,14 +2183,28 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
             ->modalCancelActionLabel('Cancel')
             ->modalWidth(Width::TwoExtraLarge)
             ->visible(fn (TermCohort $record): bool => $this->canModifyCohortPrePublish($record))
-            ->fillForm(fn (TermCohort $record): array => [
-                'program_id' => $record->program_id,
-                'curriculum_version_id' => $record->curriculum_version_id,
-                'year_level' => $record->year_level ?? $record->resolvedYearLevel() ?? 1,
-                'reference' => $this->formatSectionReference($record->reference),
-                'confirmed_count' => $record->confirmed_count ?? $record->forecast_count,
-            ])
+            ->fillForm(function (TermCohort $record): array {
+                $term = $this->selectedTerm();
+                $record->loadMissing(['entryAcademicYear', 'curriculumVersion.academicYears']);
+                $yearLevel = $record->year_level ?? $record->resolvedYearLevel() ?? 1;
+                $batchAy = $record->entryAcademicYear
+                    ?? $this->resolveMatchingBatchAcademicYear($term, $record->curriculumVersion, $yearLevel);
+
+                return [
+                    'program_id' => $record->program_id,
+                    'curriculum_version_id' => $record->curriculum_version_id,
+                    'entry_academic_year_id' => $batchAy?->id,
+                    'curriculum_batch_key' => $record->curriculum_version_id !== null
+                        ? $this->curriculumBatchSelectionKey((int) $record->curriculum_version_id, $batchAy?->id)
+                        : null,
+                    'year_level' => $yearLevel,
+                    'reference' => $this->formatSectionReference($record->reference),
+                    'confirmed_count' => $record->confirmed_count ?? $record->forecast_count,
+                ];
+            })
             ->schema(function (TermCohort $record): array {
+                $term = $this->selectedTerm();
+                $term->loadMissing('academicYear');
                 $hasLinkedClasses = $this->cohortHasActiveLinkedClasses($record);
                 $curricula = CurriculumVersion::query()
                     ->whereIn('state', [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded])
@@ -2183,6 +2222,47 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                     ->keyBy('id');
 
                 return [
+                    Hidden::make('entry_academic_year_id')->dehydrated(),
+                    Hidden::make('curriculum_version_id')
+                        ->dehydrated()
+                        ->live()
+                        ->afterStateUpdated(function (Set $set, Get $get, mixed $state) use ($term, $curricula): void {
+                            $parsed = $this->parseCurriculumBatchSelection($state);
+                            $curriculum = $parsed['curriculum_version_id'] !== null
+                                ? $curricula->get($parsed['curriculum_version_id'])
+                                : null;
+
+                            if (! $curriculum instanceof CurriculumVersion) {
+                                $set('entry_academic_year_id', null);
+                                $set('curriculum_batch_key', null);
+
+                                return;
+                            }
+
+                            $set('program_id', (int) $curriculum->program_id);
+                            $maxYear = $this->maxYearLevelForCurriculum($curriculum);
+                            $currentYear = (int) ($get('year_level') ?? 1);
+                            $resolvedYear = ($currentYear >= 1 && $currentYear <= $maxYear) ? $currentYear : 1;
+
+                            $batchAy = $this->resolveMatchingBatchAcademicYear(
+                                $term,
+                                $curriculum,
+                                $resolvedYear,
+                                $parsed['entry_academic_year_id'] ?? (filled($get('entry_academic_year_id')) ? (int) $get('entry_academic_year_id') : null),
+                            );
+
+                            if ($parsed['entry_academic_year_id'] !== null && $batchAy instanceof AcademicYear) {
+                                $derivedYear = $this->deriveYearLevelForBatch($term, $batchAy, $maxYear);
+                                if ($derivedYear !== null) {
+                                    $resolvedYear = $derivedYear;
+                                }
+                            }
+
+                            $set('curriculum_version_id', (int) $curriculum->id);
+                            $set('entry_academic_year_id', $batchAy?->id);
+                            $set('curriculum_batch_key', $this->curriculumBatchSelectionKey((int) $curriculum->id, $batchAy?->id));
+                            $set('year_level', $resolvedYear);
+                        }),
                     Grid::make(['default' => 1, 'md' => 2])->schema([
                         Select::make('program_id')
                             ->label('Program')
@@ -2194,10 +2274,12 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                             ->dehydrated(false)
                             ->searchable()
                             ->live()
-                            ->afterStateUpdated(function (Set $set, Get $get, mixed $state) use ($curricula, $programs): void {
+                            ->afterStateUpdated(function (Set $set, Get $get, mixed $state) use ($term, $curricula, $programs): void {
                                 $program = $programs->get((int) $state);
                                 if (! $program instanceof Program) {
                                     $set('curriculum_version_id', null);
+                                    $set('entry_academic_year_id', null);
+                                    $set('curriculum_batch_key', null);
 
                                     return;
                                 }
@@ -2205,49 +2287,171 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                                 $maxYear = $this->maxYearLevelForProgram($program);
                                 $currentYear = (int) ($get('year_level') ?? 1);
                                 $resolvedYear = ($currentYear >= 1 && $currentYear <= $maxYear) ? $currentYear : 1;
-                                $matchedCurriculum = $this->resolveExpectedCurriculumForYearLevel($this->selectedTerm(), $program, $resolvedYear)
-                                    ?? $curricula->first(fn (CurriculumVersion $curriculum): bool => (int) $curriculum->program_id === (int) $program->id);
+                                [$matchedCurriculum, $matchedBatchAy] = $this->resolveExpectedCurriculumAndBatchForYearLevel(
+                                    $term,
+                                    $program,
+                                    $resolvedYear,
+                                    $curricula,
+                                );
 
                                 $set('year_level', $resolvedYear);
                                 $set('curriculum_version_id', $matchedCurriculum?->id);
+                                $set('entry_academic_year_id', $matchedBatchAy?->id);
+                                $set('curriculum_batch_key', $matchedCurriculum instanceof CurriculumVersion
+                                    ? $this->curriculumBatchSelectionKey((int) $matchedCurriculum->id, $matchedBatchAy?->id)
+                                    : null);
                             }),
                         Select::make('year_level')
                             ->label('Year level')
                             ->options(function (Get $get) use ($curricula, $programs): array {
+                                [$curriculum] = $this->resolveFormCurriculumSelection($get, $curricula);
                                 $program = $programs->get((int) ($get('program_id') ?? 0))
-                                    ?? $curricula->get((int) ($get('curriculum_version_id') ?? 0))?->program;
+                                    ?? $curriculum?->program;
 
                                 return $this->cohortYearLevelOptionsForProgram($program);
                             })
                             ->disabled($hasLinkedClasses)
                             ->dehydrated()
                             ->required()
-                            ->live(),
+                            ->live()
+                            ->afterStateUpdated(function (Set $set, Get $get, mixed $state) use ($term, $curricula, $programs): void {
+                                [$curriculum] = $this->resolveFormCurriculumSelection($get, $curricula);
+                                $program = $programs->get((int) ($get('program_id') ?? 0)) ?? $curriculum?->program;
+                                $yearLevel = max(1, (int) ($state ?? 1));
+
+                                [$matchedCurriculum, $matchedBatchAy] = $this->resolveExpectedCurriculumAndBatchForYearLevel(
+                                    $term,
+                                    $program,
+                                    $yearLevel,
+                                    $curricula,
+                                );
+
+                                if ($matchedCurriculum instanceof CurriculumVersion) {
+                                    $set('curriculum_version_id', (int) $matchedCurriculum->id);
+                                    $set('entry_academic_year_id', $matchedBatchAy?->id);
+                                    $set('curriculum_batch_key', $this->curriculumBatchSelectionKey((int) $matchedCurriculum->id, $matchedBatchAy?->id));
+                                } elseif ($curriculum instanceof CurriculumVersion) {
+                                    $resolvedBatch = $this->resolveMatchingBatchAcademicYear($term, $curriculum, $yearLevel);
+                                    if ($resolvedBatch instanceof AcademicYear) {
+                                        $set('entry_academic_year_id', $resolvedBatch->id);
+                                        $set('curriculum_batch_key', $this->curriculumBatchSelectionKey((int) $curriculum->id, $resolvedBatch->id));
+                                    }
+                                }
+                            }),
                     ]),
-                    Select::make('curriculum_version_id')
-                        ->label('Curriculum')
+                    Select::make('curriculum_batch_key')
+                        ->label('Curriculum & batch')
                         ->options(function (Get $get) use ($curricula): array {
                             $selectedProgramId = (int) ($get('program_id') ?? 0);
-                            $scoped = $selectedProgramId > 0
-                                ? $curricula->filter(fn (CurriculumVersion $curriculum): bool => (int) $curriculum->program_id === $selectedProgramId)
-                                : $curricula;
 
-                            return $scoped
-                                ->mapWithKeys(fn (CurriculumVersion $curriculum): array => [
-                                    $curriculum->id => $this->formatCurriculumOptionLabel($curriculum, includeProgram: $selectedProgramId <= 0),
-                                ])->all();
+                            return $this->buildCurriculumBatchOptions($curricula, $selectedProgramId > 0 ? $selectedProgramId : null);
                         })
                         ->disabled($hasLinkedClasses)
                         ->dehydrated()
-                        ->helperText($hasLinkedClasses ? 'Program, curriculum, and year level are locked while draft classes are linked to this student section.' : null)
-                        ->required()
+                        ->helperText($hasLinkedClasses
+                            ? 'Program, curriculum batch, and year level are locked while draft classes are linked to this student section.'
+                            : function (Get $get) use ($term, $curricula): string {
+                                [$curriculum, $selectedBatchAy] = $this->resolveFormCurriculumSelection($get, $curricula);
+                                $yearLevel = max(1, (int) ($get('year_level') ?? 1));
+
+                                if (! $curriculum instanceof CurriculumVersion) {
+                                    return 'Choose a program and year level above or pick an intake batch curriculum directly.';
+                                }
+
+                                $resolvedLabel = $this->resolvedBatchDisplay($term, $curriculum, $yearLevel, $selectedBatchAy);
+
+                                return "Resolved batch: {$resolvedLabel} (Year {$yearLevel}).";
+                            })
+                        ->required(fn (Get $get): bool => ! $hasLinkedClasses && blank($get('curriculum_version_id')))
+                        ->markAsRequired(! $hasLinkedClasses)
                         ->searchable()
                         ->live()
-                        ->afterStateUpdated(function (Set $set, mixed $state) use ($curricula): void {
-                            $curriculum = $curricula->get((int) $state);
-                            if ($curriculum instanceof CurriculumVersion) {
-                                $set('program_id', (int) $curriculum->program_id);
+                        ->afterStateUpdated(function (Set $set, Get $get, mixed $state) use ($term, $curricula): void {
+                            $parsed = $this->parseCurriculumBatchSelection($state);
+                            $curriculum = $parsed['curriculum_version_id'] !== null
+                                ? $curricula->get($parsed['curriculum_version_id'])
+                                : null;
+
+                            if (! $curriculum instanceof CurriculumVersion) {
+                                $set('curriculum_version_id', null);
+                                $set('entry_academic_year_id', null);
+
+                                return;
                             }
+
+                            $set('program_id', (int) $curriculum->program_id);
+                            $maxYear = $this->maxYearLevelForCurriculum($curriculum);
+                            $currentYear = (int) ($get('year_level') ?? 1);
+                            $resolvedYear = ($currentYear >= 1 && $currentYear <= $maxYear) ? $currentYear : 1;
+                            $selectedBatchAy = $parsed['entry_academic_year_id'] !== null
+                                ? $this->resolveMatchingBatchAcademicYear($term, $curriculum, null, $parsed['entry_academic_year_id'])
+                                : $this->resolveMatchingBatchAcademicYear($term, $curriculum, $resolvedYear);
+
+                            if ($selectedBatchAy instanceof AcademicYear) {
+                                $derivedYear = $this->deriveYearLevelForBatch($term, $selectedBatchAy, $maxYear);
+                                if ($derivedYear !== null) {
+                                    $resolvedYear = $derivedYear;
+                                }
+                            }
+
+                            $set('curriculum_version_id', (int) $curriculum->id);
+                            $set('entry_academic_year_id', $selectedBatchAy?->id);
+                            $set('year_level', $resolvedYear);
+                        }),
+                    Placeholder::make('resolved_batch_summary')
+                        ->hiddenLabel()
+                        ->visible(fn (Get $get): bool => filled($get('curriculum_version_id')) || filled($get('curriculum_batch_key')))
+                        ->content(function (Get $get) use ($term, $curricula): HtmlString {
+                            [$curriculum, $selectedBatchAy] = $this->resolveFormCurriculumSelection($get, $curricula);
+                            if (! $curriculum instanceof CurriculumVersion) {
+                                return new HtmlString('');
+                            }
+
+                            $yearLevel = max(1, (int) ($get('year_level') ?? 1));
+                            $resolvedBatchAy = $selectedBatchAy ?? $this->resolveMatchingBatchAcademicYear($term, $curriculum, $yearLevel);
+                            $batchDisplay = $this->resolvedBatchDisplay($term, $curriculum, $yearLevel, $resolvedBatchAy) ?? $curriculum->batchLabel();
+                            $programLabel = $curriculum->program?->code ?: $curriculum->program?->name;
+                            $curriculumDetail = $resolvedBatchAy instanceof AcademicYear
+                                ? $curriculum->formatBatchOptionLabel($resolvedBatchAy, includeProgram: false)
+                                : $curriculum->batchLabel();
+
+                            $parts = array_values(array_unique(array_filter([
+                                $programLabel,
+                                "Year {$yearLevel}",
+                                $curriculumDetail !== $batchDisplay ? $curriculumDetail : null,
+                            ])));
+
+                            return new HtmlString(
+                                '<div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700 dark:border-white/10 dark:bg-white/5 dark:text-gray-200">'
+                                .'<strong>'.e($batchDisplay).'</strong>'.($parts !== [] ? ' · '.e(implode(' · ', $parts)) : '')
+                                .'</div>'
+                            );
+                        }),
+                    Placeholder::make('batch_year_mismatch_warning')
+                        ->hiddenLabel()
+                        ->visible(function (Get $get) use ($term, $curricula): bool {
+                            [$curriculum, $selectedBatchAy] = $this->resolveFormCurriculumSelection($get, $curricula);
+                            $yearLevel = (int) ($get('year_level') ?? 1);
+
+                            return $this->batchYearMismatchAdvisory($term, $curriculum, $yearLevel, $selectedBatchAy) !== null;
+                        })
+                        ->content(function (Get $get) use ($term, $curricula): HtmlString {
+                            [$curriculum, $selectedBatchAy] = $this->resolveFormCurriculumSelection($get, $curricula);
+                            $yearLevel = (int) ($get('year_level') ?? 1);
+                            $advisory = $this->batchYearMismatchAdvisory($term, $curriculum, $yearLevel, $selectedBatchAy);
+
+                            if ($advisory === null) {
+                                return new HtmlString('');
+                            }
+
+                            return new HtmlString(
+                                '<div class="tala-inline-prereq">'
+                                .'<div class="tala-inline-prereq__body">'
+                                .'<p class="tala-inline-prereq__title">'.e($advisory['title']).'</p>'
+                                .'<p class="tala-inline-prereq__text">'.e($advisory['body']).'</p>'
+                                .'</div>'
+                                .'</div>'
+                            );
                         }),
                     Grid::make(['default' => 1, 'md' => 2])->schema([
                         TextInput::make('reference')
@@ -2271,7 +2475,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
 
                 try {
                     DB::transaction(function () use ($record, $data, $actor): void {
-                        $term = Term::query()->whereKey($this->termId)->lockForUpdate()->firstOrFail();
+                        $term = Term::query()->with('academicYear')->whereKey($this->termId)->lockForUpdate()->firstOrFail();
 
                         if ($term->state === Term::StateClosed || $this->hasPublishedTimetable($term)) {
                             throw ValidationException::withMessages(['reference' => 'Student sections cannot be edited once the timetable is published or the term is closed.']);
@@ -2294,17 +2498,31 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                         }
 
                         $hasLinkedClasses = $linkedSections->isNotEmpty();
+                        $parsedFromKey = $this->parseCurriculumBatchSelection($data['curriculum_batch_key'] ?? null);
+                        $parsedFromCv = $this->parseCurriculumBatchSelection($data['curriculum_version_id'] ?? null);
+                        $resolvedCurriculumId = $parsedFromKey['curriculum_version_id']
+                            ?? $parsedFromCv['curriculum_version_id']
+                            ?? (int) $locked->curriculum_version_id;
+                        $resolvedEntryAcademicYearId = $parsedFromKey['entry_academic_year_id']
+                            ?? $parsedFromCv['entry_academic_year_id']
+                            ?? (filled($data['entry_academic_year_id'] ?? null) ? (int) $data['entry_academic_year_id'] : null);
+
                         $targetCurriculumId = $hasLinkedClasses
                             ? (int) $locked->curriculum_version_id
-                            : (int) ($data['curriculum_version_id'] ?? $locked->curriculum_version_id);
+                            : (int) $resolvedCurriculumId;
                         $targetYearLevel = $hasLinkedClasses
                             ? (int) ($locked->year_level ?? $locked->resolvedYearLevel() ?? 1)
                             : (int) ($data['year_level'] ?? $locked->year_level ?? 1);
 
-                        $curriculum = CurriculumVersion::query()->lockForUpdate()->findOrFail($targetCurriculumId);
+                        $curriculum = CurriculumVersion::query()->with('academicYears')->lockForUpdate()->findOrFail($targetCurriculumId);
                         if (! in_array($curriculum->state, [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded], true)) {
                             throw ValidationException::withMessages(['curriculum_version_id' => 'Choose a published (Active or Retired) curriculum.']);
                         }
+
+                        $targetEntryAcademicYearId = $hasLinkedClasses
+                            ? $locked->entry_academic_year_id
+                            : ($resolvedEntryAcademicYearId
+                                ?? $this->resolveMatchingBatchAcademicYear($term, $curriculum, $targetYearLevel)?->id);
 
                         $reference = RecordTermCohort::normalizeReference((string) ($data['reference'] ?? ''));
                         $duplicate = TermCohort::query()
@@ -2323,6 +2541,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                         $locked->update([
                             'program_id' => $curriculum->program_id,
                             'curriculum_version_id' => $curriculum->id,
+                            'entry_academic_year_id' => $targetEntryAcademicYearId,
                             'year_level' => $targetYearLevel,
                             'reference' => $reference,
                             'confirmed_count' => $newConfirmedCount,
@@ -2614,6 +2833,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
                 'courseRevision.course',
                 'courseRevision.components',
                 'cohorts.program',
+                'cohorts.entryAcademicYear',
                 'cohorts.curriculumVersion.academicYears',
                 'deliveryGroups.schedulingDemands.courseComponent',
                 'calendarPackage.teachingGridRows',
@@ -2898,7 +3118,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
     private function cohortConfirmationSource(TermCohort $cohort): string
     {
         return hash('sha256', json_encode($cohort->only([
-            'id', 'term_id', 'program_id', 'curriculum_version_id', 'reference', 'source',
+            'id', 'term_id', 'program_id', 'curriculum_version_id', 'entry_academic_year_id', 'reference', 'source',
             'forecast_count', 'confirmed_count', 'state', 'confirmed_by', 'confirmed_at',
         ]), JSON_THROW_ON_ERROR));
     }
@@ -3144,14 +3364,20 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
 
         return TermCohort::query()
             ->where('term_id', $this->termId)
+            ->with(['entryAcademicYear', 'curriculumVersion.academicYears'])
             ->orderBy('reference')
             ->get()
             ->mapWithKeys(function (TermCohort $cohort): array {
                 $count = $cohort->confirmed_count ?? $cohort->forecast_count;
                 $reference = $this->formatSectionReference($cohort->reference);
+                $batchDisplay = $this->resolvedBatchDisplayForCohort($cohort);
 
                 return [
-                    $cohort->id => $count !== null ? "{$reference} · {$count} students" : $reference,
+                    $cohort->id => implode(' · ', array_filter([
+                        $reference,
+                        $batchDisplay,
+                        $count !== null ? "{$count} students" : null,
+                    ])),
                 ];
             })
             ->all();
@@ -3520,7 +3746,7 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
 
     /**
      * @param  Collection<int, TermCohort>  $cohorts
-     * @return list<array{curriculum_id: int, label: string, configured: ?string, url: string, is_locked: bool}>
+     * @return list<array{curriculum_id: int, entry_academic_year_id: ?int, year_level: ?int, label: string, configured: ?string, url: string, is_locked: bool}>
      */
     private function curriculumReadinessGapsForTerm(Term $term, Collection $cohorts): array
     {
@@ -3528,69 +3754,136 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
             return $this->curriculumReadinessGapsCache;
         }
 
-        $cohortCurriculumIds = $cohorts
-            ->pluck('curriculum_version_id')
-            ->filter()
-            ->map(static fn (mixed $id): int => (int) $id)
-            ->unique()
-            ->values();
-
-        // Check all running batches per active program using dynamic `program.duration_years - 1` lookback.
-        $runningBatchCurriculumIds = collect();
         $term->loadMissing('academicYear');
-        if ($term->academicYear !== null) {
+        $termStartYear = $term->academicYear instanceof AcademicYear
+            ? CurriculumVersion::extractAcademicYearStart($term->academicYear)
+            : null;
+
+        /** @var array<string, array{curriculum: CurriculumVersion, batch_ay: ?AcademicYear, year_level: ?int}> $targets */
+        $targets = [];
+
+        $cohorts->loadMissing(['entryAcademicYear', 'curriculumVersion.program', 'curriculumVersion.academicYears']);
+        foreach ($cohorts as $cohort) {
+            $cv = $cohort->curriculumVersion;
+            if (! $cv instanceof CurriculumVersion) {
+                continue;
+            }
+
+            $yearLevel = $cohort->year_level ?? $cohort->resolvedYearLevel();
+            $batchAy = $cohort->entryAcademicYear
+                ?? $this->resolveMatchingBatchAcademicYear($term, $cv, $yearLevel);
+            $targetKey = "{$cv->id}:".($batchAy?->id ?? 'none').':'.($yearLevel ?? 'any');
+            $targets[$targetKey] = [
+                'curriculum' => $cv,
+                'batch_ay' => $batchAy,
+                'year_level' => $yearLevel,
+            ];
+        }
+
+        // Check EVERY individual running batch's specific year level across active programs (never dedupe by curriculum_version_id).
+        if ($term->academicYear instanceof AcademicYear && $termStartYear !== null) {
             $activePrograms = Program::query()
                 ->where('is_active', true)
+                ->orderBy('code')
                 ->get();
 
+            $activeProgramIds = $activePrograms->pluck('id')->all();
+            $publishedCurriculaByProgram = CurriculumVersion::query()
+                ->whereIn('program_id', $activeProgramIds)
+                ->whereIn('state', [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded])
+                ->with(['program', 'academicYears'])
+                ->get()
+                ->groupBy('program_id');
+
             foreach ($activePrograms as $program) {
-                foreach ($program->expectedIntakeYearsForAcademicYear($term->academicYear) as $intakeStartYear) {
-                    $matched = $program->curriculumForIntakeStartYear($intakeStartYear);
-                    if ($matched instanceof CurriculumVersion) {
-                        $runningBatchCurriculumIds->push((int) $matched->id);
+                $maxYear = max(1, min(8, (int) ($program->duration_years ?: 3)));
+                $programCurricula = CurriculumVersion::sortByLatestBatch(
+                    $publishedCurriculaByProgram->get($program->id, collect()),
+                    groupByState: true,
+                );
+
+                $foundBatchTargetForProgram = false;
+
+                foreach ($programCurricula as $cv) {
+                    $sortedBatches = $cv->academicYears
+                        ->unique('id')
+                        ->sortByDesc(fn (AcademicYear $year): array => [
+                            CurriculumVersion::extractAcademicYearStart($year) ?? -1,
+                            $year->starts_on?->timestamp ?? -1,
+                            (int) $year->id,
+                        ]);
+
+                    foreach ($sortedBatches as $batchAy) {
+                        $intakeStartYear = CurriculumVersion::extractAcademicYearStart($batchAy);
+                        if ($intakeStartYear === null) {
+                            continue;
+                        }
+
+                        $runningYearLevel = $termStartYear - $intakeStartYear + 1;
+                        if ($runningYearLevel < 1 || $runningYearLevel > $maxYear) {
+                            continue;
+                        }
+
+                        $foundBatchTargetForProgram = true;
+                        $targetKey = "{$cv->id}:{$batchAy->id}:{$runningYearLevel}";
+                        $targets[$targetKey] ??= [
+                            'curriculum' => $cv,
+                            'batch_ay' => $batchAy,
+                            'year_level' => $runningYearLevel,
+                        ];
+                    }
+                }
+
+                // Legacy fallback: active program with no batch assignments yet.
+                if (! $foundBatchTargetForProgram && $programCurricula->isNotEmpty()) {
+                    $fallbackCv = $programCurricula->firstWhere('state', CurriculumVersion::StateActive);
+                    if ($fallbackCv instanceof CurriculumVersion && $fallbackCv->academicYears->isEmpty()) {
+                        $targetKey = "{$fallbackCv->id}:none:any";
+                        $targets[$targetKey] ??= [
+                            'curriculum' => $fallbackCv,
+                            'batch_ay' => null,
+                            'year_level' => null,
+                        ];
                     }
                 }
             }
+        } elseif ($term->academic_year_id !== null) {
+            $directActive = CurriculumVersion::query()
+                ->with(['program', 'academicYears'])
+                ->where('state', CurriculumVersion::StateActive)
+                ->whereHas('academicYears', fn (Builder $years): Builder => $years->where('academic_years.id', $term->academic_year_id))
+                ->get();
+
+            foreach ($directActive as $cv) {
+                $batchAy = $cv->academicYears->firstWhere('id', (int) $term->academic_year_id);
+                $targetKey = "{$cv->id}:".($batchAy?->id ?? 'none').':1';
+                $targets[$targetKey] ??= [
+                    'curriculum' => $cv,
+                    'batch_ay' => $batchAy,
+                    'year_level' => 1,
+                ];
+            }
         }
 
-        $targetCurriculumIds = $cohortCurriculumIds
-            ->merge($runningBatchCurriculumIds)
-            ->unique()
-            ->values();
-
-        $curriculaQuery = CurriculumVersion::query()
-            ->with(['program', 'academicYears'])
-            ->where(function (Builder $query) use ($term, $targetCurriculumIds): void {
-                $hasCondition = false;
-                if ($term->academic_year_id !== null) {
-                    $query->where(function (Builder $activeBatch) use ($term): void {
-                        $activeBatch->where('state', CurriculumVersion::StateActive)
-                            ->whereHas('academicYears', fn (Builder $years) => $years->where('academic_years.id', $term->academic_year_id));
-                    });
-                    $hasCondition = true;
-                }
-
-                if ($targetCurriculumIds->isNotEmpty()) {
-                    $method = $hasCondition ? 'orWhereIn' : 'whereIn';
-                    $query->{$method}('id', $targetCurriculumIds->all());
-                } elseif (! $hasCondition) {
-                    $query->whereRaw('1 = 0');
-                }
-            });
-
-        $curricula = $curriculaQuery->get()
-            ->groupBy('program_id')
-            ->sortBy(fn (Collection $group): string => (string) ($group->first()?->program?->code ?? ''))
-            ->flatMap(fn (Collection $group): Collection => CurriculumVersion::sortByLatestBatch($group, groupByState: true))
-            ->values();
-        if ($curricula->isEmpty()) {
+        if ($targets === []) {
             return $this->curriculumReadinessGapsCache = [];
         }
 
-        $curriculumIds = $curricula
-            ->pluck('id')
-            ->map(fn (mixed $id): int => (int) $id)
+        $orderedTargets = collect($targets)
+            ->sortBy(fn (array $target): array => [
+                (string) ($target['curriculum']->program?->code ?? ''),
+                $target['year_level'] ?? 99,
+                -($target['batch_ay'] instanceof AcademicYear ? (CurriculumVersion::extractAcademicYearStart($target['batch_ay']) ?? -1) : -1),
+                (int) $target['curriculum']->id,
+            ])
+            ->values();
+
+        $curriculumIds = $orderedTargets
+            ->map(fn (array $target): int => (int) $target['curriculum']->id)
+            ->unique()
+            ->values()
             ->all();
+
         $lockedEntryIds = $this->lockedCurriculumEntryIdsForTerm();
         $entries = CurriculumEntry::query()
             ->whereIn('curriculum_version_id', $curriculumIds)
@@ -3601,26 +3894,46 @@ class TermClasses extends TermPlanningWorkbench implements HasTable
         $periodsByCurriculum = $this->configuredSubjectPeriodsByCurriculum($curriculumIds);
         $gaps = [];
 
-        foreach ($curricula as $curriculum) {
+        foreach ($orderedTargets as $target) {
+            /** @var CurriculumVersion $curriculum */
+            $curriculum = $target['curriculum'];
+            /** @var AcademicYear|null $batchAy */
+            $batchAy = $target['batch_ay'];
+            /** @var int|null $yearLevel */
+            $yearLevel = $target['year_level'];
+
             $hasTermEntry = ($entries->get($curriculum->id) ?? collect())
                 ->where('term_type', $term->type)
-                ->contains(fn (CurriculumEntry $entry): bool => $this->isConfirmableCurriculumEntry($entry, $lockedEntryIds));
+                ->contains(function (CurriculumEntry $entry) use ($lockedEntryIds, $yearLevel): bool {
+                    if ($yearLevel !== null && TermCohort::parseYearLevelValue($entry->year_level) !== $yearLevel) {
+                        return false;
+                    }
+
+                    return $this->isConfirmableCurriculumEntry($entry, $lockedEntryIds);
+                });
 
             if ($hasTermEntry) {
                 continue;
             }
 
             $programCode = (string) ($curriculum->program?->code ?: ($curriculum->program?->name ?? 'Program'));
-            $batchLabel = $curriculum->batchLabel();
+            $yearSuffix = $yearLevel !== null ? " (Year {$yearLevel})" : '';
+            $label = $batchAy instanceof AcademicYear
+                ? $curriculum->formatBatchOptionLabel($batchAy, includeProgram: true).$yearSuffix
+                : "{$programCode} · {$curriculum->batchLabel()}{$yearSuffix}";
+
             $configured = $this->formatConfiguredPeriods(
                 $periodsByCurriculum[$curriculum->id] ?? [],
                 style: 'dot',
                 skipTermType: $term->type,
+                skipYearLevel: $yearLevel,
             );
 
             $gaps[] = [
                 'curriculum_id' => (int) $curriculum->id,
-                'label' => "{$programCode} · {$batchLabel}",
+                'entry_academic_year_id' => $batchAy?->id,
+                'year_level' => $yearLevel,
+                'label' => $label,
                 'configured' => $configured,
                 'url' => CurriculumVersionResource::getUrl('review', ['record' => $curriculum->id]),
                 'is_locked' => ! $curriculum->isEditableDraft(),

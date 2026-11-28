@@ -375,7 +375,7 @@ class ProgramsTable
             ->active()
             ->where('lifecycle_status', StudentProfile::LifecycleActive)
             ->with('entryTerm:id,academic_year_id')
-            ->get(['id', 'program_id', 'entry_term_id', 'curriculum_version_id'])
+            ->get(['id', 'program_id', 'entry_academic_year_id', 'entry_term_id', 'curriculum_version_id'])
             ->groupBy('program_id');
 
         foreach ($profilesByProgram as $programId => $profiles) {
@@ -387,7 +387,7 @@ class ProgramsTable
 
             $batchKeys = $profiles
                 ->map(function (StudentProfile $profile): string {
-                    $ayId = $profile->entryTerm?->academic_year_id;
+                    $ayId = $profile->resolvedEntryAcademicYearId();
 
                     if ($ayId !== null) {
                         return 'ay:'.$ayId;

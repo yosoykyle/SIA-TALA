@@ -217,7 +217,7 @@ class CurriculumVersionsTable
                             'starting_academic_year_id' => CurriculumVersionForm::suggestedBatchId($record->program_id),
                             'activate_program_if_inactive' => false,
                             'name' => '',
-                            'effective_entry_term_id' => $record->effective_entry_term_id,
+                            'effective_entry_term_id' => null,
                         ])
                         ->schema(fn (CurriculumVersion $record): array => CurriculumVersionForm::copyFields($record))
                         ->action(function (CurriculumVersion $record, array $data, Table $table, HasTable $livewire): void {

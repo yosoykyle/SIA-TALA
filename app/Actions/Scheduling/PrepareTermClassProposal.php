@@ -36,6 +36,11 @@ final class PrepareTermClassProposal
     /** @return array<string, mixed> */
     public function preview(Term $term): array
     {
+        $term->loadMissing('academicYear');
+        $termStartYear = $term->academicYear instanceof AcademicYear
+            ? CurriculumVersion::extractAcademicYearStart($term->academicYear)
+            : $term->starts_on?->year;
+
         $entries = CurriculumEntry::query()
             ->whereHas('curriculumVersion', fn ($query) => $query->whereIn('state', [
                 CurriculumVersion::StateActive,
@@ -44,31 +49,62 @@ final class PrepareTermClassProposal
             ->with(['curriculumVersion.program', 'curriculumVersion.academicYears', 'courseSpecification.course', 'courseSpecification.components'])
             ->orderBy('curriculum_version_id')->orderBy('year_level')->orderBy('sequence')->get();
         $classes = Section::query()->whereHas('termOffering', fn ($query) => $query->where('term_id', $term->id))
-            ->with(['termOffering', 'cohorts', 'deliveryGroups'])->orderBy('id')->get();
+            ->with(['termOffering', 'cohorts.entryAcademicYear', 'deliveryGroups'])->orderBy('id')->get();
         $hasPublishedVersion = PublishedTimetableVersion::query()->where('term_id', $term->id)
             ->where('state', PublishedTimetableVersion::StatePublished)->exists();
         $publishedSectionIds = PublishedTimetableMeeting::query()->whereIn('section_id', $classes->modelKeys())
             ->distinct()->orderBy('section_id')->pluck('section_id')
             ->mapWithKeys(fn ($sectionId): array => [(int) $sectionId => true])->all();
-        $cohorts = TermCohort::query()->where('term_id', $term->id)->orderBy('id')->get();
+        $cohorts = TermCohort::query()
+            ->where('term_id', $term->id)
+            ->with(['entryAcademicYear', 'program', 'curriculumVersion.academicYears'])
+            ->orderBy('id')
+            ->get();
         $package = TermCalendarPackage::query()->where('term_id', $term->id)->where('state', TermCalendarPackage::StateActive)->first();
-        $catalog = $entries->map(fn (CurriculumEntry $entry): array => [
-            'id' => $entry->id,
-            'course_title' => $entry->courseSpecification->title,
-            'course_code' => $entry->courseSpecification->course->code,
-            'program' => $entry->curriculumVersion->program->name,
-            'year_level' => $entry->year_level,
-            'curriculum_version' => $entry->curriculumVersion->batchLabel(),
-            'label' => $entry->curriculumVersion->program->name.' · '.$entry->year_level.' · '.$entry->courseSpecification->title.' ('.$entry->courseSpecification->course->code.') · '.$entry->curriculumVersion->batchLabel().($entry->term_type !== $term->type ? ' · Additional only in this Term' : ''),
-            'curriculum_id' => $entry->curriculum_version_id,
-            'course_id' => $entry->courseSpecification->course_id,
-            'term_type' => $entry->term_type,
-            'modes' => $entry->courseSpecification->allowed_modalities ?? [],
-            'meetings' => $entry->courseSpecification->scheduling_treatment === CourseSpecification::SchedulingExternallyArranged
-                ? 'Externally arranged (no recurring meetings)'
-                : $entry->courseSpecification->components->map(fn (CourseComponent $component): ?string => CourseComponent::meetingPatternOptions()[$component->meeting_pattern] ?? $component->meeting_pattern)->filter()->implode(' + '),
-            'existing' => $classes->filter(fn (Section $class): bool => (int) $class->termOffering->curriculum_entry_id === $entry->id && $class->state !== Section::StateCancelled)->count(),
-        ])->all();
+        $catalog = $entries->map(function (CurriculumEntry $entry) use ($term, $termStartYear, $classes): array {
+            $curriculum = $entry->curriculumVersion;
+            $entryYearInt = TermCohort::parseYearLevelValue($entry->year_level);
+            $matchedBatch = null;
+
+            if ($termStartYear !== null && $entryYearInt !== null) {
+                $targetIntakeYear = $termStartYear - ($entryYearInt - 1);
+                $matchedBatch = $curriculum->academicYears->first(
+                    fn (AcademicYear $academicYear): bool => CurriculumVersion::extractAcademicYearStart($academicYear) === $targetIntakeYear,
+                );
+            }
+
+            if (! $matchedBatch instanceof AcademicYear && $curriculum->academicYears->count() === 1) {
+                $matchedBatch = $curriculum->academicYears->first();
+            }
+
+            $curriculumDisplay = $matchedBatch instanceof AcademicYear
+                ? $curriculum->formatBatchOptionLabel($matchedBatch, includeProgram: false)
+                : $curriculum->batchLabel();
+            $batchShort = $matchedBatch instanceof AcademicYear
+                ? 'Batch '.CurriculumVersion::formatBatchShort($matchedBatch)
+                : null;
+
+            return [
+                'id' => $entry->id,
+                'course_title' => $entry->courseSpecification->title,
+                'course_code' => $entry->courseSpecification->course->code,
+                'program' => $curriculum->program->name,
+                'program_code' => $curriculum->program->code,
+                'year_level' => $entry->year_level,
+                'curriculum_version' => $curriculumDisplay,
+                'batch_label' => $batchShort,
+                'entry_academic_year_id' => $matchedBatch?->id,
+                'label' => $curriculum->program->name.' · '.$entry->year_level.' · '.$entry->courseSpecification->title.' ('.$entry->courseSpecification->course->code.') · '.$curriculumDisplay.($entry->term_type !== $term->type ? ' · Additional only in this Term' : ''),
+                'curriculum_id' => $entry->curriculum_version_id,
+                'course_id' => $entry->courseSpecification->course_id,
+                'term_type' => $entry->term_type,
+                'modes' => $entry->courseSpecification->allowed_modalities ?? [],
+                'meetings' => $entry->courseSpecification->scheduling_treatment === CourseSpecification::SchedulingExternallyArranged
+                    ? 'Externally arranged (no recurring meetings)'
+                    : $entry->courseSpecification->components->map(fn (CourseComponent $component): ?string => CourseComponent::meetingPatternOptions()[$component->meeting_pattern] ?? $component->meeting_pattern)->filter()->implode(' + '),
+                'existing' => $classes->filter(fn (Section $class): bool => (int) $class->termOffering->curriculum_entry_id === $entry->id && $class->state !== Section::StateCancelled)->count(),
+            ];
+        })->all();
         $rows = $classes->whereNotIn('state', [Section::StateClosed, Section::StateCancelled])->map(fn (Section $class): array => [
             'section_id' => $class->id, 'entry_id' => $class->termOffering->curriculum_entry_id, 'is_catalog' => true,
             'is_confirmed' => $class->confirmed_at !== null,
@@ -106,7 +142,26 @@ final class PrepareTermClassProposal
         ?int $curriculumVersionId = null,
         ?int $entryAcademicYearId = null,
         ?int $intakeStartYear = null,
+        ?TermCohort $cohort = null,
     ): array {
+        if ($cohort instanceof TermCohort) {
+            $programId ??= $cohort->program_id !== null ? (int) $cohort->program_id : null;
+            $curriculumVersionId ??= $cohort->curriculum_version_id !== null ? (int) $cohort->curriculum_version_id : null;
+            $entryAcademicYearId ??= $cohort->entry_academic_year_id !== null ? (int) $cohort->entry_academic_year_id : null;
+
+            if ($entryAcademicYearId === null && $intakeStartYear === null) {
+                $term->loadMissing('academicYear');
+                $termStartYear = $term->academicYear instanceof AcademicYear
+                    ? CurriculumVersion::extractAcademicYearStart($term->academicYear)
+                    : $term->starts_on?->year;
+                $cohortYearLevel = $cohort->resolvedYearLevel();
+
+                if ($termStartYear !== null && $cohortYearLevel !== null) {
+                    $intakeStartYear = $termStartYear - ($cohortYearLevel - 1);
+                }
+            }
+        }
+
         if ($programId === null && $curriculumVersionId !== null) {
             $programId = CurriculumVersion::query()->whereKey($curriculumVersionId)->value('program_id');
             $programId = $programId !== null ? (int) $programId : null;
@@ -158,16 +213,10 @@ final class PrepareTermClassProposal
             }
 
             $includeUndatedLegacy = false;
-            if ($curriculumVersionId !== null && $resolvedStartYear !== null) {
+            if ($curriculumVersionId !== null) {
                 $curriculum = CurriculumVersion::query()->with('academicYears')->find($curriculumVersionId);
                 if ($curriculum instanceof CurriculumVersion) {
-                    $earliestBatch = $curriculum->academicYears
-                        ->sortBy(fn (AcademicYear $year): int => CurriculumVersion::extractAcademicYearStart($year) ?? PHP_INT_MAX)
-                        ->first();
-                    $earliestStart = $earliestBatch instanceof AcademicYear
-                        ? CurriculumVersion::extractAcademicYearStart($earliestBatch)
-                        : null;
-                    $includeUndatedLegacy = $curriculum->academicYears->count() <= 1 || $earliestStart === $resolvedStartYear;
+                    $includeUndatedLegacy = $curriculum->academicYears->count() <= 1;
                 }
             }
 

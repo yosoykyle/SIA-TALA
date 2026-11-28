@@ -1,9 +1,18 @@
 @php
+    $curriculum->loadMissing('batches.academicYear');
     $intake = $curriculum->effectiveEntryTerm;
     $intakeLabel = $intake ? collect([$intake->label, $intake->academicYear?->label])->filter()->implode(', ') : null;
     $programName = $curriculum->program?->name ?? 'this program';
     $draftSubjects = $impact['draft_specifications_to_activate'] ?? [];
     $assigned = (int) $impact['existing_student_locks'];
+    $hasAssignedBatches = $curriculum->batches->isNotEmpty();
+    $replacesActiveVersion = ! $hasAssignedBatches && filled($impact['active_version_name'] ?? null);
+    $hasCoexistingActiveCurricula = $hasAssignedBatches
+        && \App\Models\CurriculumVersion::query()
+            ->where('program_id', $curriculum->program_id)
+            ->where('state', \App\Models\CurriculumVersion::StateActive)
+            ->whereKeyNot($curriculum->id)
+            ->exists();
 @endphp
 
 <div class="tala-activation-impact">
@@ -19,15 +28,23 @@
 
     <ul class="tala-activation-impact__effects">
         <li>
-            @if ($intakeLabel)
+            @if ($hasAssignedBatches && $intakeLabel)
+                New students starting <strong>{{ $intakeLabel }}</strong> ({{ $curriculum->batchLabel() }}) will follow this curriculum.
+            @elseif ($hasAssignedBatches)
+                Students in <strong>{{ $curriculum->batchLabel() }}</strong> will follow this curriculum. You can optionally name the starting term below.
+            @elseif ($intakeLabel)
                 New students starting <strong>{{ $intakeLabel }}</strong> will follow this curriculum.
             @else
                 New students will follow this curriculum from now on. You can name the starting term below.
             @endif
         </li>
         <li>
-            @if ($impact['active_version_name'] ?? null)
+            @if ($replacesActiveVersion)
                 It replaces <strong>{{ $impact['active_version_name'] }}</strong> for new students. That plan is kept as history.
+            @elseif ($hasCoexistingActiveCurricula)
+                Existing active curricula for {{ $programName }} remain active for their assigned batches and are not replaced.
+            @elseif ($hasAssignedBatches)
+                It becomes an active curriculum for {{ $programName }}.
             @else
                 It becomes the first active curriculum for {{ $programName }}.
             @endif
@@ -39,7 +56,7 @@
                 default => $assigned.' students already assigned to an earlier curriculum keep their current plans.',
             } }}
         </li>
-        @if ($impact['has_active_term_setup'] ?? false)
+        @if ($replacesActiveVersion && ($impact['has_active_term_setup'] ?? false))
             <li>
                 Active term classes and student sections recorded under the previous curriculum keep their setup, and continuing students can still enroll under their assigned plan.
             </li>

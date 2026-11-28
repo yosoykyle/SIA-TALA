@@ -78,6 +78,7 @@ class OngoingStudentSpreadsheetImportService
         $programs = Program::query()
             ->with(['curriculumVersions' => fn ($query) => $query
                 ->whereIn('state', [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded])
+                ->with('academicYears')
                 ->orderByRaw("CASE WHEN state = 'ACTIVE' THEN 0 ELSE 1 END")
                 ->orderByDesc('id')])
             ->get();
@@ -1271,6 +1272,13 @@ class OngoingStudentSpreadsheetImportService
             $batchCurriculum = $program->curriculumForAcademicYear($entryAcademicYearId);
             if ($batchCurriculum instanceof CurriculumVersion) {
                 return ['curriculum' => $batchCurriculum, 'error' => null];
+            }
+
+            if ($program->curriculumVersionBatches()->exists()) {
+                return [
+                    'curriculum' => null,
+                    'error' => "Program {$program->code} has no Active or Retired curriculum assigned to the selected entry batch. Select a Curriculum Version in Step 1 or provide a Curriculum Version Code.",
+                ];
             }
         }
 

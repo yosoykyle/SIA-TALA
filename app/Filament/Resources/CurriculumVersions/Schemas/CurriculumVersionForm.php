@@ -172,10 +172,14 @@ class CurriculumVersionForm
                 Select::make('starting_academic_year_id')
                     ->label('Starting batch (Academic Year)')
                     ->options(fn (): array => self::availableBatchOptions($source->program_id))
+                    ->default(fn (): ?int => self::suggestedBatchId($source->program_id))
                     ->placeholder('Select starting Academic Year batch')
-                    ->helperText('Assigns the new draft to an unassigned Academic Year batch for this program. Use + to add a new academic year.')
+                    ->helperText(fn (): string => self::availableBatchOptions($source->program_id) === []
+                        ? 'All configured Academic Years already have a curriculum for this program. Use + to add a new academic year.'
+                        : 'Assigns the new draft to an unassigned Academic Year batch for this program. Use + to add a new academic year.')
                     ->native(true)
                     ->nullable()
+                    ->required(fn (): bool => self::availableBatchOptions($source->program_id) !== [])
                     ->live(),
             ),
             Text::make(fn (): string => self::inactiveProgramNotice($source->program_id))
@@ -189,7 +193,9 @@ class CurriculumVersionForm
                 ->accepted(fn (): bool => $isInactive),
             TextInput::make('name')
                 ->label('Curriculum label (optional when a starting batch is chosen)')
-                ->placeholder('Leave blank to auto-label from the starting batch')
+                ->placeholder(fn (Get $get): string => filled($get('starting_academic_year_id'))
+                    ? 'Leave blank to auto-label from the starting batch'
+                    : 'e.g. BSIT Revised Curriculum')
                 ->required(fn (Get $get): bool => blank($get('starting_academic_year_id')))
                 ->maxLength(255),
             Select::make('effective_entry_term_id')
@@ -424,14 +430,14 @@ class CurriculumVersionForm
             return [];
         }
 
-        return CurriculumVersion::query()
+        $curricula = CurriculumVersion::query()
             ->where('program_id', $programId)
             ->whereIn('state', [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded])
-            ->with('batches.academicYear')
+            ->with(['academicYears', 'batches.academicYear'])
             ->withCount('entries')
-            ->orderByRaw("CASE WHEN state = 'ACTIVE' THEN 0 ELSE 1 END")
-            ->orderByDesc('id')
-            ->get()
+            ->get();
+
+        return CurriculumVersion::sortByLatestBatch($curricula, groupByState: true)
             ->mapWithKeys(function (CurriculumVersion $curriculum): array {
                 $status = CurriculumVersion::stateOptions()[$curriculum->state] ?? $curriculum->state;
                 $subjects = $curriculum->entries_count.' '.Str::plural('subject', (int) $curriculum->entries_count);

@@ -62,6 +62,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema as DbSchema;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -2216,8 +2217,8 @@ class ReviewCurriculumVersion extends Page
             ->fillForm(fn (): array => [
                 'starting_academic_year_id' => CurriculumVersionForm::suggestedBatchId($this->curriculumVersion()->program_id),
                 'activate_program_if_inactive' => false,
-                'name' => $this->curriculumVersion()->name.' (Draft)',
-                'effective_entry_term_id' => $this->curriculumVersion()->effective_entry_term_id,
+                'name' => '',
+                'effective_entry_term_id' => null,
             ])
             ->schema(fn (): array => CurriculumVersionForm::copyFields($this->loadedCurriculum()))
             ->visible(fn (): bool => ! $this->isEditableDraft() && $this->currentUserCan('copy'))
@@ -2409,7 +2410,7 @@ class ReviewCurriculumVersion extends Page
 
     /**
      * @return list<array{
-     *     id: int,
+     *     id: int|string,
      *     academic_year_id: int,
      *     label: string,
      *     academic_year_label: string,
@@ -2430,55 +2431,92 @@ class ReviewCurriculumVersion extends Page
             ])
             ->values();
 
-        if ($batches->isEmpty()) {
+        $groupedStudentCounts = StudentProfile::query()
+            ->leftJoin('terms as entry_terms', 'entry_terms.id', '=', 'student_profiles.entry_term_id')
+            ->where('student_profiles.curriculum_version_id', $curriculum->id)
+            ->whereNull('student_profiles.archived_at')
+            ->whereNull('student_profiles.merged_into_id')
+            ->selectRaw('COALESCE(student_profiles.entry_academic_year_id, entry_terms.academic_year_id) as resolved_ay_id, COUNT(*) as total')
+            ->groupByRaw('COALESCE(student_profiles.entry_academic_year_id, entry_terms.academic_year_id)')
+            ->get();
+
+        /** @var array<int, int> $studentCounts */
+        $studentCounts = [];
+        $unassignedEntryStudentsCount = 0;
+
+        foreach ($groupedStudentCounts as $countRow) {
+            if ($countRow->resolved_ay_id === null) {
+                $unassignedEntryStudentsCount += (int) $countRow->total;
+            } else {
+                $studentCounts[(int) $countRow->resolved_ay_id] = (int) $countRow->total;
+            }
+        }
+
+        if ($batches->isEmpty() && $studentCounts === [] && $unassignedEntryStudentsCount === 0) {
             return [];
         }
 
-        $academicYearIds = $batches->pluck('academic_year_id')->all();
+        $academicYearIds = $batches->pluck('academic_year_id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->values()
+            ->all();
         $canManageBatches = $this->currentUserCan('copy');
 
-        $studentCounts = StudentProfile::query()
-            ->join('terms', 'terms.id', '=', 'student_profiles.entry_term_id')
-            ->where('student_profiles.program_id', $curriculum->program_id)
-            ->whereNull('student_profiles.merged_into_id')
-            ->whereIn('terms.academic_year_id', $academicYearIds)
-            ->selectRaw('terms.academic_year_id as academic_year_id, COUNT(*) as total')
-            ->groupBy('terms.academic_year_id')
-            ->pluck('total', 'academic_year_id');
+        $cohortAcademicYearIds = [];
+        $applicantAcademicYearIds = [];
 
-        $cohortAcademicYearIds = TermCohort::query()
-            ->join('terms', 'terms.id', '=', 'term_cohorts.term_id')
-            ->where('term_cohorts.program_id', $curriculum->program_id)
-            ->where('term_cohorts.curriculum_version_id', $curriculum->id)
-            ->whereIn('terms.academic_year_id', $academicYearIds)
-            ->distinct()
-            ->pluck('terms.academic_year_id')
-            ->map(fn (mixed $id): int => (int) $id)
-            ->all();
+        if ($academicYearIds !== []) {
+            $cohortQuery = TermCohort::query()
+                ->leftJoin('terms as cohort_terms', 'cohort_terms.id', '=', 'term_cohorts.term_id')
+                ->where('term_cohorts.program_id', $curriculum->program_id)
+                ->where('term_cohorts.curriculum_version_id', $curriculum->id);
 
-        $applicantTable = (new AdmissionApplication)->getTable();
-        $applicantAcademicYearIds = AdmissionApplication::query()
-            ->join('terms', 'terms.id', '=', "{$applicantTable}.term_id")
-            ->where("{$applicantTable}.program_id", $curriculum->program_id)
-            ->whereNotIn("{$applicantTable}.application_state", [
-                AdmissionApplication::StateWithdrawn,
-                AdmissionApplication::StateNotAdmitted,
-            ])
-            ->whereIn('terms.academic_year_id', $academicYearIds)
-            ->distinct()
-            ->pluck('terms.academic_year_id')
-            ->map(fn (mixed $id): int => (int) $id)
-            ->all();
+            if (DbSchema::hasColumn('term_cohorts', 'entry_academic_year_id')) {
+                $cohortAcademicYearIds = $cohortQuery
+                    ->whereRaw('COALESCE(term_cohorts.entry_academic_year_id, cohort_terms.academic_year_id) IN ('.implode(',', array_fill(0, count($academicYearIds), '?')).')', $academicYearIds)
+                    ->selectRaw('DISTINCT COALESCE(term_cohorts.entry_academic_year_id, cohort_terms.academic_year_id) as resolved_ay_id')
+                    ->pluck('resolved_ay_id')
+                    ->filter(fn (mixed $id): bool => $id !== null)
+                    ->map(fn (mixed $id): int => (int) $id)
+                    ->all();
+            } else {
+                $cohortAcademicYearIds = $cohortQuery
+                    ->whereIn('cohort_terms.academic_year_id', $academicYearIds)
+                    ->distinct()
+                    ->pluck('cohort_terms.academic_year_id')
+                    ->filter(fn (mixed $id): bool => $id !== null)
+                    ->map(fn (mixed $id): int => (int) $id)
+                    ->all();
+            }
 
-        return $batches->map(function (CurriculumVersionBatch $batch) use (
+            $applicantTable = (new AdmissionApplication)->getTable();
+            $applicantAcademicYearIds = AdmissionApplication::query()
+                ->join('terms', 'terms.id', '=', "{$applicantTable}.term_id")
+                ->where("{$applicantTable}.program_id", $curriculum->program_id)
+                ->whereNotIn("{$applicantTable}.application_state", [
+                    AdmissionApplication::StateWithdrawn,
+                    AdmissionApplication::StateNotAdmitted,
+                ])
+                ->whereIn('terms.academic_year_id', $academicYearIds)
+                ->distinct()
+                ->pluck('terms.academic_year_id')
+                ->map(fn (mixed $id): int => (int) $id)
+                ->all();
+        }
+
+        $isSingleBatchWithUnassignedStudents = $batches->count() === 1 && $unassignedEntryStudentsCount > 0;
+
+        $rows = $batches->map(function (CurriculumVersionBatch $batch) use (
             $studentCounts,
             $cohortAcademicYearIds,
             $applicantAcademicYearIds,
             $canManageBatches,
+            $isSingleBatchWithUnassignedStudents,
         ): array {
             $ayId = (int) $batch->academic_year_id;
-            $studentsCount = (int) ($studentCounts->get($ayId) ?? 0);
+            $studentsCount = $studentCounts[$ayId] ?? 0;
             $inUse = $studentsCount > 0
+                || $isSingleBatchWithUnassignedStudents
                 || in_array($ayId, $cohortAcademicYearIds, true)
                 || in_array($ayId, $applicantAcademicYearIds, true);
 
@@ -2493,6 +2531,48 @@ class ReviewCurriculumVersion extends Page
                 'can_remove' => $canManageBatches && ! $inUse,
             ];
         })->all();
+
+        $unlinkedAyIds = array_values(array_diff(array_keys($studentCounts), $academicYearIds));
+
+        if ($unlinkedAyIds !== []) {
+            $unlinkedAcademicYears = AcademicYear::query()
+                ->whereKey($unlinkedAyIds)
+                ->get()
+                ->sortBy(fn (AcademicYear $year): array => [
+                    CurriculumVersion::extractAcademicYearStart($year) ?? PHP_INT_MAX,
+                    $year->starts_on?->timestamp ?? PHP_INT_MAX,
+                    (int) $year->id,
+                ]);
+
+            foreach ($unlinkedAcademicYears as $ay) {
+                $ayId = (int) $ay->id;
+                $rows[] = [
+                    'id' => 'student-linked-'.$ayId,
+                    'academic_year_id' => $ayId,
+                    'label' => 'Batch '.CurriculumVersion::formatBatchShort($ay).' (Student-linked · not assigned)',
+                    'academic_year_label' => (string) $ay->label,
+                    'students_count' => $studentCounts[$ayId],
+                    'added_at' => 'From student records',
+                    'in_use' => true,
+                    'can_remove' => false,
+                ];
+            }
+        }
+
+        if ($unassignedEntryStudentsCount > 0) {
+            $rows[] = [
+                'id' => 'student-linked-unassigned-ay',
+                'academic_year_id' => 0,
+                'label' => 'Linked students (No entry batch)',
+                'academic_year_label' => 'No entry batch',
+                'students_count' => $unassignedEntryStudentsCount,
+                'added_at' => 'From student records',
+                'in_use' => true,
+                'can_remove' => false,
+            ];
+        }
+
+        return $rows;
     }
 
     /**

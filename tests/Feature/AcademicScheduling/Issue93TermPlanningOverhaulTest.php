@@ -139,7 +139,12 @@ final class Issue93TermPlanningOverhaulTest extends TestCase
             'year_level' => 'Third Year',
             'term_type' => $term->type,
         ]);
-        TermOffering::factory()->for($term)->for($entry, 'curriculumEntry')->create();
+        $offering = TermOffering::factory()->for($term)->for($entry, 'curriculumEntry')->create([
+            'state' => TermOffering::StatePendingScheduling,
+        ]);
+        Section::factory()->for($offering, 'termOffering')->create([
+            'state' => Section::StateOpen,
+        ]);
 
         // Legacy ?resourceView=unavailable falls back cleanly to Rooms without rendering Unavailable times tab.
         Livewire::withQueryParams(['termId' => $term->id, 'resourceView' => 'unavailable'])->test(TermResources::class)
@@ -382,10 +387,12 @@ final class Issue93TermPlanningOverhaulTest extends TestCase
         $this->assertSame(24, (int) $cohortsState[$firstKey]['expected_count']);
         $modalHtml = $editModal->getMountedActionModalHtml();
         $decodedModal = json_decode('"'.str_replace('"', '\\"', $modalHtml).'"') ?: $modalHtml;
+        $expectedOption = "BSIT-2B · {$curriculum->batchLabel()} · 24 students";
+        $encodedExpectedOption = str_replace('·', '\u00b7', $expectedOption);
         $this->assertTrue(
-            str_contains($modalHtml, 'BSIT-2B · 24 students')
-            || str_contains($modalHtml, 'BSIT-2B \u00b7 24 students')
-            || str_contains($decodedModal, 'BSIT-2B · 24 students'),
+            str_contains($modalHtml, $expectedOption)
+            || str_contains($modalHtml, $encodedExpectedOption)
+            || str_contains($decodedModal, $expectedOption),
         );
     }
 

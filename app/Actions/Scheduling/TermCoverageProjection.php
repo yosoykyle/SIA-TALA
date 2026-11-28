@@ -2,6 +2,7 @@
 
 namespace App\Actions\Scheduling;
 
+use App\Models\AcademicYear;
 use App\Models\CurriculumVersion;
 use App\Models\SchedulingDemand;
 use App\Models\Section;
@@ -16,6 +17,11 @@ final class TermCoverageProjection
     /** @return array{rows:list<array<string,mixed>>,additional:list<array<string,mixed>>,summary:array<string,int>} */
     public function forTerm(Term $term): array
     {
+        $term->loadMissing('academicYear');
+        $termStartYear = $term->academicYear instanceof AcademicYear
+            ? CurriculumVersion::extractAcademicYearStart($term->academicYear)
+            : $term->starts_on?->year;
+
         $curricula = CurriculumVersion::query()
             ->where(fn ($query) => $query
                 ->where('state', CurriculumVersion::StateActive)
@@ -31,17 +37,33 @@ final class TermCoverageProjection
             ->where('state', '!=', TermOffering::StateCancelled)
             ->with(['curriculumEntry.curriculumVersion.program', 'curriculumEntry.curriculumVersion.academicYears', 'curriculumEntry.courseSpecification.course',
                 'sections' => fn ($query) => $query->whereNotIn('state', [Section::StateCancelled, Section::StateClosed]),
-                'sections.cohorts',
+                'sections.cohorts.entryAcademicYear',
                 'sections.courseRevision',
                 'sections.deliveryGroups' => fn ($query) => $query->whereNotIn('state', [SectionDeliveryGroup::StateCancelled, SectionDeliveryGroup::StateClosed]),
                 'sections.deliveryGroups.schedulingDemands',
             ])->get();
-        $cohorts = TermCohort::query()->where('term_id', $term->id)->with(['program', 'curriculumVersion.academicYears'])->get();
+        $cohorts = TermCohort::query()->where('term_id', $term->id)->with(['program', 'entryAcademicYear', 'curriculumVersion.academicYears'])->get();
         $classes = $offerings->flatMap(fn (TermOffering $offering) => $offering->sections)->unique('id');
+
+        /** @var array<int, AcademicYear> $academicYearsById */
+        $academicYearsById = [];
+        foreach ($curricula as $curriculum) {
+            foreach ($curriculum->academicYears as $ay) {
+                $academicYearsById[(int) $ay->id] = $ay;
+            }
+        }
+        foreach ($cohorts as $cohort) {
+            if ($cohort->entryAcademicYear instanceof AcademicYear) {
+                $academicYearsById[(int) $cohort->entryAcademicYear->id] = $cohort->entryAcademicYear;
+            }
+        }
+
         $observedYears = [];
         $servedRows = [];
+        $servedBatchIdsByCurriculumYear = [];
         $cohortSources = [];
         $unresolvedCohortIds = [];
+
         foreach ($offerings as $offering) {
             foreach ($offering->sections as $class) {
                 foreach ($class->cohorts as $cohort) {
@@ -58,27 +80,75 @@ final class TermCoverageProjection
                         $unresolvedCohortIds[] = $cohort->id;
                     }
                     foreach ($matchingEntries->pluck('year_level')->unique() as $year) {
-                        $observedYears[$cohort->id][] = (string) $year;
-                        $servedRows[$this->key($curriculum->id, $year)][] = ['offering' => $offering, 'class' => $class];
+                        $yearStr = (string) $year;
+                        $observedYears[$cohort->id][] = $yearStr;
+                        $batchAy = $this->resolveBatchAcademicYear($curriculum, $yearStr, $termStartYear, $cohort);
+                        $batchId = $batchAy?->id;
+                        if ($batchAy instanceof AcademicYear) {
+                            $academicYearsById[(int) $batchAy->id] = $batchAy;
+                        }
+                        $servedBatchIdsByCurriculumYear[$curriculum->id][$yearStr][$batchId ?? 'default'] = $batchId;
+                        $servedRows[$this->key($curriculum->id, $batchId, $yearStr)][] = ['offering' => $offering, 'class' => $class];
                     }
                 }
             }
         }
+
         $groups = collect();
         foreach ($offerings as $offering) {
-            $key = $this->key($offering->curriculumEntry?->curriculum_version_id, $offering->curriculumEntry?->year_level);
+            $offeringCurriculum = $offering->curriculumEntry?->curriculumVersion;
+            $offeringYear = $offering->curriculumEntry?->year_level !== null ? (string) $offering->curriculumEntry->year_level : null;
             $additionalOffering = $offering->category === TermOffering::CategorySpecial
                 || $offering->curriculumEntry?->term_type !== $term->type;
-            foreach ($offering->sections->groupBy(fn (Section $class): string => $additionalOffering || $class->source === Section::SourceAdditional ? 'additional-' : '') as $prefix => $sections) {
-                $source = clone $offering;
-                $source->setRelation('sections', $sections);
-                $groups->put($prefix.$key, $groups->get($prefix.$key, collect())->push($source));
+            $defaultBatchAy = $this->resolveBatchAcademicYear($offeringCurriculum, $offeringYear, $termStartYear);
+            if ($defaultBatchAy instanceof AcademicYear) {
+                $academicYearsById[(int) $defaultBatchAy->id] = $defaultBatchAy;
             }
+
             if ($offering->sections->isEmpty()) {
-                $groupKey = ($additionalOffering ? 'additional-' : '').$key;
+                $groupKey = ($additionalOffering ? 'additional-' : '').$this->key($offeringCurriculum?->id, $defaultBatchAy?->id, $offeringYear);
                 $groups->put($groupKey, $groups->get($groupKey, collect())->push($offering));
+                if (! $additionalOffering && $offeringCurriculum instanceof CurriculumVersion && $offeringYear !== null) {
+                    $servedBatchIdsByCurriculumYear[$offeringCurriculum->id][$offeringYear][$defaultBatchAy?->id ?? 'default'] = $defaultBatchAy?->id;
+                }
+
+                continue;
+            }
+
+            foreach ($offering->sections as $class) {
+                $prefix = ($additionalOffering || $class->source === Section::SourceAdditional) ? 'additional-' : '';
+                $matchingCohorts = $class->cohorts->where('term_id', $term->id);
+                $batchIdsForSection = [];
+
+                if ($offeringCurriculum instanceof CurriculumVersion && $matchingCohorts->isNotEmpty()) {
+                    foreach ($matchingCohorts as $cohort) {
+                        if ((int) $cohort->curriculum_version_id !== (int) $offeringCurriculum->id) {
+                            continue;
+                        }
+                        $resolvedBatch = $this->resolveBatchAcademicYear($offeringCurriculum, $offeringYear, $termStartYear, $cohort);
+                        if ($resolvedBatch instanceof AcademicYear) {
+                            $academicYearsById[(int) $resolvedBatch->id] = $resolvedBatch;
+                        }
+                        $batchIdsForSection[$resolvedBatch?->id ?? 'default'] = $resolvedBatch?->id;
+                    }
+                }
+
+                if ($batchIdsForSection === []) {
+                    $batchIdsForSection[$defaultBatchAy?->id ?? 'default'] = $defaultBatchAy?->id;
+                }
+
+                foreach ($batchIdsForSection as $batchId) {
+                    $groupKey = $prefix.$this->key($offeringCurriculum?->id, $batchId, $offeringYear);
+                    $source = clone $offering;
+                    $source->setRelation('sections', collect([$class]));
+                    $groups->put($groupKey, $groups->get($groupKey, collect())->push($source));
+                    if ($prefix === '' && $offeringCurriculum instanceof CurriculumVersion && $offeringYear !== null) {
+                        $servedBatchIdsByCurriculumYear[$offeringCurriculum->id][$offeringYear][$batchId ?? 'default'] = $batchId;
+                    }
+                }
             }
         }
+
         foreach ($servedRows as $key => $sources) {
             foreach ($sources as $source) {
                 $offering = clone $source['offering'];
@@ -88,24 +158,45 @@ final class TermCoverageProjection
                 }
             }
         }
+
         $rows = [];
         foreach ($curricula as $curriculum) {
             foreach ($curriculum->entries->pluck('year_level')->unique() as $year) {
-                $key = $this->key($curriculum->id, $year);
-                $row = $this->row($key, $curriculum, (string) $year, $groups->get($key, collect()), $observedYears, $term);
-                if ($row['class_count'] === 0 && $cohorts->where('curriculum_version_id', $curriculum->id)->whereIn('id', $unresolvedCohortIds)->isNotEmpty()) {
-                    $row['status'] = 'Association unresolved';
-                    $row['reason'] = 'A linked class exists for a student section in this curriculum, but its course cannot be associated with a recorded year for this Term type. Review the source association.';
+                $yearStr = (string) $year;
+                $batchBucket = $servedBatchIdsByCurriculumYear[$curriculum->id][$yearStr] ?? [];
+
+                if ($batchBucket === []) {
+                    $defaultBatchAy = $this->resolveBatchAcademicYear($curriculum, $yearStr, $termStartYear);
+                    if ($defaultBatchAy instanceof AcademicYear) {
+                        $academicYearsById[(int) $defaultBatchAy->id] = $defaultBatchAy;
+                    }
+                    $batchBucket[$defaultBatchAy?->id ?? 'default'] = $defaultBatchAy?->id;
                 }
-                $rows[] = $row;
-                $groups->forget($key);
+
+                foreach ($batchBucket as $batchId) {
+                    $batchAy = $batchId !== null ? ($academicYearsById[(int) $batchId] ?? AcademicYear::query()->find($batchId)) : null;
+                    $key = $this->key($curriculum->id, $batchId, $yearStr);
+                    $row = $this->row($key, $curriculum, $yearStr, $groups->get($key, collect()), $observedYears, $term, true, $batchAy);
+                    if ($row['class_count'] === 0 && $cohorts->where('curriculum_version_id', $curriculum->id)->whereIn('id', $unresolvedCohortIds)->isNotEmpty()) {
+                        $row['status'] = 'Association unresolved';
+                        $row['reason'] = 'A linked class exists for a student section in this curriculum, but its course cannot be associated with a recorded year for this Term type. Review the source association.';
+                    }
+                    $rows[] = $row;
+                    $groups->forget($key);
+                }
             }
         }
+
         $additional = [];
         foreach ($groups as $key => $group) {
             $entry = $group->first()->curriculumEntry;
-            $additional[] = $this->row($key, $entry?->curriculumVersion, $entry?->year_level, $group, $observedYears, $term, false);
+            $entryCurriculum = $entry?->curriculumVersion;
+            $entryYear = $entry?->year_level !== null ? (string) $entry->year_level : null;
+            $batchAy = $this->extractBatchAcademicYearFromKey($key, $academicYearsById)
+                ?? $this->resolveBatchAcademicYear($entryCurriculum, $entryYear, $termStartYear);
+            $additional[] = $this->row($key, $entryCurriculum, $entryYear, $group, $observedYears, $term, false, $batchAy);
         }
+
         $linkedCohortIds = $classes->flatMap(fn (Section $class) => $class->cohorts)->pluck('id')->unique();
         foreach ($cohorts->filter(fn (TermCohort $cohort): bool => ! $linkedCohortIds->contains($cohort->id) || in_array($cohort->id, $unresolvedCohortIds, true)) as $cohort) {
             $cohort->curriculumVersion?->setRelation('program', $cohort->program);
@@ -114,7 +205,14 @@ final class TermCoverageProjection
 
                 return $offering->setRelation('sections', collect([$source['class']]));
             });
-            $row = $this->row('cohort-'.$cohort->id, $cohort->curriculumVersion, null, $sources, $observedYears, $term, false);
+            $cohortYearLevel = $cohort->resolvedYearLevel();
+            $cohortBatchAy = $this->resolveBatchAcademicYear(
+                $cohort->curriculumVersion,
+                $cohortYearLevel !== null ? (string) $cohortYearLevel : null,
+                $termStartYear,
+                $cohort,
+            );
+            $row = $this->row('cohort-'.$cohort->id, $cohort->curriculumVersion, null, $sources, $observedYears, $term, false, $cohortBatchAy);
             $row['sections'] = [$this->cohort($cohort, array_values(array_unique($observedYears[$cohort->id] ?? [])))];
             $row['section_references'] = [(string) $cohort->reference];
             $row['section_count'] = 1;
@@ -138,18 +236,96 @@ final class TermCoverageProjection
         ]];
     }
 
-    private function key(?int $curriculumId, ?string $year): string
+    private function key(?int $curriculumId, ?int $entryAcademicYearId, ?string $year): string
     {
-        return 'curriculum-'.($curriculumId ?? 'unmapped').'-year-'.($year ?? 'unmapped');
+        return 'curriculum-'.($curriculumId ?? 'unmapped')
+            .'-batch-'.($entryAcademicYearId ?? 'default')
+            .'-year-'.($year ?? 'unmapped');
+    }
+
+    private function resolveBatchAcademicYear(
+        ?CurriculumVersion $curriculum,
+        ?string $year,
+        ?int $termStartYear,
+        ?TermCohort $cohort = null,
+    ): ?AcademicYear {
+        if ($cohort instanceof TermCohort && $cohort->entry_academic_year_id !== null) {
+            if ($cohort->relationLoaded('entryAcademicYear') && $cohort->entryAcademicYear instanceof AcademicYear) {
+                return $cohort->entryAcademicYear;
+            }
+
+            if ($curriculum instanceof CurriculumVersion) {
+                $fromCurriculum = $curriculum->academicYears->firstWhere('id', (int) $cohort->entry_academic_year_id);
+                if ($fromCurriculum instanceof AcademicYear) {
+                    return $fromCurriculum;
+                }
+            }
+
+            return AcademicYear::query()->find((int) $cohort->entry_academic_year_id);
+        }
+
+        if (! $curriculum instanceof CurriculumVersion) {
+            return null;
+        }
+
+        $curriculum->loadMissing('academicYears');
+        $parsedYear = $year !== null ? TermCohort::parseYearLevelValue($year) : $cohort?->resolvedYearLevel();
+
+        if ($termStartYear !== null && $parsedYear !== null) {
+            $targetIntakeYear = $termStartYear - ($parsedYear - 1);
+            $matched = $curriculum->academicYears->first(
+                fn (AcademicYear $academicYear): bool => CurriculumVersion::extractAcademicYearStart($academicYear) === $targetIntakeYear,
+            );
+
+            if ($matched instanceof AcademicYear) {
+                return $matched;
+            }
+        }
+
+        if ($curriculum->academicYears->count() === 1) {
+            return $curriculum->academicYears->first();
+        }
+
+        return null;
+    }
+
+    /** @param array<int, AcademicYear> $academicYearsById */
+    private function extractBatchAcademicYearFromKey(string $key, array $academicYearsById): ?AcademicYear
+    {
+        if (preg_match('/-batch-(\d+)-year-/', $key, $matches) === 1) {
+            $batchId = (int) $matches[1];
+
+            return $academicYearsById[$batchId] ?? AcademicYear::query()->find($batchId);
+        }
+
+        return null;
     }
 
     /** @param Collection<int,TermOffering> $offerings @param array<int,list<string>> $observedYears @return array<string,mixed> */
-    private function row(string $id, ?CurriculumVersion $curriculum, ?string $year, Collection $offerings, array $observedYears, Term $term, bool $associatedSectionsOnly = true): array
-    {
+    private function row(
+        string $id,
+        ?CurriculumVersion $curriculum,
+        ?string $year,
+        Collection $offerings,
+        array $observedYears,
+        Term $term,
+        bool $associatedSectionsOnly = true,
+        ?AcademicYear $batchAcademicYear = null,
+    ): array {
         $classes = $offerings->flatMap(fn (TermOffering $offering) => $offering->sections)->unique('id');
         $cohorts = $classes->flatMap(fn (Section $class) => $class->cohorts)->where('term_id', $term->id)->unique('id');
         if ($associatedSectionsOnly) {
-            $cohorts = $cohorts->filter(fn (TermCohort $cohort): bool => (int) $cohort->curriculum_version_id === (int) $curriculum?->id && in_array($year, $observedYears[$cohort->id] ?? [], true));
+            $cohorts = $cohorts->filter(function (TermCohort $cohort) use ($curriculum, $year, $observedYears, $batchAcademicYear): bool {
+                if ((int) $cohort->curriculum_version_id !== (int) $curriculum?->id || ! in_array($year, $observedYears[$cohort->id] ?? [], true)) {
+                    return false;
+                }
+
+                if ($batchAcademicYear instanceof AcademicYear && $cohort->entry_academic_year_id !== null) {
+                    return (int) $cohort->entry_academic_year_id === (int) $batchAcademicYear->id;
+                }
+
+                return true;
+            });
         }
         $demands = $classes->flatMap(fn (Section $class) => $class->deliveryGroups)
             ->flatMap(fn (SectionDeliveryGroup $group) => $group->schedulingDemands)->unique('id');
@@ -160,11 +336,24 @@ final class TermCoverageProjection
         $requiresReview = $incomplete || $findings !== [] || $demands->contains(fn (SchedulingDemand $demand): bool => $demand->validation_state !== SchedulingDemand::ValidationReadyForReview);
         $ambiguous = $cohorts->contains(fn (TermCohort $cohort): bool => count(array_unique($observedYears[$cohort->id] ?? [])) > 1);
 
+        $curriculumLabel = match (true) {
+            $curriculum instanceof CurriculumVersion && $batchAcademicYear instanceof AcademicYear => $curriculum->formatBatchOptionLabel($batchAcademicYear, includeProgram: false),
+            $curriculum instanceof CurriculumVersion => $curriculum->batchLabel(),
+            default => 'Unmapped curriculum',
+        };
+        $batchLabel = $batchAcademicYear instanceof AcademicYear
+            ? 'Batch '.CurriculumVersion::formatBatchShort($batchAcademicYear)
+            : null;
+
         return [
-            'id' => $id, 'program_id' => $curriculum?->program_id,
+            'id' => $id,
+            'program_id' => $curriculum?->program_id,
+            'program_code' => $curriculum?->program?->code,
             'program_name' => $curriculum?->program?->name ?? 'Unmapped program',
             'curriculum_version_id' => $curriculum?->id,
-            'curriculum_label' => $curriculum instanceof CurriculumVersion ? $curriculum->batchLabel() : 'Unmapped curriculum',
+            'entry_academic_year_id' => $batchAcademicYear?->id,
+            'batch_label' => $batchLabel,
+            'curriculum_label' => $curriculumLabel,
             'curriculum_version_code' => $curriculum?->version_code,
             'curriculum_state' => $curriculum?->state,
             'curriculum_state_label' => match ($curriculum?->state) {
@@ -193,6 +382,7 @@ final class TermCoverageProjection
     {
         return ['id' => $cohort->id, 'reference' => (string) $cohort->reference,
             'program_id' => $cohort->program_id, 'curriculum_version_id' => $cohort->curriculum_version_id,
+            'entry_academic_year_id' => $cohort->entry_academic_year_id,
             'observed_year_levels' => $years, 'year_association' => count($years) > 1 ? 'Cross-year association' : (count($years) === 1 ? 'Observed through linked classes' : 'Year not recorded'),
             'student_count' => (int) ($cohort->confirmed_count ?? $cohort->forecast_count)];
     }

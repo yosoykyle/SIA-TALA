@@ -175,6 +175,22 @@ class StudentProfile extends Model
         return $this->belongsTo(AcademicYear::class, 'entry_academic_year_id');
     }
 
+    public function resolvedEntryAcademicYearId(): ?int
+    {
+        if ($this->entry_academic_year_id !== null) {
+            return (int) $this->entry_academic_year_id;
+        }
+
+        $termAcademicYearId = $this->entryTerm?->academic_year_id;
+
+        return $termAcademicYearId !== null ? (int) $termAcademicYearId : null;
+    }
+
+    public function resolvedEntryAcademicYear(): ?AcademicYear
+    {
+        return $this->entryAcademicYear ?? $this->entryTerm?->academicYear;
+    }
+
     /** @return BelongsTo<StudentImportBatch, $this> */
     public function importBatch(): BelongsTo
     {

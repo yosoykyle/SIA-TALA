@@ -7,13 +7,16 @@ use App\Filament\Concerns\HasAcademicOversightReturn;
 use App\Filament\Resources\Rooms\RoomResource;
 use App\Filament\Resources\Rooms\Schemas\RoomForm;
 use App\Filament\Resources\Rooms\Schemas\RoomInfolist;
+use App\Models\AcademicYear;
 use App\Models\Course;
 use App\Models\CourseSpecification;
+use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
 use App\Models\FacultyQualification;
 use App\Models\Program;
 use App\Models\Room;
 use App\Models\ScheduleGenerationRun;
+use App\Models\Section;
 use App\Models\SectionMeeting;
 use App\Models\Term;
 use App\Models\TermCalendarPackage;
@@ -87,7 +90,9 @@ final class SchoolResources extends Page implements HasTable
      *     program_course_ids: array<int, list<int>>,
      *     programs: array<int, string>,
      *     curriculum_course_ids: array<int, list<int>>,
-     *     curricula: array<int, string>
+     *     curricula: array<int, string>,
+     *     batch_filters: array<string, string>,
+     *     curriculum_course_placements: array<int, array<int, list<array{year_level: int, semester_number: int}>>>
      * }|null
      */
     private ?array $catalogSubjectsCache = null;
@@ -547,9 +552,25 @@ final class SchoolResources extends Page implements HasTable
                             ->searchable()
                             ->searchPrompt('Search by subject code or title...')
                             ->bulkToggleable()
+                            ->selectAllAction(fn (Action $action): Action => $action
+                                ->button()
+                                ->size('xs')
+                                ->color('gray')
+                                ->outlined()
+                                ->label('Select all'))
+                            ->deselectAllAction(fn (Action $action): Action => $action
+                                ->button()
+                                ->size('xs')
+                                ->color('gray')
+                                ->outlined()
+                                ->label('Deselect all'))
+                            ->live()
                             ->columns(['default' => 1, 'md' => 2])
                             ->gridDirection(GridDirection::Row)
-                            ->extraAttributes(['class' => 'tala-card-picker'])
+                            ->extraAttributes(fn (Get $get): array => [
+                                'class' => 'tala-card-picker',
+                                'wire:key' => 'school-edit-course-picker-'.md5((string) ($get('program_filter') ?? 'all')),
+                            ])
                             ->helperText(fn (Get $get): string => $this->subjectSelectionHelperText(
                                 $get('retained_course_ids'),
                                 $get('program_filter'),
@@ -670,9 +691,25 @@ final class SchoolResources extends Page implements HasTable
                     ->searchable()
                     ->searchPrompt('Search by subject code or title...')
                     ->bulkToggleable()
+                    ->selectAllAction(fn (Action $action): Action => $action
+                        ->button()
+                        ->size('xs')
+                        ->color('gray')
+                        ->outlined()
+                        ->label('Select all'))
+                    ->deselectAllAction(fn (Action $action): Action => $action
+                        ->button()
+                        ->size('xs')
+                        ->color('gray')
+                        ->outlined()
+                        ->label('Deselect all'))
+                    ->live()
                     ->columns(['default' => 1, 'md' => 2])
                     ->gridDirection(GridDirection::Row)
-                    ->extraAttributes(['class' => 'tala-card-picker'])
+                    ->extraAttributes(fn (Get $get): array => [
+                        'class' => 'tala-card-picker',
+                        'wire:key' => 'school-assign-course-picker-'.md5((string) ($get('program_filter') ?? 'all')),
+                    ])
                     ->visible(fn (Get $get): bool => filled($get('faculty_user_id')))
                     ->helperText(fn (Get $get): string => $this->subjectSelectionHelperText(
                         $get('retained_course_ids'),
@@ -779,8 +816,8 @@ final class SchoolResources extends Page implements HasTable
             $options['program:'.$programId] = $label;
         }
 
-        foreach ($payload['curricula'] as $curriculumId => $label) {
-            $options['curriculum:'.$curriculumId] = $label;
+        foreach ($payload['batch_filters'] as $filterKey => $label) {
+            $options[$filterKey] = $label;
         }
 
         return $options;
@@ -819,11 +856,62 @@ final class SchoolResources extends Page implements HasTable
         $payload = $this->catalogSubjectsPayload();
         $allowedIds = $this->filteredCourseIdsForFilter($filter, $payload, $selectedIds);
 
-        if ($allowedIds === null) {
-            return $payload['descriptions'];
+        $descriptions = $allowedIds === null
+            ? $payload['descriptions']
+            : array_intersect_key($payload['descriptions'], array_flip($allowedIds));
+
+        $normalized = filled($filter) ? (string) $filter : 'all';
+        $curriculumId = 0;
+        if (str_starts_with($normalized, 'curriculum_batch:')) {
+            $parts = explode(':', $normalized);
+            $curriculumId = (int) ($parts[1] ?? 0);
+        } elseif (str_starts_with($normalized, 'curriculum:')) {
+            $curriculumId = (int) substr($normalized, strlen('curriculum:'));
         }
 
-        return array_intersect_key($payload['descriptions'], array_flip($allowedIds));
+        if ($curriculumId <= 0) {
+            return $descriptions;
+        }
+
+        $placementsByCourse = $payload['curriculum_course_placements'][$curriculumId] ?? [];
+        if ($placementsByCourse === []) {
+            return $descriptions;
+        }
+
+        foreach ($descriptions as $courseId => $desc) {
+            $placements = $placementsByCourse[(int) $courseId] ?? [];
+            if ($placements === []) {
+                continue;
+            }
+
+            $placementLabels = [];
+            foreach ($placements as $placement) {
+                $yl = (int) $placement['year_level'];
+                $sem = (int) $placement['semester_number'];
+                if ($yl <= 0) {
+                    continue;
+                }
+                $ylLabel = match ($yl) {
+                    1 => '1st Year',
+                    2 => '2nd Year',
+                    3 => '3rd Year',
+                    default => "{$yl}th Year",
+                };
+                $semLabel = match ($sem) {
+                    1 => '1st Sem',
+                    2 => '2nd Sem',
+                    3 => 'Summer',
+                    default => $sem > 0 ? "Sem {$sem}" : null,
+                };
+                $placementLabels[] = $semLabel !== null ? "{$ylLabel}, {$semLabel}" : $ylLabel;
+            }
+
+            if ($placementLabels !== []) {
+                $descriptions[$courseId] = $desc.' · '.implode(' / ', array_unique($placementLabels));
+            }
+        }
+
+        return $descriptions;
     }
 
     /**
@@ -833,7 +921,11 @@ final class SchoolResources extends Page implements HasTable
      *     needed_ids: list<int>,
      *     shared_ids: list<int>,
      *     program_course_ids: array<int, list<int>>,
-     *     programs: array<int, string>
+     *     programs: array<int, string>,
+     *     curriculum_course_ids: array<int, list<int>>,
+     *     curricula: array<int, string>,
+     *     batch_filters: array<string, string>,
+     *     curriculum_course_placements: array<int, array<int, list<array{year_level: int, semester_number: int}>>>
      * }  $payload
      * @param  list<mixed>  $selectedIds
      * @return list<int>|null
@@ -867,6 +959,13 @@ final class SchoolResources extends Page implements HasTable
             $programId = (int) substr($normalized, strlen('program:'));
 
             return $payload['program_course_ids'][$programId] ?? [];
+        }
+
+        if (str_starts_with($normalized, 'curriculum_batch:')) {
+            $parts = explode(':', $normalized);
+            $curriculumId = (int) ($parts[1] ?? 0);
+
+            return $payload['curriculum_course_ids'][$curriculumId] ?? [];
         }
 
         if (str_starts_with($normalized, 'curriculum:')) {
@@ -967,7 +1066,11 @@ final class SchoolResources extends Page implements HasTable
      *     needed_ids: list<int>,
      *     shared_ids: list<int>,
      *     program_course_ids: array<int, list<int>>,
-     *     programs: array<int, string>
+     *     programs: array<int, string>,
+     *     curriculum_course_ids: array<int, list<int>>,
+     *     curricula: array<int, string>,
+     *     batch_filters: array<string, string>,
+     *     curriculum_course_placements: array<int, array<int, list<array{year_level: int, semester_number: int}>>>
      * }
      */
     private function catalogSubjectsPayload(): array
@@ -976,20 +1079,43 @@ final class SchoolResources extends Page implements HasTable
             return $this->catalogSubjectsCache;
         }
 
-        $offeredCourseIds = TermOffering::query()
+        $offeredOfferings = TermOffering::query()
             ->when(
                 $this->termId !== null,
                 fn (Builder $query): Builder => $query->where('term_id', (int) $this->termId),
                 fn (Builder $query): Builder => $query->whereHas('term', fn (Builder $termQuery): Builder => $termQuery->whereIn('state', [Term::StateActive, Term::StateDraft])),
             )
             ->where('state', '!=', TermOffering::StateCancelled)
-            ->with('curriculumEntry.courseSpecification')
-            ->get()
-            ->map(fn (TermOffering $offering): ?int => $offering->curriculumEntry?->courseSpecification?->course_id)
-            ->filter()
-            ->unique()
-            ->flip()
-            ->all();
+            ->whereHas('sections', fn (Builder $sectionQuery): Builder => $sectionQuery->whereNotIn('state', [
+                Section::StateCancelled,
+                Section::StateClosed,
+            ]))
+            ->with([
+                'curriculumEntry.courseSpecification',
+                'sections' => fn ($sectionQuery) => $sectionQuery
+                    ->whereNotIn('state', [Section::StateCancelled, Section::StateClosed])
+                    ->with('courseRevision'),
+            ])
+            ->get();
+
+        $offeredCourseIds = [];
+        foreach ($offeredOfferings as $offering) {
+            $entrySpec = $offering->curriculumEntry?->courseSpecification;
+            if ($entrySpec instanceof CourseSpecification
+                && $entrySpec->scheduling_treatment !== CourseSpecification::SchedulingExternallyArranged
+                && $entrySpec->course_id !== null) {
+                $offeredCourseIds[(int) $entrySpec->course_id] = true;
+            }
+
+            foreach ($offering->sections as $section) {
+                $sectionSpec = $section->courseRevision;
+                if ($sectionSpec instanceof CourseSpecification
+                    && $sectionSpec->scheduling_treatment !== CourseSpecification::SchedulingExternallyArranged
+                    && $sectionSpec->course_id !== null) {
+                    $offeredCourseIds[(int) $sectionSpec->course_id] = true;
+                }
+            }
+        }
 
         $activePrograms = Program::query()
             ->where('is_active', true)
@@ -1008,6 +1134,8 @@ final class SchoolResources extends Page implements HasTable
         $courseProgramIds = [];
         $curriculumCourseIds = [];
         $curriculaOptions = [];
+        $batchFilters = [];
+        $curriculumCoursePlacements = [];
         $courseBatchTags = [];
 
         if ($activePrograms->isNotEmpty()) {
@@ -1028,6 +1156,8 @@ final class SchoolResources extends Page implements HasTable
                 ->values();
 
             $curriculumLabelsById = [];
+            $curriculumSuffixById = [];
+            $curriculumModelsById = [];
             foreach ($sortedCurricula as $curriculum) {
                 $programCode = (string) ($programById[$curriculum->program_id]?->code ?? 'Program');
                 $batchLabel = $curriculum->batchLabel();
@@ -1037,6 +1167,8 @@ final class SchoolResources extends Page implements HasTable
                     default => '',
                 };
                 $curriculumLabelsById[(int) $curriculum->id] = $batchLabel;
+                $curriculumSuffixById[(int) $curriculum->id] = $suffix;
+                $curriculumModelsById[(int) $curriculum->id] = $curriculum;
                 $curriculaOptions[(int) $curriculum->id] = "{$programCode} · {$batchLabel}{$suffix}";
                 $curriculumCourseIds[(int) $curriculum->id] = [];
             }
@@ -1054,6 +1186,8 @@ final class SchoolResources extends Page implements HasTable
                     'course_specifications.course_id',
                     'curriculum_versions.program_id',
                     'curriculum_versions.id as curriculum_version_id',
+                    'curriculum_entries.year_level',
+                    'curriculum_entries.term_type',
                 )
                 ->distinct()
                 ->get();
@@ -1069,6 +1203,30 @@ final class SchoolResources extends Page implements HasTable
                 }
                 if (isset($curriculumLabelsById[$curriculumId])) {
                     $courseBatchTags[$courseId][$curriculumId] = $curriculumLabelsById[$curriculumId];
+                }
+                $curriculumCoursePlacements[$curriculumId][$courseId][] = [
+                    'year_level' => CurriculumEntry::parseYearLevelNumber($row->year_level),
+                    'semester_number' => CurriculumEntry::termTypeSemesterNumber($row->term_type),
+                ];
+            }
+
+            foreach ($sortedCurricula as $curriculum) {
+                $cid = (int) $curriculum->id;
+                if ($curriculumCourseIds[$cid] === []) {
+                    continue;
+                }
+
+                $suffix = $curriculumSuffixById[$cid] ?? '';
+                $batches = $curriculum->sortedBatchAcademicYears()
+                    ->sortByDesc(fn (AcademicYear $ay): int => CurriculumVersion::extractAcademicYearStart($ay) ?? -1)
+                    ->values();
+
+                if ($batches->isNotEmpty()) {
+                    foreach ($batches as $batchAy) {
+                        $batchFilters['curriculum_batch:'.$cid.':'.$batchAy->id] = $curriculum->formatBatchOptionLabel($batchAy, includeProgram: true).$suffix;
+                    }
+                } else {
+                    $batchFilters['curriculum:'.$cid] = $curriculaOptions[$cid];
                 }
             }
         }
@@ -1153,6 +1311,8 @@ final class SchoolResources extends Page implements HasTable
             'programs' => $programs,
             'curriculum_course_ids' => $curriculumCourseIds,
             'curricula' => $curriculaOptions,
+            'batch_filters' => $batchFilters,
+            'curriculum_course_placements' => $curriculumCoursePlacements,
         ];
     }
 

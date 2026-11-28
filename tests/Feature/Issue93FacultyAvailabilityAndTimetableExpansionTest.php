@@ -234,9 +234,9 @@ final class Issue93FacultyAvailabilityAndTimetableExpansionTest extends TestCase
             ->assertMountedActionModalSee('Showing only subjects offered this term')
             ->assertMountedActionModalSee('DIT93 101');
 
-        // Switching to the retired continuing curriculum filter exposes DIT93 201 with its batch tag.
+        // Switching to the retired continuing curriculum batch filter exposes DIT93 201 with its batch tag.
         $page->setActionData([
-            'program_filter' => 'curriculum:'.$retiredCurriculum->id,
+            'program_filter' => 'curriculum_batch:'.$retiredCurriculum->id.':'.$oldYear->id,
         ])
             ->assertMountedActionModalSee('DIT93 201 · Legacy Systems')
             ->assertMountedActionModalSee('DIT93 · Batch 2025');

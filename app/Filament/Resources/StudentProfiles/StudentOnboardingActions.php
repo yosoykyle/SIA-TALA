@@ -215,11 +215,9 @@ final class StudentOnboardingActions
                                         programId: (int) $programId,
                                         entryAcademicYearId: filled($state) ? (int) $state : null,
                                     );
-                                    if ($resolvedId !== null) {
-                                        $set('curriculum_version_id', $resolvedId);
-                                        $set('completed_through_term', null);
-                                        $set('prior_curriculum_entry_ids', []);
-                                    }
+                                    $set('curriculum_version_id', $resolvedId);
+                                    $set('completed_through_term', null);
+                                    $set('prior_curriculum_entry_ids', []);
                                 })
                                 ->helperText('Anchors the student to their cohort batch curriculum without requiring a historical Term record.'),
                             Select::make('curriculum_version_id')
@@ -636,6 +634,10 @@ final class StudentOnboardingActions
             if ($batchCurriculum instanceof CurriculumVersion) {
                 return (int) $batchCurriculum->id;
             }
+
+            if ($program->curriculumVersionBatches()->exists()) {
+                return null;
+            }
         }
 
         $active = CurriculumVersion::query()
@@ -672,21 +674,34 @@ final class StudentOnboardingActions
             return [];
         }
 
-        return CurriculumVersion::query()
+        $curricula = CurriculumVersion::query()
             ->where('program_id', (int) $programId)
             ->whereIn('state', [CurriculumVersion::StateActive, CurriculumVersion::StateSuperseded])
-            ->with('academicYears')
-            ->orderByRaw("CASE WHEN state = 'ACTIVE' THEN 0 ELSE 1 END")
-            ->orderByDesc('id')
-            ->get()
-            ->mapWithKeys(fn (CurriculumVersion $cv): array => [
-                $cv->id => collect([
-                    $cv->version_code,
-                    $cv->name,
-                    $cv->academicYears->isNotEmpty() ? $cv->batchLabel() : null,
-                    $cv->state === CurriculumVersion::StateSuperseded ? '(Retired)' : null,
-                ])->filter()->implode(' · '),
-            ])
+            ->with(['academicYears', 'batches.academicYear'])
+            ->get();
+
+        return CurriculumVersion::sortByLatestBatch($curricula, groupByState: true)
+            ->mapWithKeys(function (CurriculumVersion $cv): array {
+                $batchLabel = $cv->academicYears->isNotEmpty() ? $cv->batchLabel() : null;
+                $displayName = filled($cv->name) ? trim((string) $cv->name) : null;
+
+                if ($batchLabel !== null && $displayName !== null) {
+                    $displayName = trim((string) preg_replace('/(?:\s*·\s*Batch\s+.*$|^Batch\s+.*$)/iu', '', $displayName));
+
+                    if ($displayName === '' || strcasecmp($displayName, $batchLabel) === 0) {
+                        $displayName = null;
+                    }
+                }
+
+                return [
+                    $cv->id => collect([
+                        $cv->version_code,
+                        $displayName,
+                        $batchLabel,
+                        $cv->state === CurriculumVersion::StateSuperseded ? '(Retired)' : null,
+                    ])->filter()->implode(' · '),
+                ];
+            })
             ->all();
     }
 

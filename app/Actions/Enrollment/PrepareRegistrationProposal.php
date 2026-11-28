@@ -336,7 +336,7 @@ class PrepareRegistrationProposal
     {
         $profile = $enrollment->studentProfile;
         $program = $profile?->program ?? $enrollment->admissionApplication?->program;
-        $academicYear = $profile?->entryTerm?->academicYear ?? $enrollment->term?->academicYear;
+        $academicYear = $profile?->resolvedEntryAcademicYear() ?? $enrollment->term?->academicYear;
 
         if ($program !== null && $program->curriculumVersionBatches()->exists()) {
             return $program->name.' has no curriculum set for '.($academicYear?->label ?? 'this academic year').' entrants. Add a curriculum batch for that year in Programs & Curricula, then save the subjects again.';

@@ -850,11 +850,12 @@ class ViewProgram extends ViewRecord
             ->where('program_id', $program->id)
             ->where('term_id', $term->id)
             ->with([
+                'entryAcademicYear',
                 'curriculumVersion.academicYears',
                 'classOfferings.termOffering.curriculumEntry',
                 'enrollments' => fn ($q) => $q
                     ->where('canonical_outcome', Enrollment::OutcomeOfficiallyEnrolled)
-                    ->with(['studentProfile.entryTerm.academicYear']),
+                    ->with(['studentProfile.entryAcademicYear', 'studentProfile.entryTerm.academicYear']),
             ])
             ->orderBy('reference')
             ->get();
@@ -866,6 +867,7 @@ class ViewProgram extends ViewRecord
             ->whereNull('student_section_id')
             ->whereHas('studentProfile', fn ($q) => $q->where('program_id', $program->id))
             ->with([
+                'studentProfile.entryAcademicYear',
                 'studentProfile.entryTerm.academicYear',
                 'studentProfile.curriculumVersion.academicYears',
                 'courseEnrollments.termOffering.curriculumEntry',
@@ -935,7 +937,13 @@ class ViewProgram extends ViewRecord
             $batchIsPlanned = false;
 
             if ($primaryBatch === null) {
-                $primaryBatch = $this->resolveFallbackBatchLabel($curriculaUsed, $term, $yearLevel, $yearCohorts !== []);
+                $cohortBatchYear = collect($yearCohorts)
+                    ->map(fn (TermCohort $cohort): ?AcademicYear => $cohort->entryAcademicYear)
+                    ->first(fn (?AcademicYear $ay): bool => $ay instanceof AcademicYear);
+
+                $primaryBatch = $cohortBatchYear instanceof AcademicYear
+                    ? 'Batch '.CurriculumVersion::formatBatchShort($cohortBatchYear)
+                    : $this->resolveFallbackBatchLabel($curriculaUsed, $term, $yearLevel, $yearCohorts !== []);
                 $batchIsPlanned = $primaryBatch !== null;
             }
 
@@ -1147,7 +1155,7 @@ class ViewProgram extends ViewRecord
         $counts = [];
 
         foreach ($enrollments as $enrollment) {
-            $academicYear = $enrollment->studentProfile?->entryTerm?->academicYear;
+            $academicYear = $enrollment->studentProfile?->resolvedEntryAcademicYear();
 
             if (! $academicYear instanceof AcademicYear) {
                 continue;

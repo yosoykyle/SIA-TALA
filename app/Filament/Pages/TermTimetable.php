@@ -17,8 +17,10 @@ use App\Filament\Resources\AdmissionCycles\AdmissionCycleResource;
 use App\Filament\Resources\Enrollments\EnrollmentResource;
 use App\Filament\Resources\ScheduleGenerationRuns\ScheduleGenerationRunResource;
 use App\Filament\Resources\ScheduleGenerationRuns\Schemas\PublishedScheduleRevisionForm;
+use App\Models\AcademicYear;
 use App\Models\AdmissionCycle;
 use App\Models\CalendarEvent;
+use App\Models\CurriculumVersion;
 use App\Models\Enrollment;
 use App\Models\FacultyAvailabilityDeclaration;
 use App\Models\FacultyQualification;
@@ -247,6 +249,14 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                         .'<span class="block truncate text-xs font-normal text-gray-500 dark:text-gray-400" title="'.e($programName).'">'.e($programName).'</span>'
                     : '<span class="block truncate font-medium text-gray-900 dark:text-white" title="'.e($programName).'">'.e($programName).'</span>';
 
+                $curriculumLabel = trim((string) ($row['curriculum_label'] ?? ''));
+                $batchLabel = trim((string) ($row['batch_label'] ?? ''));
+                $batchCell = $curriculumLabel !== ''
+                    ? '<span class="block truncate text-xs font-medium text-gray-700 dark:text-gray-300" title="'.e($curriculumLabel).'">'.e($curriculumLabel).'</span>'
+                    : ($batchLabel !== ''
+                        ? '<span class="block truncate text-xs font-medium text-gray-700 dark:text-gray-300">'.e($batchLabel).'</span>'
+                        : '<span class="text-xs text-gray-500 dark:text-gray-400">—</span>');
+
                 $rawYear = (string) ($row['year_level'] ?? '');
                 $yearLabel = $rawYear !== '' && $rawYear !== 'Year not associated'
                     ? e($rawYear)
@@ -270,7 +280,8 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                     : '';
 
                 return '<tr class="border-t border-gray-200 dark:border-white/10">'
-                    .'<th scope="row" class="max-w-[18rem] px-3 py-2 text-left">'.$programCell.'</th>'
+                    .'<th scope="row" class="max-w-[16rem] px-3 py-2 text-left">'.$programCell.'</th>'
+                    .'<td class="max-w-[16rem] px-3 py-2 text-left">'.$batchCell.'</td>'
                     .'<td class="whitespace-nowrap px-3 py-2 text-center tabular-nums text-gray-700 dark:text-gray-300">'.$yearLabel.'</td>'
                     .'<td class="whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium text-gray-900 dark:text-white">'.$classCount.'</td>'
                     .'<td class="whitespace-nowrap px-3 py-2 text-right tabular-nums font-medium text-gray-900 dark:text-white">'.$meetingCount.'</td>'
@@ -295,6 +306,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                         <thead class="bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-600 dark:bg-zinc-900 dark:text-gray-300">
                             <tr>
                                 <th scope="col" class="px-3 py-2 text-left">Program</th>
+                                <th scope="col" class="px-3 py-2 text-left">Batch / Curriculum</th>
                                 <th scope="col" class="px-3 py-2 text-center">Year</th>
                                 <th scope="col" class="px-3 py-2 text-right">Classes</th>
                                 <th scope="col" class="px-3 py-2 text-right">Meetings</th>
@@ -561,8 +573,11 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
             'faculty', 'room',
             'schedulingDemand.courseComponent.courseSpecification.course',
             'schedulingDemand.sectionDeliveryGroup.section.cohorts.program',
+            'schedulingDemand.sectionDeliveryGroup.section.cohorts.entryAcademicYear',
+            'schedulingDemand.sectionDeliveryGroup.section.cohorts.curriculumVersion.academicYears',
             'schedulingDemand.sectionDeliveryGroup.section.cohorts.curriculumVersion.entries.courseSpecification',
             'schedulingDemand.termOffering.curriculumEntry.curriculumVersion.program',
+            'schedulingDemand.termOffering.curriculumEntry.curriculumVersion.academicYears',
             'schedulingDemand.termOffering.curriculumEntry.courseSpecification.course',
         ];
         $presentation = null;
@@ -573,6 +588,8 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                 ...$relations,
                 'classOffering.courseRevision.course',
                 'classOffering.cohorts.program',
+                'classOffering.cohorts.entryAcademicYear',
+                'classOffering.cohorts.curriculumVersion.academicYears',
                 'classOffering.cohorts.curriculumVersion.entries.courseSpecification',
             ])->orderBy('day_of_week')->orderBy('starts_at')->get();
             $presentation = TimetablePresentation::forPublished($selectedVersion, $meetings);
@@ -943,24 +960,89 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                 $groups[$key] ??= [...$section, 'meetings' => []];
                 $groups[$key]['meetings'][] = $meeting;
                 $groups[$key]['years'] = array_values(array_unique(array_merge($groups[$key]['years'] ?? [], $section['years'] ?? [])));
+                if (blank($groups[$key]['batchLabel'] ?? null) && filled($section['batchLabel'] ?? null)) {
+                    $groups[$key]['batchLabel'] = (string) $section['batchLabel'];
+                }
+                if (blank($groups[$key]['curriculumLabel'] ?? null) && filled($section['curriculumLabel'] ?? null)) {
+                    $groups[$key]['curriculumLabel'] = (string) $section['curriculumLabel'];
+                }
             }
         }
         $allSectionGroups = collect($groups)
             ->sortBy(fn (array $group): string => $group['program'].' '.$group['label'])
-            ->map(fn (array $group): array => [
-                'id' => (string) $group['id'],
-                'label' => (string) $group['label'],
-                'program' => (string) $group['program'],
-                'programCode' => (string) ($group['programCode'] ?? ''),
-                'years' => array_values(array_unique($group['years'] ?? [])),
-            ])
+            ->map(function (array $group): array {
+                $baseLabel = (string) $group['label'];
+                $batchLabel = trim((string) ($group['batchLabel'] ?? ''));
+                $selectorLabel = $batchLabel !== '' ? "{$baseLabel} · {$batchLabel}" : $baseLabel;
+
+                return [
+                    'id' => (string) $group['id'],
+                    'label' => $selectorLabel,
+                    'rawLabel' => $baseLabel,
+                    'batchLabel' => $batchLabel,
+                    'curriculumLabel' => (string) ($group['curriculumLabel'] ?? ''),
+                    'program' => (string) $group['program'],
+                    'programCode' => (string) ($group['programCode'] ?? ''),
+                    'years' => array_values(array_unique($group['years'] ?? [])),
+                ];
+            })
             ->values()
             ->all();
-        $years = collect($groups)
+        $observedGroupYears = collect($groups)
             ->flatMap(fn (array $group): array => $group['years'])
             ->filter(fn (mixed $year): bool => is_string($year) && trim($year) !== '' && $year !== 'Year not associated')
             ->unique()
-            ->sort()
+            ->values();
+
+        // Ensure Year Level filter includes ALL year levels present across cohorts, sections, and multi-batch offerings.
+        $useNumericYearStyle = $observedGroupYears->isNotEmpty()
+            && $observedGroupYears->every(fn (string $y): bool => ctype_digit(trim($y)));
+
+        /** @var array<string, string> $yearsByKey */
+        $yearsByKey = [];
+        foreach ($observedGroupYears as $yearStr) {
+            $parsed = TermCohort::parseYearLevelValue($yearStr);
+            $bucketKey = $parsed !== null ? 'num:'.$parsed : 'raw:'.$yearStr;
+            $yearsByKey[$bucketKey] ??= $yearStr;
+        }
+
+        if ($term instanceof Term) {
+            $termCohortYearLevels = TermCohort::query()
+                ->where('term_id', $term->id)
+                ->with('classOfferings.termOffering.curriculumEntry')
+                ->get()
+                ->map(fn (TermCohort $cohort): ?int => $cohort->year_level ?? $cohort->resolvedYearLevel())
+                ->filter(fn (?int $level): bool => $level !== null && $level > 0);
+
+            foreach ($termCohortYearLevels as $level) {
+                $bucketKey = 'num:'.$level;
+                if (! isset($yearsByKey[$bucketKey])) {
+                    $yearsByKey[$bucketKey] = $useNumericYearStyle ? (string) $level : self::yearLevelLabel($level);
+                }
+            }
+
+            $offeringYearLabels = TermOffering::query()
+                ->where('term_id', $term->id)
+                ->where('state', '!=', TermOffering::StateCancelled)
+                ->whereHas('sections', fn ($q) => $q->whereNotIn('state', [Section::StateCancelled, Section::StateClosed]))
+                ->with('curriculumEntry:id,year_level')
+                ->get()
+                ->map(fn (TermOffering $offering): string => trim((string) ($offering->curriculumEntry?->year_level ?? '')))
+                ->filter(fn (string $year): bool => $year !== '' && $year !== 'Year not associated');
+
+            foreach ($offeringYearLabels as $rawOfferingYear) {
+                $parsed = TermCohort::parseYearLevelValue($rawOfferingYear);
+                $bucketKey = $parsed !== null ? 'num:'.$parsed : 'raw:'.$rawOfferingYear;
+                if (! isset($yearsByKey[$bucketKey])) {
+                    $yearsByKey[$bucketKey] = $parsed !== null
+                        ? ($useNumericYearStyle ? (string) $parsed : self::yearLevelLabel($parsed))
+                        : $rawOfferingYear;
+                }
+            }
+        }
+
+        $years = collect(array_values($yearsByKey))
+            ->sortBy(fn (string $year): array => [TermCohort::parseYearLevelValue($year) ?? 99, $year])
             ->values()
             ->all();
         $programs = collect($groups)
@@ -971,14 +1053,19 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
             ->values()
             ->all();
         $groups = collect($groups)->sortBy(fn (array $group): string => $group['program'].' '.$group['label'])
-            ->filter(fn (array $group): bool => (! $this->programFilter || $group['program'] === $this->programFilter) && (! $this->yearFilter || in_array($this->yearFilter, $group['years'], true)))->values()->all();
+            ->filter(fn (array $group): bool => (! $this->programFilter || $group['program'] === $this->programFilter) && (! $this->yearFilter || self::sectionMatchesYearFilter($group['years'] ?? [], $this->yearFilter)))->values()->all();
         $canSelectSection = filled($this->programFilter) && filled($this->yearFilter);
         if ($this->timetableView === 'section' && ! $canSelectSection) {
             $this->viewFilter = null;
         }
         $options = match ($this->timetableView) {
             'section' => $canSelectSection
-                ? collect($groups)->mapWithKeys(fn (array $group): array => [$group['id'] => $group['label']])->all()
+                ? collect($groups)->mapWithKeys(function (array $group): array {
+                    $baseLabel = (string) $group['label'];
+                    $batchLabel = trim((string) ($group['batchLabel'] ?? ''));
+
+                    return [$group['id'] => $batchLabel !== '' ? "{$baseLabel} · {$batchLabel}" : $baseLabel];
+                })->all()
                 : [],
             'faculty', 'room' => collect($allMeetings)->pluck($this->timetableView)->unique()->sort()->mapWithKeys(fn (string $value): array => [$value => $value])->all(),
             default => [],
@@ -3234,10 +3321,22 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
             return [];
         }
 
+        $term = $termId !== null
+            ? Term::query()->with('academicYear')->find($termId)
+            : null;
+        $termStartYear = $term?->academicYear instanceof AcademicYear
+            ? CurriculumVersion::extractAcademicYearStart($term->academicYear)
+            : $term?->starts_on?->year;
+
         $termCohorts = $termId !== null
             ? TermCohort::query()
                 ->where('term_id', $termId)
-                ->with('program:id,code,name')
+                ->with([
+                    'program:id,code,name',
+                    'entryAcademicYear',
+                    'curriculumVersion.academicYears',
+                    'curriculumVersion.program:id,code,name',
+                ])
                 ->get()
                 ->keyBy('id')
             : collect();
@@ -3255,11 +3354,58 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                 ->whereIn('id', $sectionIds)
                 ->with([
                     'cohorts.program:id,code,name',
+                    'cohorts.entryAcademicYear',
+                    'cohorts.curriculumVersion.academicYears',
+                    'cohorts.curriculumVersion.program:id,code,name',
                     'termOffering.curriculumEntry.curriculumVersion.program:id,code,name',
+                    'termOffering.curriculumEntry.curriculumVersion.academicYears',
                 ])
                 ->get()
                 ->keyBy('id')
             : collect();
+
+        $observedSectionYears = collect($meetings)
+            ->flatMap(fn (array $m): array => is_array($m['sections'] ?? null) ? $m['sections'] : [])
+            ->flatMap(fn (array $s): array => is_array($s['years'] ?? null) ? $s['years'] : [])
+            ->filter(fn (mixed $y): bool => is_string($y) && trim($y) !== '' && $y !== 'Year not associated')
+            ->unique()
+            ->values();
+        $preferNumericYear = $observedSectionYears->isNotEmpty()
+            && $observedSectionYears->every(fn (string $y): bool => ctype_digit(trim($y)));
+
+        $resolveCohortBatchMeta = static function (?TermCohort $cohort, ?int $yearInt) use ($termStartYear): array {
+            if (! $cohort instanceof TermCohort) {
+                return ['batchLabel' => '', 'curriculumLabel' => ''];
+            }
+
+            $cv = $cohort->curriculumVersion;
+            $batchAy = $cohort->entryAcademicYear;
+
+            if (! $batchAy instanceof AcademicYear && $cv instanceof CurriculumVersion) {
+                $cv->loadMissing('academicYears');
+                $resolvedYear = $yearInt ?? $cohort->year_level ?? $cohort->resolvedYearLevel();
+
+                if ($termStartYear !== null && $resolvedYear !== null) {
+                    $targetStartYear = $termStartYear - ($resolvedYear - 1);
+                    $batchAy = $cv->academicYears->first(
+                        fn (AcademicYear $ay): bool => CurriculumVersion::extractAcademicYearStart($ay) === $targetStartYear,
+                    );
+                }
+
+                if (! $batchAy instanceof AcademicYear && $cv->academicYears->count() === 1) {
+                    $batchAy = $cv->academicYears->first();
+                }
+            }
+
+            $batchLabel = $batchAy instanceof AcademicYear
+                ? 'Batch '.CurriculumVersion::formatBatchShort($batchAy)
+                : '';
+            $curriculumLabel = ($cv instanceof CurriculumVersion && $batchAy instanceof AcademicYear)
+                ? $cv->formatBatchOptionLabel($batchAy, includeProgram: false)
+                : ($cv instanceof CurriculumVersion ? $cv->batchLabel() : '');
+
+            return ['batchLabel' => $batchLabel, 'curriculumLabel' => $curriculumLabel];
+        };
 
         foreach ($meetings as &$meeting) {
             $sectionId = isset($meeting['sectionId']) && is_numeric($meeting['sectionId'])
@@ -3275,19 +3421,28 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                 && collect($rawSections)->every(fn (array $sec): bool => str_starts_with((string) ($sec['id'] ?? ''), 'unassociated-'));
 
             if (($rawSections === [] || $isOnlyUnassociated) && $sectionModel instanceof Section && $sectionModel->cohorts->isNotEmpty()) {
-                $rawSections = $sectionModel->cohorts->map(function (TermCohort $cohort) use ($offeringProgram, $offeringYear): array {
+                $rawSections = $sectionModel->cohorts->map(function (TermCohort $cohort) use ($offeringProgram, $offeringYear, $preferNumericYear, $resolveCohortBatchMeta): array {
+                    $cohortLevel = $cohort->year_level ?? $cohort->resolvedYearLevel();
                     $resolvedYear = $offeringYear !== ''
                         ? $offeringYear
-                        : (($level = $cohort->resolvedYearLevel()) !== null ? self::yearLevelLabel($level) : '');
+                        : ($cohortLevel !== null ? ($preferNumericYear ? (string) $cohortLevel : self::yearLevelLabel($cohortLevel)) : '');
                     $years = $resolvedYear !== '' ? [$resolvedYear] : [];
+
+                    if ($cohortLevel !== null && ! collect($years)->contains(fn (string $y): bool => TermCohort::parseYearLevelValue($y) === $cohortLevel)) {
+                        $years[] = $preferNumericYear ? (string) $cohortLevel : self::yearLevelLabel($cohortLevel);
+                    }
+
+                    $batchMeta = $resolveCohortBatchMeta($cohort, $cohortLevel);
 
                     return [
                         'id' => (string) $cohort->id,
                         'label' => self::formatSectionDisplayLabel((string) $cohort->reference),
                         'program' => (string) ($cohort->program?->name ?? $offeringProgram?->name ?? 'Program not associated'),
                         'programCode' => (string) ($cohort->program?->code ?? $offeringProgram?->code ?? ''),
+                        'batchLabel' => $batchMeta['batchLabel'],
+                        'curriculumLabel' => $batchMeta['curriculumLabel'],
                         'years' => $years,
-                        'year' => $resolvedYear !== '' ? $resolvedYear : 'Year not associated',
+                        'year' => count($years) === 1 ? $years[0] : ($years === [] ? 'Year not associated' : 'Multiple curriculum years'),
                     ];
                 })->values()->all();
             } else {
@@ -3321,15 +3476,33 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
                         ->values()
                         ->all();
 
+                    $cohortLevel = $cohort instanceof TermCohort ? ($cohort->year_level ?? $cohort->resolvedYearLevel()) : null;
+
                     if ($existingYears === []) {
                         $fallbackYear = $offeringYear !== ''
                             ? $offeringYear
-                            : (($level = $cohort?->resolvedYearLevel()) !== null ? self::yearLevelLabel($level) : '');
+                            : ($cohortLevel !== null ? ($preferNumericYear ? (string) $cohortLevel : self::yearLevelLabel($cohortLevel)) : '');
 
                         if ($fallbackYear !== '') {
-                            $sec['years'] = [$fallbackYear];
-                            $sec['year'] = $fallbackYear;
+                            $existingYears = [$fallbackYear];
                         }
+                    }
+
+                    if ($cohortLevel !== null && ! collect($existingYears)->contains(fn (string $y): bool => TermCohort::parseYearLevelValue($y) === $cohortLevel)) {
+                        $existingYears[] = $preferNumericYear ? (string) $cohortLevel : self::yearLevelLabel($cohortLevel);
+                    }
+
+                    $sec['years'] = array_values(array_unique($existingYears));
+                    if ($sec['years'] !== []) {
+                        $sec['year'] = count($sec['years']) === 1 ? $sec['years'][0] : 'Multiple curriculum years';
+                    }
+
+                    $batchMeta = $resolveCohortBatchMeta($cohort, $cohortLevel);
+                    if (blank($sec['batchLabel'] ?? null) && $batchMeta['batchLabel'] !== '') {
+                        $sec['batchLabel'] = $batchMeta['batchLabel'];
+                    }
+                    if (blank($sec['curriculumLabel'] ?? null) && $batchMeta['curriculumLabel'] !== '') {
+                        $sec['curriculumLabel'] = $batchMeta['curriculumLabel'];
                     }
                 }
                 unset($sec);
@@ -3406,7 +3579,7 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         if (($programFilter !== null && $programFilter !== '') || ($yearFilter !== null && $yearFilter !== '')) {
             $matchesProgramYear = collect($meeting['sections'] ?? [])->contains(
                 fn (array $section): bool => ($programFilter === null || $programFilter === '' || ($section['program'] ?? null) === $programFilter)
-                    && ($yearFilter === null || $yearFilter === '' || in_array($yearFilter, $section['years'] ?? [], true)),
+                    && ($yearFilter === null || $yearFilter === '' || self::sectionMatchesYearFilter($section['years'] ?? [], $yearFilter)),
             );
 
             if (! $matchesProgramYear) {
@@ -3449,6 +3622,27 @@ class TermTimetable extends TermPlanningWorkbench implements HasTable
         }
 
         return $trimmed;
+    }
+
+    /** @param list<string> $sectionYears */
+    private static function sectionMatchesYearFilter(array $sectionYears, string $yearFilter): bool
+    {
+        if (in_array($yearFilter, $sectionYears, true)) {
+            return true;
+        }
+
+        $filterNumeric = TermCohort::parseYearLevelValue($yearFilter);
+        if ($filterNumeric === null) {
+            return false;
+        }
+
+        foreach ($sectionYears as $sectionYear) {
+            if (TermCohort::parseYearLevelValue($sectionYear) === $filterNumeric) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function yearLevelLabel(int $level): string

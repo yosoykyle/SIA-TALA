@@ -68,4 +68,39 @@ class CurriculumEntry extends Model
             self::RequirementGroupElective => 'Elective',
         ];
     }
+
+    public static function parseYearLevelNumber(mixed $yearLevel): int
+    {
+        if (is_int($yearLevel) || is_numeric($yearLevel)) {
+            return max(0, (int) $yearLevel);
+        }
+
+        $normalized = strtolower(trim((string) $yearLevel));
+
+        if (preg_match('/\d+/', $normalized, $matches) === 1) {
+            return (int) $matches[0];
+        }
+
+        return match (true) {
+            str_contains($normalized, 'first') => 1,
+            str_contains($normalized, 'second') => 2,
+            str_contains($normalized, 'third') => 3,
+            str_contains($normalized, 'fourth') => 4,
+            str_contains($normalized, 'fifth') => 5,
+            str_contains($normalized, 'sixth') => 6,
+            str_contains($normalized, 'seventh') => 7,
+            str_contains($normalized, 'eighth') => 8,
+            default => 0,
+        };
+    }
+
+    public static function termTypeSemesterNumber(?string $termType): int
+    {
+        return match ($termType) {
+            Term::TypeFirstSemester => 1,
+            Term::TypeSecondSemester => 2,
+            Term::TypeSpecialTerm => 3,
+            default => 0,
+        };
+    }
 }

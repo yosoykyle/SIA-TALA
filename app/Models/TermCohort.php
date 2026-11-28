@@ -17,7 +17,7 @@ class TermCohort extends Model
     use HasFactory;
 
     protected $fillable = [
-        'term_id', 'program_id', 'curriculum_version_id', 'reference', 'year_level', 'source',
+        'term_id', 'program_id', 'curriculum_version_id', 'entry_academic_year_id', 'reference', 'year_level', 'source',
         'forecast_count', 'confirmed_count', 'state', 'confirmed_by', 'confirmed_at',
     ];
 
@@ -47,6 +47,12 @@ class TermCohort extends Model
     public function curriculumVersion(): BelongsTo
     {
         return $this->belongsTo(CurriculumVersion::class);
+    }
+
+    /** @return BelongsTo<AcademicYear, $this> */
+    public function entryAcademicYear(): BelongsTo
+    {
+        return $this->belongsTo(AcademicYear::class, 'entry_academic_year_id');
     }
 
     /** @return BelongsToMany<Section, $this> */
