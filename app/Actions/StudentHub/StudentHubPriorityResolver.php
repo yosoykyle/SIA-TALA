@@ -19,6 +19,7 @@ use App\Models\PaymentEvidenceVersion;
 use App\Models\PublishedTimetableMeeting;
 use App\Models\PublishedTimetableVersion;
 use App\Models\StudentProfile;
+use App\Models\Term;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Notifications\DatabaseNotification;
@@ -344,7 +345,8 @@ class StudentHubPriorityResolver
         }
 
         $confirmed = $irregular['is_irregular'] && ! $this->irregularReasons->needsReview($studentProfile);
-        $retakingThisTerm = $irregular['is_irregular'] ? $this->retakesInCurrentEnrollment($irregular['reasons'], $currentEnrollment) : [];
+        $enrolledThisTerm = $this->runningTermEnrollment($currentEnrollment);
+        $retakingThisTerm = $irregular['is_irregular'] ? $this->retakesInCurrentEnrollment($irregular['reasons'], $enrolledThisTerm) : [];
 
         return [
             'tier' => 'Academic Guidance',
@@ -358,6 +360,7 @@ class StudentHubPriorityResolver
             'required_action' => match (true) {
                 // #117: a student already retaking the subject this term is not told to apply again.
                 $retakingThisTerm !== [] => 'You are retaking '.implode(', ', $retakingThisTerm).' this term. Your status is reviewed again once grades are released.',
+                $irregular['is_irregular'] && $confirmed && $enrolledThisTerm instanceof Enrollment => 'You are enrolled for this term. Your status is reviewed again once grades are released.',
                 $irregular['is_irregular'] && $confirmed => 'You need to apply for irregular enrollment for the next term. Use Enroll as irregular when enrollment opens.',
                 $irregular['is_irregular'] => 'You are flagged for irregular review. The Registrar will confirm your status before your next enrollment.',
                 $effect['effect'] === AcademicDecision::EffectAdvisingRequired => 'Before your next enrollment, ask the Registrar Office to plan your subjects with you.',
@@ -368,15 +371,34 @@ class StudentHubPriorityResolver
     }
 
     /**
-     * The subjects to take again that are already in the student's current, not-closed enrollment.
+     * The student's open or official enrollment in a term that is still running, not the past
+     * term where a subject was failed (#117).
+     */
+    private function runningTermEnrollment(?Enrollment $enrollment): ?Enrollment
+    {
+        if (! $enrollment instanceof Enrollment
+            || ! in_array($enrollment->canonical_outcome, [Enrollment::OutcomeInProgress, Enrollment::OutcomeOfficiallyEnrolled], true)) {
+            return null;
+        }
+
+        $term = $enrollment->term;
+
+        return $term instanceof Term
+            && $term->state !== Term::StateClosed
+            && ($term->ends_on === null || $term->ends_on->endOfDay()->isFuture())
+                ? $enrollment
+                : null;
+    }
+
+    /**
+     * The subjects to take again that are already in the student's running-term enrollment.
      *
      * @param  list<array{code: string, subjects: list<string>}>  $reasons
      * @return list<string>
      */
     private function retakesInCurrentEnrollment(array $reasons, ?Enrollment $enrollment): array
     {
-        if (! $enrollment instanceof Enrollment
-            || ! in_array($enrollment->canonical_outcome, [Enrollment::OutcomeInProgress, Enrollment::OutcomeOfficiallyEnrolled], true)) {
+        if (! $enrollment instanceof Enrollment) {
             return [];
         }
 

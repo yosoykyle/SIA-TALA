@@ -78,7 +78,7 @@ class IrregularStudentHubTest extends TestCase
             ->assertSee('data-checklist-state="locked"', false);
     }
 
-    public function test_confirmed_irregular_student_already_retaking_the_subject_is_not_told_to_apply_again(): void
+    public function test_confirmed_irregular_student_enrolled_this_term_is_not_told_to_apply_again(): void
     {
         $student = $this->failedStudentWithDependent();
         $this->confirmAsRegistrar($student);
@@ -111,8 +111,8 @@ class IrregularStudentHubTest extends TestCase
         Filament::setCurrentPanel(Filament::getPanel('student'));
         Livewire::actingAs($student->user)
             ->test(StudentDashboard::class)
-            ->assertSee('Status: Irregular – Failed subject')
-            ->assertSee('You are retaking IT-101A this term.')
+            ->assertSee('Status: Irregular')
+            ->assertSee('Your status is reviewed again once grades are released.')
             ->assertDontSee('You need to apply for irregular enrollment for the next term.');
     }
 
