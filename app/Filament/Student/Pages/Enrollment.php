@@ -9,6 +9,7 @@ use App\Actions\Enrollment\ConfirmRegistrationProposal;
 use App\Actions\Enrollment\RegistrationEntryContext;
 use App\Actions\Enrollment\RegistrationNotificationLedger;
 use App\Actions\Enrollment\RegistrationReadinessQuery;
+use App\Actions\Enrollment\RetryStandardRegistrationPreparation;
 use App\Actions\Enrollment\StartRegistrationCase;
 use App\Actions\Finance\EnrollmentPaymentRequirementProjection;
 use App\Actions\Finance\SchoolPaymentChannels;
@@ -185,6 +186,18 @@ class Enrollment extends Page
             });
     }
 
+    /**
+     * #117: a regular case TALA has not finished preparing, and whether it waits on the Fee Plan.
+     *
+     * @return array{fee_plan: bool}|null
+     */
+    private function regularWaiting(EnrollmentRecord $case): ?array
+    {
+        $retry = app(RetryStandardRegistrationPreparation::class);
+
+        return $retry->isWaiting($case) ? ['fee_plan' => $retry->waitingForFeePlan($case)] : null;
+    }
+
     private function preparedForConfirmation(): bool
     {
         $case = $this->currentEnrollment();
@@ -321,6 +334,7 @@ class Enrollment extends Page
                 ? app(AcademicEnrollmentGuidance::class)->forStudent($context['student_profile'], $context['guidance_term']) : null,
             'readiness' => ! $official && $case !== null ? app(RegistrationReadinessQuery::class)->for($case) : null,
             'preparedForConfirmation' => ! $official && $this->preparedForConfirmation(),
+            'regularWaiting' => ! $official && $case !== null ? $this->regularWaiting($case) : null,
             'paymentRequirement' => $requirement, 'accountPosition' => $position, 'assessment' => $assessment,
             'schedulePresentation' => ! $official ? $this->schedulePresentation($proposal, $case) : null,
             'paymentChannels' => ! $official ? $paymentChannelsClient->enabledChannels() : [],

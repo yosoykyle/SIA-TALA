@@ -92,7 +92,7 @@ class StudentStudyContextTest extends TestCase
 
         $this->assertSame($enrollment->id, $context['enrollment_id']);
         $this->assertSame(['1', '2'], $context['curriculum_levels']);
-        $this->assertSame('Mixed levels (Year 1, Year 2)', $context['study_level_label']);
+        $this->assertSame('Second Year (mixed levels)', $context['study_level_label']);
     }
 
     public function test_named_subject_level_keeps_its_recorded_case(): void

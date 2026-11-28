@@ -122,7 +122,7 @@ class StudentHubPriorityResolver
             return $missingRequirementsTier;
         }
 
-        $academicDeficiencyTier = $this->academicDeficiencyTier($studentProfile);
+        $academicDeficiencyTier = $this->academicDeficiencyTier($studentProfile, $currentEnrollment);
 
         if ($academicDeficiencyTier !== null) {
             return $academicDeficiencyTier;
@@ -334,7 +334,7 @@ class StudentHubPriorityResolver
      *
      * @return array{tier:string, student_reason:string, required_action:?string, office_to_contact:?string}|null
      */
-    private function academicDeficiencyTier(StudentProfile $studentProfile): ?array
+    private function academicDeficiencyTier(StudentProfile $studentProfile, ?Enrollment $currentEnrollment = null): ?array
     {
         $effect = $this->academicEnrollmentEffect->forStudent($studentProfile);
         $irregular = $this->irregularReasons->forStudent($studentProfile);
@@ -344,6 +344,7 @@ class StudentHubPriorityResolver
         }
 
         $confirmed = $irregular['is_irregular'] && ! $this->irregularReasons->needsReview($studentProfile);
+        $retakingThisTerm = $irregular['is_irregular'] ? $this->retakesInCurrentEnrollment($irregular['reasons'], $currentEnrollment) : [];
 
         return [
             'tier' => 'Academic Guidance',
@@ -355,6 +356,8 @@ class StudentHubPriorityResolver
                 ? (string) ($irregular['primary']['details'] ?? $effect['student_reason'] ?? $effect['reason'])
                 : ($effect['student_reason'] ?? $effect['reason']),
             'required_action' => match (true) {
+                // #117: a student already retaking the subject this term is not told to apply again.
+                $retakingThisTerm !== [] => 'You are retaking '.implode(', ', $retakingThisTerm).' this term. Your status is reviewed again once grades are released.',
                 $irregular['is_irregular'] && $confirmed => 'You need to apply for irregular enrollment for the next term. Use Enroll as irregular when enrollment opens.',
                 $irregular['is_irregular'] => 'You are flagged for irregular review. The Registrar will confirm your status before your next enrollment.',
                 $effect['effect'] === AcademicDecision::EffectAdvisingRequired => 'Before your next enrollment, ask the Registrar Office to plan your subjects with you.',
@@ -362,6 +365,41 @@ class StudentHubPriorityResolver
             },
             'office_to_contact' => 'Registrar Office',
         ];
+    }
+
+    /**
+     * The subjects to take again that are already in the student's current, not-closed enrollment.
+     *
+     * @param  list<array{code: string, subjects: list<string>}>  $reasons
+     * @return list<string>
+     */
+    private function retakesInCurrentEnrollment(array $reasons, ?Enrollment $enrollment): array
+    {
+        if (! $enrollment instanceof Enrollment
+            || ! in_array($enrollment->canonical_outcome, [Enrollment::OutcomeInProgress, Enrollment::OutcomeOfficiallyEnrolled], true)) {
+            return [];
+        }
+
+        $retakes = collect($reasons)
+            ->whereIn('code', [
+                IrregularStudentReasons::ReasonFailed,
+                IrregularStudentReasons::ReasonIncomplete,
+                IrregularStudentReasons::ReasonDroppedSubject,
+                IrregularStudentReasons::ReasonDroppedTerm,
+            ])
+            ->flatMap(fn (array $reason): array => $reason['subjects'])
+            ->unique();
+
+        if ($retakes->isEmpty()) {
+            return [];
+        }
+
+        $offerings = $enrollment->canonical_outcome === Enrollment::OutcomeOfficiallyEnrolled
+            ? $enrollment->courseEnrollments()->where('is_current', true)->with('termOffering.curriculumEntry.courseSpecification.course')->get()->pluck('termOffering')
+            : ($enrollment->currentProposalVersion?->items()->with('termOffering.curriculumEntry.courseSpecification.course')->get()->pluck('termOffering') ?? collect());
+        $enrolledCodes = $offerings->map(fn ($offering): ?string => $offering?->curriculumEntry?->courseSpecification?->course?->code)->filter();
+
+        return $retakes->intersect($enrolledCodes)->values()->all();
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Programs\Pages;
 
+use App\Actions\Academics\YearLevelStanding;
 use App\Actions\AcademicSetup\CurriculumVersionLifecycleService;
 use App\Filament\Concerns\HasAcademicOversightReturn;
 use App\Filament\Pages\CatalogCurriculaWorkbench;
@@ -893,16 +894,9 @@ class ViewProgram extends ViewRecord
         }
 
         foreach ($unassignedEnrollments as $enrollment) {
-            $yearLevel = 0;
-
-            foreach ($enrollment->courseEnrollments as $courseEnrollment) {
-                $parsed = TermCohort::parseYearLevelValue($courseEnrollment->termOffering?->curriculumEntry?->year_level);
-
-                if ($parsed !== null) {
-                    $yearLevel = $parsed;
-                    break;
-                }
-            }
+            // #117: a mixed 1st- and 2nd-year load is grouped under its highest year, not its first subject.
+            $yearLevel = YearLevelStanding::highest($enrollment->courseEnrollments
+                ->map(fn ($courseEnrollment): mixed => $courseEnrollment->termOffering?->curriculumEntry?->year_level)) ?? 0;
 
             $grouped[$yearLevel] ??= ['cohorts' => [], 'unassigned_enrollments' => []];
             $grouped[$yearLevel]['unassigned_enrollments'][] = $enrollment;

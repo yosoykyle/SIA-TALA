@@ -10,6 +10,7 @@ use App\Actions\Academics\CurriculumEvaluation;
 use App\Actions\Academics\ExaminationPeriodProjection;
 use App\Actions\Academics\OfficialCourseResultProjection;
 use App\Actions\Academics\TermWeightedAverageProjection;
+use App\Actions\Academics\YearLevelStanding;
 use App\Actions\Completion\CompletionReadinessProjection;
 use App\Actions\Enrollment\CurrentOfficialEnrollmentResolver;
 use App\Actions\StudentHub\StudentStudyContext;
@@ -128,6 +129,16 @@ class Academics extends Page
             });
     }
 
+    /**
+     * The highest year level among a term's subjects, or the recorded text when it is not a year (#117).
+     *
+     * @param  Collection<int, string>  $yearLevels
+     */
+    protected function termYearLevelLabel(Collection $yearLevels): ?string
+    {
+        return YearLevelStanding::describe($yearLevels) ?? $this->yearLevelLabel($yearLevels->first());
+    }
+
     protected function yearLevelLabel(?string $yearLevel): ?string
     {
         if ($yearLevel === null || $yearLevel === '') {
@@ -177,7 +188,8 @@ class Academics extends Page
             $term->id => $termAverageProjection->forResults($results, $term),
         ]);
         $termYearLevels = $terms->mapWithKeys(fn ($term): array => [
-            $term->id => $this->yearLevelLabel($results->where('term.id', $term->id)
+            // #117: a mixed term shows its highest year level, not the first subject's.
+            $term->id => $this->termYearLevelLabel($results->where('term.id', $term->id)
                 ->map(function (array $result): ?string {
                     if ($result['course_enrollment'] instanceof CourseEnrollment) {
                         return $result['course_enrollment']->termOffering?->curriculumEntry?->year_level;
@@ -187,8 +199,7 @@ class Academics extends Page
 
                     return $yearLevel !== null ? (string) $yearLevel : null;
                 })
-                ->filter()
-                ->first()),
+                ->filter()),
         ]);
         $recordPeriods = $results
             ->groupBy(fn (array $result): string => (string) ($result['period_key'] ?? ('term:'.(int) ($result['term']?->id ?? 0))))
@@ -204,9 +215,8 @@ class Academics extends Page
 
                         return $level !== null && $level !== '' ? (string) $level : null;
                     })
-                    ->filter()
-                    ->first();
-                $yearLevelLabel = $this->yearLevelLabel($yearLevelValue);
+                    ->filter();
+                $yearLevelLabel = $this->termYearLevelLabel($yearLevelValue);
                 $ayLabel = trim((string) ($first['academic_year_label'] ?? $first['term']?->academicYear?->label ?? ''));
                 $ayLabel = $ayLabel !== '' ? $ayLabel : null;
                 $subtitle = collect([$yearLevelLabel, $ayLabel])->filter()->implode(' · ');

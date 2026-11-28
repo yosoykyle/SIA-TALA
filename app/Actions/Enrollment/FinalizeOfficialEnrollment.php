@@ -13,6 +13,7 @@ use App\Models\RegistrationIdentityConfirmationVersion;
 use App\Models\RegistrationProposalVersion;
 use App\Models\StudentProfile;
 use App\Models\TermAccount;
+use App\Models\TermOffering;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -241,9 +242,8 @@ class FinalizeOfficialEnrollment
                 'program_code' => $studentProfile->program?->code,
                 'program_name' => $studentProfile->program?->name,
                 'curriculum_version_id' => $studentProfile->curriculum_version_id,
-                'represented_curriculum_levels' => array_filter([
-                    data_get($proposal->source_snapshot, 'unit_load.year_level'),
-                ]),
+                // #117: every curriculum year the subjects come from, so the COR can show the highest one.
+                'represented_curriculum_levels' => $this->representedCurriculumLevels($proposal),
                 'term_id' => $locked->term_id,
                 'term_label' => $locked->term?->label,
                 'proposal_version_id' => $proposal->id,
@@ -372,5 +372,27 @@ class FinalizeOfficialEnrollment
         $enrollment->credentialUser->assignRole('student');
 
         return $profile;
+    }
+
+    /**
+     * The distinct curriculum year levels of the confirmed subjects, falling back to the unit-load position.
+     *
+     * @return list<string>
+     */
+    private function representedCurriculumLevels(RegistrationProposalVersion $proposal): array
+    {
+        $levels = TermOffering::query()
+            ->with('curriculumEntry')
+            ->whereIn('id', $proposal->items->pluck('term_offering_id'))
+            ->get()
+            ->map(fn (TermOffering $offering): ?string => $offering->curriculumEntry?->year_level)
+            ->filter(fn (?string $level): bool => filled($level))
+            ->unique()
+            ->values()
+            ->all();
+
+        return $levels !== [] ? $levels : array_values(array_filter([
+            data_get($proposal->source_snapshot, 'unit_load.year_level'),
+        ]));
     }
 }

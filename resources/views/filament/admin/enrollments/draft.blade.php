@@ -7,35 +7,44 @@
         <p>{{ $proposal->curriculumVersion?->program?->name }}</p>
         <p>{{ $case->term?->label }}</p>
     </div>
-    <section class="registrar-case-preparation tala-task-surface" aria-labelledby="draft-heading">
-        <div>
-            <h2 id="draft-heading">Review subjects</h2>
-            <p>{{ ! $placementCurrent ? 'Reserve seats before sending these subjects to the student.' : ($requirement['state'] === 'Unavailable' ? 'Seats are reserved. Accounting must record the assessment before the student can confirm.' : 'Seats and assessment are ready. Send these subjects to the student for confirmation.') }}</p>
-        </div>
-        <div class="registrar-case-task-actions">
-            @if (! $placementCurrent)
-                {{ $this->getAction('placeProposal', isMounting: false) }}
-            @elseif ($requirement['state'] !== 'Unavailable')
-                {{ $this->getAction('issueProposal', isMounting: false) }}
-            @endif
-            {{ $this->getAction('prepareProposal', isMounting: false) }}
-        </div>
-        @if ($placementCurrent && $requirement['state'] !== 'Unavailable' && str_starts_with((string) $case->status_reason, \App\Actions\Finance\CreateAssessmentFromPublishedFeePlan::NotSentReasonPrefix))
-            <div class="registrar-auto-preparation-reason tala-warning-banner registrar-draft-not-sent">
-                <h3>Not sent automatically</h3>
-                <p>{{ \Illuminate\Support\Str::after((string) $case->status_reason, \App\Actions\Finance\CreateAssessmentFromPublishedFeePlan::NotSentReasonPrefix) }}</p>
+    @php
+        $regularBlocker = $this->regularPreparationBlocker();
+        $waitingForFeePlan = $regularBlocker !== null && app(\App\Actions\Enrollment\RetryStandardRegistrationPreparation::class)->waitingForFeePlan($case);
+    @endphp
+    {{-- #117: a regular case that stopped before sending is finished by TALA, not sent by hand. --}}
+    @if ($regularBlocker !== null)
+        @include('filament.admin.enrollments.auto-preparation')
+    @else
+        <section class="registrar-case-preparation tala-task-surface" aria-labelledby="draft-heading">
+            <div>
+                <h2 id="draft-heading">Review subjects</h2>
+                <p>{{ ! $placementCurrent ? 'Reserve seats before sending these subjects to the student.' : ($requirement['state'] === 'Unavailable' ? 'Seats are reserved. Accounting must record the assessment before the student can confirm.' : 'Seats and assessment are ready. Send these subjects to the student for confirmation.') }}</p>
             </div>
+            <div class="registrar-case-task-actions">
+                @if (! $placementCurrent)
+                    {{ $this->getAction('placeProposal', isMounting: false) }}
+                @elseif ($requirement['state'] !== 'Unavailable')
+                    {{ $this->getAction('issueProposal', isMounting: false) }}
+                @endif
+                {{ $this->getAction('prepareProposal', isMounting: false) }}
+            </div>
+            @if ($placementCurrent && $requirement['state'] !== 'Unavailable' && str_starts_with((string) $case->status_reason, \App\Actions\Finance\CreateAssessmentFromPublishedFeePlan::NotSentReasonPrefix))
+                <div class="registrar-auto-preparation-reason tala-warning-banner registrar-draft-not-sent">
+                    <h3>Not sent automatically</h3>
+                    <p>{{ \Illuminate\Support\Str::after((string) $case->status_reason, \App\Actions\Finance\CreateAssessmentFromPublishedFeePlan::NotSentReasonPrefix) }}</p>
+                </div>
+            @endif
+        </section>
+        @if ($placementCurrent && $requirement['state'] === 'Unavailable')
+            <x-workflow-handoff
+                current-owner="Accounting"
+                current-area="Record assessment"
+                current-task="Accounting records the approved charges and payment schedule for this selection."
+                next-owner="Student"
+                :next-area="$case->selection_basis === \App\Models\Enrollment::SelectionStandardCurriculum ? 'Pay fees' : 'Confirm subjects'"
+                :next-task="$case->selection_basis === \App\Models\Enrollment::SelectionStandardCurriculum ? 'Pay fees (subjects are sent and confirmed automatically after assessment).' : 'Confirm subjects (auto-sent after assessment).'"
+            />
         @endif
-    </section>
-    @if ($placementCurrent && $requirement['state'] === 'Unavailable')
-        <x-workflow-handoff
-            current-owner="Accounting"
-            current-area="Record assessment"
-            current-task="Accounting records the approved charges and payment schedule for this selection."
-            next-owner="Student"
-            :next-area="$case->selection_basis === \App\Models\Enrollment::SelectionStandardCurriculum ? 'Pay fees' : 'Confirm subjects'"
-            :next-task="$case->selection_basis === \App\Models\Enrollment::SelectionStandardCurriculum ? 'Pay fees (subjects are sent and confirmed automatically after assessment).' : 'Confirm subjects (auto-sent after assessment).'"
-        />
     @endif
     <div class="registrar-case-grid">
         <section aria-labelledby="draft-subjects-heading">
@@ -46,7 +55,10 @@
         </section>
         <section class="registrar-case-payment tala-task-surface" aria-labelledby="draft-accounting-heading">
             <h2 id="draft-accounting-heading">{{ $assessment === null ? 'Accounting status' : 'Enrollment payment' }}</h2>
-            @if ($requirement['state'] === 'Unavailable')
+            @if ($waitingForFeePlan)
+                <h3 class="registrar-case-status">Fee Plan not published</h3>
+                <p>Accounting publishes the Fee Plan for this program and term. TALA then assesses these subjects automatically.</p>
+            @elseif ($requirement['state'] === 'Unavailable')
                 <h3 class="registrar-case-status">Assessment needed</h3>
                 <p>Accounting records the charges for this selection.</p>
             @else

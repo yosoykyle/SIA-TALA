@@ -2,6 +2,7 @@
 
 namespace App\Actions\Finance;
 
+use App\Actions\Enrollment\RetryStandardRegistrationPreparation;
 use App\Models\FeePlan;
 use App\Models\User;
 use App\Support\DecimalMoney;
@@ -12,7 +13,10 @@ use Illuminate\Validation\ValidationException;
 
 class PublishFeePlan
 {
-    public function __construct(private readonly DecimalMoney $money) {}
+    public function __construct(
+        private readonly DecimalMoney $money,
+        private readonly RetryStandardRegistrationPreparation $retryWaitingRegularCases,
+    ) {}
 
     public function execute(FeePlan $feePlan, User $actor, ?string $authorityReference = null, ?CarbonImmutable $authorityDate = null, ?string $noPaymentRequiredAuthorityReference = null, ?string $expectedContentFingerprint = null): FeePlan
     {
@@ -73,7 +77,11 @@ class PublishFeePlan
                 'published_at' => now(),
             ]);
 
-            return $locked->refresh()->load(['charges', 'obligations']);
+            $published = $locked->refresh()->load(['charges', 'obligations']);
+            // #117: regular cases that stopped for want of this Fee Plan finish once it is published.
+            $this->retryWaitingRegularCases->afterFeePlanCommit($published);
+
+            return $published;
         }, attempts: 3);
     }
 

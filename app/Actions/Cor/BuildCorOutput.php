@@ -2,6 +2,7 @@
 
 namespace App\Actions\Cor;
 
+use App\Actions\Academics\YearLevelStanding;
 use App\Actions\Enrollment\CurrentOfficialEnrollmentResolver;
 use App\Actions\StudentLifecycle\HoldEvaluationService;
 use App\Models\CorVersion;
@@ -223,7 +224,9 @@ class BuildCorOutput
             ?? $enrollment->studentProfile?->curriculumVersion?->name
             ?? null;
         $financeSatisfaction = data_get($snapshot, 'finance_satisfaction.state', 'Satisfied at finalization');
-        $curriculumLevels = collect($snapshot['represented_curriculum_levels'] ?? [])->filter()->implode(', ');
+        // #117: show the highest year level of the term's subjects, noting a mixed load.
+        $curriculumLevels = YearLevelStanding::describe($snapshot['represented_curriculum_levels'] ?? [])
+            ?? collect($snapshot['represented_curriculum_levels'] ?? [])->filter()->implode(', ');
         $fees = collect($snapshot['fees'] ?? [])
             ->reject(fn (array $fee): bool => in_array(strtolower((string) ($fee['label'] ?? '')), [
                 'balance', 'down payment', 'posted payments', 'payment history',

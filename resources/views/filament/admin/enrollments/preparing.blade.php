@@ -42,25 +42,7 @@
     @endif
     @php $regularBlocker = $this->regularPreparationBlocker(); @endphp
     @if ($regularBlocker !== null)
-        <section class="registrar-requirements registrar-evaluation-task registrar-auto-preparation tala-task-surface" aria-labelledby="auto-preparation-heading">
-            <div class="registrar-requirements-heading">
-                <x-filament::icon :icon="$regularBlocker['resolved'] ? 'heroicon-o-arrow-path' : 'heroicon-o-exclamation-triangle'" aria-hidden="true" />
-                <div>
-                    <h2 id="auto-preparation-heading">{{ $regularBlocker['resolved'] ? 'Ready to prepare automatically' : 'Subjects were not prepared automatically' }}</h2>
-                    <p>{{ $regularBlocker['resolved']
-                        ? 'The earlier blocker looks cleared. Retry to reserve the block classes, create the assessment and send the subjects for confirmation.'
-                        : 'This enrollment follows the standard curriculum, so TALA reserves the block classes, creates the assessment and sends the subjects automatically. Fix what stopped it, then retry.' }}</p>
-                </div>
-            </div>
-            <div @class(['registrar-auto-preparation-reason', 'tala-warning-banner' => ! $regularBlocker['resolved']])>
-                <h3>{{ $regularBlocker['resolved'] ? 'Earlier blocker' : 'What stopped it' }}</h3>
-                <p>{{ $regularBlocker['reason'] }}</p>
-            </div>
-            <div class="registrar-case-task-actions">
-                {{ $this->getAction('retryAutomaticPreparation', isMounting: false) }}
-            </div>
-            <p class="registrar-case-meta">TALA also retries on its own when this term’s classes are published.</p>
-        </section>
+        @include('filament.admin.enrollments.auto-preparation')
     @elseif (($suggestion = $this->advisedSuggestion()) !== null)
         @php
             $formatUnits = fn (?float $units): string => $units === null ? '' : rtrim(rtrim(number_format($units, 2, '.', ''), '0'), '.');
