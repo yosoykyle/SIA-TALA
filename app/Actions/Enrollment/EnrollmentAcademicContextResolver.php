@@ -2,6 +2,7 @@
 
 namespace App\Actions\Enrollment;
 
+use App\Actions\Academics\YearLevelStanding;
 use App\Models\CourseEnrollment;
 use App\Models\Enrollment;
 use App\Models\RegistrationProposalItem;
@@ -210,8 +211,9 @@ class EnrollmentAcademicContextResolver
             return 'Not recorded';
         }
 
+        // #117: a mixed load shows its highest year level, the same as every other screen.
         if ($levels->count() > 1) {
-            return 'Mixed Levels ('.$levels->implode(', ').')';
+            return YearLevelStanding::describe($levels) ?? 'Mixed Levels ('.$levels->implode(', ').')';
         }
 
         $level = (string) $levels->first();

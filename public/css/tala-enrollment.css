@@ -2891,7 +2891,7 @@ button.tala-cashier-calendar__day:focus-visible{outline:3px solid var(--tala-foc
 
 .student-enrollment-stepper{
     display:grid;
-    grid-template-columns:repeat(4,minmax(0,1fr));
+    grid-template-columns:repeat(var(--enrollment-step-count,4),minmax(0,1fr));
     gap:.25rem;
     padding:.25rem;
     margin:0;

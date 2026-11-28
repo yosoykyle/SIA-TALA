@@ -25,13 +25,21 @@
             && ! (! $confirmed && ($irregularReview['is_irregular'] ?? false) && ! $proposal);
         // #110: regular (Standard Curriculum) subjects are confirmed automatically, so there is no confirm step.
         $subjectsAutoConfirmed = $enrollment?->selection_basis === \App\Models\Enrollment::SelectionStandardCurriculum;
+        // #117: reserved subjects waiting for their assessment sit on "Fee assessment", not "Prepare subjects".
         $enrollmentSteps = $subjectsAutoConfirmed
-            ? ['Prepare subjects', 'Pay fees', 'Officially enrolled']
-            : ['Prepare subjects', 'Confirm subjects', 'Pay fees', 'Officially enrolled'];
+            ? ['Prepare subjects', 'Fee assessment', 'Pay fees', 'Officially enrolled']
+            : ['Prepare subjects', 'Fee assessment', 'Confirm subjects', 'Pay fees', 'Officially enrolled'];
+        $proposalAssessed = $proposal !== null && $assessment !== null
+            && (int) $assessment->source_proposal_version_id === (int) $proposal->id;
+        $awaitingAssessment = $proposal !== null && ! $confirmed && ! $proposalAssessed
+            && $proposal->items->isNotEmpty()
+            && $proposal->items->every(fn ($item) => $item->reservation?->status === \App\Models\EnrollmentSeatReservation::StatusActive
+                && ($item->reservation->deadline === null || $item->reservation->deadline->isFuture()));
         $enrollmentStepIndex = match (true) {
             $official => count($enrollmentSteps) - 1,
             $confirmed => count($enrollmentSteps) - 2,
-            $canConfirm => 1,
+            $canConfirm || (! $subjectsAutoConfirmed && $proposalAssessed) => 2,
+            $awaitingAssessment => 1,
             default => 0,
         };
     @endphp
@@ -62,7 +70,7 @@
             <x-filament::loading-indicator class="h-4 w-4" /> Updating enrollment details…
         </div>
         @if ($showProgressStepper)
-            <ol class="student-enrollment-stepper" aria-label="Enrollment progress">
+            <ol class="student-enrollment-stepper" aria-label="Enrollment progress" style="--enrollment-step-count: {{ count($enrollmentSteps) }}">
                 @foreach ($enrollmentSteps as $index => $stepLabel)
                     @php
                         $isComplete = $official || $index < $enrollmentStepIndex;
@@ -85,7 +93,9 @@
                 @endforeach
             </ol>
         @endif
-        @if ($isStudent && $enrollment !== null && ($academicGuidance['needs_attention'] ?? false))
+        {{-- #117: once the Registrar has prepared the subjects, "Advising required" has been acted on. --}}
+        @if ($isStudent && $enrollment !== null && ($academicGuidance['needs_attention'] ?? false)
+            && ! ($proposal !== null && ($academicGuidance['effect'] ?? null) === \App\Models\AcademicDecision::EffectAdvisingRequired))
             @include('filament.student.pages.academic-guidance', [
                 'effect' => $academicGuidance,
                 'enrollmentUrl' => \App\Filament\Student\Pages\Academics::getUrl(array_filter(['view' => 'plan', 'enrollmentTerm' => $enrollment->term_id]), panel: 'student'),
@@ -153,7 +163,11 @@
                                 @endif
                             @elseif (! $confirmed)
                                 <h2 id="enrollment-task-heading">Your classes are being prepared</h2>
-                                <p>The Registrar is preparing your subjects and schedule. You can confirm when your classes and fees are ready.</p>
+                                @if (($regularWaiting ?? null) !== null)
+                                    <p>TALA is preparing your subjects and schedule from your curriculum. The Registrar can see what is holding it up.</p>
+                                @else
+                                    <p>The Registrar is preparing your subjects and schedule. You can confirm when your classes and fees are ready.</p>
+                                @endif
                                 <p>No action is needed from you yet.</p>
                             @elseif ($latestEvidence?->state === \App\Models\PaymentEvidenceVersion::StateSubmitted)
                                 <h2 id="enrollment-task-heading">Submitted receipt awaiting review</h2>

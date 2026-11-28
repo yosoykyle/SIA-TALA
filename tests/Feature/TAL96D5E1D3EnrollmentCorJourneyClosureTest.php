@@ -64,7 +64,7 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
         $this->assertSame($fixture['program']->code, $context['program_code']);
         $this->assertSame($fixture['profile']->curriculumVersion->name, $context['curriculum_name']);
         $this->assertSame(['1', '2'], $context['curriculum_levels']);
-        $this->assertSame('Mixed Levels (1, 2)', $context['curriculum_level_label']);
+        $this->assertSame('Second Year (mixed levels)', $context['curriculum_level_label']);
         $this->assertSame(['D3-1', 'D3-2'], $context['section_labels']);
         $this->assertSame(['D3 Cohort 1', 'D3 Cohort 2'], $context['cohort_labels']);
         $this->assertSame('Mixed', $context['course_delivery_mix']);
@@ -128,7 +128,7 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
         $this->assertGreaterThan($fixture['enrollment']->id, $historicalEnrollment->id);
         $this->assertSame($fixture['enrollment']->id, $dashboard['enrollment']['current']['enrollment_id']);
         $this->assertSame($fixture['term']->label, $dashboard['enrollment']['current']['term_name']);
-        $this->assertSame('Mixed Levels (1, 3)', $dashboard['enrollment']['current']['curriculum_level']);
+        $this->assertSame('Third Year (mixed levels)', $dashboard['enrollment']['current']['curriculum_level']);
         $this->assertSame('Mixed', $dashboard['enrollment']['current']['course_delivery_mix']);
         $this->assertSame(['D3-1', 'D3-2'], $dashboard['enrollment']['current']['sections']);
         $this->assertArrayNotHasKey('year_level', $dashboard['enrollment']['current']);
@@ -136,7 +136,7 @@ final class TAL96D5E1D3EnrollmentCorJourneyClosureTest extends TestCase
         $this->assertArrayNotHasKey('lis_status', $dashboard['enrollment']['current']);
 
         $this->assertTrue($cor['available']);
-        $this->assertSame('1, 3', $cor['state']['curriculum_level']);
+        $this->assertSame('Third Year (mixed levels)', $cor['state']['curriculum_level']);
         $this->assertSame(
             'Published timetable version #'.$fixture['timetable']->id,
             $cor['state']['course_delivery_mix'],

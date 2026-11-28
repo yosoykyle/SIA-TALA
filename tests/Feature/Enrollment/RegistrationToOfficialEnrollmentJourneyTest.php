@@ -222,7 +222,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         if ($path === AdmissionApplication::PathTransferee) {
             $advised = app(PrepareRegistrationProposal::class)->execute($case, $registrar, [$section->id], $case->fresh()->lock_version);
             app(PlaceRegistrationProposal::class)->execute($advised, $registrar);
-            app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
+            $this->assessUnlessAlreadyAssessed($case, $accounting);
             app(IssueRegistrationProposal::class)->execute($advised->fresh(), $registrar);
             $case->refresh();
         }
@@ -256,7 +256,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->assertSame(0, GradeRoster::query()->where('section_id', $section->id)->count());
         $this->assertSame(0, GradeRosterRow::query()->count());
 
-        $assessment = app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
+        $assessment = $this->assessUnlessAlreadyAssessed($case, $accounting);
         $this->enableDigitalChannels($accounting);
         $evidence = app(SubmitPaymentEvidence::class)->execute(
             $assessment->termAccount,
@@ -525,7 +525,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $accounting = $this->staff(User::StaffRoleAccounting);
         $plan = $this->createFeePlanDraft($application->program, $term, [['code' => 'ENROLLMENT', 'label' => 'Enrollment fee', 'amount' => '1000.00']], $accounting);
         $this->publishFeePlan($plan, $accounting, 'SYN-HEAD-INSPECT-PLAN');
-        app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
+        $this->assessUnlessAlreadyAssessed($case, $accounting);
         app(IssueRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
         $item = $proposal->fresh()->items()->sole();
         $deadline = $item->reservation->deadline->timezone('Asia/Manila')->format('j M Y, g:i A');
@@ -756,7 +756,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             $accounting,
         );
         $this->publishFeePlan($plan, $accounting, 'Synthetic no-payment authority');
-        app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
+        $this->assessUnlessAlreadyAssessed($case, $accounting);
         app(IssueRegistrationProposal::class)->execute($proposal, $registrar);
         app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);
         $official = app(FinalizeOfficialEnrollment::class)->execute($case->fresh(), $registrar);
@@ -770,7 +770,8 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
 
     public function test_unavailable_assessment_never_falls_back_to_zero_and_fee_plan_publication_is_versioned(): void
     {
-        [$application, $term] = $this->readyApplicant();
+        // An advised case, so publishing the Fee Plan leaves the assessment to Accounting (#117 finishes regular cases itself).
+        [$application, $term] = $this->readyApplicant(AdmissionApplication::PathTransferee);
         [$section] = $this->publishedOffering($application, $term);
         $accounting = $this->staff(User::StaffRoleAccounting);
         $registrar = $this->staff(User::StaffRoleRegistrar);
@@ -780,7 +781,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
 
         try {
-            app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
+            $this->assessUnlessAlreadyAssessed($case, $accounting);
             $this->fail('Missing fee authority must remain Unavailable.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('assessment', $exception->errors());
@@ -810,7 +811,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             $accounting,
         );
         $successor = $this->publishFeePlan($successor->fresh(), $accounting, 'Synthetic successor authority');
-        $assessment = app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
+        $assessment = $this->assessUnlessAlreadyAssessed($case, $accounting);
 
         $this->assertSame(FeePlan::StateSuperseded, $published->fresh()->state);
         $this->assertSame(FeePlan::StatePublished, $successor->state);
@@ -1904,7 +1905,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             $accounting,
         );
         $this->publishFeePlan($plan, $accounting, 'Synthetic continuing Student fee authority');
-        app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
+        $this->assessUnlessAlreadyAssessed($case, $accounting);
         $confirmation = $proposal->confirmation()->sole();
         $this->assertSame(RegistrationProposalConfirmation::MethodRegistrarAssisted, $confirmation->method);
         $this->assertSame($registrar->id, $confirmation->assisted_by);
@@ -2023,7 +2024,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->publishFeePlan($plan, $accounting, 'Synthetic ordinary authority');
 
         try {
-            app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
+            $this->assessUnlessAlreadyAssessed($case, $accounting);
             $this->fail('An unplaced proposal must not produce an assessment.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('placement', $exception->errors());
@@ -2135,7 +2136,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $accounting = $this->staff(User::StaffRoleAccounting);
         $paidPlan = $this->createFeePlanDraft($application->program, $term, [['code' => 'ENROLLMENT', 'label' => 'Enrollment fee', 'amount' => '1000.00']], $accounting);
         $this->publishFeePlan($paidPlan, $accounting, 'SYN-ASSISTED-CONFIRM-PLAN');
-        app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
+        $this->assessUnlessAlreadyAssessed($case, $accounting);
         app(IssueRegistrationProposal::class)->execute($second->fresh(), $registrar);
 
         $component->setActionData(['evidence_reference' => 'SYN-REVIEWED-FIRST-VERSION'])
@@ -2193,7 +2194,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $successorPlan = app(CreateSuccessorFeePlan::class)->execute($publishedPlan, $accounting);
         $this->updateFeePlanDraft($successorPlan, [['code' => 'ENROLLMENT', 'label' => 'Enrollment fee', 'amount' => '1500.00']], $accounting);
         $this->publishFeePlan($successorPlan->fresh(), $accounting, 'SYN-STALE-DIALOG-SUCCESSOR-PLAN');
-        $successorAssessment = app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
+        $successorAssessment = $this->assessUnlessAlreadyAssessed($case, $accounting);
         app(RevalidateAssessmentEffects::class)->execute(
             $successorAssessment,
             $accounting,
@@ -3045,6 +3046,69 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         $this->assertNull($retry->blocker($advised->fresh()));
     }
 
+    public function test_regular_case_stopped_for_a_missing_fee_plan_finishes_when_the_fee_plan_is_published(): void
+    {
+        [$application, $term] = $this->readyApplicant();
+        $this->publishedOffering($application, $term);
+        $registrar = $this->staff(User::StaffRoleRegistrar);
+        $accounting = $this->staff(User::StaffRoleAccounting);
+        $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $application->user);
+        $advised = Enrollment::factory()->for($term)->create([
+            'canonical_outcome' => Enrollment::OutcomeInProgress,
+            'selection_basis' => Enrollment::SelectionIndividuallyAdvised,
+        ]);
+        $retry = app(RetryStandardRegistrationPreparation::class);
+
+        $this->assertSame(RegistrationProposalVersion::StateDraft, $case->currentProposalVersion->state);
+        $this->assertTrue($retry->waitingForFeePlan($case));
+        $this->assertSame(['reason' => RetryStandardRegistrationPreparation::MissingFeePlanReason, 'resolved' => false], $retry->blocker($case));
+        Filament::setCurrentPanel(Filament::getPanel('admin'));
+        Livewire::actingAs($registrar)->test(RegistrarEnrollment::class, ['record' => $case->id])
+            ->assertSee('Subjects were not sent automatically')
+            ->assertSee(RetryStandardRegistrationPreparation::MissingFeePlanReason)
+            ->assertSee('Fee Plan not published')
+            ->assertActionVisible('retryAutomaticPreparation');
+        Filament::setCurrentPanel(Filament::getPanel('applicant'));
+        $studentPage = Livewire::actingAs($application->user->fresh())->test(ApplicantEnrollment::class)
+            ->assertSee('Your subjects are reserved')
+            ->assertSee('Fees for this term are not set yet.')
+            ->assertDontSee('The Registrar is arranging your classes.');
+        $this->assertMatchesRegularExpression('/aria-current="step"\s*>.*?stepper__label">Fee assessment</s', $studentPage->html());
+
+        $plan = $this->createFeePlanDraft($application->program, $term, [['code' => 'ENROLLMENT', 'label' => 'Enrollment obligation', 'amount' => '1000.00']], $accounting);
+        $published = $this->publishFeePlan($plan, $accounting, 'Synthetic approved fee authority');
+
+        $case->refresh();
+        $this->assertSame(RegistrationProposalVersion::StateConfirmed, $case->currentProposalVersion->state);
+        $this->assertSame($case->current_proposal_version_id, $case->termAccount->assessments()->where('state', Assessment::StateActive)->sole()->source_proposal_version_id);
+        $this->assertSame(RetryStandardRegistrationPreparation::PreparedReason, $case->status_reason);
+        $this->assertNull($retry->blocker($case));
+        $this->assertNull($advised->fresh()->current_proposal_version_id);
+        $this->assertSame(['prepared' => 0, 'waiting' => 0], $retry->retryForFeePlan($published->fresh()));
+    }
+
+    public function test_fee_plan_publication_retries_only_regular_cases_of_its_own_program(): void
+    {
+        [$application, $term] = $this->readyApplicant();
+        $this->publishedOffering($application, $term);
+        $accounting = $this->staff(User::StaffRoleAccounting);
+        $case = app(StartRegistrationCase::class)->forReadyApplicant($application, $term, $application->user);
+        $otherProgram = Enrollment::factory()->for($term)->create([
+            'canonical_outcome' => Enrollment::OutcomeInProgress,
+            'selection_basis' => Enrollment::SelectionStandardCurriculum,
+            'student_profile_id' => StudentProfile::factory()->create(['program_id' => Program::factory()->create()->id])->id,
+        ]);
+        $retry = app(RetryStandardRegistrationPreparation::class);
+        $this->assertTrue($retry->isWaiting($otherProgram->fresh()));
+
+        $plan = $this->createFeePlanDraft($application->program, $term, [['code' => 'ENROLLMENT', 'label' => 'Enrollment obligation', 'amount' => '1000.00']], $accounting);
+        $this->publishFeePlan($plan, $accounting, 'Synthetic approved fee authority');
+
+        $this->assertSame(RegistrationProposalVersion::StateConfirmed, $case->fresh()->currentProposalVersion->state);
+        $this->assertNull($otherProgram->fresh()->current_proposal_version_id);
+        $this->assertSame(Enrollment::OutcomeInProgress, $otherProgram->fresh()->canonical_outcome);
+    }
+
     /** @return array{Enrollment, CourseEnrollment, Section, RegistrationProposalVersion, User} */
     private function noCostReviewFixture(): array
     {
@@ -3682,7 +3746,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
         $plan = $this->createFeePlanDraft($application->program, $term, [['code' => 'ENROLLMENT', 'label' => 'Enrollment fee', 'amount' => '1000.00']], $accounting);
         $this->publishFeePlan($plan, $accounting, 'SYN-PAID-BLOCKED-WAITING');
-        app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
+        $this->assessUnlessAlreadyAssessed($case, $accounting);
         app(IssueRegistrationProposal::class)->execute($proposal, $registrar);
         app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);
 
@@ -3723,7 +3787,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
         $plan = $this->createFeePlanDraft($application->program, $term, [['code' => 'ENROLLMENT', 'label' => 'Enrollment fee', 'amount' => '1000.00']], $accounting);
         $this->publishFeePlan($plan, $accounting, 'SYN-PLACEMENT-RECOVERY-'.$placement);
-        app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
+        $this->assessUnlessAlreadyAssessed($case, $accounting);
         app(IssueRegistrationProposal::class)->execute($proposal, $registrar);
         app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);
 
@@ -3809,7 +3873,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             ['code' => 'ENROLLMENT', 'label' => 'Authorized enrollment requirement', 'amount' => '1000.00'],
         ], $accounting);
         $this->publishFeePlan($plan, $accounting, 'SYN-QUEUE-FEE-AUTHORITY');
-        $assessment = app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
+        $assessment = $this->assessUnlessAlreadyAssessed($case, $accounting);
         app(IssueRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
         app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);
         if ($context === 'expired') {
@@ -3867,7 +3931,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
                 ['code' => 'ENROLLMENT', 'label' => 'Authorized enrollment requirement', 'amount' => '1000.00'],
             ], $accounting);
             $this->publishFeePlan($plan, $accounting, 'SYN-PQ-CARD-'.$index);
-            app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
+            $this->assessUnlessAlreadyAssessed($case, $accounting);
             app(IssueRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
             app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);
 
@@ -4145,12 +4209,13 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             [['code' => 'NO-PAYMENT', 'label' => 'Explicit no-payment authority', 'amount' => '0.00']],
             $accounting,
         );
-        $this->publishFeePlan($plan, $accounting, 'Synthetic no-payment authority');
-        // #110: a no-cost regular case finalizes as soon as it is assessed, so break the email first.
+        // #110/#117: a no-cost regular case finalizes as soon as its Fee Plan is published and it is
+        // assessed, so break the email first.
         if ($invalidRecipientEmail) {
             $application->user->update(['email' => 'invalid-recipient']);
         }
-        app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
+        $this->publishFeePlan($plan, $accounting, 'Synthetic no-payment authority');
+        $this->assessUnlessAlreadyAssessed($case, $accounting);
         app(IssueRegistrationProposal::class)->execute($proposal, $registrar);
         app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);
         $official = $case->fresh()->load(['studentProfile.user', 'courseEnrollments.section', 'currentCorVersion']);
@@ -4218,7 +4283,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
             $accounting,
         );
         $this->publishFeePlan($plan, $accounting, 'Synthetic exact-Term authority');
-        app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
+        $this->assessUnlessAlreadyAssessed($case, $accounting);
         app(IssueRegistrationProposal::class)->execute($proposal, $registrar);
         app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $application->user);
         $reservation = $proposal->items()->firstOrFail()->reservation;
@@ -4251,7 +4316,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         app(PlaceRegistrationProposal::class)->execute($proposal->fresh(), $registrar);
         $plan = $this->createFeePlanDraft($profile->program, $term, [['code' => 'ENROLLMENT', 'label' => 'Enrollment fee', 'amount' => '1000.00']], $accounting);
         $this->publishFeePlan($plan, $accounting, 'SYN-INACTIVE-LEARNER-PLAN');
-        app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
+        $this->assessUnlessAlreadyAssessed($case, $accounting);
         app(IssueRegistrationProposal::class)->execute($proposal, $registrar);
         app(ConfirmRegistrationProposal::class)->execute($proposal->fresh(), $profile->user);
         $reservation = $proposal->items()->sole()->reservation;
@@ -4453,7 +4518,22 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         }
         $plan = $this->createFeePlanDraft($case->admissionApplication?->program ?? $case->studentProfile->program, $case->term, $charges, $accounting);
         $this->publishFeePlan($plan, $accounting, 'SYN-NO-PAYMENT-PLAN');
-        app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
+        $this->assessUnlessAlreadyAssessed($case, $accounting);
+    }
+
+    /**
+     * Publishing a Fee Plan finishes a regular case that stopped for want of it (#117), so the
+     * assessment may already exist; record it by hand only when TALA has not.
+     */
+    private function assessUnlessAlreadyAssessed(Enrollment $case, User $accounting): Assessment
+    {
+        $case = $case->fresh();
+        $existing = $case->termAccount?->assessments()
+            ->where('state', Assessment::StateActive)
+            ->where('source_proposal_version_id', $case->current_proposal_version_id)
+            ->first();
+
+        return $existing ?? app(CreateAssessmentFromPublishedFeePlan::class)->execute($case, $accounting);
     }
 
     private function reserveAndAssessPaidProposal(RegistrationProposalVersion $proposal, User $registrar, string $amount = '1000.00'): void
@@ -4469,7 +4549,7 @@ class RegistrationToOfficialEnrollmentJourneyTest extends TestCase
         }
         $plan = $this->createFeePlanDraft($case->admissionApplication?->program ?? $case->studentProfile->program, $case->term, $charges, $accounting);
         $this->publishFeePlan($plan, $accounting, 'SYN-PAID-PLAN');
-        app(CreateAssessmentFromPublishedFeePlan::class)->execute($case->fresh(), $accounting);
+        $this->assessUnlessAlreadyAssessed($case, $accounting);
     }
 
     private function enableDigitalChannels(User $accounting): void

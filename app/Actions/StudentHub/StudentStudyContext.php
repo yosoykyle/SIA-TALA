@@ -2,6 +2,7 @@
 
 namespace App\Actions\StudentHub;
 
+use App\Actions\Academics\YearLevelStanding;
 use App\Actions\Enrollment\CurrentOfficialEnrollmentResolver;
 use App\Actions\Enrollment\EnrollmentAcademicContextResolver;
 use App\Actions\Enrollment\RegistrationAcademicEligibilityQuery;
@@ -50,7 +51,7 @@ class StudentStudyContext
                         'curriculum_levels' => $provisionalLevels,
                         'study_level_label' => count($provisionalLabels) === 1
                             ? $provisionalLabels[0]
-                            : 'Mixed levels ('.implode(', ', $provisionalLabels).')',
+                            : (YearLevelStanding::describe($provisionalLevels) ?? 'Mixed levels ('.implode(', ', $provisionalLabels).')'),
                     ]);
                 }
             }
@@ -67,7 +68,8 @@ class StudentStudyContext
             'study_level_label' => match (count($labels)) {
                 0 => 'Unavailable',
                 1 => $labels[0],
-                default => 'Mixed levels ('.implode(', ', $labels).')',
+                // #117: a mixed load shows its highest year level, the same as every other screen.
+                default => YearLevelStanding::describe($levels) ?? 'Mixed levels ('.implode(', ', $labels).')',
             },
             'semester' => Term::typeOptions()[$enrollment->term?->type] ?? null,
             'academic_year' => $enrollment->term?->academicYear?->label,

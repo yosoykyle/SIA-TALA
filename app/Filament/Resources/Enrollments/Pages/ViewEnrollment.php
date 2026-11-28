@@ -856,6 +856,12 @@ class ViewEnrollment extends ViewRecord
             return $this->prepareProposalAction();
         }
         if ($case->currentProposalVersion->state === RegistrationProposalVersion::StateDraft) {
+            // #117: TALA finishes a stopped regular case itself once its blocker clears.
+            if ($this->regularPreparationBlocker() !== null) {
+                return app(RetryStandardRegistrationPreparation::class)->waitingForFeePlan($case)
+                    ? Action::make('awaitFeePlan')->label('Waiting for the Fee Plan')->disabled()
+                    : $this->retryAutomaticPreparationAction();
+            }
             try {
                 app(RegistrationPlacementValidator::class)->assertCurrent($case, $case->currentProposalVersion, requireConfirmation: false);
             } catch (ValidationException) {

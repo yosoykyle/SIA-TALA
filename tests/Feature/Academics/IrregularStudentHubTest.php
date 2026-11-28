@@ -6,11 +6,17 @@ use App\Actions\Academics\RecordAcademicDecision;
 use App\Filament\Student\Pages\Academics as StudentAcademics;
 use App\Filament\Student\Pages\Dashboard as StudentDashboard;
 use App\Models\AcademicDecision;
+use App\Models\CourseEnrollment;
 use App\Models\CourseRequirement;
+use App\Models\CurriculumEntry;
 use App\Models\CurriculumVersion;
+use App\Models\Enrollment;
 use App\Models\GradeRosterRow;
 use App\Models\Program;
+use App\Models\Section;
 use App\Models\StudentProfile;
+use App\Models\Term;
+use App\Models\TermOffering;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -70,6 +76,44 @@ class IrregularStudentHubTest extends TestCase
             ->assertSee('Locked – prerequisite not passed (IT-101A)')
             ->assertSee('data-checklist-state="failed"', false)
             ->assertSee('data-checklist-state="locked"', false);
+    }
+
+    public function test_confirmed_irregular_student_enrolled_this_term_is_not_told_to_apply_again(): void
+    {
+        $student = $this->failedStudentWithDependent();
+        $this->confirmAsRegistrar($student);
+        $currentTerm = $this->term(now()->subWeek(), now()->addMonths(3), Term::TypeSecondSemester, Term::StateActive);
+        $retake = TermOffering::factory()->create([
+            'term_id' => $currentTerm->id,
+            'curriculum_entry_id' => CurriculumEntry::query()
+                ->whereHas('courseSpecification.course', fn ($course) => $course->where('code', 'IT-101A'))
+                ->sole()->id,
+            'state' => TermOffering::StateScheduled,
+        ]);
+        $enrollment = Enrollment::factory()->create([
+            'credential_user_id' => $student->user_id,
+            'student_profile_id' => $student->id,
+            'term_id' => $currentTerm->id,
+            'selection_basis' => Enrollment::SelectionIndividuallyAdvised,
+            'canonical_outcome' => Enrollment::OutcomeOfficiallyEnrolled,
+            'officially_enrolled_at' => now(),
+        ]);
+        CourseEnrollment::query()->create([
+            'enrollment_id' => $enrollment->id,
+            'term_offering_id' => $retake->id,
+            'section_id' => Section::factory()->create(['term_offering_id' => $retake->id])->id,
+            'status' => CourseEnrollment::StatusActive,
+            'is_current' => true,
+            'units_snapshot' => 3.00,
+            'added_at' => now(),
+        ]);
+
+        Filament::setCurrentPanel(Filament::getPanel('student'));
+        Livewire::actingAs($student->user)
+            ->test(StudentDashboard::class)
+            ->assertSee('Status: Irregular')
+            ->assertSee('Your status is reviewed again once grades are released.')
+            ->assertDontSee('You need to apply for irregular enrollment for the next term.');
     }
 
     private function failedStudentWithDependent(): StudentProfile
