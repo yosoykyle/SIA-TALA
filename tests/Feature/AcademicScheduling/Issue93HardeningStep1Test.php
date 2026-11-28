@@ -335,7 +335,16 @@ class Issue93HardeningStep1Test extends TestCase
             'ends_on' => '2027-05-31',
             'state' => AcademicYear::StateDraft,
         ]);
-        $otherYearTerm = Term::factory()->create();
+        $otherYear = AcademicYear::factory()->create([
+            'label' => '2029-2030',
+            'starts_on' => '2029-08-01',
+            'ends_on' => '2030-05-31',
+            'state' => AcademicYear::StateDraft,
+        ]);
+        $otherYearTerm = Term::factory()->for($otherYear)->create([
+            'starts_on' => '2029-08-10',
+            'ends_on' => '2029-12-15',
+        ]);
         GraduationReviewBatch::query()->create([
             'academic_year_id' => $ayWithGradBatch->id,
             'term_id' => $otherYearTerm->id,
