@@ -136,8 +136,16 @@ class EditAdmissionCycle extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            ViewAction::make()->label('Back to overview'),
-            DeleteAction::make()->label('Discard draft')
+            ViewAction::make()
+                ->label('Back to overview')
+                ->icon('heroicon-o-arrow-left')
+                ->color('gray')
+                ->outlined(),
+            DeleteAction::make()
+                ->label('Discard draft')
+                ->icon('heroicon-o-trash')
+                ->color('danger')
+                ->outlined()
                 ->modalWidth(Width::Large)
                 ->stickyModalHeader()
                 ->stickyModalFooter()

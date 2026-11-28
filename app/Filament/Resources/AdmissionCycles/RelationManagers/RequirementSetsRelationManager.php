@@ -198,6 +198,8 @@ class RequirementSetsRelationManager extends RelationManager
     public function table(Table $table): Table
     {
         return $table
+            ->heading('Requirement lists')
+            ->description('Set and publish the required documents for each enabled student type before publishing this cycle.')
             ->recordTitleAttribute('application_path')
             ->columns([
                 TextColumn::make('application_path')
@@ -208,12 +210,17 @@ class RequirementSetsRelationManager extends RelationManager
                 TextColumn::make('version')
                     ->label('Version')
                     ->prefix('v')
+                    ->extraCellAttributes(['class' => 'tabular-nums'])
                     ->sortable(),
                 TextColumn::make('state')->badge(),
-                TextColumn::make('requirements_count')->counts('requirements')->label('Requirements'),
+                TextColumn::make('requirements_count')
+                    ->counts('requirements')
+                    ->label('Requirements')
+                    ->extraCellAttributes(['class' => 'tabular-nums']),
                 TextColumn::make('published_at')
                     ->dateTime('M j, Y · g:i A')
                     ->timezone('Asia/Manila')
+                    ->extraCellAttributes(['class' => 'tabular-nums'])
                     ->placeholder('Not published'),
             ])
             ->filters([
@@ -332,7 +339,8 @@ class RequirementSetsRelationManager extends RelationManager
                         }
                     }),
                 Action::make('duplicateToOtherPath')
-                    ->label(fn (AdmissionRequirementSet $record): string => 'Duplicate to '.AdmissionCycle::studentTypeLabel(self::otherPath($record->application_path)))
+                    ->label('Duplicate')
+                    ->tooltip(fn (AdmissionRequirementSet $record): string => 'Duplicate to '.AdmissionCycle::studentTypeLabel(self::otherPath($record->application_path)))
                     ->icon('heroicon-o-document-duplicate')
                     ->color('gray')
                     ->visible(fn (): bool => $this->getOwnerRecord()->state !== AdmissionCycle::StateCancelled)

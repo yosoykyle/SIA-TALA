@@ -2,6 +2,7 @@
 <x-filament::button
     tag="a"
     color="gray"
+    outlined
     icon="heroicon-m-x-mark"
     :href="\App\Filament\Resources\AdmissionCycles\AdmissionCycleResource::getUrl('index')"
 >
